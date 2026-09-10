@@ -1,16 +1,17 @@
-import { useState } from 'react'
 import { useAnnotationStoreContext } from '../../../context/AnnotationStoreContext'
 import { ShapeTools } from '../Tools'
 import SavedAnnotationEdit from './SavedAnnotationEdit'
 import './SavedAnnotationList.css'
 
 function SavedAnnotationList() {
-  const { annotations, status } = useAnnotationStoreContext()
-  const [editingId, setEditingId] = useState<string | null>(null)
+  const { annotations, status, selectedAnnotationId, setSelectedAnnotationId } =
+    useAnnotationStoreContext()
 
-  const editing = annotations.find((a) => a.id === editingId)
+  const editing = annotations.find((a) => a.id === selectedAnnotationId)
   if (editing) {
-    return <SavedAnnotationEdit annotation={editing} onBack={() => setEditingId(null)} />
+    return (
+      <SavedAnnotationEdit annotation={editing} onBack={() => setSelectedAnnotationId(null)} />
+    )
   }
 
   if (status === 'loading') {
@@ -32,7 +33,7 @@ function SavedAnnotationList() {
           <button
             type="button"
             className="saved-annotation-list-item"
-            onClick={() => setEditingId(annotation.id)}
+            onClick={() => setSelectedAnnotationId(annotation.id)}
           >
             <span
               className="saved-annotation-list-swatch"

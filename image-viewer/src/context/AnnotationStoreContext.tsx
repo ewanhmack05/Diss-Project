@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import VectorSource from 'ol/source/Vector'
 import type { Annotation } from '../interfaces/Annotation'
 import { useImageViewerContext } from './ImageViewerContext'
 
@@ -11,9 +12,16 @@ type Status = 'loading' | 'ready' | 'error'
 interface AnnotationStoreContextValue {
   annotations: Annotation[]
   status: Status
+  selectedAnnotationId: string | null
+  // The OL features MapNode renders saved annotations as - shared here (not
+  // owned by MapNode) so editing UI (colour changes, etc.) can preview
+  // directly against the live map feature, the same way AddAnnotationForm
+  // does against a pending draw's feature.
+  annotationsSource: VectorSource
   addAnnotation: (annotation: Annotation) => void
   updateAnnotation: (id: string, patch: Partial<Annotation>) => void
   deleteAnnotation: (id: string) => void
+  setSelectedAnnotationId: (id: string | null) => void
 }
 
 const AnnotationStoreContext = createContext<AnnotationStoreContextValue | null>(null)
@@ -24,6 +32,8 @@ function AnnotationStoreContextProvider({ children }: { children: ReactNode }) {
 
   const [annotations, setAnnotations] = useState<Annotation[]>([])
   const [status, setStatus] = useState<Status>('loading')
+  const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null)
+  const annotationsSourceRef = useRef(new VectorSource())
 
   // Load whatever's already saved for this slide - the reason to have a
   // backend at all is that this survives a reload, unlike plain React state.
@@ -81,7 +91,16 @@ function AnnotationStoreContextProvider({ children }: { children: ReactNode }) {
 
   return (
     <AnnotationStoreContext.Provider
-      value={{ annotations, status, addAnnotation, updateAnnotation, deleteAnnotation }}
+      value={{
+        annotations,
+        status,
+        selectedAnnotationId,
+        annotationsSource: annotationsSourceRef.current,
+        addAnnotation,
+        updateAnnotation,
+        deleteAnnotation,
+        setSelectedAnnotationId,
+      }}
     >
       {children}
     </AnnotationStoreContext.Provider>

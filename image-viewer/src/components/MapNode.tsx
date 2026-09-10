@@ -12,6 +12,7 @@ import { geoJsonToFeature } from './open-layers/GeoJSON'
 import { useImageViewerContext } from '../context/ImageViewerContext'
 import { useAnnotationStoreContext } from '../context/AnnotationStoreContext'
 import { useDrawContext } from '../context/DrawContext'
+import { useToolbarContext } from '../context/ToolbarContext'
 import { ShapeTools } from './annotation/Tools'
 import './MapNode.css'
 
@@ -24,14 +25,17 @@ interface SlideMetadata {
 
 function MapNode() {
   const { source } = useImageViewerContext()
-  const { annotations } = useAnnotationStoreContext()
+  const { annotations, selectedAnnotationId, annotationsSource } = useAnnotationStoreContext()
   const { activeTool, colour, lineThickness, lineStyle, setActiveTool, pending, setPending } =
     useDrawContext()
+  const { activeTools } = useToolbarContext()
+  const annotationsVisible = activeTools.includes('annotations')
 
   const mapElement = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<Map | null>(null)
   const drawSourceRef = useRef(new VectorSource())
-  const annotationsSourceRef = useRef(new VectorSource())
+  const annotationsLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
+  const drawLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -43,10 +47,17 @@ function MapNode() {
     const finish = (size: ImageSize, spec: BaseLayerSpec, objectivePower: number | null = null) => {
       if (cancelled || !mapElement.current) return
       const annotationsLayer = new VectorLayer({
-        source: annotationsSourceRef.current,
+        source: annotationsSource,
         style: annotationStyle,
+        visible: annotationsVisible,
       })
-      const drawLayer = new VectorLayer({ source: drawSourceRef.current, style: annotationStyle })
+      const drawLayer = new VectorLayer({
+        source: drawSourceRef.current,
+        style: annotationStyle,
+        visible: annotationsVisible,
+      })
+      annotationsLayerRef.current = annotationsLayer
+      drawLayerRef.current = drawLayer
       mapRef.current = OpenLayerMap(mapElement.current, size, spec, objectivePower, [
         annotationsLayer,
         drawLayer,
@@ -95,9 +106,8 @@ function MapNode() {
 
   // Keep the map's annotations layer in sync with the saved-annotations store.
   useEffect(() => {
-    const source = annotationsSourceRef.current
-    source.clear()
-    source.addFeatures(
+    annotationsSource.clear()
+    annotationsSource.addFeatures(
       annotations.map((annotation) => {
         const feature = geoJsonToFeature(annotation.geoJson)
         feature.setId(annotation.id)
@@ -108,7 +118,35 @@ function MapNode() {
         return feature
       })
     )
-  }, [annotations])
+  }, [annotations, annotationsSource])
+
+  // Keep annotation shapes off the image unless the annotations panel is
+  // actually open - re-applied on every toggle; the layers' own construction
+  // above already picks up whatever this was at map-build time.
+  useEffect(() => {
+    annotationsLayerRef.current?.setVisible(annotationsVisible)
+    drawLayerRef.current?.setVisible(annotationsVisible)
+  }, [annotationsVisible])
+
+  // Bring a saved annotation into view when it's selected for editing -
+  // reads the already-built feature straight off the annotations source
+  // rather than re-parsing geoJson, since the sync effect below keeps it
+  // current with the store.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !selectedAnnotationId) return
+
+    const feature = annotationsSource.getFeatureById(selectedAnnotationId)
+    const extent = feature?.getGeometry()?.getExtent()
+    if (!extent) return
+
+    map.getView().fit(extent, {
+      size: map.getSize(),
+      padding: [80, 80, 80, 80],
+      minResolution: 1,
+      duration: 400,
+    })
+  }, [selectedAnnotationId, annotationsSource])
 
   // Once a pending (just-drawn, unsaved) feature is cleared — by saving or
   // discarding — clear it from the scratch draw source too.

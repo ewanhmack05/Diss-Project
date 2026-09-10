@@ -25,6 +25,11 @@
   color: var(--chrome-text);
 }
 
+.annotations-panel-tab:disabled {
+  color: var(--disabled);
+  cursor: not-allowed;
+}
+
 .annotations-panel-tab--active {
   color: var(--chrome-text);
   border-bottom-color: var(--accent);

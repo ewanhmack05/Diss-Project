@@ -9,6 +9,7 @@ function AddAnnotationForm() {
   const { pending, colour, lineThickness, lineStyle, setColour, setPending } = useDrawContext()
   const { addAnnotation } = useAnnotationStoreContext()
   const [label, setLabel] = useState('')
+  const [notes, setNotes] = useState('')
 
   if (!pending) return null
 
@@ -17,6 +18,7 @@ function AddAnnotationForm() {
     addAnnotation({
       id: crypto.randomUUID(),
       label: label.trim(),
+      notes: notes.trim(),
       colour,
       shape: pending.shape,
       lineStyle,
@@ -26,11 +28,21 @@ function AddAnnotationForm() {
     })
     setPending(null)
     setLabel('')
+    setNotes('')
   }
 
   const handleRedraw = () => {
     setPending(null)
     setLabel('')
+    setNotes('')
+  }
+
+  // feature.set() fires OL's own change event, which the draw layer is
+  // already listening for - re-styling the pending shape immediately, no
+  // extra re-render plumbing needed.
+  const handleColourChange = (next: string) => {
+    setColour(next)
+    pending.feature.set('colour', next)
   }
 
   return (
@@ -47,7 +59,18 @@ function AddAnnotationForm() {
         />
       </label>
 
-      <ColourPicker value={colour} onChange={setColour} />
+      <label className="annotation-form-field">
+        Notes
+        <textarea
+          value={notes}
+          maxLength={256}
+          rows={3}
+          placeholder="Add any thoughts on this annotation"
+          onChange={(e) => setNotes(e.target.value)}
+        />
+      </label>
+
+      <ColourPicker value={colour} onChange={handleColourChange} />
 
       <div className="annotation-form-actions">
         <button type="button" className="annotation-form-button" onClick={handleRedraw}>

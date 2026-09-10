@@ -9,14 +9,17 @@ tiler/              .NET tile server for .mrxs whole-slide images. See tiler/REA
 annotation-store/   .NET + Postgres backend for persisted annotations. See annotation-store/README.md
 ```
 
-## Running everything
+## Running everything - 3 terminals required
 
 ```bash
-npm --prefix image-viewer install
-npm --prefix image-viewer run dev          # http://localhost:5173
+cd image-viewer/
+npm run dev          # http://localhost:5173
 
-dotnet run --project tiler --urls http://localhost:5095
-dotnet run --project annotation-store --urls http://localhost:5252
+cd tiler/
+dotnet run --urls http://localhost:5095
+
+cd annotation-store/
+dotnet run --urls http://localhost:5252
 ```
 
 Each service has its own README with more detail. `image-viewer` is wired

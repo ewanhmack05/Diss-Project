@@ -1,6 +1,10 @@
 using AnnotationStore.Annotations;
 using DotNetEnv;
 using Microsoft.EntityFrameworkCore;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+using Scalar.AspNetCore;
 
 // Loads .env (if present - it's gitignored, so it won't exist on a fresh
 // clone or in a hosted environment) into process environment variables,
@@ -21,8 +25,24 @@ builder.Services.AddCors(options =>
         policy.WithOrigins("http://localhost:5173").AllowAnyMethod().AllowAnyHeader());
 });
 
+builder.Services.AddOpenApi();
+
+// Console exporter - no collector to stand up for a dev/dissertation setup.
+// Swap AddConsoleExporter() for AddOtlpExporter() if this ever needs to feed
+// a real backend (Jaeger, Aspire dashboard, etc).
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService("annotation-store"))
+    .WithTracing(tracing => tracing.AddAspNetCoreInstrumentation().AddConsoleExporter())
+    .WithMetrics(metrics => metrics.AddAspNetCoreInstrumentation().AddConsoleExporter());
+
 var app = builder.Build();
 app.UseCors();
+
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+    app.MapScalarApiReference();
+}
 
 // Dev convenience so a fresh checkout (or a pulled schema change) doesn't
 // need a manual `dotnet ef database update` first - creates the database
@@ -50,6 +70,7 @@ app.MapPut("/annotations/{id:guid}", async (Guid id, Annotation update, Annotati
     var existing = await db.Annotations.FindAsync(id);
     if (existing is null) return Results.NotFound();
     existing.Label = update.Label;
+    existing.Notes = update.Notes;
     existing.Colour = update.Colour;
     await db.SaveChangesAsync();
     return Results.Ok(existing);

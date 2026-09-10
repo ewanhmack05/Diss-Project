@@ -46,6 +46,10 @@ namespace AnnotationStore.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<string>("LineStyle")
                         .IsRequired()
                         .HasColumnType("text");

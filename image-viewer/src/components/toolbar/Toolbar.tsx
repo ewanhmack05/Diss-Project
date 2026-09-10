@@ -2,6 +2,15 @@ import { useEffect, useState } from 'react'
 import { useToolbarContext } from '../../context/ToolbarContext'
 import './Toolbar.css'
 
+// Global shortcuts (like F for fullscreen) shouldn't fire while the user is
+// typing somewhere - e.g. "f" in an annotation's label or notes field.
+const TYPING_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  return TYPING_TAGS.has(target.tagName) || target.isContentEditable
+}
+
 function AnnotationsIcon() {
   return (
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -54,7 +63,9 @@ function Toolbar() {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'f' || e.key === 'F') toggleFullscreen()
+      if (e.key !== 'f' && e.key !== 'F') return
+      if (isTypingTarget(e.target)) return
+      toggleFullscreen()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)

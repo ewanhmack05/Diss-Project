@@ -56,17 +56,18 @@ by default for Postgres' `postgres` superuser) as well as the schema.
 
 `Annotations/Annotation.cs`:
 
-| field           | type            | notes                                  |
-|-----------------|-----------------|------------------------------------------|
-| `Id`            | uuid, PK        | client-generated (matches `image-viewer`'s `crypto.randomUUID()`) if provided, else server-assigned |
-| `SlideId`       | text, indexed   | which slide this annotation belongs to |
-| `Label`         | text            |                                         |
-| `Colour`        | text            |                                         |
-| `Shape`         | text            | `line` / `freehand` / `polygon` / `arrow` / `rectangle` / `circle` |
-| `LineStyle`     | text            | `solid` / `dashed`                     |
-| `LineThickness` | int             |                                         |
-| `GeoJson`       | text            | the drawn feature, as written by `image-viewer`'s `featureToGeoJson` |
-| `Created`       | timestamptz     | server-assigned                        |
+| field           | type          | notes                                                                                               |
+| --------------- | ------------- | --------------------------------------------------------------------------------------------------- |
+| `Id`            | uuid, PK      | client-generated (matches `image-viewer`'s `crypto.randomUUID()`) if provided, else server-assigned |
+| `SlideId`       | text, indexed | which slide this annotation belongs to                                                              |
+| `Label`         | text          |                                                                                                     |
+| `Notes`         | text          |                                                                                                     |
+| `Colour`        | text          |                                                                                                     |
+| `Shape`         | text          | `line` / `freehand` / `polygon` / `arrow` / `rectangle` / `circle`                                  |
+| `LineStyle`     | text          | `solid` / `dashed`                                                                                  |
+| `LineThickness` | int           |                                                                                                     |
+| `GeoJson`       | text          | the drawn feature, as written by `image-viewer`'s `featureToGeoJson`                                |
+| `Created`       | timestamptz   | server-assigned                                                                                     |
 
 ## Not yet wired up
 

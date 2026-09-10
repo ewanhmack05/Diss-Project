@@ -12,7 +12,8 @@
   color: var(--chrome-text-secondary);
 }
 
-.annotation-form-field input[type='text'] {
+.annotation-form-field input[type='text'],
+.annotation-form-field textarea {
   padding: 0.5em;
   font-family: var(--sans);
   font-size: 1em;
@@ -22,7 +23,12 @@
   border-radius: 0.3125rem;
 }
 
-.annotation-form-field input[type='text']:focus {
+.annotation-form-field textarea {
+  resize: vertical;
+}
+
+.annotation-form-field input[type='text']:focus,
+.annotation-form-field textarea:focus {
   outline: none;
   border-color: var(--accent);
 }

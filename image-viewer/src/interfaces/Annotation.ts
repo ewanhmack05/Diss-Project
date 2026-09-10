@@ -3,6 +3,7 @@ import type { ShapeTool, LineStyleName } from "../components/annotation/Tools";
 interface Annotation {
 	id: string;
 	label: string;
+	notes: string;
 	colour: string;
 	shape: ShapeTool;
 	lineStyle: LineStyleName;

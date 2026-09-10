@@ -1,3 +1,7 @@
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+using Scalar.AspNetCore;
 using SkiaSharp;
 using Tiler.Slides;
 
@@ -10,8 +14,24 @@ builder.Services.AddCors(options =>
         policy.WithOrigins("http://localhost:5173").AllowAnyMethod().AllowAnyHeader());
 });
 
+builder.Services.AddOpenApi();
+
+// Console exporter - no collector to stand up for a dev/dissertation setup.
+// Swap AddConsoleExporter() for AddOtlpExporter() if this ever needs to feed
+// a real backend (Jaeger, Aspire dashboard, etc).
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService("tiler"))
+    .WithTracing(tracing => tracing.AddAspNetCoreInstrumentation().AddConsoleExporter())
+    .WithMetrics(metrics => metrics.AddAspNetCoreInstrumentation().AddConsoleExporter());
+
 var app = builder.Build();
 app.UseCors();
+
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+    app.MapScalarApiReference();
+}
 
 app.MapGet("/slides", (SlideCatalog catalog) =>
 {
@@ -27,17 +47,24 @@ app.MapGet("/slides/{id}", (string id, SlideCatalog catalog) =>
     return info is null ? Results.NotFound() : Results.Ok(info);
 });
 
-app.MapGet("/slides/{id}/TileGroup{group:int}/{z:int}-{x:int}-{y:int}.jpg", async (string id, int z, int x, int y, SlideCatalog catalog) =>
+app.MapGet("/slides/{id}/TileGroup{group:int}/{z:int}-{x:int}-{y:int}.jpg", (string id, int z, int x, int y, SlideCatalog catalog) =>
 {
     var slide = catalog.Get(id);
     var info = catalog.GetInfo(id);
     if (slide is null || info is null) return Results.NotFound();
 
-    var request = ZoomifyTiling.Resolve(slide, info.Width, info.Height, z, x, y);
-    if (request is null) return Results.NotFound();
+    byte[] raw;
+    ZoomifyTiling.TileRequest request;
+    lock (catalog.GetReadLock(id))
+    {
+        var resolved = ZoomifyTiling.Resolve(slide, info.Width, info.Height, z, x, y);
+        if (resolved is null) return Results.NotFound();
+        request = resolved;
 
-    // OpenSlide returns pre-multiplied BGRA; Skia's Bgra8888/Premul matches that layout exactly.
-    var raw = slide.ReadRegion(request.SlideLevel, request.X0, request.Y0, request.ReadWidth, request.ReadHeight);
+        // OpenSlide returns pre-multiplied BGRA; Skia's Bgra8888/Premul matches that layout exactly.
+        raw = slide.ReadRegion(request.SlideLevel, request.X0, request.Y0, request.ReadWidth, request.ReadHeight);
+    }
+
     var sourceInfo = new SKImageInfo((int)request.ReadWidth, (int)request.ReadHeight, SKColorType.Bgra8888, SKAlphaType.Premul);
     using var sourceBitmap = new SKBitmap(sourceInfo);
     System.Runtime.InteropServices.Marshal.Copy(raw, 0, sourceBitmap.GetPixels(), raw.Length);

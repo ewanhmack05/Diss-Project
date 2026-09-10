@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAnnotationStoreContext } from '../../context/AnnotationStoreContext'
+import { useDrawContext } from '../../context/DrawContext'
 import FreeForm from './FreeForm/FreeForm'
 import SavedAnnotationList from './Saved/SavedAnnotationList'
 import './AnnotationsPanel.css'
@@ -8,7 +9,8 @@ type AnnotationsTab = 'free-form' | 'saved'
 
 function AnnotationsPanel() {
   const [tab, setTab] = useState<AnnotationsTab>('free-form')
-  const { annotations } = useAnnotationStoreContext()
+  const { annotations, setSelectedAnnotationId } = useAnnotationStoreContext()
+  const { pending } = useDrawContext()
 
   return (
     <div className="annotations-panel">
@@ -16,13 +18,20 @@ function AnnotationsPanel() {
         <button
           type="button"
           className={`annotations-panel-tab${tab === 'free-form' ? ' annotations-panel-tab--active' : ''}`}
-          onClick={() => setTab('free-form')}
+          onClick={() => {
+            // Selection is shared context state (so the map can pan to it),
+            // not local to the list - leaving Saved should still drop it, or
+            // coming back later reopens straight into whatever was last edited.
+            setSelectedAnnotationId(null)
+            setTab('free-form')
+          }}
         >
           Free Form
         </button>
         <button
           type="button"
           className={`annotations-panel-tab${tab === 'saved' ? ' annotations-panel-tab--active' : ''}`}
+          disabled={!!pending}
           onClick={() => setTab('saved')}
         >
           Saved{annotations.length > 0 ? ` (${annotations.length})` : ''}
