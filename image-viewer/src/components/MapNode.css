@@ -38,3 +38,72 @@
   background-color: var(--chrome-bg);
   color: var(--accent);
 }
+
+/* Overview map: moved to the top-right (clear of the zoom buttons at
+   top-left and the toolbar along the bottom), restyled to match the dark
+   chrome theme instead of OL's default light box + red viewport marker. */
+.map-node .ol-overviewmap {
+  top: 1em;
+  right: 1em;
+  left: auto;
+  bottom: auto;
+  background: var(--chrome-bg);
+  border: none;
+  border-radius: 0.25em;
+  padding: 0.25em;
+}
+
+/* OL's own default collapse button - replaced by the one in our status bar
+   below, which uses the same setCollapsed() API rather than relying on
+   OL's internal (undocumented) button markup. */
+.map-node .ol-overviewmap > button {
+  display: none;
+}
+
+.map-node .ol-overviewmap-map {
+  width: 10em;
+  height: 10em;
+  border: 1px solid var(--chrome-text-secondary);
+}
+
+.map-node .ol-overviewmap-box {
+  border: 2px solid var(--accent);
+}
+
+.map-node .ol-overviewmap-statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+  margin-top: 0.25em;
+  font-family: var(--sans);
+  font-size: 0.85em;
+  color: var(--chrome-text);
+}
+
+.map-node .ol-overviewmap-zoom {
+  font-variant-numeric: tabular-nums;
+}
+
+/* OL's own default stylesheet has ".ol-overviewmap:not(.ol-collapsed) button"
+   (specificity 0,2,1) setting position: absolute; bottom: 0; left: 0 - meant
+   for OL's own internal collapse button, but it matches *any* button inside
+   the overview, including this one, and was yanking it out of the status
+   bar's flex flow to the container's bottom-left corner, overlapping the
+   zoom label. Needs a selector of at least equal specificity (plus the
+   button type) to win outright rather than relying on source order. */
+.map-node .ol-overviewmap button.ol-overviewmap-toggle {
+  position: static;
+  padding: 0 0.25em;
+  font-size: 1em;
+  line-height: 1.4;
+  color: var(--chrome-text);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.map-node .ol-overviewmap-toggle:hover,
+.map-node .ol-overviewmap-toggle:focus {
+  color: var(--accent);
+}

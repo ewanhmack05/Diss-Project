@@ -19,6 +19,7 @@ interface SlideMetadata {
   width: number
   height: number
   tileSize: number
+  objectivePower: number | null
 }
 
 function MapNode() {
@@ -39,14 +40,17 @@ function MapNode() {
 
     let cancelled = false
 
-    const finish = (size: ImageSize, spec: BaseLayerSpec) => {
+    const finish = (size: ImageSize, spec: BaseLayerSpec, objectivePower: number | null = null) => {
       if (cancelled || !mapElement.current) return
       const annotationsLayer = new VectorLayer({
         source: annotationsSourceRef.current,
         style: annotationStyle,
       })
       const drawLayer = new VectorLayer({ source: drawSourceRef.current, style: annotationStyle })
-      mapRef.current = OpenLayerMap(mapElement.current, size, spec, [annotationsLayer, drawLayer])
+      mapRef.current = OpenLayerMap(mapElement.current, size, spec, objectivePower, [
+        annotationsLayer,
+        drawLayer,
+      ])
     }
 
     if (source.kind === 'static') {
@@ -71,7 +75,8 @@ function MapNode() {
         .then((metadata) => {
           finish(
             { width: metadata.width, height: metadata.height },
-            { kind: 'zoomify', baseUrl: `${slideUrl}/`, tileSize: metadata.tileSize }
+            { kind: 'zoomify', baseUrl: `${slideUrl}/`, tileSize: metadata.tileSize },
+            metadata.objectivePower
           )
         })
         .catch(() => {

@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { useDrawContext } from '../../context/DrawContext'
-import { useAnnotationStoreContext } from '../../context/AnnotationStoreContext'
-import { featureToGeoJson } from '../open-layers/GeoJSON'
+import { useDrawContext } from '../../../context/DrawContext'
+import { useAnnotationStoreContext } from '../../../context/AnnotationStoreContext'
+import { featureToGeoJson } from '../../open-layers/GeoJSON'
 import ColourPicker from './ColourPicker'
 import './AnnotationForm.css'
 

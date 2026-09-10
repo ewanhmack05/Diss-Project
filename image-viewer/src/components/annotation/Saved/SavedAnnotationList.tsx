@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { useAnnotationStoreContext } from '../../context/AnnotationStoreContext'
-import { ShapeTools } from './Tools'
+import { useAnnotationStoreContext } from '../../../context/AnnotationStoreContext'
+import { ShapeTools } from '../Tools'
 import SavedAnnotationEdit from './SavedAnnotationEdit'
 import './SavedAnnotationList.css'
 

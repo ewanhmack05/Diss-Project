@@ -1,5 +1,5 @@
-import { useDrawContext } from '../../context/DrawContext'
-import { ShapeOrder, ShapeTools, LineThicknessOptions, type LineStyleName } from './Tools'
+import { useDrawContext } from '../../../context/DrawContext'
+import { ShapeOrder, ShapeTools, LineThicknessOptions, type LineStyleName } from '../Tools'
 import ColourPicker from './ColourPicker'
 import './FreeFormToolPicker.css'
 

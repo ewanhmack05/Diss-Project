@@ -3,7 +3,7 @@ using OpenSlideSharp;
 
 namespace Tiler.Slides;
 
-public sealed record SlideInfo(string Id, string FileName, long Width, long Height, int TileSize);
+public sealed record SlideInfo(string Id, string FileName, long Width, long Height, int TileSize, double? ObjectivePower);
 
 /// <summary>
 /// Discovers .mrxs (and other OpenSlide-readable) files under a data directory
@@ -44,7 +44,14 @@ public sealed class SlideCatalog : IDisposable
         if (slide is null) return null;
 
         var dimensions = slide.Dimensions;
-        return new SlideInfo(id, Path.GetFileName(_pathsById[id]), dimensions.Width, dimensions.Height, ZoomifyTiling.TileSize);
+        // openslide.objective-power is the scanner's real objective magnification
+        // (OpenSlide's standard property, parsed from the format's own metadata -
+        // e.g. MIRAX's Slidedat.ini). Not every format/slide reports it.
+        double? objectivePower = slide.TryGetProperty("openslide.objective-power", out var raw)
+            && double.TryParse(raw, System.Globalization.CultureInfo.InvariantCulture, out var power)
+                ? power
+                : null;
+        return new SlideInfo(id, Path.GetFileName(_pathsById[id]), dimensions.Width, dimensions.Height, ZoomifyTiling.TileSize, objectivePower);
     }
 
     public void Dispose()

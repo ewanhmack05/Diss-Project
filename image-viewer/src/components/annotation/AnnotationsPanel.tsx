@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useAnnotationStoreContext } from '../../context/AnnotationStoreContext'
-import FreeForm from './FreeForm'
-import SavedAnnotationList from './SavedAnnotationList'
+import FreeForm from './FreeForm/FreeForm'
+import SavedAnnotationList from './Saved/SavedAnnotationList'
 import './AnnotationsPanel.css'
 
 type AnnotationsTab = 'free-form' | 'saved'
