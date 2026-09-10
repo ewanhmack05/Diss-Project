@@ -18,5 +18,4 @@ npm --prefix image-viewer run dev          # http://localhost:5173
 dotnet run --project tiler --urls http://localhost:5095
 ```
 
-Each service has its own README with more detail. `image-viewer` isn't
-wired up to `tiler` yet - see tiler/README.md's "Not yet wired up" section.
+Each service has its own README with more detail
