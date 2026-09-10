@@ -1,0 +1,35 @@
+.annotations-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.annotations-panel-tabs {
+  display: flex;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.annotations-panel-tab {
+  flex: 1;
+  padding: 0.6em;
+  font-family: var(--sans);
+  font-size: 0.9em;
+  font-weight: 600;
+  color: var(--chrome-text-secondary);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+
+.annotations-panel-tab:hover {
+  color: var(--chrome-text);
+}
+
+.annotations-panel-tab--active {
+  color: var(--chrome-text);
+  border-bottom-color: var(--accent);
+}
+
+.annotations-panel-content {
+  padding: 1em;
+}

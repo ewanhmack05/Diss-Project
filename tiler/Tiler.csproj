@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="OpenSlideSharp" Version="1.1.2" />
+    <PackageReference Include="OpenSlideSharp.runtime.win" Version="1.1.2" />
+    <PackageReference Include="SkiaSharp" Version="4.152.0" />
+  </ItemGroup>
+
+</Project>

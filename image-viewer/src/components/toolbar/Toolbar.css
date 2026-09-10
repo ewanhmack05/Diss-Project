@@ -1,0 +1,35 @@
+.toolbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3.69em;
+  display: flex;
+  align-items: center;
+  gap: 0.25em;
+  padding: 0 0.5em;
+  background: var(--chrome-bg);
+  z-index: 20;
+}
+
+.toolbar-button {
+  width: 3.69em;
+  height: 3.69em;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--chrome-text);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.toolbar-button:hover {
+  color: var(--accent);
+}
+
+.toolbar-button--active {
+  color: var(--accent-active);
+}

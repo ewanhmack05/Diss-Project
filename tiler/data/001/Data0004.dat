@@ -1,0 +1,560 @@
+01.017C691E3F2DC6412781AECA3E3B3213C10040000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000<scaninfo>
+  <data>
+    <scaninfo XImagePos="32" YImagePos="73" XMotorPos="14333" YMotorPos="46213" ZMotorPos="1706" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   163.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="32" YImagePos="74" XMotorPos="14333" YMotorPos="46518" ZMotorPos="1706" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   162.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="32" YImagePos="75" XMotorPos="14333" YMotorPos="46822" ZMotorPos="1701" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   167.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="32" YImagePos="76" XMotorPos="14333" YMotorPos="47126" ZMotorPos="1701" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   166.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="32" YImagePos="77" XMotorPos="14333" YMotorPos="47431" ZMotorPos="1701" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   165.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="32" YImagePos="78" XMotorPos="14333" YMotorPos="47735" ZMotorPos="1701" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   162.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="32" YImagePos="79" XMotorPos="14333" YMotorPos="48040" ZMotorPos="1700" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   169.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="32" YImagePos="80" XMotorPos="14333" YMotorPos="48344" ZMotorPos="1700" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   158.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="32" YImagePos="81" XMotorPos="14333" YMotorPos="48649" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   160.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="32" YImagePos="82" XMotorPos="14333" YMotorPos="48953" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   163.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="32" YImagePos="84" XMotorPos="14333" YMotorPos="49562" ZMotorPos="1715" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   173.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="32" YImagePos="83" XMotorPos="14333" YMotorPos="49258" ZMotorPos="1703" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   163.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="32" YImagePos="85" XMotorPos="14333" YMotorPos="49866" ZMotorPos="1703" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   158.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="32" YImagePos="86" XMotorPos="14333" YMotorPos="50171" ZMotorPos="1704" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   173.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="33" YImagePos="86" XMotorPos="14750" YMotorPos="50171" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   163.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="33" YImagePos="85" XMotorPos="14750" YMotorPos="49866" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   159.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="33" YImagePos="84" XMotorPos="14750" YMotorPos="49562" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   168.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="33" YImagePos="83" XMotorPos="14750" YMotorPos="49258" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   162.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="33" YImagePos="82" XMotorPos="14750" YMotorPos="48953" ZMotorPos="1700" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   166.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="33" YImagePos="81" XMotorPos="14750" YMotorPos="48649" ZMotorPos="1700" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   166.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="33" YImagePos="80" XMotorPos="14750" YMotorPos="48344" ZMotorPos="1701" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   159.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="33" YImagePos="79" XMotorPos="14750" YMotorPos="48040" ZMotorPos="1701" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   166.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="33" YImagePos="78" XMotorPos="14750" YMotorPos="47735" ZMotorPos="1699" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   163.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="33" YImagePos="77" XMotorPos="14750" YMotorPos="47431" ZMotorPos="1699" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   166.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="33" YImagePos="76" XMotorPos="14750" YMotorPos="47126" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   158.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="33" YImagePos="74" XMotorPos="14750" YMotorPos="46518" ZMotorPos="1716" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   167.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="33" YImagePos="75" XMotorPos="14750" YMotorPos="46822" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   157.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="33" YImagePos="73" XMotorPos="14750" YMotorPos="46213" ZMotorPos="1704" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   162.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="34" YImagePos="73" XMotorPos="15167" YMotorPos="46213" ZMotorPos="1704" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   161.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="34" YImagePos="74" XMotorPos="15167" YMotorPos="46518" ZMotorPos="1704" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   162.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="34" YImagePos="75" XMotorPos="15167" YMotorPos="46822" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   160.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="34" YImagePos="76" XMotorPos="15167" YMotorPos="47126" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   167.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="34" YImagePos="77" XMotorPos="15167" YMotorPos="47431" ZMotorPos="1699" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   158.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="34" YImagePos="78" XMotorPos="15167" YMotorPos="47735" ZMotorPos="1699" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   166.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="34" YImagePos="79" XMotorPos="15167" YMotorPos="48040" ZMotorPos="1701" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   167.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="34" YImagePos="80" XMotorPos="15167" YMotorPos="48344" ZMotorPos="1701" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   161.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="34" YImagePos="81" XMotorPos="15167" YMotorPos="48649" ZMotorPos="1700" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   158.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="34" YImagePos="82" XMotorPos="15167" YMotorPos="48953" ZMotorPos="1700" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   162.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="34" YImagePos="83" XMotorPos="15167" YMotorPos="49258" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   166.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="34" YImagePos="84" XMotorPos="15167" YMotorPos="49562" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   162.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="34" YImagePos="85" XMotorPos="15167" YMotorPos="49866" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   173.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="34" YImagePos="86" XMotorPos="15167" YMotorPos="50171" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   158.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="35" YImagePos="86" XMotorPos="15583" YMotorPos="50171" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   166.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="35" YImagePos="85" XMotorPos="15583" YMotorPos="49866" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   167.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="35" YImagePos="84" XMotorPos="15583" YMotorPos="49562" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   165.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="35" YImagePos="83" XMotorPos="15583" YMotorPos="49258" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   163.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="35" YImagePos="82" XMotorPos="15583" YMotorPos="48953" ZMotorPos="1701" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   164.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="35" YImagePos="81" XMotorPos="15583" YMotorPos="48649" ZMotorPos="1701" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   162.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="35" YImagePos="80" XMotorPos="15583" YMotorPos="48344" ZMotorPos="1700" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   159.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="35" YImagePos="79" XMotorPos="15583" YMotorPos="48040" ZMotorPos="1700" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   159.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="35" YImagePos="78" XMotorPos="15583" YMotorPos="47735" ZMotorPos="1701" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   158.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="35" YImagePos="77" XMotorPos="15583" YMotorPos="47431" ZMotorPos="1701" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   161.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="35" YImagePos="76" XMotorPos="15583" YMotorPos="47126" ZMotorPos="1700" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   166.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="35" YImagePos="75" XMotorPos="15583" YMotorPos="46822" ZMotorPos="1700" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   165.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="35" YImagePos="74" XMotorPos="15583" YMotorPos="46518" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   162.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="36" YImagePos="73" XMotorPos="16000" YMotorPos="46213" ZMotorPos="1714" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   170.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="35" YImagePos="73" XMotorPos="15583" YMotorPos="46213" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   159.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="36" YImagePos="74" XMotorPos="16000" YMotorPos="46518" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   166.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="36" YImagePos="75" XMotorPos="16000" YMotorPos="46822" ZMotorPos="1700" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   163.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="36" YImagePos="76" XMotorPos="16000" YMotorPos="47126" ZMotorPos="1700" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   158.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="36" YImagePos="77" XMotorPos="16000" YMotorPos="47431" ZMotorPos="1701" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   162.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="36" YImagePos="78" XMotorPos="16000" YMotorPos="47735" ZMotorPos="1701" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   165.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="36" YImagePos="79" XMotorPos="16000" YMotorPos="48040" ZMotorPos="1700" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   158.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="36" YImagePos="80" XMotorPos="16000" YMotorPos="48344" ZMotorPos="1700" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   160.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="36" YImagePos="81" XMotorPos="16000" YMotorPos="48649" ZMotorPos="1701" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   167.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="36" YImagePos="82" XMotorPos="16000" YMotorPos="48953" ZMotorPos="1701" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   160.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="36" YImagePos="83" XMotorPos="16000" YMotorPos="49258" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   162.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="36" YImagePos="84" XMotorPos="16000" YMotorPos="49562" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   163.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="36" YImagePos="85" XMotorPos="16000" YMotorPos="49866" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   162.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="36" YImagePos="86" XMotorPos="16000" YMotorPos="50171" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   159.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="37" YImagePos="86" XMotorPos="16417" YMotorPos="50171" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   165.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="37" YImagePos="85" XMotorPos="16417" YMotorPos="49866" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   162.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="37" YImagePos="84" XMotorPos="16417" YMotorPos="49562" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   161.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="37" YImagePos="83" XMotorPos="16417" YMotorPos="49258" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   162.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="37" YImagePos="82" XMotorPos="16417" YMotorPos="48953" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   163.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="37" YImagePos="81" XMotorPos="16417" YMotorPos="48649" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   162.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="37" YImagePos="80" XMotorPos="16417" YMotorPos="48344" ZMotorPos="1701" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   158.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="37" YImagePos="79" XMotorPos="16417" YMotorPos="48040" ZMotorPos="1701" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   164.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="37" YImagePos="78" XMotorPos="16417" YMotorPos="47735" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   158.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="37" YImagePos="77" XMotorPos="16417" YMotorPos="47431" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   161.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="37" YImagePos="76" XMotorPos="16417" YMotorPos="47126" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   158.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="37" YImagePos="75" XMotorPos="16417" YMotorPos="46822" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   160.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="37" YImagePos="73" XMotorPos="16417" YMotorPos="46213" ZMotorPos="1714" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   173.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="38" YImagePos="73" XMotorPos="16833" YMotorPos="46213" ZMotorPos="1718" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   168.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="37" YImagePos="74" XMotorPos="16417" YMotorPos="46518" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   166.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="38" YImagePos="74" XMotorPos="16833" YMotorPos="46518" ZMotorPos="1706" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   163.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="38" YImagePos="75" XMotorPos="16833" YMotorPos="46822" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   158.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="38" YImagePos="76" XMotorPos="16833" YMotorPos="47126" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   163.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="38" YImagePos="77" XMotorPos="16833" YMotorPos="47431" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   162.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="38" YImagePos="78" XMotorPos="16833" YMotorPos="47735" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   163.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="38" YImagePos="79" XMotorPos="16833" YMotorPos="48040" ZMotorPos="1701" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   165.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="38" YImagePos="80" XMotorPos="16833" YMotorPos="48344" ZMotorPos="1701" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   163.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="38" YImagePos="81" XMotorPos="16833" YMotorPos="48649" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   164.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="38" YImagePos="82" XMotorPos="16833" YMotorPos="48953" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   163.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="38" YImagePos="83" XMotorPos="16833" YMotorPos="49258" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   169.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="38" YImagePos="84" XMotorPos="16833" YMotorPos="49562" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   158.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="38" YImagePos="85" XMotorPos="16833" YMotorPos="49866" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   163.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="39" YImagePos="86" XMotorPos="17250" YMotorPos="50171" ZMotorPos="1726" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   171.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="38" YImagePos="86" XMotorPos="16833" YMotorPos="50171" ZMotorPos="1704" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   167.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="39" YImagePos="85" XMotorPos="17250" YMotorPos="49866" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   159.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="39" YImagePos="84" XMotorPos="17250" YMotorPos="49562" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   166.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="39" YImagePos="83" XMotorPos="17250" YMotorPos="49258" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   163.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="39" YImagePos="82" XMotorPos="17250" YMotorPos="48953" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   165.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="39" YImagePos="81" XMotorPos="17250" YMotorPos="48649" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   163.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="39" YImagePos="80" XMotorPos="17250" YMotorPos="48344" ZMotorPos="1701" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   161.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="39" YImagePos="79" XMotorPos="17250" YMotorPos="48040" ZMotorPos="1701" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   158.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="39" YImagePos="78" XMotorPos="17250" YMotorPos="47735" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   165.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="39" YImagePos="77" XMotorPos="17250" YMotorPos="47431" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   166.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="39" YImagePos="76" XMotorPos="17250" YMotorPos="47126" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   158.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="39" YImagePos="75" XMotorPos="17250" YMotorPos="46822" ZMotorPos="1702" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   161.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="39" YImagePos="73" XMotorPos="17250" YMotorPos="46213" ZMotorPos="1718" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   166.000 ms"/>
+  </data>
+</scaninfo>
+<scaninfo>
+  <data>
+    <scaninfo XImagePos="39" YImagePos="74" XMotorPos="17250" YMotorPos="46518" ZMotorPos="1706" XMotorError="0" YMotorError="0" ZMotorError="0" ObjectLevel="-1.0000" OpticalFocusLevel="-1" LaserFocusLevel="-1.0000" FocusingType="Unfocused" Neighbours="none" FocalPlane="(-1;-1)" ImageAcquisitionTime="   163.000 ms"/>
+  </data>
+</scaninfo>

@@ -1,0 +1,52 @@
+.saved-annotation-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+}
+
+.saved-annotation-list-empty {
+  margin: 0;
+  font-size: 1em;
+  color: var(--chrome-text-secondary);
+}
+
+.saved-annotation-list-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.5em;
+  font-family: var(--sans);
+  color: var(--chrome-text);
+  background: none;
+  border: none;
+  border-radius: 0.3125rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.saved-annotation-list-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.saved-annotation-list-swatch {
+  width: 0.9em;
+  height: 0.9em;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.saved-annotation-list-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-annotation-list-shape {
+  font-size: 0.8em;
+  color: var(--chrome-text-secondary);
+}

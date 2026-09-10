@@ -1,0 +1,65 @@
+.annotation-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+}
+
+.annotation-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+  font-size: 0.9em;
+  color: var(--chrome-text-secondary);
+}
+
+.annotation-form-field input[type='text'] {
+  padding: 0.5em;
+  font-family: var(--sans);
+  font-size: 1em;
+  color: var(--chrome-text);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid transparent;
+  border-radius: 0.3125rem;
+}
+
+.annotation-form-field input[type='text']:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.annotation-form-actions {
+  display: flex;
+  gap: 0.5em;
+  margin-top: 0.25em;
+}
+
+.annotation-form-button {
+  flex: 1;
+  padding: 0.5em;
+  font-family: var(--sans);
+  font-size: 0.9em;
+  font-weight: 600;
+  color: var(--chrome-text);
+  background: rgba(255, 255, 255, 0.06);
+  border: none;
+  border-radius: 0.3125rem;
+  cursor: pointer;
+  transition: color 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.annotation-form-button:hover:not(:disabled) {
+  color: var(--accent);
+}
+
+.annotation-form-button:disabled {
+  color: var(--disabled);
+  cursor: not-allowed;
+}
+
+.annotation-form-button--primary {
+  color: var(--accent-active);
+}
+
+.annotation-form-button--danger:hover:not(:disabled) {
+  color: #e05252;
+}

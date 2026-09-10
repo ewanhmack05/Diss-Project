@@ -1,0 +1,37 @@
+:root {
+  --canvas-bg: #fff;
+  --chrome-bg: rgba(31, 31, 31, 0.902);
+  --chrome-text: #fff;
+  --chrome-text-secondary: #c7c4c4;
+  --accent: #76aeae;
+  --accent-active: #468888;
+  --disabled: rgba(152, 155, 154, 0.9);
+  --border: rgb(199, 196, 196);
+
+  --sans:
+    'Source Sans Pro', Arial, sans-serif;
+
+  color-scheme: light;
+  color: var(--chrome-text);
+  background: var(--canvas-bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font: 13px/145% var(--sans);
+  overflow: hidden;
+}
