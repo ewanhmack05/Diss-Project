@@ -45,18 +45,16 @@ npm install
 npm run dev
 ```
 
-## Pointing it at an image
+## Pointing it at a slide
 
-`src/index.tsx` resolves the image path in this order:
+`src/index.tsx` reads three query params, each with a `localhost` default:
 
-1. A `?src=` query param, e.g. `http://localhost:5173/?src=/my-image.jpg`
-2. The `DEFAULT_IMAGE_PATH` constant in `src/index.tsx` (currently `/sample.svg`)
+- `?slide=<id>` - which slide to open (see `tiler/data/` for available IDs)
+- `?tiler=<url>` - the tiler instance serving it
+- `?annotations=<url>` - the annotation-store instance to read/write against
 
-Either way, the path must resolve to something the dev server can serve - drop
-image files into `public/` and reference them by their `/`-rooted path. The
-image is rendered via OpenLayers' `ImageStatic` source (a single image, not a
-tiled pyramid) - pan/zoom work out of the box; swapping in a tiled source
-later only touches `components/open-layers/OpenLayers.ts`.
+The slide is rendered via OpenLayers' `Zoomify` source (a tiled pyramid, not a
+single static image) - see `components/open-layers/OpenLayers.ts`.
 
 ## Layout
 

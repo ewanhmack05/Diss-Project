@@ -6,7 +6,7 @@ import Draw, { type DrawEvent } from 'ol/interaction/Draw'
 import Translate from 'ol/interaction/Translate'
 import VectorLayer from 'ol/layer/Vector'
 import VectorSource from 'ol/source/Vector'
-import { OpenLayerMap, type BaseLayerSpec, type ImageSize } from './open-layers/OpenLayers'
+import { OpenLayerMap } from './open-layers/OpenLayers'
 import { annotationStyle, sketchStyle } from './open-layers/Styles'
 import { geoJsonToFeature } from './open-layers/GeoJSON'
 import { useImageViewerContext } from '../context/ImageViewerContext'
@@ -44,58 +44,39 @@ function MapNode() {
 
     let cancelled = false
 
-    const finish = (size: ImageSize, spec: BaseLayerSpec, objectivePower: number | null = null) => {
-      if (cancelled || !mapElement.current) return
-      const annotationsLayer = new VectorLayer({
-        source: annotationsSource,
-        style: annotationStyle,
-        visible: annotationsVisible,
+    const slideUrl = `${source.tilerUrl}/slides/${source.slideId}`
+    fetch(slideUrl)
+      .then((response) => {
+        if (!response.ok) throw new Error(String(response.status))
+        return response.json() as Promise<SlideMetadata>
       })
-      const drawLayer = new VectorLayer({
-        source: drawSourceRef.current,
-        style: annotationStyle,
-        visible: annotationsVisible,
-      })
-      annotationsLayerRef.current = annotationsLayer
-      drawLayerRef.current = drawLayer
-      mapRef.current = OpenLayerMap(mapElement.current, size, spec, objectivePower, [
-        annotationsLayer,
-        drawLayer,
-      ])
-    }
-
-    if (source.kind === 'static') {
-      const probe = new window.Image()
-      probe.onload = () => {
-        finish(
-          { width: probe.naturalWidth, height: probe.naturalHeight },
-          { kind: 'static', imagePath: source.imagePath }
+      .then((metadata) => {
+        if (cancelled || !mapElement.current) return
+        const annotationsLayer = new VectorLayer({
+          source: annotationsSource,
+          style: annotationStyle,
+          visible: annotationsVisible,
+        })
+        const drawLayer = new VectorLayer({
+          source: drawSourceRef.current,
+          style: annotationStyle,
+          visible: annotationsVisible,
+        })
+        annotationsLayerRef.current = annotationsLayer
+        drawLayerRef.current = drawLayer
+        mapRef.current = OpenLayerMap(
+          mapElement.current,
+          { width: metadata.width, height: metadata.height },
+          { baseUrl: `${slideUrl}/`, tileSize: metadata.tileSize },
+          metadata.objectivePower,
+          [annotationsLayer, drawLayer]
         )
-      }
-      probe.onerror = () => {
-        if (!cancelled) setError(`Couldn't load image at ${source.imagePath}`)
-      }
-      probe.src = source.imagePath
-    } else {
-      const slideUrl = `${source.tilerUrl}/slides/${source.slideId}`
-      fetch(slideUrl)
-        .then((response) => {
-          if (!response.ok) throw new Error(String(response.status))
-          return response.json() as Promise<SlideMetadata>
-        })
-        .then((metadata) => {
-          finish(
-            { width: metadata.width, height: metadata.height },
-            { kind: 'zoomify', baseUrl: `${slideUrl}/`, tileSize: metadata.tileSize },
-            metadata.objectivePower
-          )
-        })
-        .catch(() => {
-          if (!cancelled) {
-            setError(`Couldn't reach the tile server for "${source.slideId}" at ${source.tilerUrl}`)
-          }
-        })
-    }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setError(`Couldn't reach the tile server for "${source.slideId}" at ${source.tilerUrl}`)
+        }
+      })
 
     return () => {
       cancelled = true

@@ -8,22 +8,33 @@ import { AnnotationStoreContextProvider } from './context/AnnotationStoreContext
 import { DrawContextProvider } from './context/DrawContext'
 import MapNode from './components/MapNode'
 import AnnotationsPanel from './components/annotation/AnnotationsPanel'
-import Toolbar from './components/toolbar/Toolbar'
+import Toolbar, { type ToolName } from './components/toolbar/Toolbar'
 import DraggablePanel from './components/toolbar/DraggablePanel'
 import type { ImageSource } from './interfaces/ImageSource'
 import './App.css'
 
-interface AppProps {
-  source: ImageSource
+interface AppOptions {
+  fontSize?: string
+  tools?: ToolName[]
 }
 
-function App({ source }: AppProps) {
+interface AppProps {
+  source: string
+  tilerServiceUrl: string
+  annotationStoreUrl: string
+  options?: AppOptions
+  on?: (event: string, payload: unknown) => void
+}
+
+function App({ source, tilerServiceUrl, annotationStoreUrl, options, on }: AppProps) {
+  const imageSource: ImageSource = { tilerUrl: tilerServiceUrl, slideId: source }
+
   return (
-    <ImageViewerContextProvider source={source}>
-      <AnnotationStoreContextProvider>
+    <ImageViewerContextProvider source={imageSource}>
+      <AnnotationStoreContextProvider baseUrl={annotationStoreUrl} onEvent={on}>
         <DrawContextProvider>
           <ToolbarContextProvider>
-            <ViewerShell />
+            <ViewerShell fontSize={options?.fontSize} tools={options?.tools} />
           </ToolbarContextProvider>
         </DrawContextProvider>
       </AnnotationStoreContextProvider>
@@ -31,7 +42,12 @@ function App({ source }: AppProps) {
   )
 }
 
-function ViewerShell() {
+interface ViewerShellProps {
+  fontSize?: string
+  tools?: ToolName[]
+}
+
+function ViewerShell({ fontSize, tools }: ViewerShellProps) {
   const { activeTools, toggleTool } = useToolbarContext()
   const [panelPosition, setPanelPosition] = useState({ x: 24, y: 24 })
 
@@ -43,7 +59,7 @@ function ViewerShell() {
   }
 
   return (
-    <div className="app">
+    <div className="app" style={fontSize ? { fontSize } : undefined}>
       <MapNode />
 
       <DndContext onDragEnd={handleDragEnd} modifiers={[restrictToWindowEdges]}>
@@ -60,7 +76,7 @@ function ViewerShell() {
         )}
       </DndContext>
 
-      <Toolbar />
+      <Toolbar tools={tools} />
     </div>
   )
 }

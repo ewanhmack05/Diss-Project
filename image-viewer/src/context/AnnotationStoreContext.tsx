@@ -3,10 +3,6 @@ import VectorSource from 'ol/source/Vector'
 import type { Annotation } from '../interfaces/Annotation'
 import { useImageViewerContext } from './ImageViewerContext'
 
-// annotation-store's base URL - see annotation-store/README.md for how to
-// point it at a different instance.
-const ANNOTATION_STORE_URL = 'http://localhost:5252'
-
 type Status = 'loading' | 'ready' | 'error'
 
 interface AnnotationStoreContextValue {
@@ -26,9 +22,21 @@ interface AnnotationStoreContextValue {
 
 const AnnotationStoreContext = createContext<AnnotationStoreContextValue | null>(null)
 
-function AnnotationStoreContextProvider({ children }: { children: ReactNode }) {
+interface AnnotationStoreContextProviderProps {
+  baseUrl: string
+  // Notifies App's `on` prop, if given, about annotation CRUD - the viewer's
+  // public event surface for a host that wants to observe changes.
+  onEvent?: (event: string, payload: unknown) => void
+  children: ReactNode
+}
+
+function AnnotationStoreContextProvider({
+  baseUrl,
+  onEvent,
+  children,
+}: AnnotationStoreContextProviderProps) {
   const { source } = useImageViewerContext()
-  const slideId = source.kind === 'tiled' ? source.slideId : source.imagePath
+  const { slideId } = source
 
   const [annotations, setAnnotations] = useState<Annotation[]>([])
   const [status, setStatus] = useState<Status>('loading')
@@ -41,7 +49,7 @@ function AnnotationStoreContextProvider({ children }: { children: ReactNode }) {
     let cancelled = false
     setStatus('loading')
 
-    fetch(`${ANNOTATION_STORE_URL}/annotations?slideId=${encodeURIComponent(slideId)}`)
+    fetch(`${baseUrl}/annotations?slideId=${encodeURIComponent(slideId)}`)
       .then((response) => {
         if (!response.ok) throw new Error(String(response.status))
         return response.json() as Promise<Annotation[]>
@@ -58,7 +66,7 @@ function AnnotationStoreContextProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [slideId])
+  }, [baseUrl, slideId])
 
   // Writes are optimistic - update local state immediately for a responsive
   // UI, fire the request, and fall back to an error status if it didn't
@@ -66,7 +74,8 @@ function AnnotationStoreContextProvider({ children }: { children: ReactNode }) {
   // story can wait until this has more than one collaborator writing to it.
   const addAnnotation = (annotation: Annotation) => {
     setAnnotations((current) => [...current, annotation])
-    fetch(`${ANNOTATION_STORE_URL}/annotations`, {
+    onEvent?.('annotation:created', annotation)
+    fetch(`${baseUrl}/annotations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...annotation, slideId }),
@@ -75,7 +84,8 @@ function AnnotationStoreContextProvider({ children }: { children: ReactNode }) {
 
   const updateAnnotation = (id: string, patch: Partial<Annotation>) => {
     setAnnotations((current) => current.map((a) => (a.id === id ? { ...a, ...patch } : a)))
-    fetch(`${ANNOTATION_STORE_URL}/annotations/${id}`, {
+    onEvent?.('annotation:updated', { id, patch })
+    fetch(`${baseUrl}/annotations/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...patch, slideId }),
@@ -84,9 +94,8 @@ function AnnotationStoreContextProvider({ children }: { children: ReactNode }) {
 
   const deleteAnnotation = (id: string) => {
     setAnnotations((current) => current.filter((a) => a.id !== id))
-    fetch(`${ANNOTATION_STORE_URL}/annotations/${id}`, { method: 'DELETE' }).catch(() =>
-      setStatus('error')
-    )
+    onEvent?.('annotation:deleted', { id })
+    fetch(`${baseUrl}/annotations/${id}`, { method: 'DELETE' }).catch(() => setStatus('error'))
   }
 
   return (

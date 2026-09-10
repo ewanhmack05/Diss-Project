@@ -33,3 +33,7 @@
 .toolbar-button--active {
   color: var(--accent-active);
 }
+
+.toolbar-icon {
+  display: flex;
+}

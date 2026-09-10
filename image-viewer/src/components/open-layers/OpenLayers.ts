@@ -1,6 +1,4 @@
 import { Map, View } from 'ol'
-import ImageLayer from 'ol/layer/Image'
-import ImageStatic from 'ol/source/ImageStatic'
 import TileLayer from 'ol/layer/Tile'
 import Zoomify from 'ol/source/Zoomify'
 import Projection from 'ol/proj/Projection'
@@ -11,8 +9,6 @@ interface ImageSize {
   width: number
   height: number
 }
-
-const DEFAULT_TILE_SIZE = 256
 
 // A whole-slide image has no natural CRS, so we project it onto its own
 // pixel grid (Y flipped, since OpenLayers extents grow upward).
@@ -51,20 +47,6 @@ function computeResolutionLadder(size: ImageSize, tileSize: number): number[] {
   return resolutions
 }
 
-function staticImageLayer(
-  imagePath: string,
-  projection: Projection,
-  extent: number[]
-): ImageLayer<ImageStatic> {
-  return new ImageLayer({
-    source: new ImageStatic({
-      url: imagePath,
-      projection,
-      imageExtent: extent,
-    }),
-  })
-}
-
 // baseUrl must include the trailing slide segment, e.g.
 // "http://localhost:5095/slides/000/" - Zoomify appends
 // "TileGroup{g}/{z}-{x}-{y}.jpg" itself, matching tiler's route exactly.
@@ -101,12 +83,13 @@ function olView(projection: Projection, resolutions: number[]): View {
   })
 }
 
-type BaseLayerSpec =
-  | { kind: 'static'; imagePath: string }
-  | { kind: 'zoomify'; baseUrl: string; tileSize: number }
+interface BaseLayerSpec {
+  baseUrl: string
+  tileSize: number
+}
 
 // Layers can't be shared between two Map instances, so the overview needs
-// its own copies built the same way - same projection/extent instance as
+// its own copy built the same way - same projection/extent instance as
 // the main map, so the two line up exactly.
 function buildBaseLayer(
   spec: BaseLayerSpec,
@@ -114,9 +97,7 @@ function buildBaseLayer(
   extent: number[],
   size: ImageSize
 ): BaseLayer {
-  return spec.kind === 'static'
-    ? staticImageLayer(spec.imagePath, projection, extent)
-    : zoomifyLayer(spec.baseUrl, spec.tileSize, size, projection, extent)
+  return zoomifyLayer(spec.baseUrl, spec.tileSize, size, projection, extent)
 }
 
 // Formats a magnification ratio as "x1", "x40", "x0.3" etc - integer once it
@@ -157,9 +138,9 @@ function attachOverviewStatusBar(
   // objectivePower (openslide.objective-power) is the scanner's real
   // objective magnification at native resolution - when the slide reports
   // one, resolution 1 genuinely means e.g. "x40", and it scales down from
-  // there as you zoom out. Without it (static test images, or a format that
-  // doesn't report it), fall back to a relative multiple of the most
-  // zoomed-out tier, which is the closest honest stand-in.
+  // there as you zoom out. Without it (a format that doesn't report it),
+  // fall back to a relative multiple of the most zoomed-out tier, which is
+  // the closest honest stand-in.
   const updateZoomLabel = () => {
     const resolution = view.getResolution() ?? 1
     const magnification =
@@ -194,8 +175,7 @@ export function OpenLayerMap(
 ): Map {
   const extent = getExtent(size)
   const projection = olProjection(extent)
-  const tileSize = spec.kind === 'zoomify' ? spec.tileSize : DEFAULT_TILE_SIZE
-  const resolutions = computeResolutionLadder(size, tileSize)
+  const resolutions = computeResolutionLadder(size, spec.tileSize)
 
   const baseLayer = buildBaseLayer(spec, projection, extent, size)
 

@@ -1,14 +1,6 @@
-interface StaticImageSource {
-  kind: 'static'
-  imagePath: string
-}
-
-interface TiledImageSource {
-  kind: 'tiled'
+interface ImageSource {
   tilerUrl: string
   slideId: string
 }
 
-type ImageSource = StaticImageSource | TiledImageSource
-
-export type { ImageSource, StaticImageSource, TiledImageSource }
+export type { ImageSource }
