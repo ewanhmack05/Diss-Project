@@ -1,12 +1,12 @@
 # Diss Project
 
 Dissertation project on real-time collaboration around whole-slide image
-annotation. Scoped down for a single-slide as proof of concept.
+annotation. Proof of concept, one collaborator for now.
 
 ```
-image-viewer/    React + TypeScript + OpenLayers frontend. See image-viewer/README.md
-tiler/           .NET tile server for .mrxs whole-slide images. See tiler/README.md
-annotation-store/  Not built yet - persistence backend for annotations.
+image-viewer/      React + TypeScript + OpenLayers frontend. See image-viewer/README.md
+tiler/              .NET tile server for .mrxs whole-slide images. See tiler/README.md
+annotation-store/   .NET + Postgres backend for persisted annotations. See annotation-store/README.md
 ```
 
 ## Running everything
@@ -16,6 +16,9 @@ npm --prefix image-viewer install
 npm --prefix image-viewer run dev          # http://localhost:5173
 
 dotnet run --project tiler --urls http://localhost:5095
+dotnet run --project annotation-store --urls http://localhost:5252
 ```
 
-Each service has its own README with more detail
+Each service has its own README with more detail. `image-viewer` is wired
+up to both `tiler` (loads a real slide by default) and `annotation-store`
+(annotations persist to Postgres, scoped per slide).

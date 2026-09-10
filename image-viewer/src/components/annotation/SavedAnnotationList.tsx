@@ -5,12 +5,20 @@ import SavedAnnotationEdit from './SavedAnnotationEdit'
 import './SavedAnnotationList.css'
 
 function SavedAnnotationList() {
-  const { annotations } = useAnnotationStoreContext()
+  const { annotations, status } = useAnnotationStoreContext()
   const [editingId, setEditingId] = useState<string | null>(null)
 
   const editing = annotations.find((a) => a.id === editingId)
   if (editing) {
     return <SavedAnnotationEdit annotation={editing} onBack={() => setEditingId(null)} />
+  }
+
+  if (status === 'loading') {
+    return <p className="saved-annotation-list-empty">Loading...</p>
+  }
+
+  if (status === 'error') {
+    return <p className="saved-annotation-list-empty">Couldn't reach the annotation store.</p>
   }
 
   if (annotations.length === 0) {

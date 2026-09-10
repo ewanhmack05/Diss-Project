@@ -28,3 +28,8 @@ bin/
 obj/
 *.user
 
+# Secrets - real per-environment values live in .env, never committed.
+# .env.example (the template, no real values) is tracked deliberately.
+.env
+.env.local
+
