@@ -1,0 +1,64 @@
+.dock-zone {
+  position: fixed;
+  background: rgba(118, 174, 174, 0.08);
+  z-index: 14;
+  pointer-events: none;
+}
+
+.dock-zone--over {
+  background: rgba(118, 174, 174, 0.25);
+}
+
+.dock-zone--left,
+.dock-zone--right {
+  top: 0;
+  bottom: 3.69em;
+  width: 3em;
+}
+
+.dock-zone--top,
+.dock-zone--bottom {
+  left: 0;
+  right: 0;
+  height: 3em;
+}
+
+.dock-zone--left {
+  left: 0;
+  border-right: 0.15em dashed var(--chrome-text-secondary);
+}
+
+.dock-zone--right {
+  right: 0;
+  border-left: 0.15em dashed var(--chrome-text-secondary);
+}
+
+.dock-zone--top {
+  top: 0;
+  border-bottom: 0.15em dashed var(--chrome-text-secondary);
+}
+
+.dock-zone--bottom {
+  bottom: 3.69em;
+  border-top: 0.15em dashed var(--chrome-text-secondary);
+}
+
+.dock-zone--left.dock-zone--over {
+  border-right-color: var(--accent);
+  border-right-style: solid;
+}
+
+.dock-zone--right.dock-zone--over {
+  border-left-color: var(--accent);
+  border-left-style: solid;
+}
+
+.dock-zone--top.dock-zone--over {
+  border-bottom-color: var(--accent);
+  border-bottom-style: solid;
+}
+
+.dock-zone--bottom.dock-zone--over {
+  border-top-color: var(--accent);
+  border-top-style: solid;
+}

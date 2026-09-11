@@ -13,6 +13,7 @@ import { useImageViewerContext } from '../context/ImageViewerContext'
 import { useAnnotationStoreContext } from '../context/AnnotationStoreContext'
 import { useDrawContext } from '../context/DrawContext'
 import { useToolbarContext } from '../context/ToolbarContext'
+import { useEmitEvent } from '../context/EventContext'
 import { ShapeTools } from './annotation/Tools'
 import './MapNode.css'
 
@@ -30,6 +31,7 @@ function MapNode() {
     useDrawContext()
   const { activeTools } = useToolbarContext()
   const annotationsVisible = activeTools.includes('annotations')
+  const emit = useEmitEvent()
 
   const mapElement = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<Map | null>(null)
@@ -75,6 +77,7 @@ function MapNode() {
       .catch(() => {
         if (!cancelled) {
           setError(`Couldn't reach the tile server for "${source.slideId}" at ${source.tilerUrl}`)
+          emit('slide:load-error', { slideId: source.slideId, tilerUrl: source.tilerUrl })
         }
       })
 
@@ -83,7 +86,7 @@ function MapNode() {
       mapRef.current?.setTarget(undefined)
       mapRef.current = null
     }
-  }, [source])
+  }, [source, emit])
 
   // Keep the map's annotations layer in sync with the saved-annotations store.
   useEffect(() => {

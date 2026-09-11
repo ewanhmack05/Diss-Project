@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import VectorSource from 'ol/source/Vector'
 import type { Annotation } from '../interfaces/Annotation'
 import { useImageViewerContext } from './ImageViewerContext'
+import { useEmitEvent } from './EventContext'
 
 type Status = 'loading' | 'ready' | 'error'
 
@@ -24,19 +25,13 @@ const AnnotationStoreContext = createContext<AnnotationStoreContextValue | null>
 
 interface AnnotationStoreContextProviderProps {
   baseUrl: string
-  // Notifies App's `on` prop, if given, about annotation CRUD - the viewer's
-  // public event surface for a host that wants to observe changes.
-  onEvent?: (event: string, payload: unknown) => void
   children: ReactNode
 }
 
-function AnnotationStoreContextProvider({
-  baseUrl,
-  onEvent,
-  children,
-}: AnnotationStoreContextProviderProps) {
+function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreContextProviderProps) {
   const { source } = useImageViewerContext()
   const { slideId } = source
+  const emit = useEmitEvent()
 
   const [annotations, setAnnotations] = useState<Annotation[]>([])
   const [status, setStatus] = useState<Status>('loading')
@@ -60,42 +55,67 @@ function AnnotationStoreContextProvider({
         setStatus('ready')
       })
       .catch(() => {
-        if (!cancelled) setStatus('error')
+        if (!cancelled) {
+          setStatus('error')
+          emit('annotations:load-error', { slideId })
+        }
       })
 
     return () => {
       cancelled = true
     }
-  }, [baseUrl, slideId])
+  }, [baseUrl, slideId, emit])
 
   // Writes are optimistic - update local state immediately for a responsive
-  // UI, fire the request, and fall back to an error status if it didn't
-  // actually persist. Fine for a proof of concept; a real conflict/rollback
-  // story can wait until this has more than one collaborator writing to it.
+  // UI (and emit the corresponding event right away), fire the request, and
+  // emit a matching :error event - separately - if it didn't actually
+  // persist. Fine for a proof of concept; a real conflict/rollback story can
+  // wait until this has more than one collaborator writing to it.
   const addAnnotation = (annotation: Annotation) => {
     setAnnotations((current) => [...current, annotation])
-    onEvent?.('annotation:created', annotation)
+    emit('annotation:created', annotation)
     fetch(`${baseUrl}/annotations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...annotation, slideId }),
-    }).catch(() => setStatus('error'))
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error(String(response.status))
+      })
+      .catch(() => {
+        setStatus('error')
+        emit('annotation:created:error', annotation)
+      })
   }
 
   const updateAnnotation = (id: string, patch: Partial<Annotation>) => {
     setAnnotations((current) => current.map((a) => (a.id === id ? { ...a, ...patch } : a)))
-    onEvent?.('annotation:updated', { id, patch })
+    emit('annotation:updated', { id, patch })
     fetch(`${baseUrl}/annotations/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...patch, slideId }),
-    }).catch(() => setStatus('error'))
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error(String(response.status))
+      })
+      .catch(() => {
+        setStatus('error')
+        emit('annotation:updated:error', { id, patch })
+      })
   }
 
   const deleteAnnotation = (id: string) => {
     setAnnotations((current) => current.filter((a) => a.id !== id))
-    onEvent?.('annotation:deleted', { id })
-    fetch(`${baseUrl}/annotations/${id}`, { method: 'DELETE' }).catch(() => setStatus('error'))
+    emit('annotation:deleted', { id })
+    fetch(`${baseUrl}/annotations/${id}`, { method: 'DELETE' })
+      .then((response) => {
+        if (!response.ok) throw new Error(String(response.status))
+      })
+      .catch(() => {
+        setStatus('error')
+        emit('annotation:deleted:error', { id })
+      })
   }
 
   return (

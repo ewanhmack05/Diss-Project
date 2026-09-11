@@ -8,6 +8,51 @@
   overflow: hidden;
 }
 
+/* Dropped onto one of the dock zones (see DockZone.tsx) - pinned to that
+   edge instead of floating at an arbitrary x/y; position/size/shadow per
+   side below. Still draggable by its header (see DraggablePanel.tsx) so
+   pulling it away undocks it again. */
+.draggable-panel--docked {
+  display: flex;
+  flex-direction: column;
+  border-radius: 0;
+}
+
+.draggable-panel--docked-left,
+.draggable-panel--docked-right {
+  top: 0;
+  bottom: 3.69em;
+  width: 20em;
+}
+
+.draggable-panel--docked-top,
+.draggable-panel--docked-bottom {
+  left: 0;
+  right: 0;
+  width: auto;
+  height: 16em;
+}
+
+.draggable-panel--docked-left {
+  left: 0;
+  box-shadow: 0.25em 0 0.75em rgba(0, 0, 0, 0.35);
+}
+
+.draggable-panel--docked-right {
+  right: 0;
+  box-shadow: -0.25em 0 0.75em rgba(0, 0, 0, 0.35);
+}
+
+.draggable-panel--docked-top {
+  top: 0;
+  box-shadow: 0 0.25em 0.75em rgba(0, 0, 0, 0.35);
+}
+
+.draggable-panel--docked-bottom {
+  bottom: 3.69em;
+  box-shadow: 0 -0.25em 0.75em rgba(0, 0, 0, 0.35);
+}
+
 .draggable-panel-header {
   display: flex;
   align-items: center;
@@ -49,4 +94,9 @@
 .draggable-panel-body {
   max-height: 70vh;
   overflow-y: auto;
+}
+
+.draggable-panel--docked .draggable-panel-body {
+  flex: 1;
+  max-height: none;
 }

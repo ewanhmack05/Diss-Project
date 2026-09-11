@@ -47,6 +47,21 @@ function computeResolutionLadder(size: ImageSize, tileSize: number): number[] {
   return resolutions
 }
 
+// Excludes any tier coarser than "life-size" (magnification 1) from the
+// ladder the main view is allowed to reach - without this, zooming out on a
+// slide whose native resolution isn't objective-power-aligned to the tile
+// pyramid could show it shrunk below x1. Same objectivePower/resolution
+// formula the status bar's magnification label uses (see
+// attachOverviewStatusBar), so "stop scrolling out at x1" and "the label
+// reads x1" agree. Without objectivePower, the ladder's own coarsest tier
+// already sits at exactly x1 by construction (see formatMagnification's
+// fallback), so there's nothing to trim.
+function capResolutionsAtNativeScale(resolutions: number[], objectivePower: number | null): number[] {
+  if (objectivePower === null) return resolutions
+  const capped = resolutions.filter((resolution) => resolution <= objectivePower)
+  return capped.length > 0 ? capped : resolutions.slice(-1)
+}
+
 // baseUrl must include the trailing slide segment, e.g.
 // "http://localhost:5095/slides/000/" - Zoomify appends
 // "TileGroup{g}/{z}-{x}-{y}.jpg" itself, matching tiler's route exactly.
@@ -176,13 +191,14 @@ export function OpenLayerMap(
   const extent = getExtent(size)
   const projection = olProjection(extent)
   const resolutions = computeResolutionLadder(size, spec.tileSize)
+  const viewResolutions = capResolutionsAtNativeScale(resolutions, objectivePower)
 
   const baseLayer = buildBaseLayer(spec, projection, extent, size)
 
   const map = new Map({
     target,
     layers: [baseLayer, ...extraLayers],
-    view: olView(projection, resolutions),
+    view: olView(projection, viewResolutions),
   })
 
   // Overview panel: whole-slide thumbnail with a box showing the current
@@ -191,11 +207,13 @@ export function OpenLayerMap(
   // default, OverviewMap assumes a standard web-mercator-ish projection,
   // which silently fails to render anything in our custom pixel one.
   // resolutions[0] (the coarsest tier) frames the whole slide directly, no
-  // fit()-after-attach timing to worry about.
+  // fit()-after-attach timing to worry about. No `resolutions` constraint
+  // here (see the re-fit listener below) - letting it pick an exact
+  // continuous resolution avoids snapping to a ladder step that doesn't
+  // quite match the overview container's aspect ratio.
   const overview = new OverviewMap({
     view: new View({
       projection,
-      resolutions,
       center: [size.width / 2, -size.height / 2],
       resolution: resolutions[0],
     }),
@@ -204,6 +222,19 @@ export function OpenLayerMap(
     collapsible: true,
   })
   map.addControl(overview)
+
+  // OL's OverviewMap automatically rescales/recenters its *own* view to keep
+  // the tracked box within a comfortable size ratio (see ol/control/
+  // OverviewMap's MIN_RATIO/MAX_RATIO) - sensible for an open-ended map, but
+  // wrong here: the overview should always frame the whole slide, unchanged,
+  // with only the box reflecting the current viewport. Re-fit it back to the
+  // full extent after every main-view change, undoing whatever automatic
+  // rescale/recenter OL's own logic just applied - without this, zooming
+  // back out left the overview's own frame stuck more zoomed-in than it
+  // started, so the box (and visible thumbnail) no longer matched reality.
+  const overviewView = overview.getOverviewMap().getView()
+  map.getView().on('change', () => overviewView.fit(extent))
+
   const overviewContainer = target.querySelector<HTMLElement>('.ol-overviewmap')
   if (overviewContainer) {
     attachOverviewStatusBar(overview, overviewContainer, map.getView(), resolutions, objectivePower)
