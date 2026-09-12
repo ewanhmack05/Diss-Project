@@ -3,7 +3,7 @@ using OpenSlideSharp;
 
 namespace Tiler.Slides;
 
-public sealed record SlideInfo(string Id, string FileName, long Width, long Height, int TileSize, double? ObjectivePower);
+public sealed record SlideInfo(string Id, string FileName, long Width, long Height, int TileSize, double? ObjectivePower, double? MppX, double? MppY);
 
 /// <summary>
 /// Discovers .mrxs (and other OpenSlide-readable) files under a data directory
@@ -57,7 +57,18 @@ public sealed class SlideCatalog : IDisposable
                 && double.TryParse(raw, System.Globalization.CultureInfo.InvariantCulture, out var power)
                     ? power
                     : null;
-            return new SlideInfo(id, Path.GetFileName(_pathsById[id]), dimensions.Width, dimensions.Height, ZoomifyTiling.TileSize, objectivePower);
+            // openslide.mpp-x/-y (microns per pixel at level 0) - also a standard
+            // OpenSlide property, same nullable-if-unsupported convention as
+            // objective-power above. Lets the viewer size a real-world ROI box.
+            double? mppX = slide.TryGetProperty("openslide.mpp-x", out var rawMppX)
+                && double.TryParse(rawMppX, System.Globalization.CultureInfo.InvariantCulture, out var parsedMppX)
+                    ? parsedMppX
+                    : null;
+            double? mppY = slide.TryGetProperty("openslide.mpp-y", out var rawMppY)
+                && double.TryParse(rawMppY, System.Globalization.CultureInfo.InvariantCulture, out var parsedMppY)
+                    ? parsedMppY
+                    : null;
+            return new SlideInfo(id, Path.GetFileName(_pathsById[id]), dimensions.Width, dimensions.Height, ZoomifyTiling.TileSize, objectivePower, mppX, mppY);
         }
     }
 

@@ -6,9 +6,9 @@ type EmitEvent = (event: string, payload?: unknown) => void
 const EventContext = createContext<EmitEvent | null>(null)
 
 // Maps the viewer's public event names (see App's `on` prop) to a toast.
-// Covers annotation CRUD outcomes - both the optimistic local change and,
-// separately, whether it actually persisted - plus the two connection
-// failures a host can't otherwise see (tiler, annotation store).
+// Covers annotation and cell count CRUD outcomes - both the optimistic
+// local change and, separately, whether it actually persisted - plus the
+// connection failures a host can't otherwise see (tiler, annotation store).
 const TOAST_MESSAGES: Record<string, { message: string; variant: 'success' | 'error' }> = {
   'annotation:created': { message: 'Annotation saved', variant: 'success' },
   'annotation:created:error': { message: "Couldn't save annotation", variant: 'error' },
@@ -17,6 +17,14 @@ const TOAST_MESSAGES: Record<string, { message: string; variant: 'success' | 'er
   'annotation:deleted': { message: 'Annotation deleted', variant: 'success' },
   'annotation:deleted:error': { message: "Couldn't delete annotation", variant: 'error' },
   'annotations:load-error': { message: "Couldn't reach the annotation store", variant: 'error' },
+  'cellcount:created': { message: 'Cell count saved', variant: 'success' },
+  'cellcount:created:error': { message: "Couldn't save cell count", variant: 'error' },
+  'cellcount:updated': { message: 'Cell count updated', variant: 'success' },
+  'cellcount:updated:error': { message: "Couldn't update cell count", variant: 'error' },
+  'cellcount:deleted': { message: 'Cell count deleted', variant: 'success' },
+  'cellcount:deleted:error': { message: "Couldn't delete cell count", variant: 'error' },
+  'cellcounts:load-error': { message: "Couldn't reach the annotation store", variant: 'error' },
+  'cellcount:click-outside-roi': { message: "Can't click here", variant: 'error' },
   'slide:load-error': { message: "Couldn't reach the tile server", variant: 'error' },
 }
 

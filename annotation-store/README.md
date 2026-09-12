@@ -1,8 +1,8 @@
 # annotation-store
 
-ASP.NET Core (.NET 10) + EF Core (Npgsql) backend for persisted annotations.
-One entity, `Annotation` - the viewer only supports free-form drawing, so
-there's no preset/cell-counter/etc. type split to model.
+ASP.NET Core (.NET 10) + EF Core (Npgsql) backend for persisted annotations
+and cell counts, one Postgres database shared by both via a single
+`AnnotationDbContext`.
 
 ## Running
 
@@ -49,8 +49,15 @@ by default for Postgres' `postgres` superuser) as well as the schema.
 - `GET /annotations?slideId=000` - all annotations for a slide
 - `POST /annotations` - create one (body: `Annotation` minus `id`/`created`,
   both are assigned server-side if omitted)
-- `PUT /annotations/{id}` - update `label`/`colour`
+- `PUT /annotations/{id}` - update `label`/`notes`/`colour`
 - `DELETE /annotations/{id}` - delete
+
+- `GET /cellcounts?slideId=000` - all cell counts for a slide
+- `POST /cellcounts` - create one (body: `CellCount` minus `id`/`created`,
+  both are assigned server-side if omitted)
+- `PUT /cellcounts/{id}` - update `label`/`notes`/`withAnnotation`/`withRoi`/
+  `count`/`dotSize`
+- `DELETE /cellcounts/{id}` - delete
 
 ## Schema
 
@@ -69,8 +76,20 @@ by default for Postgres' `postgres` superuser) as well as the schema.
 | `GeoJson`       | text          | the drawn feature, as written by `image-viewer`'s `featureToGeoJson`                                |
 | `Created`       | timestamptz   | server-assigned                                                                                     |
 
-## Not yet wired up
+`CellCounts/CellCount.cs` - a user-placed dot marker for manually counting
+cells (e.g. mitotic figures) within a region:
 
-`image-viewer`'s `AnnotationStoreContext` still holds annotations in React
-state only (lost on reload, not scoped per slide). Pointing it at this
-service instead is the natural next step.
+| field            | type          | notes                                                         |
+| ---------------- | ------------- | ------------------------------------------------------------- |
+| `Id`             | uuid, PK      | server-assigned if omitted, same convention as `Annotation`   |
+| `SlideId`        | text, indexed | which slide this count belongs to                             |
+| `Label`          | text          |                                                               |
+| `Notes`          | text          |                                                               |
+| `Dots`           | text          | JSON array of `{x, y, colour}`, one per dot placed - lets the viewer redraw the tally (and derive a colour breakdown for its saved-list swatch) instead of just zooming to it |
+| `WithAnnotation` | bool          | tied to a specific drawn annotation, rather than freestanding |
+| `WithRoi`        | bool          | scoped to a region of interest                                |
+| `Count`          | int           | the running tally                                             |
+| `DotSize`        | int           | marker size for the placed dots                               |
+| `LocationX`      | double, null  | where the count was taken (slide pixel space), fixed at creation - null for a count with no recorded location |
+| `LocationY`      | double, null  | see `LocationX`                                                |
+| `Created`        | timestamptz   | server-assigned                                               |

@@ -1,0 +1,35 @@
+.cell-count-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.cell-count-panel-tabs {
+  display: flex;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.cell-count-panel-tab {
+  flex: 1;
+  padding: 0.6em;
+  font-family: var(--sans);
+  font-size: 0.9em;
+  font-weight: 600;
+  color: var(--chrome-text-secondary);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+
+.cell-count-panel-tab:hover {
+  color: var(--chrome-text);
+}
+
+.cell-count-panel-tab--active {
+  color: var(--chrome-text);
+  border-bottom-color: var(--accent);
+}
+
+.cell-count-panel-content {
+  padding: 1em;
+}

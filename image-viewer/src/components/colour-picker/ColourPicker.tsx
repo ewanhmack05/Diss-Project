@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ColorPicker, toColor } from 'react-colour-palette'
 import 'react-colour-palette/dist/index.css'
-import { PreDefinedColours } from '../Tools'
+import { PreDefinedColours } from '../annotation/Tools'
 import './ColourPicker.css'
 
 interface ColourPickerProps {

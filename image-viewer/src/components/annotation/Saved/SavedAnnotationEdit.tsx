@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAnnotationStoreContext } from '../../../context/AnnotationStoreContext'
 import type { Annotation } from '../../../interfaces/Annotation'
-import ColourPicker from '../FreeForm/ColourPicker'
+import ColourPicker from '../../colour-picker/ColourPicker'
 import '../FreeForm/AnnotationForm.css'
 
 interface SavedAnnotationEditProps {

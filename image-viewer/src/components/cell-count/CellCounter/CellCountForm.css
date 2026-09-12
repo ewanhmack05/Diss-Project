@@ -1,0 +1,135 @@
+.cell-count-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+}
+
+.cell-count-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+  font-size: 0.9em;
+  color: var(--chrome-text-secondary);
+}
+
+.cell-count-form-field input[type='text'],
+.cell-count-form-field input[type='number'],
+.cell-count-form-field textarea {
+  padding: 0.5em;
+  font-family: var(--sans);
+  font-size: 1em;
+  color: var(--chrome-text);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid transparent;
+  border-radius: 0.3125rem;
+}
+
+.cell-count-form-field textarea {
+  resize: vertical;
+}
+
+.cell-count-form-field input[type='text']:focus,
+.cell-count-form-field input[type='number']:focus,
+.cell-count-form-field textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.cell-count-form-row {
+  display: flex;
+  gap: 0.75em;
+}
+
+.cell-count-form-row .cell-count-form-field {
+  flex: 1;
+}
+
+.cell-count-form-static {
+  margin: 0;
+  padding: 0.5em;
+  font-family: var(--sans);
+  font-size: 1em;
+  color: var(--chrome-text);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 0.3125rem;
+}
+
+.cell-count-form-colour-breakdown {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6em;
+}
+
+.cell-count-form-colour-swatch {
+  width: 1.4em;
+  height: 1.4em;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.cell-count-form-colour-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  font-size: 0.9em;
+}
+
+.cell-count-form-colour-chip-swatch {
+  width: 0.8em;
+  height: 0.8em;
+  border-radius: 50%;
+}
+
+.cell-count-form-checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5em;
+  font-size: 0.9em;
+  color: var(--chrome-text);
+  cursor: pointer;
+}
+
+.cell-count-form-checkbox input[type='checkbox'] {
+  width: 1em;
+  height: 1em;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.cell-count-form-actions {
+  display: flex;
+  gap: 0.5em;
+  margin-top: 0.25em;
+}
+
+.cell-count-form-button {
+  flex: 1;
+  padding: 0.5em;
+  font-family: var(--sans);
+  font-size: 0.9em;
+  font-weight: 600;
+  color: var(--chrome-text);
+  background: rgba(255, 255, 255, 0.06);
+  border: none;
+  border-radius: 0.3125rem;
+  cursor: pointer;
+  transition: color 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cell-count-form-button:hover:not(:disabled) {
+  color: var(--accent);
+}
+
+.cell-count-form-button:disabled {
+  color: var(--disabled);
+  cursor: not-allowed;
+}
+
+.cell-count-form-button--primary {
+  color: var(--accent-active);
+}
+
+.cell-count-form-button--danger:hover:not(:disabled) {
+  color: #e05252;
+}

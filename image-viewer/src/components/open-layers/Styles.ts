@@ -72,4 +72,30 @@ function annotationStyle(feature: FeatureLike): Style[] {
 	return withArrowHead([baseStyle(colour, lineThickness, lineStyle)], shape, colour, lineThickness, feature.getGeometry() as Geometry | undefined);
 }
 
-export { annotationStyle, sketchStyle };
+// One placed cell-count dot - colour/dotSize carried as feature properties,
+// same convention as annotationStyle.
+function cellCountDotStyle(feature: FeatureLike): Style {
+	const colour = (feature.get("colour") as string | undefined) ?? "#fff614";
+	const dotSize = (feature.get("dotSize") as number | undefined) ?? 6;
+	return new Style({
+		image: new CircleStyle({
+			radius: dotSize,
+			fill: new Fill({ color: colour }),
+			stroke: new Stroke({ color: "#000", width: 1 }),
+		}),
+	});
+}
+
+const ROI_BOX_COLOUR = "#00e0ff";
+
+// A fixed-size ROI box, draggable into place before counting starts (see
+// MapNode) - just an outline/fill, no resize handles since it isn't
+// resizable.
+function roiBoxStyle(): Style {
+	return new Style({
+		stroke: new Stroke({ color: ROI_BOX_COLOUR, width: 2, lineDash: [6, 4] }),
+		fill: new Fill({ color: `${ROI_BOX_COLOUR}1a` }),
+	});
+}
+
+export { annotationStyle, sketchStyle, cellCountDotStyle, roiBoxStyle };

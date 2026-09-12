@@ -1,15 +1,18 @@
 import { useRef, useState } from 'react'
 import 'ol/ol.css'
-import { DndContext, type DragEndEvent } from '@dnd-kit/core'
+import { DndContext, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core'
 import { restrictToWindowEdges } from '@dnd-kit/modifiers'
 import { ImageViewerContextProvider } from './context/ImageViewerContext'
 import { ToolbarContextProvider, useToolbarContext } from './context/ToolbarContext'
 import { AnnotationStoreContextProvider } from './context/AnnotationStoreContext'
+import { CellCountStoreContextProvider } from './context/CellCountStoreContext'
+import { CellCountDrawContextProvider } from './context/CellCountDrawContext'
 import { DrawContextProvider } from './context/DrawContext'
 import { ToastContextProvider } from './context/ToastContext'
 import { EventContextProvider } from './context/EventContext'
 import MapNode from './components/MapNode'
 import AnnotationsPanel from './components/annotation/AnnotationsPanel'
+import CellCountPanel from './components/cell-count/CellCountPanel'
 import Toolbar, { type ToolName } from './components/toolbar/Toolbar'
 import DraggablePanel from './components/toolbar/DraggablePanel'
 import DockZones from './components/toolbar/DockZone'
@@ -39,11 +42,15 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, options, on }: AppPr
       <EventContextProvider on={on}>
         <ImageViewerContextProvider source={imageSource}>
           <AnnotationStoreContextProvider baseUrl={annotationStoreUrl}>
-            <DrawContextProvider>
-              <ToolbarContextProvider>
-                <ViewerShell fontSize={options?.fontSize} tools={options?.tools} />
-              </ToolbarContextProvider>
-            </DrawContextProvider>
+            <CellCountStoreContextProvider baseUrl={annotationStoreUrl}>
+              <CellCountDrawContextProvider>
+                <DrawContextProvider>
+                  <ToolbarContextProvider>
+                    <ViewerShell fontSize={options?.fontSize} tools={options?.tools} />
+                  </ToolbarContextProvider>
+                </DrawContextProvider>
+              </CellCountDrawContextProvider>
+            </CellCountStoreContextProvider>
           </AnnotationStoreContextProvider>
         </ImageViewerContextProvider>
       </EventContextProvider>
@@ -51,14 +58,11 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, options, on }: AppPr
   )
 }
 
-interface ViewerShellProps {
-  fontSize?: string
-  tools?: ToolName[]
-}
-
-function ViewerShell({ fontSize, tools }: ViewerShellProps) {
-  const { activeTools, toggleTool } = useToolbarContext()
-  const [panelPosition, setPanelPosition] = useState({ x: 24, y: 24 })
+// Position/dock state for one draggable panel, keyed by its dnd-kit id.
+// Pulled out since App now has two independent dockable panels
+// (annotations, cell count) that both need this exact same behaviour.
+function useDockablePanel(id: string, initialPosition = { x: 24, y: 24 }) {
+  const [position, setPosition] = useState(initialPosition)
   const [dockedSide, setDockedSide] = useState<DockSide | null>(null)
   const panelRef = useRef<HTMLDivElement | null>(null)
 
@@ -75,7 +79,7 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
     if (!dockedSide) return
     const rect = panelRef.current?.getBoundingClientRect()
     if (rect) {
-      setPanelPosition({ x: rect.left, y: rect.top })
+      setPosition({ x: rect.left, y: rect.top })
     }
     setDockedSide(null)
   }
@@ -86,10 +90,34 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
       setDockedSide(droppedSide)
       return
     }
-    setPanelPosition((pos) => ({
+    setPosition((pos) => ({
       x: pos.x + event.delta.x,
       y: pos.y + event.delta.y,
     }))
+  }
+
+  return { id, position, dockedSide, panelRef, handleDragStart, handleDragEnd }
+}
+
+interface ViewerShellProps {
+  fontSize?: string
+  tools?: ToolName[]
+}
+
+function ViewerShell({ fontSize, tools }: ViewerShellProps) {
+  const { activeTools, toggleTool } = useToolbarContext()
+  const annotationsPanel = useDockablePanel('annotations-panel')
+  const cellCountPanel = useDockablePanel('cellcount-panel', { x: 64, y: 64 })
+  const panels = [annotationsPanel, cellCountPanel]
+
+  // Both panels share one DndContext (dock zones are global), so route each
+  // event to whichever panel's id is actually being dragged.
+  const handleDragStart = (event: DragStartEvent) => {
+    panels.find((panel) => panel.id === event.active.id)?.handleDragStart()
+  }
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    panels.find((panel) => panel.id === event.active.id)?.handleDragEnd(event)
   }
 
   return (
@@ -104,15 +132,28 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
         <DockZones />
         {activeTools.includes('annotations') && (
           <DraggablePanel
-            id="annotations-panel"
+            id={annotationsPanel.id}
             title="Annotations"
-            x={panelPosition.x}
-            y={panelPosition.y}
-            dockedSide={dockedSide}
-            panelRef={panelRef}
+            x={annotationsPanel.position.x}
+            y={annotationsPanel.position.y}
+            dockedSide={annotationsPanel.dockedSide}
+            panelRef={annotationsPanel.panelRef}
             onClose={() => toggleTool('annotations')}
           >
             <AnnotationsPanel />
+          </DraggablePanel>
+        )}
+        {activeTools.includes('cellcount') && (
+          <DraggablePanel
+            id={cellCountPanel.id}
+            title="Cell Count"
+            x={cellCountPanel.position.x}
+            y={cellCountPanel.position.y}
+            dockedSide={cellCountPanel.dockedSide}
+            panelRef={cellCountPanel.panelRef}
+            onClose={() => toggleTool('cellcount')}
+          >
+            <CellCountPanel />
           </DraggablePanel>
         )}
       </DndContext>

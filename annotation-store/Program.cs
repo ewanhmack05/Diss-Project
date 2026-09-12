@@ -1,4 +1,5 @@
 using AnnotationStore.Annotations;
+using AnnotationStore.CellCounts;
 using DotNetEnv;
 using Microsoft.EntityFrameworkCore;
 using OpenTelemetry.Metrics;
@@ -53,6 +54,8 @@ if (app.Environment.IsDevelopment())
     scope.ServiceProvider.GetRequiredService<AnnotationDbContext>().Database.Migrate();
 }
 
+// Annotation endpoints
+
 app.MapGet("/annotations", async (string slideId, AnnotationDbContext db) =>
     Results.Ok(await db.Annotations.Where(a => a.SlideId == slideId).ToListAsync()));
 
@@ -85,4 +88,53 @@ app.MapDelete("/annotations/{id:guid}", async (Guid id, AnnotationDbContext db) 
     return Results.NoContent();
 });
 
+// Cell count endpoints
+
+app.MapGet("/cellcounts", async (string slideId, AnnotationDbContext db) =>
+    Results.Ok(await db.CellCounts
+        .Where(c => c.SlideId == slideId)
+        .Include(c => c.RegionOfInterest)
+        .ToListAsync()));
+
+app.MapPost("/cellcounts", async (CellCount cellCount, AnnotationDbContext db) =>
+{
+    if (cellCount.Id == Guid.Empty) cellCount.Id = Guid.NewGuid();
+    cellCount.Created = DateTimeOffset.UtcNow;
+    if (cellCount.RegionOfInterest is not null)
+    {
+        if (cellCount.RegionOfInterest.Id == Guid.Empty) cellCount.RegionOfInterest.Id = Guid.NewGuid();
+        cellCount.RegionOfInterest.CellCountId = cellCount.Id;
+        cellCount.RegionOfInterest.Created = cellCount.Created;
+    }
+    db.CellCounts.Add(cellCount);
+    await db.SaveChangesAsync();
+    return Results.Created($"/cellcounts/{cellCount.Id}", cellCount);
+});
+
+app.MapPut("/cellcounts/{id:guid}", async (Guid id, CellCount update, AnnotationDbContext db) =>
+{
+    var existing = await db.CellCounts.FindAsync(id);
+    if (existing is null) return Results.NotFound();
+    existing.Label = update.Label;
+    existing.Notes = update.Notes;
+    existing.WithAnnotation = update.WithAnnotation;
+    existing.WithRoi = update.WithRoi;
+    existing.Count = update.Count;
+    existing.DotSize = update.DotSize;
+    await db.SaveChangesAsync();
+    return Results.Ok(existing);
+});
+
+app.MapDelete("/cellcounts/{id:guid}", async (Guid id, AnnotationDbContext db) =>
+{
+    var existing = await db.CellCounts.FindAsync(id);
+    if (existing is null) return Results.NotFound();
+    db.CellCounts.Remove(existing);
+    await db.SaveChangesAsync();
+    return Results.NoContent();
+});
+
 app.Run();
+
+// Lets the test project point WebApplicationFactory<Program> at this app.
+public partial class Program;

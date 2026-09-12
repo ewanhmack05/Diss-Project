@@ -19,6 +19,7 @@ createRoot(document.getElementById('root')!).render(
         tools: [
           'fullscreen',
           'annotations',
+          'cellcount',
         ]
       }}
       on={(event, payload) => {

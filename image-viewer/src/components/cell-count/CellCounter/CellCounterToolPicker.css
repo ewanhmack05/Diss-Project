@@ -1,0 +1,98 @@
+.cell-counter-tool-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+}
+
+.cell-counter-tool-picker-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+  font-size: 0.9em;
+  color: var(--chrome-text-secondary);
+}
+
+.cell-counter-tool-picker-field select {
+  padding: 0.35em;
+  font-family: var(--sans);
+  font-size: 1em;
+  color: var(--chrome-text);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid transparent;
+  border-radius: 0.3125rem;
+}
+
+.cell-counter-tool-picker-field select option {
+  color: #1f1f1f;
+  background: #fff;
+}
+
+.cell-counter-tool-picker-field input[type='number'] {
+  padding: 0.35em;
+  font-family: var(--sans);
+  font-size: 1em;
+  color: var(--chrome-text);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid transparent;
+  border-radius: 0.3125rem;
+}
+
+.cell-counter-tool-picker-checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5em;
+  font-size: 0.9em;
+  color: var(--chrome-text);
+  cursor: pointer;
+}
+
+.cell-counter-tool-picker-checkbox input[type='checkbox'] {
+  width: 1em;
+  height: 1em;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.cell-counter-tool-picker-tally {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 1.1em;
+  font-weight: 600;
+  color: var(--chrome-text);
+}
+
+.cell-counter-tool-picker-actions {
+  display: flex;
+  gap: 0.5em;
+}
+
+.cell-counter-tool-picker-actions .cell-counter-tool-picker-button {
+  flex: 1;
+}
+
+.cell-counter-tool-picker-button {
+  padding: 0.5em;
+  font-family: var(--sans);
+  font-size: 0.9em;
+  font-weight: 600;
+  color: var(--chrome-text);
+  background: rgba(255, 255, 255, 0.06);
+  border: none;
+  border-radius: 0.3125rem;
+  cursor: pointer;
+  transition: color 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cell-counter-tool-picker-button:hover {
+  color: var(--accent);
+}
+
+.cell-counter-tool-picker-button--primary {
+  color: var(--accent-active);
+}
+
+.cell-counter-tool-picker-hint {
+  margin: 0;
+  font-size: 0.85em;
+  color: var(--chrome-text-secondary);
+}

@@ -1,7 +1,5 @@
 namespace AnnotationStore.Annotations;
 
-// Just one type - the viewer only supports free-form drawing right now, so
-// there's no preset/cell-counter/etc. split to model.
 public class Annotation
 {
     public Guid Id { get; set; }

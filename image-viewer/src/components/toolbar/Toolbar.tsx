@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useToolbarContext } from '../../context/ToolbarContext'
 import annotationsIconSvg from '../../icons/annotations.svg?raw'
+import cellcountIconSvg from '../../icons/cellcount.svg?raw'
 import fullscreenEnterIconSvg from '../../icons/fullscreen-enter.svg?raw'
 import fullscreenExitIconSvg from '../../icons/fullscreen-exit.svg?raw'
 import './Toolbar.css'
@@ -18,9 +19,9 @@ function Icon({ svg }: { svg: string }) {
   return <span className="toolbar-icon" dangerouslySetInnerHTML={{ __html: svg }} />
 }
 
-type ToolName = 'fullscreen' | 'annotations'
+type ToolName = 'fullscreen' | 'annotations' | 'cellcount'
 
-const DEFAULT_TOOLS: ToolName[] = ['fullscreen', 'annotations']
+const DEFAULT_TOOLS: ToolName[] = ['fullscreen', 'annotations', 'cellcount']
 
 interface ToolbarProps {
   tools?: ToolName[]
@@ -75,6 +76,16 @@ function Toolbar({ tools = DEFAULT_TOOLS }: ToolbarProps) {
           onClick={() => toggleTool('annotations')}
         >
           <Icon svg={annotationsIconSvg} />
+        </button>
+      )}
+      {tools.includes('cellcount') && (
+        <button
+          type="button"
+          className={`toolbar-button${activeTools.includes('cellcount') ? ' toolbar-button--active' : ''}`}
+          title="Cell Count"
+          onClick={() => toggleTool('cellcount')}
+        >
+          <Icon svg={cellcountIconSvg} />
         </button>
       )}
     </div>

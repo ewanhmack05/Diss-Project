@@ -1,0 +1,86 @@
+.saved-cell-count-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+}
+
+.saved-cell-count-list-empty {
+  margin: 0;
+  font-size: 1em;
+  color: var(--chrome-text-secondary);
+}
+
+.saved-cell-count-list-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25em;
+}
+
+.saved-cell-count-list-item {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.5em;
+  font-family: var(--sans);
+  color: var(--chrome-text);
+  background: none;
+  border: none;
+  border-radius: 0.3125rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.saved-cell-count-list-view {
+  flex-shrink: 0;
+  padding: 0.4em 0.7em;
+  font-family: var(--sans);
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--chrome-text);
+  background: rgba(255, 255, 255, 0.06);
+  border: none;
+  border-radius: 0.3125rem;
+  cursor: pointer;
+  transition: color 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.saved-cell-count-list-view:hover:not(:disabled) {
+  color: var(--accent);
+}
+
+.saved-cell-count-list-view--active {
+  color: var(--accent-active);
+}
+
+.saved-cell-count-list-view:disabled {
+  color: var(--disabled);
+  cursor: not-allowed;
+}
+
+.saved-cell-count-list-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.saved-cell-count-list-swatch {
+  width: 0.9em;
+  height: 0.9em;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.saved-cell-count-list-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-cell-count-list-count {
+  font-size: 0.8em;
+  color: var(--chrome-text-secondary);
+}
