@@ -9,6 +9,11 @@ tiler/              .NET tile server for .mrxs whole-slide images. See tiler/REA
 annotation-store/   .NET + Postgres backend for persisted annotations. See annotation-store/README.md
 ```
 
+## Prerequisites
+
+New machine? See [SETUP.md](SETUP.md) for installing .NET 10, Node.js,
+PostgreSQL, Git LFS, and recommended VS Code extensions.
+
 ## Running everything - 3 terminals required
 
 ```bash
