@@ -1,0 +1,67 @@
+.dock-edge {
+  position: fixed;
+  z-index: 15;
+  display: flex;
+}
+
+.dock-edge--left,
+.dock-edge--right {
+  /* Same top/bottom insets as DockZone.css's --dock-top-inset/
+     --dock-bottom-inset - keeps the actual docked panel from overlapping
+     whatever's docked to the top or bottom edge. */
+  top: var(--dock-top-inset, 0);
+  bottom: calc(3.69em + var(--dock-bottom-inset, 0em));
+  width: 20em;
+  flex-direction: column;
+}
+
+.dock-edge--top,
+.dock-edge--bottom {
+  left: 0;
+  right: 0;
+  /* Must match App.tsx's EDGE_CROSS_SIZE, which insets the left/right
+     edges by this same amount. */
+  height: 18em;
+  flex-direction: row;
+}
+
+.dock-edge--left {
+  left: 0;
+  box-shadow: 0.25em 0 0.75em rgba(0, 0, 0, 0.35);
+}
+
+.dock-edge--right {
+  right: 0;
+  box-shadow: -0.25em 0 0.75em rgba(0, 0, 0, 0.35);
+}
+
+.dock-edge--top {
+  top: 0;
+  box-shadow: 0 0.25em 0.75em rgba(0, 0, 0, 0.35);
+}
+
+.dock-edge--bottom {
+  bottom: 3.69em;
+  box-shadow: 0 -0.25em 0.75em rgba(0, 0, 0, 0.35);
+}
+
+/* Always-mounted, invisible instance of each edge's real sizing (see
+   App.tsx) - purely so its rect can be measured to size/position the drop
+   preview like the actual docked panel, not the thin DockZone hit-strip. */
+.dock-edge--probe {
+  visibility: hidden;
+  pointer-events: none;
+  box-shadow: none;
+}
+
+/* Divider between two panels sharing an edge - column split (left/right)
+   gets a horizontal line, row split (top/bottom) gets a vertical one. */
+.dock-edge--left > .draggable-panel--docked + .draggable-panel--docked,
+.dock-edge--right > .draggable-panel--docked + .draggable-panel--docked {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dock-edge--top > .draggable-panel--docked + .draggable-panel--docked,
+.dock-edge--bottom > .draggable-panel--docked + .draggable-panel--docked {
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}

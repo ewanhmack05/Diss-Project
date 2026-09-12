@@ -8,49 +8,32 @@
   overflow: hidden;
 }
 
-/* Dropped onto one of the dock zones (see DockZone.tsx) - pinned to that
-   edge instead of floating at an arbitrary x/y; position/size/shadow per
-   side below. Still draggable by its header (see DraggablePanel.tsx) so
-   pulling it away undocks it again. */
+/* The DragOverlay ghost (see App.tsx) - dnd-kit's own overlay wrapper
+   already handles fixed positioning and following the cursor, so this
+   overrides the base rule's position:fixed rather than fighting it. Just
+   the header/title, not the body - a lightweight stand-in, not a full
+   clone of the real (currently hidden) panel's interactive content. */
+.draggable-panel--ghost {
+  position: relative;
+  cursor: grabbing;
+}
+
+/* Dropped onto one of the dock zones (see DockZone.tsx) - instead of
+   floating at an arbitrary x/y, it becomes a flex child of a DockEdge
+   container pinned to that screen edge (see DockEdge.css), which sizes it:
+   alone it fills the whole edge, alongside a sibling it gets an even split.
+   Still draggable by its header (see DraggablePanel.tsx) so pulling it away
+   undocks it again. */
 .draggable-panel--docked {
+  position: relative;
   display: flex;
   flex-direction: column;
-  border-radius: 0;
-}
-
-.draggable-panel--docked-left,
-.draggable-panel--docked-right {
-  top: 0;
-  bottom: 3.69em;
-  width: 20em;
-}
-
-.draggable-panel--docked-top,
-.draggable-panel--docked-bottom {
-  left: 0;
-  right: 0;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
   width: auto;
-  height: 16em;
-}
-
-.draggable-panel--docked-left {
-  left: 0;
-  box-shadow: 0.25em 0 0.75em rgba(0, 0, 0, 0.35);
-}
-
-.draggable-panel--docked-right {
-  right: 0;
-  box-shadow: -0.25em 0 0.75em rgba(0, 0, 0, 0.35);
-}
-
-.draggable-panel--docked-top {
-  top: 0;
-  box-shadow: 0 0.25em 0.75em rgba(0, 0, 0, 0.35);
-}
-
-.draggable-panel--docked-bottom {
-  bottom: 3.69em;
-  box-shadow: 0 -0.25em 0.75em rgba(0, 0, 0, 0.35);
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .draggable-panel-header {
@@ -92,11 +75,22 @@
 }
 
 .draggable-panel-body {
-  max-height: 70vh;
-  overflow-y: auto;
+  /* Caps a floating panel's overall height ("the panel's max") - a docked
+     panel gets a real height from its DockEdge instead (see below), which
+     is usually taller than this. Scrolling itself now happens one level
+     deeper (see AnnotationsPanel.css/CellCountPanel.css's *-content and the
+     Saved lists) so the tabs, a flex sibling of that scrolling area rather
+     than an ancestor of it, are never carried along with it - the panel's
+     single child (AnnotationsPanel/CellCountPanel) just needs a real height
+     to grow into, which display:flex here provides. */
+  max-height: 40em;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .draggable-panel--docked .draggable-panel-body {
   flex: 1;
+  min-height: 0;
   max-height: none;
 }

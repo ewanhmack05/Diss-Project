@@ -33,6 +33,11 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
+.free-form-tool-picker-shape:disabled {
+  color: var(--disabled);
+  cursor: not-allowed;
+}
+
 .free-form-tool-picker-row {
   display: flex;
   gap: 0.75em;
@@ -66,4 +71,39 @@
   margin: 0;
   font-size: 0.85em;
   color: var(--chrome-text-secondary);
+}
+
+/* Docked top/bottom is wide and short (a fixed 16em - see DockEdge.css)
+   rather than tall and narrow, so the column layout above (shapes grid,
+   then thickness/style, then colour picker, then hint) easily overflows
+   it. Reflowing into a wrapped row lets everything sit side by side across
+   the available width instead, fitting inside that fixed height without
+   scrolling. */
+.draggable-panel--docked-top .free-form-tool-picker,
+.draggable-panel--docked-bottom .free-form-tool-picker {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.draggable-panel--docked-top .free-form-tool-picker-shapes,
+.draggable-panel--docked-bottom .free-form-tool-picker-shapes {
+  grid-template-columns: repeat(6, auto);
+  flex: 0 0 auto;
+}
+
+.draggable-panel--docked-top .free-form-tool-picker-row,
+.draggable-panel--docked-bottom .free-form-tool-picker-row {
+  flex: 0 0 auto;
+}
+
+.draggable-panel--docked-top .free-form-tool-picker-field,
+.draggable-panel--docked-bottom .free-form-tool-picker-field {
+  flex: 0 1 auto;
+  min-width: 7em;
+}
+
+.draggable-panel--docked-top .free-form-tool-picker-hint,
+.draggable-panel--docked-bottom .free-form-tool-picker-hint {
+  flex-basis: 100%;
 }

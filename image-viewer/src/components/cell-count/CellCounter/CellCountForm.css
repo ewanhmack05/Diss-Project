@@ -133,3 +133,27 @@
 .cell-count-form-button--danger:hover:not(:disabled) {
   color: #e05252;
 }
+
+/* Same reflow as FreeFormToolPicker.css - see there for why. */
+.draggable-panel--docked-top .cell-count-form,
+.draggable-panel--docked-bottom .cell-count-form {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.draggable-panel--docked-top .cell-count-form-field,
+.draggable-panel--docked-bottom .cell-count-form-field {
+  flex: 0 1 auto;
+  min-width: 10em;
+}
+
+.draggable-panel--docked-top .cell-count-form-row,
+.draggable-panel--docked-bottom .cell-count-form-row {
+  flex: 0 0 auto;
+}
+
+.draggable-panel--docked-top .cell-count-form-actions,
+.draggable-panel--docked-bottom .cell-count-form-actions {
+  flex: 0 0 auto;
+}

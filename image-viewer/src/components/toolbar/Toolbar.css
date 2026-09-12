@@ -9,7 +9,10 @@
   gap: 0.25em;
   padding: 0 0.5em;
   background: var(--chrome-bg);
-  z-index: 20;
+  /* Above any panel/edge regardless of click-to-front order (see
+     App.tsx's PANEL_Z_BASE + stackIndex, capped well below this) - the
+     toolbar stays reachable even if a floating panel rests near it. */
+  z-index: 30;
 }
 
 .toolbar-button {

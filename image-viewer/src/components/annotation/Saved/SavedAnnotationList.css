@@ -5,6 +5,14 @@
   display: flex;
   flex-direction: column;
   gap: 0.25em;
+  /* Grows to fill whatever height AnnotationsPanel's content area actually
+     has (see AnnotationsPanel.css) - the full DockEdge when docked, up to
+     70vh when floating - rather than stopping at a fixed row count
+     regardless of how much room is available, then scrolls internally past
+     that. The tabs above it never move either way. */
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .saved-annotation-list-empty {

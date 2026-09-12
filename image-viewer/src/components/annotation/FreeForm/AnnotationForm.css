@@ -69,3 +69,22 @@
 .annotation-form-button--danger:hover:not(:disabled) {
   color: #e05252;
 }
+
+/* Same reflow as FreeFormToolPicker.css - see there for why. */
+.draggable-panel--docked-top .annotation-form,
+.draggable-panel--docked-bottom .annotation-form {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.draggable-panel--docked-top .annotation-form-field,
+.draggable-panel--docked-bottom .annotation-form-field {
+  flex: 0 1 auto;
+  min-width: 12em;
+}
+
+.draggable-panel--docked-top .annotation-form-actions,
+.draggable-panel--docked-bottom .annotation-form-actions {
+  flex: 0 0 auto;
+}

@@ -1,11 +1,27 @@
 .annotations-panel {
   display: flex;
   flex-direction: column;
+  /* Fills whatever height DraggablePanel's body actually has - the full
+     DockEdge when docked, up to 70vh when floating - so the Saved list
+     below can in turn grow to match it instead of stopping at a fixed
+     row count regardless of how much room is actually available. */
+  flex: 1;
+  min-height: 0;
 }
 
 .annotations-panel-tabs {
   display: flex;
+  flex-shrink: 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  /* Belt-and-braces: nothing above annotations-panel-content scrolls in
+     the normal (Saved list) case any more, since the list scrolls
+     internally within its own bounded flex space - but a long Free Form
+     view on a short window can still make annotations-panel-content
+     itself scroll (see below), and this keeps the tabs out of that too. */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--chrome-bg);
 }
 
 .annotations-panel-tab {
@@ -37,4 +53,21 @@
 
 .annotations-panel-content {
   padding: 1em;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  /* Fallback scroll for a Free Form view taller than the available space -
+     the Saved list (a flex:1 child - see SavedAnnotationList.css) bounds
+     itself exactly to whatever's left here and scrolls on its own, so this
+     normally stays dormant for that case. */
+  overflow-y: auto;
+}
+
+/* Docked top/bottom has less vertical budget (a fixed 16em) than a tall
+   floating/left/right panel, so trims the padding a bit to help the
+   reflowed content (see FreeFormToolPicker.css etc.) actually fit. */
+.draggable-panel--docked-top .annotations-panel-content,
+.draggable-panel--docked-bottom .annotations-panel-content {
+  padding: 0.5em 1em;
 }

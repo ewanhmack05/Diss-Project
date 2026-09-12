@@ -11,8 +11,12 @@
 
 .dock-zone--left,
 .dock-zone--right {
-  top: 0;
-  bottom: 3.69em;
+  /* Stops short of a top/bottom edge that's already holding a panel (see
+     the --dock-top-inset/--dock-bottom-inset custom properties set on .app
+     in App.tsx) rather than running the full viewport height and covering
+     it - top/bottom own the corners. */
+  top: var(--dock-top-inset, 0);
+  bottom: calc(3.69em + var(--dock-bottom-inset, 0em));
   width: 3em;
 }
 

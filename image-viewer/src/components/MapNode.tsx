@@ -11,7 +11,13 @@ import Translate from 'ol/interaction/Translate'
 import VectorLayer from 'ol/layer/Vector'
 import VectorSource from 'ol/source/Vector'
 import { OpenLayerMap } from './open-layers/OpenLayers'
-import { annotationStyle, sketchStyle, cellCountDotStyle, roiBoxStyle } from './open-layers/Styles'
+import {
+  annotationStyle,
+  sketchStyle,
+  cellCountDotStyle,
+  roiBoxStyle,
+  setStyleReferenceResolution,
+} from './open-layers/Styles'
 import { featureToGeoJson, geoJsonToFeature } from './open-layers/GeoJSON'
 import { parseCellCountDots } from './cell-count/CellCountDots'
 import { computeViewedCellCountExtent } from './cell-count/CellCountView'
@@ -159,6 +165,13 @@ function MapNode() {
           metadata.objectivePower,
           [annotationsLayer, drawLayer, cellCountDotsLayer, roiLayer, viewedDotsLayer, viewedRoiLayer]
         )
+        // The view's own coarsest resolution (post native-scale capping,
+        // i.e. genuinely as zoomed-out as this slide's view can go) - see
+        // Styles.ts's coarsestResolution for why the arrowhead and dash
+        // pattern caps are both expressed relative to this rather than the
+        // slide's raw pixel dimensions.
+        const resolutions = mapRef.current.getView().getResolutions()
+        setStyleReferenceResolution(resolutions?.[0] ?? 1)
       })
       .catch(() => {
         if (!cancelled) {

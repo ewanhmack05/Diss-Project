@@ -61,3 +61,14 @@
 .colour-picker-custom-panel {
   align-self: flex-start;
 }
+
+/* Docked top/bottom panels reflow their contents into a wrapped row (see
+   FreeFormToolPicker.css/AnnotationForm.css/CellCounterToolPicker.css) so
+   everything fits within the dock's fixed height without scrolling - this
+   just gives the colour picker, one item in that row, a sensible width so
+   its swatches don't wrap to an awkward one-or-two-per-line count. */
+.draggable-panel--docked-top .colour-picker,
+.draggable-panel--docked-bottom .colour-picker {
+  flex: 0 1 auto;
+  min-width: 14em;
+}

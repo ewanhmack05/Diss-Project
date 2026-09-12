@@ -1,4 +1,5 @@
 import { useCellCountDrawContext } from '../../../context/CellCountDrawContext'
+import { useDrawContext } from '../../../context/DrawContext'
 import { DotSizeOptions, RoiBoxSizeOptions } from '../Tools'
 import ColourPicker from '../../colour-picker/ColourPicker'
 import './CellCounterToolPicker.css'
@@ -22,6 +23,10 @@ function CellCounterToolPicker() {
     setRoiConfirmed,
     resetCount,
   } = useCellCountDrawContext()
+  // Mirrors FreeFormToolPicker's disabling the other way - a map click
+  // can't mean both "add a shape vertex" and "tally a cell" at once, so
+  // counting can't start while a shape tool is selected.
+  const { activeTool } = useDrawContext()
 
   const handleStart = () => {
     resetCount()
@@ -52,12 +57,6 @@ function CellCounterToolPicker() {
         />
         With annotation
       </label>
-      {!withAnnotation && (
-        <p className="cell-counter-tool-picker-hint">
-          Clicks still tally, but no dot is drawn on the image.
-        </p>
-      )}
-
       <label className="cell-counter-tool-picker-field cell-counter-tool-picker-checkbox">
         <input
           type="checkbox"
@@ -82,10 +81,17 @@ function CellCounterToolPicker() {
       <button
         type="button"
         className="cell-counter-tool-picker-button cell-counter-tool-picker-button--primary"
+        disabled={activeTool !== null}
         onClick={handleStart}
       >
         Start counting
       </button>
+
+      {activeTool && (
+        <p className="cell-counter-tool-picker-hint">
+          Deselect the annotation tool to start counting.
+        </p>
+      )}
     </div>
   )
 }

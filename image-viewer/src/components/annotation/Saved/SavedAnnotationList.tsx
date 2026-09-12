@@ -27,7 +27,7 @@ function SavedAnnotationList() {
   }
 
   return (
-    <ul className="saved-annotation-list">
+    <ul className="saved-annotation-list themed-scroll">
       {annotations.map((annotation) => (
         <li key={annotation.id}>
           <button

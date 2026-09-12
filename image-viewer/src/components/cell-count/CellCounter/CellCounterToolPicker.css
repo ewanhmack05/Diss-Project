@@ -91,8 +91,50 @@
   color: var(--accent-active);
 }
 
+.cell-counter-tool-picker-button:disabled {
+  color: var(--disabled);
+  cursor: not-allowed;
+}
+
 .cell-counter-tool-picker-hint {
   margin: 0;
   font-size: 0.85em;
   color: var(--chrome-text-secondary);
+}
+
+/* Same reflow as FreeFormToolPicker.css - see there for why. Shared by
+   CellCounterDuring too, which reuses these class names. */
+.draggable-panel--docked-top .cell-counter-tool-picker,
+.draggable-panel--docked-bottom .cell-counter-tool-picker {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  /* Tighter row-gap than the column layout's 0.75em - the tally/hint text
+     wrapping onto their own full-width rows (see flex-basis:100% below)
+     otherwise pushed the counting view just past the 16em dock height. */
+  row-gap: 0.35em;
+}
+
+.draggable-panel--docked-top .cell-counter-tool-picker-field,
+.draggable-panel--docked-bottom .cell-counter-tool-picker-field {
+  flex: 0 1 auto;
+  min-width: 7em;
+}
+
+.draggable-panel--docked-top .cell-counter-tool-picker-checkbox,
+.draggable-panel--docked-bottom .cell-counter-tool-picker-checkbox {
+  flex: 0 0 auto;
+}
+
+.draggable-panel--docked-top .cell-counter-tool-picker-actions,
+.draggable-panel--docked-bottom .cell-counter-tool-picker-actions {
+  flex: 0 0 auto;
+  min-width: 10em;
+}
+
+.draggable-panel--docked-top .cell-counter-tool-picker-tally,
+.draggable-panel--docked-bottom .cell-counter-tool-picker-tally,
+.draggable-panel--docked-top .cell-counter-tool-picker-hint,
+.draggable-panel--docked-bottom .cell-counter-tool-picker-hint {
+  flex-basis: 100%;
 }

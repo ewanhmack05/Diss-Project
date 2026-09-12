@@ -38,7 +38,7 @@ function AnnotationsPanel() {
         </button>
       </div>
 
-      <div className="annotations-panel-content">
+      <div className="annotations-panel-content themed-scroll">
         {tab === 'free-form' ? <FreeForm /> : <SavedAnnotationList />}
       </div>
     </div>

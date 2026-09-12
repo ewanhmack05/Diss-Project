@@ -1,0 +1,16 @@
+.dock-preview {
+  position: fixed;
+  /* Always above every panel/edge, regardless of click-to-front order (see
+     App.tsx's PANEL_Z_BASE + stackIndex, capped well below this) - the
+     drop target must stay visible no matter which panel was clicked last. */
+  z-index: 40;
+  pointer-events: none;
+  box-sizing: border-box;
+  background: rgba(118, 174, 174, 0.28);
+  border: 0.15em solid var(--accent);
+  transition:
+    top 120ms ease,
+    left 120ms ease,
+    width 120ms ease,
+    height 120ms ease;
+}

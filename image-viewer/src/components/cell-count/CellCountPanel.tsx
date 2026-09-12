@@ -40,7 +40,7 @@ function CellCountPanel() {
         </button>
       </div>
 
-      <div className="cell-count-panel-content">
+      <div className="cell-count-panel-content themed-scroll">
         {tab === 'new' ? <CellCounter /> : <SavedCountList />}
       </div>
     </div>

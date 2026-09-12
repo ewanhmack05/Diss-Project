@@ -16,10 +16,10 @@ cd image-viewer/
 npm run dev          # http://localhost:5173
 
 cd tiler/
-dotnet run --urls http://localhost:5095
+dotnet build && dotnet run --urls http://localhost:5095
 
 cd annotation-store/
-dotnet run --urls http://localhost:5252
+dotnet build && dotnet run --urls http://localhost:5252
 ```
 
 Each service has its own README with more detail. `image-viewer` is wired
