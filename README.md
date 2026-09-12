@@ -60,3 +60,6 @@ Todos for real time collaberation:
 
 - Webgpu for openLayers?
   - Taking into account we could have 2 or more users drawing for an unknown amount of time, the load on openLayers could expand, so delegating the devices gpu to the rendering would save browser power and deal with the load
+
+Playback video:
+[![Watch the video](https://img.youtube.com/vi/6oge35ZzH3w/maxresdefault.jpg)](https://youtu.be/6oge35ZzH3w)
