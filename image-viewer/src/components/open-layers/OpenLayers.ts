@@ -47,18 +47,31 @@ function computeResolutionLadder(size: ImageSize, tileSize: number): number[] {
   return resolutions
 }
 
-// Excludes any tier coarser than "life-size" (magnification 1) from the
-// ladder the main view is allowed to reach - without this, zooming out on a
-// slide whose native resolution isn't objective-power-aligned to the tile
-// pyramid could show it shrunk below x1. Same objectivePower/resolution
-// formula the status bar's magnification label uses (see
-// attachOverviewStatusBar), so "stop scrolling out at x1" and "the label
-// reads x1" agree. Without objectivePower, the ladder's own coarsest tier
-// already sits at exactly x1 by construction (see formatMagnification's
-// fallback), so there's nothing to trim.
+// Excludes any *intermediate* tier coarser than "life-size" (magnification
+// 1) from the ladder the main view is allowed to reach - without this,
+// zooming out on a slide whose native resolution isn't objective-power-
+// aligned to the tile pyramid could show it shrunk below x1 well before it
+// actually needs to. Same objectivePower/resolution formula the status
+// bar's magnification label uses (see attachOverviewStatusBar), so "stop
+// scrolling out at x1" and "the label reads x1" agree for a slide small
+// enough that x1 and "whole slide" roughly coincide.
+//
+// The ladder's own coarsest tier (resolutions[0] - "whole slide, one
+// tile") is always kept regardless of objectivePower, though, even when
+// that means going below x1: for a slide many times bigger than a single
+// tile at native resolution (e.g. a large .mrxs scan), that tier can sit
+// at a tiny fraction of x1, and trimming it left no way to zoom out far
+// enough to see the whole slide at all - a viewer that can't show the
+// whole slide defeats the point of a *whole-slide* viewer. Without
+// objectivePower, the ladder's own coarsest tier already sits at exactly
+// x1 by construction (see formatMagnification's fallback), so there's
+// nothing to trim either way.
 function capResolutionsAtNativeScale(resolutions: number[], objectivePower: number | null): number[] {
   if (objectivePower === null) return resolutions
-  const capped = resolutions.filter((resolution) => resolution <= objectivePower)
+  const wholeSlideResolution = resolutions[0]
+  const capped = resolutions.filter(
+    (resolution) => resolution <= objectivePower || resolution === wholeSlideResolution
+  )
   return capped.length > 0 ? capped : resolutions.slice(-1)
 }
 
@@ -244,5 +257,5 @@ export function OpenLayerMap(
   return map
 }
 
-export { getExtent }
+export { getExtent, computeResolutionLadder, capResolutionsAtNativeScale }
 export type { ImageSize, BaseLayerSpec }
