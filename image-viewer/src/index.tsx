@@ -8,10 +8,11 @@ import App from './App.tsx'
 //   000  CMU-1 (1/16 downsample) - H&E brightfield, 7436x15494
 //   001  Mirax2-Fluorescence-1   - 3-channel fluorescence
 //   002  Mirax2-Fluorescence-2   - 3-channel fluorescence
+//   003  HPS stain, brightfield   - HPS brightfield, 10000x10000
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App
-      source={'000'}
+      source={'003'}
       tilerServiceUrl={'http://localhost:5095'}
       annotationStoreUrl={'http://localhost:5252'}
       options={{
