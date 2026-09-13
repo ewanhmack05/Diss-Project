@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Collection, Feature, type Map, type MapBrowserEvent } from 'ol'
 import type Geometry from 'ol/geom/Geometry'
+import type LineString from 'ol/geom/LineString'
 import Point from 'ol/geom/Point'
 import { fromExtent } from 'ol/geom/Polygon'
 import type Polygon from 'ol/geom/Polygon'
@@ -16,16 +17,20 @@ import {
   sketchStyle,
   cellCountDotStyle,
   roiBoxStyle,
+  rulerStyle,
+  rulerSketchStyle,
   setStyleReferenceResolution,
 } from './open-layers/Styles'
 import { featureToGeoJson, geoJsonToFeature } from './open-layers/GeoJSON'
 import { degreesToRadians, radiansToDegrees } from './rotation/rotation'
+import { pixelDistance, physicalDistanceMicrons, formatDistanceMicrons, formatDistancePixels } from './ruler/ruler'
 import { parseCellCountDots } from './cell-count/CellCountDots'
 import { computeViewedCellCountExtent } from './cell-count/CellCountView'
 import { useImageViewerContext } from '../context/ImageViewerContext'
 import { useAnnotationStoreContext } from '../context/AnnotationStoreContext'
 import { useDrawContext } from '../context/DrawContext'
 import { useRotationContext } from '../context/RotationContext'
+import { useRulerContext } from '../context/RulerContext'
 import { useCellCountDrawContext } from '../context/CellCountDrawContext'
 import { useCellCountStoreContext } from '../context/CellCountStoreContext'
 import { useToolbarContext } from '../context/ToolbarContext'
@@ -60,6 +65,7 @@ function MapNode() {
   const { activeTool, colour, lineThickness, lineStyle, setActiveTool, pending, setPending } =
     useDrawContext()
   const { rotationDegrees, setRotationDegrees, resetRotation } = useRotationContext()
+  const { setLastMeasurement, clearSignal: rulerClearSignal } = useRulerContext()
   const {
     counting,
     colour: cellCountColour,
@@ -80,6 +86,7 @@ function MapNode() {
   const { activeTools } = useToolbarContext()
   const annotationsVisible = activeTools.includes('annotations')
   const cellCountVisible = activeTools.includes('cellcount')
+  const rulerVisible = activeTools.includes('ruler')
   const emit = useEmitEvent()
 
   const mapElement = useRef<HTMLDivElement | null>(null)
@@ -94,12 +101,14 @@ function MapNode() {
   // Same as viewedDotsSourceRef, but for a saved count's ROI box - keeps
   // it separate from any live counting session's own box.
   const viewedRoiSourceRef = useRef(new VectorSource())
+  const rulerSourceRef = useRef(new VectorSource())
   const annotationsLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const drawLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const cellCountDotsLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const roiLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const viewedDotsLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const viewedRoiLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
+  const rulerLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const roiFeatureRef = useRef<Feature<Polygon> | null>(null)
   const roiDragRef = useRef<RoiDrag | null>(null)
   const slideMetadataRef = useRef<SlideMetadata | null>(null)
@@ -113,6 +122,7 @@ function MapNode() {
   const cellCountRedoRef = useRef<(Feature<Point> | null)[]>([])
   const lastUndoSignalRef = useRef(undoSignal)
   const lastRedoSignalRef = useRef(redoSignal)
+  const lastRulerClearSignalRef = useRef(rulerClearSignal)
   const rotationDegreesRef = useRef(rotationDegrees)
   const [error, setError] = useState<string | null>(null)
   // Bumped right after mapRef.current is (re)built - the map is constructed
@@ -127,6 +137,7 @@ function MapNode() {
   useEffect(() => {
     setError(null)
     resetRotation()
+    setLastMeasurement(null)
     if (!mapElement.current) return
 
     let cancelled = false
@@ -170,18 +181,25 @@ function MapNode() {
           style: roiBoxStyle,
           visible: cellCountVisible,
         })
+        const rulerLayer = new VectorLayer({
+          source: rulerSourceRef.current,
+          style: rulerStyle,
+          visible: rulerVisible,
+        })
         annotationsLayerRef.current = annotationsLayer
         drawLayerRef.current = drawLayer
         cellCountDotsLayerRef.current = cellCountDotsLayer
         roiLayerRef.current = roiLayer
         viewedDotsLayerRef.current = viewedDotsLayer
         viewedRoiLayerRef.current = viewedRoiLayer
+        rulerLayerRef.current = rulerLayer
         mapRef.current = OpenLayerMap(
           mapElement.current,
           { width: metadata.width, height: metadata.height },
           { baseUrl: `${slideUrl}/`, tileSize: metadata.tileSize },
           metadata.objectivePower,
-          [annotationsLayer, drawLayer, cellCountDotsLayer, roiLayer, viewedDotsLayer, viewedRoiLayer]
+          metadata.mppX,
+          [annotationsLayer, drawLayer, cellCountDotsLayer, roiLayer, viewedDotsLayer, viewedRoiLayer, rulerLayer]
         )
         // The view's own coarsest resolution (post native-scale capping,
         // i.e. genuinely as zoomed-out as this slide's view can go) - see
@@ -237,6 +255,82 @@ function MapNode() {
     viewedDotsLayerRef.current?.setVisible(cellCountVisible)
     viewedRoiLayerRef.current?.setVisible(cellCountVisible)
   }, [cellCountVisible])
+
+  // Same idea again, for the ruler - and since a measurement is a one-off
+  // scratch reading rather than something saved, closing the tool clears it
+  // outright rather than just hiding it, so reopening the panel doesn't
+  // resurrect a stale distance from a previous session.
+  useEffect(() => {
+    rulerLayerRef.current?.setVisible(rulerVisible)
+    if (!rulerVisible) {
+      rulerSourceRef.current.clear()
+      setLastMeasurement(null)
+    }
+  }, [rulerVisible, setLastMeasurement])
+
+  // Explicit "Clear" button in the ruler panel - same signal-counter idiom
+  // as undoSignal/redoSignal above, since the panel has no direct handle on
+  // the map's vector source to clear it itself.
+  useEffect(() => {
+    if (rulerClearSignal !== lastRulerClearSignalRef.current) {
+      lastRulerClearSignalRef.current = rulerClearSignal
+      rulerSourceRef.current.clear()
+    }
+  }, [rulerClearSignal])
+
+  // Measuring tool: a plain two-point LineString Draw, active only while the
+  // ruler panel is open. drawstart clears any previous line first, so only
+  // one measurement is ever shown at a time; drawend computes the distance
+  // (real, if the slide reports mpp; pixels otherwise) and bakes the
+  // formatted label onto the feature for rulerStyle to render. Also backs
+  // off while an annotation shape is selected or a cell count is running -
+  // both already put their own click handling on the map (see the Draw
+  // effect and the tally click listener below), and a click can only mean
+  // one thing at a time, same reasoning as FreeFormToolPicker disabling
+  // shape tools during counting.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !rulerVisible || activeTool || counting) return
+
+    const metadata = slideMetadataRef.current
+    const mppX = metadata?.mppX ?? null
+    const mppY = metadata?.mppY ?? null
+
+    const draw = new Draw({
+      source: rulerSourceRef.current,
+      type: 'LineString',
+      maxPoints: 2,
+      style: rulerSketchStyle(mppX, mppY),
+    })
+
+    draw.on('drawstart', () => {
+      rulerSourceRef.current.clear()
+    })
+
+    draw.on('drawend', (event: DrawEvent) => {
+      const feature = event.feature as Feature<LineString>
+      const coords = feature.getGeometry()!.getCoordinates()
+      const [x1, y1] = coords[0]
+      const [x2, y2] = coords[coords.length - 1]
+      const dx = x2 - x1
+      const dy = y2 - y1
+
+      const pixelLength = pixelDistance(dx, dy)
+      const realDistanceMicrons = mppX !== null && mppY !== null ? physicalDistanceMicrons(dx, dy, mppX, mppY) : null
+
+      feature.set(
+        'label',
+        realDistanceMicrons !== null ? formatDistanceMicrons(realDistanceMicrons) : formatDistancePixels(pixelLength)
+      )
+      setLastMeasurement({ pixelDistance: pixelLength, realDistanceMicrons })
+    })
+
+    map.addInteraction(draw)
+
+    return () => {
+      map.removeInteraction(draw)
+    }
+  }, [rulerVisible, activeTool, counting, setLastMeasurement])
 
   useEffect(() => {
     rotationDegreesRef.current = rotationDegrees

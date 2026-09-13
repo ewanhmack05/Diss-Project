@@ -15,12 +15,14 @@ import { CellCountStoreContextProvider } from './context/CellCountStoreContext'
 import { CellCountDrawContextProvider } from './context/CellCountDrawContext'
 import { DrawContextProvider } from './context/DrawContext'
 import { RotationContextProvider } from './context/RotationContext'
+import { RulerContextProvider } from './context/RulerContext'
 import { ToastContextProvider } from './context/ToastContext'
 import { EventContextProvider } from './context/EventContext'
 import MapNode from './components/MapNode'
 import AnnotationsPanel from './components/annotation/AnnotationsPanel'
 import CellCountPanel from './components/cell-count/CellCountPanel'
 import RotationPanel from './components/rotation/RotationPanel'
+import RulerPanel from './components/ruler/RulerPanel'
 import Toolbar, { type ToolName } from './components/toolbar/Toolbar'
 import DraggablePanel from './components/toolbar/DraggablePanel'
 import DockZones from './components/toolbar/DockZone'
@@ -104,9 +106,11 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, options, on }: AppPr
               <CellCountDrawContextProvider>
                 <DrawContextProvider>
                   <RotationContextProvider>
-                    <ToolbarContextProvider>
-                      <ViewerShell fontSize={options?.fontSize} tools={options?.tools} />
-                    </ToolbarContextProvider>
+                    <RulerContextProvider>
+                      <ToolbarContextProvider>
+                        <ViewerShell fontSize={options?.fontSize} tools={options?.tools} />
+                      </ToolbarContextProvider>
+                    </RulerContextProvider>
                   </RotationContextProvider>
                 </DrawContextProvider>
               </CellCountDrawContextProvider>
@@ -134,6 +138,7 @@ const INITIAL_POSITIONS: Record<string, Position> = {
   'annotations-panel': { x: 256, y: 32 },
   'cellcount-panel': { x: 256, y: 290 },
   'rotation-panel': { x: 256, y: 520 },
+  'ruler-panel': { x: 256, y: 750 },
 }
 
 interface ViewerShellProps {
@@ -152,6 +157,7 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
     'annotations-panel': createRef<HTMLDivElement>(),
     'cellcount-panel': createRef<HTMLDivElement>(),
     'rotation-panel': createRef<HTMLDivElement>(),
+    'ruler-panel': createRef<HTMLDivElement>(),
   }).current
   // One hidden, always-mounted probe per edge, sized/positioned exactly
   // like a real DockEdge (see .dock-edge--probe in DockEdge.css) purely so
@@ -167,6 +173,7 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
     { id: 'annotations-panel', title: 'Annotations', tool: 'annotations', content: <AnnotationsPanel /> },
     { id: 'cellcount-panel', title: 'Cell Count', tool: 'cellcount', content: <CellCountPanel /> },
     { id: 'rotation-panel', title: 'Rotate', tool: 'rotate', content: <RotationPanel /> },
+    { id: 'ruler-panel', title: 'Ruler', tool: 'ruler', content: <RulerPanel /> },
   ]
 
   // Only set while dragging a panel that started out docked - see
@@ -298,6 +305,10 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
     ...(fontSize ? { fontSize } : undefined),
     '--dock-top-inset': dockAssignments.top.length > 0 ? EDGE_CROSS_SIZE : '0em',
     '--dock-bottom-inset': dockAssignments.bottom.length > 0 ? EDGE_CROSS_SIZE : '0em',
+    // Lets the bottom-right scale bar (see MapNode.css's .ol-scalebar) step
+    // out of the way of a right-docked panel, the same way the two insets
+    // above already do for left/right and top/bottom.
+    '--dock-right-inset': dockAssignments.right.length > 0 ? `${FLOATING_PANEL_WIDTH_EM}em` : '0em',
   } as CSSProperties
 
   return (

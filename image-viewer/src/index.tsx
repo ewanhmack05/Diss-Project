@@ -29,6 +29,7 @@ createRoot(document.getElementById('root')!).render(
           'annotations',
           'cellcount',
           'rotate',
+          'ruler',
         ]
       }}
       on={(event, payload) => {

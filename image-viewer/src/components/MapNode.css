@@ -107,3 +107,48 @@
 .map-node .ol-overviewmap-toggle:focus {
   color: var(--accent);
 }
+
+/* Bottom-right, flush against the toolbar (3.69em, matching DockEdge.css's
+   own bottom offset) with no extra gap - and flush against a bottom-docked
+   panel instead via --dock-bottom-inset when one's there, the exact same
+   calc DockEdge.css uses for its left/right edges. --dock-right-inset
+   likewise steps it clear of a right-docked panel. Both custom properties
+   are set on .app in App.tsx. Deliberately carries no font-size of its own -
+   see buildScaleBarControl's comment for why that has to stay off this
+   element and live on .ol-scalebar-chip instead. */
+.map-node .ol-scalebar {
+  position: absolute;
+  right: calc(1em + var(--dock-right-inset, 0em));
+  bottom: calc(3.69em + var(--dock-bottom-inset, 0em));
+  pointer-events: none;
+  transition: right 200ms cubic-bezier(0.4, 0, 0.2, 1), bottom 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Same chrome-bg chip look as the overview/toolbar rather than floating raw
+   over the slide (a glow/halo read as odd against most slide colours). */
+.map-node .ol-scalebar-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.8em 1.3em;
+  background: var(--chrome-bg);
+  border-radius: 0.4em;
+  font-family: var(--sans);
+  font-size: 1.8em;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 1);
+}
+
+.map-node .ol-scalebar-line {
+  height: 14px;
+  box-sizing: border-box;
+  border-left: 3px solid rgba(0, 0, 0, 1);
+  border-right: 3px solid rgba(0, 0, 0, 1);
+  border-bottom: 3px solid rgba(0, 0, 0, 1);
+}
+
+.map-node .ol-scalebar-label {
+  font-variant-numeric: tabular-nums;
+  color: rgba(0, 0, 0, 1);
+}

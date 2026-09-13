@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { capResolutionsAtNativeScale, clampOverviewBoxSize, computeResolutionLadder } from './OpenLayers'
+import {
+  capResolutionsAtNativeScale,
+  clampOverviewBoxSize,
+  computeResolutionLadder,
+  niceScaleValue,
+  chooseScaleBarLength,
+  formatScaleLength,
+} from './OpenLayers'
 
 describe('computeResolutionLadder', () => {
   it('halves both dimensions until they fit in one tile', () => {
@@ -73,5 +80,77 @@ describe('clampOverviewBoxSize', () => {
 
   it('floors to the minimum when the box has not been measured yet (NaN)', () => {
     expect(clampOverviewBoxSize(NaN, NaN, 6)).toEqual({ width: 6, height: 6 })
+  })
+})
+
+describe('niceScaleValue', () => {
+  it('picks 5 when the fraction is 5 or above', () => {
+    expect(niceScaleValue(73)).toBe(50)
+  })
+
+  it('picks 2 when the fraction is between 2 and 5', () => {
+    expect(niceScaleValue(38)).toBe(20)
+  })
+
+  it('picks 1 when the fraction is between 1 and 2', () => {
+    expect(niceScaleValue(14)).toBe(10)
+  })
+
+  it('handles a value already exactly on a step', () => {
+    expect(niceScaleValue(500)).toBe(500)
+  })
+
+  it('handles values below 1', () => {
+    expect(niceScaleValue(0.34)).toBeCloseTo(0.2, 10)
+  })
+
+  it('is 0 for a non-positive input', () => {
+    expect(niceScaleValue(0)).toBe(0)
+    expect(niceScaleValue(-5)).toBe(0)
+  })
+})
+
+describe('chooseScaleBarLength', () => {
+  it('picks a round micron length that fits within maxWidthPx', () => {
+    // 1 screen px = 2 microns, capped at 80px -> up to 160 microns -> nice value 100
+    const result = chooseScaleBarLength(2, 80)
+    expect(result.length).toBe(100)
+    expect(result.widthPx).toBe(50)
+  })
+
+  it('scales down for a coarser resolution', () => {
+    // 1 screen px = 50 microns, capped at 80px -> up to 4000 microns -> nice value 2000
+    const result = chooseScaleBarLength(50, 80)
+    expect(result.length).toBe(2000)
+    expect(result.widthPx).toBe(40)
+  })
+
+  it('is zero-length when there is nothing sensible to scale (non-positive input)', () => {
+    expect(chooseScaleBarLength(0, 80)).toEqual({ length: 0, widthPx: 0 })
+    expect(chooseScaleBarLength(-1, 80)).toEqual({ length: 0, widthPx: 0 })
+  })
+
+  it('is zero-length for a non-finite input rather than propagating NaN/Infinity', () => {
+    expect(chooseScaleBarLength(NaN, 80)).toEqual({ length: 0, widthPx: 0 })
+    expect(chooseScaleBarLength(Infinity, 80)).toEqual({ length: 0, widthPx: 0 })
+  })
+})
+
+describe('formatScaleLength', () => {
+  it('formats a pixel length with no unit conversion', () => {
+    expect(formatScaleLength(100, 'pixel')).toBe('100 px')
+  })
+
+  it('formats a micron length under 1000 as µm', () => {
+    expect(formatScaleLength(500, 'micron')).toBe('500 µm')
+  })
+
+  it('formats exactly 1000 microns as 1mm with no rounding artefacts', () => {
+    expect(formatScaleLength(1000, 'micron')).toBe('1 mm')
+  })
+
+  it('formats a larger nice micron value as an exact mm value', () => {
+    expect(formatScaleLength(2000, 'micron')).toBe('2 mm')
+    expect(formatScaleLength(5000, 'micron')).toBe('5 mm')
   })
 })

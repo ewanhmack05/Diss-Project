@@ -1,10 +1,11 @@
-import { Circle as CircleStyle, Fill, RegularShape, Stroke, Style } from "ol/style";
+import { Circle as CircleStyle, Fill, RegularShape, Stroke, Style, Text } from "ol/style";
 import LineString from "ol/geom/LineString";
 import Polygon from "ol/geom/Polygon";
 import Point from "ol/geom/Point";
 import type Geometry from "ol/geom/Geometry";
 import type { FeatureLike } from "ol/Feature";
 import type { LineStyleName, ShapeTool } from "../annotation/Tools";
+import { pixelDistance, physicalDistanceMicrons, formatDistanceMicrons, formatDistancePixels } from "../ruler/ruler";
 
 // The slide's own coarsest view resolution (map units - i.e. native slide
 // pixels - per screen pixel at the most zoomed-out the view ever goes) -
@@ -191,11 +192,68 @@ function roiBoxStyle(): Style {
 	});
 }
 
+const RULER_COLOUR = "#ff9f1c";
+
+function rulerDistanceLabel(line: LineString, mppX: number | null, mppY: number | null): string | undefined {
+	const coords = line.getCoordinates();
+	if (coords.length < 2) return undefined;
+	const [x1, y1] = coords[0];
+	const [x2, y2] = coords[coords.length - 1];
+	const dx = x2 - x1;
+	const dy = y2 - y1;
+	return mppX !== null && mppY !== null
+		? formatDistanceMicrons(physicalDistanceMicrons(dx, dy, mppX, mppY))
+		: formatDistancePixels(pixelDistance(dx, dy));
+}
+
+// Canvas text can't read CSS custom properties, so the font stack here is
+// index.css's --sans spelled out literally rather than referenced.
+function rulerTextStyle(label: string | undefined): Text | undefined {
+	return label
+		? new Text({
+				text: label,
+				font: "600 13px 'Source Sans Pro', Arial, sans-serif",
+				fill: new Fill({ color: "#fff" }),
+				stroke: new Stroke({ color: "#000", width: 3 }),
+				offsetY: -12,
+			})
+		: undefined;
+}
+
+// The finished, measured line plus its distance label - the label text
+// itself is computed once at drawend and carried as a feature property
+// (same convention as annotationStyle's colour/shape), since it only
+// depends on the slide's fixed mpp, not anything that changes per render.
+function rulerStyle(feature: FeatureLike): Style {
+	const label = feature.get("label") as string | undefined;
+	return new Style({
+		stroke: new Stroke({ color: RULER_COLOUR, width: 2 }),
+		text: rulerTextStyle(label),
+	});
+}
+
+// Live in-progress sketch style, mirroring sketchStyle's approach for
+// annotations - recomputes the distance label from the geometry itself on
+// every pointer move, since a mid-drag feature has no properties set on it
+// yet for rulerStyle to read.
+function rulerSketchStyle(mppX: number | null, mppY: number | null) {
+	return (feature: FeatureLike): Style => {
+		const geometry = feature.getGeometry();
+		const label = geometry instanceof LineString ? rulerDistanceLabel(geometry, mppX, mppY) : undefined;
+		return new Style({
+			stroke: new Stroke({ color: RULER_COLOUR, width: 2, lineDash: [6, 4] }),
+			text: rulerTextStyle(label),
+		});
+	};
+}
+
 export {
 	annotationStyle,
 	sketchStyle,
 	cellCountDotStyle,
 	roiBoxStyle,
+	rulerStyle,
+	rulerSketchStyle,
 	arrowHeadRadius,
 	dashPattern,
 	setStyleReferenceResolution,

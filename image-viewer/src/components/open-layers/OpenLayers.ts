@@ -3,6 +3,7 @@ import TileLayer from 'ol/layer/Tile'
 import Zoomify from 'ol/source/Zoomify'
 import Projection from 'ol/proj/Projection'
 import OverviewMap from 'ol/control/OverviewMap'
+import Control from 'ol/control/Control'
 import type BaseLayer from 'ol/layer/Base'
 
 interface ImageSize {
@@ -216,11 +217,95 @@ function attachOverviewStatusBar(
   container.appendChild(bar)
 }
 
+// Largest "nice" value (a 1-2-5 progression scaled by a power of ten) that
+// doesn't exceed maxValue - the standard map-scale-bar algorithm, so the
+// bar always reads a round number ("500 µm", "2 mm") rather than an
+// arbitrary one ("438 µm") that happened to fit the available width.
+function niceScaleValue(maxValue: number): number {
+  if (maxValue <= 0) return 0
+  const exponent = Math.floor(Math.log10(maxValue))
+  const base = 10 ** exponent
+  const fraction = maxValue / base
+  const step = fraction >= 5 ? 5 : fraction >= 2 ? 2 : 1
+  return step * base
+}
+
+// Picks the bar's length (in whatever linear unit unitsPerScreenPixel is
+// expressed in - microns, or raw image pixels when a slide has no mpp) and
+// the on-screen pixel width that represents, capped at maxWidthPx.
+function chooseScaleBarLength(
+  unitsPerScreenPixel: number,
+  maxWidthPx: number
+): { length: number; widthPx: number } {
+  if (!Number.isFinite(unitsPerScreenPixel) || unitsPerScreenPixel <= 0) {
+    return { length: 0, widthPx: 0 }
+  }
+  const length = niceScaleValue(unitsPerScreenPixel * maxWidthPx)
+  return { length, widthPx: length / unitsPerScreenPixel }
+}
+
+// `length` is already a round number by construction (see niceScaleValue),
+// so unlike ruler.ts's formatDistanceMicrons this never needs to round -
+// just to pick µm vs mm (1-2-5 scaled by 1000 is still 1-2-5, so the
+// division is always exact).
+function formatScaleLength(length: number, unit: 'micron' | 'pixel'): string {
+  if (unit === 'pixel') return `${length} px`
+  return length >= 1000 ? `${length / 1000} mm` : `${length} µm`
+}
+
+const MAX_SCALE_BAR_WIDTH_PX = 220
+
+// A floating scale bar, bottom-right of the map - a plain OL Control (own
+// overlay element, positioned via CSS, no backing rectangle) rather than
+// something attached to the overview, so it isn't tied to the overview's
+// position or visibility. Bar length in microns/pixels per on-screen pixel
+// is resolution (image px per screen px) times mppX (microns per image px),
+// or just resolution itself when the slide has no mpp data. Only mppX (not
+// mppY) is used, matching how every other map viewer's horizontal scale bar
+// works - a fine approximation even for the rare non-square-pixel slide.
+function buildScaleBarControl(view: View, mppX: number | null): Control {
+  // Positioning (bottom/right, in em) lives on this outer element, which
+  // carries no font-size of its own - .ol-scalebar-chip's bigger font-size
+  // stays local to the chip's own text/padding instead of also inflating
+  // the em basis the outer element's bottom/right offsets are computed
+  // against, which put an unwanted gap above the toolbar the last time
+  // those two things shared a font-size on the same element.
+  const element = document.createElement('div')
+  element.className = 'ol-scalebar'
+
+  const chip = document.createElement('div')
+  chip.className = 'ol-scalebar-chip'
+
+  const line = document.createElement('div')
+  line.className = 'ol-scalebar-line'
+
+  const label = document.createElement('span')
+  label.className = 'ol-scalebar-label'
+
+  const update = () => {
+    const resolution = view.getResolution() ?? 1
+    const unitsPerScreenPixel = mppX !== null ? resolution * mppX : resolution
+    const { length, widthPx } = chooseScaleBarLength(unitsPerScreenPixel, MAX_SCALE_BAR_WIDTH_PX)
+    line.style.width = `${widthPx}px`
+    label.textContent = formatScaleLength(length, mppX !== null ? 'micron' : 'pixel')
+  }
+
+  view.on('change:resolution', update)
+  update()
+
+  chip.appendChild(line)
+  chip.appendChild(label)
+  element.appendChild(chip)
+
+  return new Control({ element })
+}
+
 export function OpenLayerMap(
   target: HTMLElement,
   size: ImageSize,
   spec: BaseLayerSpec,
   objectivePower: number | null = null,
+  mppX: number | null = null,
   extraLayers: BaseLayer[] = []
 ): Map {
   const extent = getExtent(size)
@@ -257,6 +342,7 @@ export function OpenLayerMap(
     collapsible: true,
   })
   map.addControl(overview)
+  map.addControl(buildScaleBarControl(map.getView(), mppX))
 
   // OL's OverviewMap automatically rescales/recenters its *own* view to keep
   // the tracked box within a comfortable size ratio (see ol/control/
@@ -296,5 +382,13 @@ export function OpenLayerMap(
   return map
 }
 
-export { getExtent, computeResolutionLadder, capResolutionsAtNativeScale, clampOverviewBoxSize }
+export {
+  getExtent,
+  computeResolutionLadder,
+  capResolutionsAtNativeScale,
+  clampOverviewBoxSize,
+  niceScaleValue,
+  chooseScaleBarLength,
+  formatScaleLength,
+}
 export type { ImageSize, BaseLayerSpec }

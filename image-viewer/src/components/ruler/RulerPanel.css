@@ -1,0 +1,54 @@
+.ruler-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6em;
+  padding: 1em;
+  font-family: var(--sans);
+}
+
+.draggable-panel--docked-top .ruler-panel,
+.draggable-panel--docked-bottom .ruler-panel {
+  padding: 0.5em 1em;
+  gap: 0.4em;
+}
+
+.ruler-panel-hint {
+  margin: 0;
+  color: var(--chrome-text-secondary);
+  font-size: 0.85em;
+  text-align: center;
+}
+
+.ruler-panel-readout {
+  font-size: 1.4em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+.ruler-panel-clear {
+  padding: 0.4em 0.8em;
+  font-family: var(--sans);
+  font-size: 0.85em;
+  color: var(--chrome-text);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid transparent;
+  border-radius: 0.25em;
+  cursor: pointer;
+}
+
+.ruler-panel-clear:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.ruler-panel-clear:active:not(:disabled) {
+  border-color: var(--accent-active);
+  color: var(--accent-active);
+}
+
+.ruler-panel-clear:disabled {
+  color: var(--disabled);
+  cursor: default;
+}
