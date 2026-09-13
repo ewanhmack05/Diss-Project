@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import type { CellCount } from '../interfaces/CellCount'
 import { useImageViewerContext } from './ImageViewerContext'
 import { useEmitEvent } from './EventContext'
+import { useCollectionContext } from './CollectionContext'
 
 type Status = 'loading' | 'ready' | 'error'
 
@@ -33,6 +34,7 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
   const { source } = useImageViewerContext()
   const { slideId } = source
   const emit = useEmitEvent()
+  const { collectionId, status: collectionStatus } = useCollectionContext()
 
   const [cellCounts, setCellCounts] = useState<CellCount[]>([])
   const [status, setStatus] = useState<Status>('loading')
@@ -41,9 +43,16 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
 
   useEffect(() => {
     let cancelled = false
+
+    if (collectionId === null) {
+      setStatus(collectionStatus === 'error' ? 'error' : 'loading')
+      setCellCounts([])
+      return
+    }
+
     setStatus('loading')
 
-    fetch(`${baseUrl}/cellcounts?slideId=${encodeURIComponent(slideId)}`)
+    fetch(`${baseUrl}/cellcounts?collectionId=${encodeURIComponent(collectionId)}`)
       .then((response) => {
         if (!response.ok) throw new Error(String(response.status))
         return response.json() as Promise<CellCount[]>
@@ -63,15 +72,22 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
     return () => {
       cancelled = true
     }
-  }, [baseUrl, slideId, emit])
+  }, [baseUrl, slideId, collectionId, collectionStatus, emit])
 
   const addCellCount = (cellCount: CellCount) => {
+    // Same reasoning as AnnotationStoreContext.addAnnotation - counting can
+    // start and finish before collectionId resolves, and posting null would
+    // 400 against the backend's non-nullable CollectionId.
+    if (collectionId === null) {
+      emit('cellcount:created:error', cellCount)
+      return
+    }
     setCellCounts((current) => [...current, cellCount])
     emit('cellcount:created', cellCount)
     fetch(`${baseUrl}/cellcounts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...cellCount, slideId }),
+      body: JSON.stringify({ ...cellCount, collectionId }),
     })
       .then((response) => {
         if (!response.ok) throw new Error(String(response.status))

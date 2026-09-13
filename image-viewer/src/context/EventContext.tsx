@@ -26,6 +26,7 @@ const TOAST_MESSAGES: Record<string, { message: string; variant: 'success' | 'er
   'cellcounts:load-error': { message: "Couldn't reach the annotation store", variant: 'error' },
   'cellcount:click-outside-roi': { message: "Can't click here", variant: 'error' },
   'slide:load-error': { message: "Couldn't reach the tile server", variant: 'error' },
+  'collection:load-error': { message: "Couldn't reach the annotation store", variant: 'error' },
   'imageadjustment:created': { message: 'Preset saved', variant: 'success' },
   'imageadjustment:created:error': { message: "Couldn't save preset", variant: 'error' },
   'imageadjustment:updated': { message: 'Preset updated', variant: 'success' },

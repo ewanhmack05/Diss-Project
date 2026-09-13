@@ -2,7 +2,7 @@ import type { ImageAdjustmentValues } from '../components/adjustments/adjustment
 
 interface ImageAdjustmentPreset {
   imageAdjustmentId: string
-  slideId: string
+  collectionId: string
   adjustmentName: string
   adjustments: string
   created: string

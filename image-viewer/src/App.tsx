@@ -10,6 +10,7 @@ import {
 import { restrictToWindowEdges } from '@dnd-kit/modifiers'
 import { ImageViewerContextProvider } from './context/ImageViewerContext'
 import { ToolbarContextProvider, useToolbarContext, type ToolId } from './context/ToolbarContext'
+import { CollectionContextProvider } from './context/CollectionContext'
 import { AnnotationStoreContextProvider } from './context/AnnotationStoreContext'
 import { CellCountStoreContextProvider } from './context/CellCountStoreContext'
 import { CellCountDrawContextProvider } from './context/CellCountDrawContext'
@@ -103,23 +104,25 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, options, on }: AppPr
     <ToastContextProvider>
       <EventContextProvider on={on}>
         <ImageViewerContextProvider source={imageSource}>
-          <AnnotationStoreContextProvider baseUrl={annotationStoreUrl}>
-            <CellCountStoreContextProvider baseUrl={annotationStoreUrl}>
-              <CellCountDrawContextProvider>
-                <DrawContextProvider>
-                  <RotationContextProvider>
-                    <RulerContextProvider>
-                      <AdjustmentsContextProvider baseUrl={annotationStoreUrl}>
-                        <ToolbarContextProvider>
-                          <ViewerShell fontSize={options?.fontSize} tools={options?.tools} />
-                        </ToolbarContextProvider>
-                      </AdjustmentsContextProvider>
-                    </RulerContextProvider>
-                  </RotationContextProvider>
-                </DrawContextProvider>
-              </CellCountDrawContextProvider>
-            </CellCountStoreContextProvider>
-          </AnnotationStoreContextProvider>
+          <CollectionContextProvider baseUrl={annotationStoreUrl}>
+            <AnnotationStoreContextProvider baseUrl={annotationStoreUrl}>
+              <CellCountStoreContextProvider baseUrl={annotationStoreUrl}>
+                <CellCountDrawContextProvider>
+                  <DrawContextProvider>
+                    <RotationContextProvider>
+                      <RulerContextProvider>
+                        <AdjustmentsContextProvider baseUrl={annotationStoreUrl}>
+                          <ToolbarContextProvider>
+                            <ViewerShell fontSize={options?.fontSize} tools={options?.tools} />
+                          </ToolbarContextProvider>
+                        </AdjustmentsContextProvider>
+                      </RulerContextProvider>
+                    </RotationContextProvider>
+                  </DrawContextProvider>
+                </CellCountDrawContextProvider>
+              </CellCountStoreContextProvider>
+            </AnnotationStoreContextProvider>
+          </CollectionContextProvider>
         </ImageViewerContextProvider>
       </EventContextProvider>
     </ToastContextProvider>

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using AnnotationStore.Annotations;
 using AnnotationStore.CellCounts;
+using AnnotationStore.Collections;
 using AnnotationStore.ImageAdjustments;
 using DotNetEnv;
 using Microsoft.EntityFrameworkCore;
@@ -57,14 +58,98 @@ if (app.Environment.IsDevelopment())
     scope.ServiceProvider.GetRequiredService<AnnotationDbContext>().Database.Migrate();
 }
 
+// Collection endpoints - every Annotation/CellCount/ImageAdjustments row
+// belongs to exactly one of these (see AnnotationStore.Collections.Collections).
+
+// Eager-loads its Annotations/CellCounts/ImageAdjustments - a read
+// convenience for seeing everything in a collection in one call (Scalar,
+// curl, a future export). The three flat endpoints below are still what the
+// frontend actually reads/writes through day to day - this doesn't replace
+// them, and writes always go through those, never through this shape.
+app.MapGet("/collections", async (string slideId, string userId, AnnotationDbContext db) =>
+    Results.Ok(await db.Collections
+        .Where(c => c.SlideId == slideId && c.UserId == userId)
+        .Include(c => c.Annotations)
+        .Include(c => c.CellCounts).ThenInclude(cc => cc.RegionOfInterest)
+        .Include(c => c.ImageAdjustments)
+        .ToListAsync()));
+
+// Get-or-create: the flow the frontend actually calls on load. Plain POST
+// below exists for completeness/manual use, but a user opening a slide
+// should never fail just because their collection already exists from a
+// previous visit.
+app.MapPost("/collections/ensure", async (AnnotationStore.Collections.Collections request, AnnotationDbContext db) =>
+{
+    var existing = await db.Collections.FirstOrDefaultAsync(
+        c => c.SlideId == request.SlideId && c.UserId == request.UserId);
+    if (existing is not null) return Results.Ok(existing);
+
+    var collection = new AnnotationStore.Collections.Collections
+    {
+        CollectionId = Guid.NewGuid(),
+        SlideId = request.SlideId,
+        UserId = request.UserId,
+        CollectionName = string.IsNullOrWhiteSpace(request.CollectionName)
+            ? $"Collection for {request.SlideId}"
+            : request.CollectionName,
+        Created = DateTimeOffset.UtcNow,
+    };
+    db.Collections.Add(collection);
+    await db.SaveChangesAsync();
+    return Results.Created($"/collections/{collection.CollectionId}", collection);
+});
+
+app.MapPost("/collections", async (AnnotationStore.Collections.Collections collection, AnnotationDbContext db) =>
+{
+    // Checked up front rather than caught off the unique index - avoids
+    // coupling this handler to a specific provider's constraint-violation
+    // exception shape (Postgres at runtime, Sqlite in tests). Racy in
+    // theory (two near-simultaneous POSTs for the same slide+user), but
+    // this is a single-instance dev service, not something worth a
+    // retry-on-conflict dance for - /collections/ensure is the real
+    // get-or-create path anyway.
+    var exists = await db.Collections.AnyAsync(c => c.SlideId == collection.SlideId && c.UserId == collection.UserId);
+    if (exists) return Results.Conflict("A collection already exists for this slide and user - use POST /collections/ensure instead.");
+
+    if (collection.CollectionId == Guid.Empty) collection.CollectionId = Guid.NewGuid();
+    collection.Created = DateTimeOffset.UtcNow;
+    db.Collections.Add(collection);
+    await db.SaveChangesAsync();
+    return Results.Created($"/collections/{collection.CollectionId}", collection);
+});
+
+app.MapPut("/collections/{id:guid}", async (Guid id, AnnotationStore.Collections.Collections update, AnnotationDbContext db) =>
+{
+    var existing = await db.Collections.FindAsync(id);
+    if (existing is null) return Results.NotFound();
+    existing.CollectionName = update.CollectionName;
+    await db.SaveChangesAsync();
+    return Results.Ok(existing);
+});
+
+app.MapDelete("/collections/{id:guid}", async (Guid id, AnnotationDbContext db) =>
+{
+    var existing = await db.Collections.FindAsync(id);
+    if (existing is null) return Results.NotFound();
+    db.Collections.Remove(existing);
+    await db.SaveChangesAsync();
+    return Results.NoContent();
+});
+
 // Annotation endpoints
 
-app.MapGet("/annotations", async (string slideId, AnnotationDbContext db) =>
-    Results.Ok(await db.Annotations.Where(a => a.SlideId == slideId).ToListAsync()));
+app.MapGet("/annotations", async (Guid collectionId, AnnotationDbContext db) =>
+    Results.Ok(await db.Annotations.Where(a => a.CollectionId == collectionId).ToListAsync()));
 
 app.MapPost("/annotations", async (Annotation annotation, AnnotationDbContext db) =>
 {
+    var collection = await db.Collections.FindAsync(annotation.CollectionId);
+    if (collection is null) return Results.NotFound($"No collection {annotation.CollectionId}");
+
     if (annotation.Id == Guid.Empty) annotation.Id = Guid.NewGuid();
+    // Derived from the collection, not trusted from the client - keeps this
+    // denormalized copy from ever drifting away from the real relationship.
+    annotation.SlideId = collection.SlideId;
     annotation.Created = DateTimeOffset.UtcNow;
     db.Annotations.Add(annotation);
     await db.SaveChangesAsync();
@@ -93,15 +178,19 @@ app.MapDelete("/annotations/{id:guid}", async (Guid id, AnnotationDbContext db) 
 
 // Cell count endpoints
 
-app.MapGet("/cellcounts", async (string slideId, AnnotationDbContext db) =>
+app.MapGet("/cellcounts", async (Guid collectionId, AnnotationDbContext db) =>
     Results.Ok(await db.CellCounts
-        .Where(c => c.SlideId == slideId)
+        .Where(c => c.CollectionId == collectionId)
         .Include(c => c.RegionOfInterest)
         .ToListAsync()));
 
 app.MapPost("/cellcounts", async (CellCount cellCount, AnnotationDbContext db) =>
 {
+    var collection = await db.Collections.FindAsync(cellCount.CollectionId);
+    if (collection is null) return Results.NotFound($"No collection {cellCount.CollectionId}");
+
     if (cellCount.Id == Guid.Empty) cellCount.Id = Guid.NewGuid();
+    cellCount.SlideId = collection.SlideId;
     cellCount.Created = DateTimeOffset.UtcNow;
     if (cellCount.RegionOfInterest is not null)
     {
@@ -139,12 +228,16 @@ app.MapDelete("/cellcounts/{id:guid}", async (Guid id, AnnotationDbContext db) =
 
 // Image adjustment endpoints
 
-app.MapGet("/imageadjustments", async (string slideId, AnnotationDbContext db) =>
-    Results.Ok(await db.ImageAdjustments.Where(a => a.SlideId == slideId).ToListAsync()));
+app.MapGet("/imageadjustments", async (Guid collectionId, AnnotationDbContext db) =>
+    Results.Ok(await db.ImageAdjustments.Where(a => a.CollectionId == collectionId).ToListAsync()));
 
 app.MapPost("/imageadjustments", async (AnnotationStore.ImageAdjustments.ImageAdjustments adjustment, AnnotationDbContext db) =>
 {
+    var collection = await db.Collections.FindAsync(adjustment.CollectionId);
+    if (collection is null) return Results.NotFound($"No collection {adjustment.CollectionId}");
+
     if (adjustment.ImageAdjustmentId == Guid.Empty) adjustment.ImageAdjustmentId = Guid.NewGuid();
+    adjustment.SlideId = collection.SlideId;
     adjustment.Created = DateTimeOffset.UtcNow;
     db.ImageAdjustments.Add(adjustment);
     await db.SaveChangesAsync();

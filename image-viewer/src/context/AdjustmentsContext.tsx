@@ -9,6 +9,7 @@ import {
 } from '../components/adjustments/adjustments'
 import { useImageViewerContext } from './ImageViewerContext'
 import { useEmitEvent } from './EventContext'
+import { useCollectionContext } from './CollectionContext'
 
 type Status = 'loading' | 'ready' | 'error'
 
@@ -35,6 +36,7 @@ function AdjustmentsContextProvider({ baseUrl, children }: AdjustmentsContextPro
   const { source } = useImageViewerContext()
   const { slideId } = source
   const emit = useEmitEvent()
+  const { collectionId, status: collectionStatus } = useCollectionContext()
 
   const [values, setValues] = useState<ImageAdjustmentValues>({ ...DEFAULT_ADJUSTMENTS })
   const [presets, setPresets] = useState<ImageAdjustmentPreset[]>([])
@@ -46,9 +48,16 @@ function AdjustmentsContextProvider({ baseUrl, children }: AdjustmentsContextPro
   // survive a reload, so they live server-side rather than in plain state.
   useEffect(() => {
     let cancelled = false
+
+    if (collectionId === null) {
+      setStatus(collectionStatus === 'error' ? 'error' : 'loading')
+      setPresets([])
+      return
+    }
+
     setStatus('loading')
 
-    fetch(`${baseUrl}/imageadjustments?slideId=${encodeURIComponent(slideId)}`)
+    fetch(`${baseUrl}/imageadjustments?collectionId=${encodeURIComponent(collectionId)}`)
       .then((response) => {
         if (!response.ok) throw new Error(String(response.status))
         return response.json() as Promise<ImageAdjustmentPreset[]>
@@ -68,15 +77,21 @@ function AdjustmentsContextProvider({ baseUrl, children }: AdjustmentsContextPro
     return () => {
       cancelled = true
     }
-  }, [baseUrl, slideId, emit])
+  }, [baseUrl, slideId, collectionId, collectionStatus, emit])
 
   // Writes are optimistic, same pattern as AnnotationStoreContext - update
   // local state immediately, fire the request, and emit a separate :error
   // event if it didn't actually persist.
   const savePreset = (name: string) => {
+    // Same reasoning as AnnotationStoreContext.addAnnotation - the panel
+    // doesn't wait on this context's own status before letting Save happen.
+    if (collectionId === null) {
+      emit('imageadjustment:created:error', { name })
+      return
+    }
     const preset: ImageAdjustmentPreset = {
       imageAdjustmentId: crypto.randomUUID(),
-      slideId,
+      collectionId,
       adjustmentName: name,
       adjustments: serializeAdjustments(values),
       created: new Date().toISOString(),

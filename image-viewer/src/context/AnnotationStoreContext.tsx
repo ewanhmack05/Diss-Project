@@ -3,6 +3,7 @@ import VectorSource from 'ol/source/Vector'
 import type { Annotation } from '../interfaces/Annotation'
 import { useImageViewerContext } from './ImageViewerContext'
 import { useEmitEvent } from './EventContext'
+import { useCollectionContext } from './CollectionContext'
 
 type Status = 'loading' | 'ready' | 'error'
 
@@ -32,6 +33,7 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
   const { source } = useImageViewerContext()
   const { slideId } = source
   const emit = useEmitEvent()
+  const { collectionId, status: collectionStatus } = useCollectionContext()
 
   const [annotations, setAnnotations] = useState<Annotation[]>([])
   const [status, setStatus] = useState<Status>('loading')
@@ -42,9 +44,16 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
   // backend at all is that this survives a reload, unlike plain React state.
   useEffect(() => {
     let cancelled = false
+
+    if (collectionId === null) {
+      setStatus(collectionStatus === 'error' ? 'error' : 'loading')
+      setAnnotations([])
+      return
+    }
+
     setStatus('loading')
 
-    fetch(`${baseUrl}/annotations?slideId=${encodeURIComponent(slideId)}`)
+    fetch(`${baseUrl}/annotations?collectionId=${encodeURIComponent(collectionId)}`)
       .then((response) => {
         if (!response.ok) throw new Error(String(response.status))
         return response.json() as Promise<Annotation[]>
@@ -64,7 +73,7 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
     return () => {
       cancelled = true
     }
-  }, [baseUrl, slideId, emit])
+  }, [baseUrl, slideId, collectionId, collectionStatus, emit])
 
   // Writes are optimistic - update local state immediately for a responsive
   // UI (and emit the corresponding event right away), fire the request, and
@@ -72,12 +81,21 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
   // persist. Fine for a proof of concept; a real conflict/rollback story can
   // wait until this has more than one collaborator writing to it.
   const addAnnotation = (annotation: Annotation) => {
+    // Neither the draw tools nor AddAnnotationForm wait on this context's own
+    // status before letting a save happen - collectionId can still be null
+    // this early. Posting null there would 400 against the backend's
+    // non-nullable CollectionId, so this bails before the optimistic add
+    // ever makes the annotation look saved when it can't be.
+    if (collectionId === null) {
+      emit('annotation:created:error', annotation)
+      return
+    }
     setAnnotations((current) => [...current, annotation])
     emit('annotation:created', annotation)
     fetch(`${baseUrl}/annotations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...annotation, slideId }),
+      body: JSON.stringify({ ...annotation, collectionId }),
     })
       .then((response) => {
         if (!response.ok) throw new Error(String(response.status))

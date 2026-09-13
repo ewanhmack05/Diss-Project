@@ -3,6 +3,7 @@ using System;
 using AnnotationStore.Annotations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AnnotationStore.Migrations
 {
     [DbContext(typeof(AnnotationDbContext))]
-    partial class AnnotationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260913230433_AddCollections")]
+    partial class AddCollections
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -71,7 +74,7 @@ namespace AnnotationStore.Migrations
 
                     b.HasIndex("SlideId");
 
-                    b.ToTable("Annotations", (string)null);
+                    b.ToTable("Annotations");
                 });
 
             modelBuilder.Entity("AnnotationStore.CellCounts.CellCount", b =>
@@ -126,7 +129,7 @@ namespace AnnotationStore.Migrations
 
                     b.HasIndex("SlideId");
 
-                    b.ToTable("CellCounts", (string)null);
+                    b.ToTable("CellCounts");
                 });
 
             modelBuilder.Entity("AnnotationStore.CellCounts.RegionOfInterest", b =>
@@ -150,7 +153,7 @@ namespace AnnotationStore.Migrations
                     b.HasIndex("CellCountId")
                         .IsUnique();
 
-                    b.ToTable("RegionsOfInterest", (string)null);
+                    b.ToTable("RegionsOfInterest");
                 });
 
             modelBuilder.Entity("AnnotationStore.Collections.Collections", b =>
@@ -179,7 +182,7 @@ namespace AnnotationStore.Migrations
                     b.HasIndex("SlideId", "UserId")
                         .IsUnique();
 
-                    b.ToTable("Collections", (string)null);
+                    b.ToTable("Collections");
                 });
 
             modelBuilder.Entity("AnnotationStore.ImageAdjustments.ImageAdjustments", b =>
@@ -216,7 +219,7 @@ namespace AnnotationStore.Migrations
 
                     b.HasIndex("SlideId");
 
-                    b.ToTable("ImageAdjustments", (string)null);
+                    b.ToTable("ImageAdjustments");
                 });
 
             modelBuilder.Entity("AnnotationStore.Annotations.Annotation", b =>
