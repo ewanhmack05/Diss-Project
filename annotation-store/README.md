@@ -7,8 +7,11 @@ and cell counts, one Postgres database shared by both via a single
 ## Running
 
 ```bash
-dotnet run --project annotation-store --urls http://localhost:5252
+dotnet run --project annotation-store --urls http://0.0.0.0:5252
 ```
+
+Binding `0.0.0.0` rather than `localhost` also makes this reachable from
+another device on the same network (see the root README).
 
 In `Development`, the app runs any pending EF Core migrations against the
 configured database automatically on startup - no manual

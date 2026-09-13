@@ -18,18 +18,26 @@ PostgreSQL, Git LFS, and recommended VS Code extensions.
 
 ```bash
 cd image-viewer/
-npm run dev          # http://localhost:5173
+npm run dev          # http://localhost:5173 - also reachable on your LAN IP, see below
 
 cd tiler/
-dotnet build && dotnet run --urls http://localhost:5095
+dotnet build && dotnet run --urls http://0.0.0.0:5095
 
 cd annotation-store/
-dotnet build && dotnet run --urls http://localhost:5252
+dotnet build && dotnet run --urls http://0.0.0.0:5252
 ```
 
 Each service has its own README with more detail. `image-viewer` is wired
 up to both `tiler` (loads a real slide by default) and `annotation-store`
 (annotations persist to Postgres, scoped per slide).
+
+Binding to `0.0.0.0` (rather than `localhost`) and running `npm run dev`
+(which passes `--host` to Vite) makes all three reachable from another
+device on the same network - open `http://<this machine's LAN IP>:5173`
+from it. `image-viewer` talks to whichever host it was itself loaded from,
+and `tiler`/`annotation-store` accept any private-LAN origin, so no extra
+config is needed either way - opening it via `localhost` still works
+exactly as before.
 
 This is the base setup for the real time collaberation, all of this is rough work and to be taken as proof of concept
 

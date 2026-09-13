@@ -11,8 +11,11 @@ the `image-viewer` frontend consumes via OpenLayers' `ol/source/Zoomify`
 ## Running
 
 ```bash
-dotnet run --project tiler --urls http://localhost:5095
+dotnet run --project tiler --urls http://0.0.0.0:5095
 ```
+
+Binding `0.0.0.0` rather than `localhost` also makes this reachable from
+another device on the same network (see the root README).
 
 ## Data
 

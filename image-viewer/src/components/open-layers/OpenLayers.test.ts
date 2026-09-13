@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { capResolutionsAtNativeScale, computeResolutionLadder } from './OpenLayers'
+import { capResolutionsAtNativeScale, clampOverviewBoxSize, computeResolutionLadder } from './OpenLayers'
 
 describe('computeResolutionLadder', () => {
   it('halves both dimensions until they fit in one tile', () => {
@@ -52,5 +52,26 @@ describe('capResolutionsAtNativeScale', () => {
 
   it('is a no-op when the whole-slide tier already sits at or under objectivePower', () => {
     expect(capResolutionsAtNativeScale([16, 8, 4, 2, 1], 20)).toEqual([16, 8, 4, 2, 1])
+  })
+})
+
+describe('clampOverviewBoxSize', () => {
+  it('leaves the box alone when both dimensions already clear the minimum', () => {
+    expect(clampOverviewBoxSize(23.13, 14.87, 6)).toEqual({ width: 23.13, height: 14.87 })
+  })
+
+  it('floors a dimension that has shrunk below the minimum', () => {
+    // Regression test: slide 003 (101832x219976, ~14x CMU-1's linear size)
+    // renders a viewport box of ~1.6x1.0px at native zoom - the box was
+    // there, just too small to see. Each dimension floors independently.
+    expect(clampOverviewBoxSize(1.63, 1.05, 6)).toEqual({ width: 6, height: 6 })
+  })
+
+  it('floors only the dimension that needs it', () => {
+    expect(clampOverviewBoxSize(2, 40, 6)).toEqual({ width: 6, height: 40 })
+  })
+
+  it('floors to the minimum when the box has not been measured yet (NaN)', () => {
+    expect(clampOverviewBoxSize(NaN, NaN, 6)).toEqual({ width: 6, height: 6 })
   })
 })

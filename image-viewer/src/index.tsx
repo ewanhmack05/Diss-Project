@@ -3,6 +3,13 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 
+// Matches whatever host this page was itself loaded from - 'localhost' when
+// opened locally, or this machine's LAN IP when opened from another device
+// on the network (see annotation-store/tiler's Program.cs for the CORS side
+// of that). Hardcoding 'localhost' here would break the moment this page is
+// opened as anything other than http://localhost:5173 itself.
+const backendHost = window.location.hostname
+
 // Available slide IDs, from tiler/data/ (each id.mrxs + a same-named
 // companion folder):
 //   000  CMU-1 (1/16 downsample) - H&E brightfield, 7436x15494
@@ -13,8 +20,8 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App
       source={'003'}
-      tilerServiceUrl={'http://localhost:5095'}
-      annotationStoreUrl={'http://localhost:5252'}
+      tilerServiceUrl={`http://${backendHost}:5095`}
+      annotationStoreUrl={`http://${backendHost}:5252`}
       options={{
         fontSize: '11px',
         tools: [

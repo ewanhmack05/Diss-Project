@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Sockets;
 using AnnotationStore.Annotations;
 using AnnotationStore.CellCounts;
 using DotNetEnv;
@@ -23,7 +25,7 @@ builder.Services.AddDbContext<AnnotationDbContext>(options =>
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
-        policy.WithOrigins("http://localhost:5173").AllowAnyMethod().AllowAnyHeader());
+        policy.SetIsOriginAllowed(IsAllowedOrigin).AllowAnyMethod().AllowAnyHeader());
 });
 
 builder.Services.AddOpenApi();
@@ -135,6 +137,31 @@ app.MapDelete("/cellcounts/{id:guid}", async (Guid id, AnnotationDbContext db) =
 });
 
 app.Run();
+
+// Allows localhost (the normal case) plus any origin on a private LAN
+// (RFC 1918) address, so image-viewer can be opened from another device on
+// the same network (a phone, another laptop) - without hardcoding this
+// machine's actual IP here, which changes across networks and DHCP
+// renewals.
+static bool IsAllowedOrigin(string origin)
+{
+    if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri)) return false;
+    if (uri.Host is "localhost" or "127.0.0.1") return true;
+    return IPAddress.TryParse(uri.Host, out var ip) && IsPrivateNetworkAddress(ip);
+}
+
+static bool IsPrivateNetworkAddress(IPAddress ip)
+{
+    if (ip.AddressFamily != AddressFamily.InterNetwork) return false;
+    var bytes = ip.GetAddressBytes();
+    return bytes[0] switch
+    {
+        10 => true, // 10.0.0.0/8 - also covers ZeroTier's default range
+        172 => bytes[1] is >= 16 and <= 31, // 172.16.0.0/12
+        192 => bytes[1] == 168, // 192.168.0.0/16
+        _ => false,
+    };
+}
 
 // Lets the test project point WebApplicationFactory<Program> at this app.
 public partial class Program;

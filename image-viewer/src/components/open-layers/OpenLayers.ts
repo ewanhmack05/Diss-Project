@@ -10,6 +10,10 @@ interface ImageSize {
   height: number
 }
 
+// Smallest the overview's viewport-indicator box is ever allowed to shrink
+// to, in CSS pixels - see clampOverviewBoxSize.
+const MIN_OVERVIEW_BOX_PX = 6
+
 // A whole-slide image has no natural CRS, so we project it onto its own
 // pixel grid (Y flipped, since OpenLayers extents grow upward).
 function getExtent(size: ImageSize): number[] {
@@ -73,6 +77,24 @@ function capResolutionsAtNativeScale(resolutions: number[], objectivePower: numb
     (resolution) => resolution <= objectivePower || resolution === wholeSlideResolution
   )
   return capped.length > 0 ? capped : resolutions.slice(-1)
+}
+
+// OL's OverviewMap draws the current-viewport box at its true scale relative
+// to the whole slide, with no minimum size - fine for a slide a few thousand
+// pixels wide, but on something like slide 003 (101832x219976, ~14x larger
+// than the CMU-1 sample) the box shrinks below a visible pixel at native
+// zoom, so the overview stops showing where you are at all. Floors both
+// dimensions so there's always a marker on screen; NaN (box not measured
+// yet) also floors to `min` rather than propagating.
+function clampOverviewBoxSize(
+  width: number,
+  height: number,
+  min: number
+): { width: number; height: number } {
+  return {
+    width: Number.isFinite(width) ? Math.max(width, min) : min,
+    height: Number.isFinite(height) ? Math.max(height, min) : min,
+  }
 }
 
 // baseUrl must include the trailing slide segment, e.g.
@@ -251,11 +273,28 @@ export function OpenLayerMap(
   const overviewContainer = target.querySelector<HTMLElement>('.ol-overviewmap')
   if (overviewContainer) {
     attachOverviewStatusBar(overview, overviewContainer, map.getView(), resolutions, objectivePower)
+
+    // OverviewMap recomputes the box's width/height from scratch in its own
+    // 'postrender' handler (registered by addControl() above, so it runs
+    // before this one on the same event) - floor it right after, every
+    // frame, rather than trying to fight OL for control of the style once.
+    const overviewBox = overviewContainer.querySelector<HTMLElement>('.ol-overviewmap-box')
+    if (overviewBox) {
+      map.on('postrender', () => {
+        const { width, height } = clampOverviewBoxSize(
+          parseFloat(overviewBox.style.width),
+          parseFloat(overviewBox.style.height),
+          MIN_OVERVIEW_BOX_PX
+        )
+        overviewBox.style.width = `${width}px`
+        overviewBox.style.height = `${height}px`
+      })
+    }
   }
 
   map.getView().fit(extent)
   return map
 }
 
-export { getExtent, computeResolutionLadder, capResolutionsAtNativeScale }
+export { getExtent, computeResolutionLadder, capResolutionsAtNativeScale, clampOverviewBoxSize }
 export type { ImageSize, BaseLayerSpec }
