@@ -1,6 +1,24 @@
+import type Feature from 'ol/Feature'
+import type Point from 'ol/geom/Point'
 import type { CellCountDot, CellCountColourCount } from '../../interfaces/CellCount'
 
 const NO_COLOUR = 'var(--chrome-text-secondary)'
+
+// Shared by MapNode's live history card (CellCounterDuring) and the
+// `pending` snapshot it assembles when counting stops - both read the same
+// dot Features off its cellCountHistoryRef, just at different times. Pulled
+// out so it's unit-testable without a live map. Filters out the nulls a
+// withAnnotation-off click pushes there - within a single session
+// withAnnotation doesn't change, so a null-free result here just means
+// it's an annotated session.
+function dotsFromHistory(history: (Feature<Point> | null)[]): CellCountDot[] {
+  return history
+    .filter((feature): feature is Feature<Point> => feature !== null)
+    .map((feature) => {
+      const [x, y] = feature.getGeometry()!.getCoordinates()
+      return { x, y, colour: feature.get('colour') as string }
+    })
+}
 
 function parseCellCountDots(json: string): CellCountDot[] {
   try {
@@ -41,4 +59,4 @@ function colourBreakdownBackground(breakdown: CellCountColourCount[]): string {
   return `conic-gradient(${stops.join(', ')})`
 }
 
-export { parseCellCountDots, colourBreakdownFromDots, colourBreakdownBackground }
+export { parseCellCountDots, colourBreakdownFromDots, colourBreakdownBackground, dotsFromHistory }

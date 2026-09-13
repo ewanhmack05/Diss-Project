@@ -73,37 +73,78 @@
   color: var(--chrome-text-secondary);
 }
 
-/* Docked top/bottom is wide and short (a fixed 16em - see DockEdge.css)
+/* Docked top/bottom is wide and short (a fixed 21em - see DockEdge.css)
    rather than tall and narrow, so the column layout above (shapes grid,
-   then thickness/style, then colour picker, then hint) easily overflows
-   it. Reflowing into a wrapped row lets everything sit side by side across
-   the available width instead, fitting inside that fixed height without
-   scrolling. */
+   then thickness/style, then colour picker, then hint) would either
+   overflow it or, reflowed into a single thin row, leave most of that
+   21em empty below. flex:1 (on top of AnnotationsPanel.css's own
+   annotations-panel-content, which is already a flex column) lets this
+   actually grow to fill that height rather than sizing to its own content.
+
+   Each group (Shape, Thickness/Style, Colour) is wrapped in a DockedCard
+   (see DockedCard.css) - its flex:1 is what actually fills the row's full
+   width instead of leaving empty margins on the sides, and align-items:
+   stretch here matches every card in a line to the tallest one's height,
+   so they read as one consistent row instead of a jumble of
+   differently-sized pieces. */
 .draggable-panel--docked-top .free-form-tool-picker,
 .draggable-panel--docked-bottom .free-form-tool-picker {
+  flex: 1;
   flex-direction: row;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: stretch;
+  align-content: space-evenly;
+  gap: 1em 1.5em;
+}
+
+.draggable-panel--docked-top .free-form-tool-picker-shapes-card,
+.draggable-panel--docked-bottom .free-form-tool-picker-shapes-card {
+  min-width: 41em;
 }
 
 .draggable-panel--docked-top .free-form-tool-picker-shapes,
 .draggable-panel--docked-bottom .free-form-tool-picker-shapes {
   grid-template-columns: repeat(6, auto);
-  flex: 0 0 auto;
+  gap: 0.6em;
 }
 
-.draggable-panel--docked-top .free-form-tool-picker-row,
-.draggable-panel--docked-bottom .free-form-tool-picker-row {
-  flex: 0 0 auto;
+.draggable-panel--docked-top .free-form-tool-picker-shape,
+.draggable-panel--docked-bottom .free-form-tool-picker-shape {
+  padding: 0.9em 1.1em;
+  font-size: 1.05em;
+}
+
+/* .docked-card.free-form-tool-picker-row (not just .free-form-tool-picker-row)
+   so this reliably beats DockedCard.css's own flex-direction:column,
+   rather than depending on which file's CSS happens to load later. */
+.draggable-panel--docked-top .docked-card.free-form-tool-picker-row,
+.draggable-panel--docked-bottom .docked-card.free-form-tool-picker-row {
+  min-width: 16em;
+  flex-direction: row;
+  align-items: center;
+  gap: 1em;
 }
 
 .draggable-panel--docked-top .free-form-tool-picker-field,
 .draggable-panel--docked-bottom .free-form-tool-picker-field {
-  flex: 0 1 auto;
+  flex: 1;
   min-width: 7em;
+  font-size: 1em;
+}
+
+.draggable-panel--docked-top .free-form-tool-picker-field select,
+.draggable-panel--docked-bottom .free-form-tool-picker-field select {
+  padding: 0.6em 0.7em;
+  font-size: 1.1em;
+}
+
+.draggable-panel--docked-top .free-form-tool-picker-colour-card,
+.draggable-panel--docked-bottom .free-form-tool-picker-colour-card {
+  min-width: 22em;
 }
 
 .draggable-panel--docked-top .free-form-tool-picker-hint,
 .draggable-panel--docked-bottom .free-form-tool-picker-hint {
   flex-basis: 100%;
+  text-align: center;
 }

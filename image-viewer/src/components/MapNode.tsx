@@ -24,7 +24,7 @@ import {
 import { featureToGeoJson, geoJsonToFeature } from './open-layers/GeoJSON'
 import { degreesToRadians, radiansToDegrees } from './rotation/rotation'
 import { pixelDistance, physicalDistanceMicrons, formatDistanceMicrons, formatDistancePixels } from './ruler/ruler'
-import { parseCellCountDots } from './cell-count/CellCountDots'
+import { parseCellCountDots, dotsFromHistory } from './cell-count/CellCountDots'
 import { computeViewedCellCountExtent } from './cell-count/CellCountView'
 import { useImageViewerContext } from '../context/ImageViewerContext'
 import { useAnnotationStoreContext } from '../context/AnnotationStoreContext'
@@ -79,6 +79,7 @@ function MapNode() {
     incrementCount,
     decrementCount,
     setPending: setCellCountPending,
+    setDotHistory,
     undoSignal,
     redoSignal,
   } = useCellCountDrawContext()
@@ -547,6 +548,7 @@ function MapNode() {
 
       cellCountHistoryRef.current.push(feature)
       cellCountRedoRef.current = []
+      setDotHistory(dotsFromHistory(cellCountHistoryRef.current))
       incrementCount()
     }
 
@@ -555,7 +557,7 @@ function MapNode() {
     return () => {
       map.un('click', handleClick)
     }
-  }, [counting, withAnnotation, withRoi, roiConfirmed, cellCountColour, dotSize, incrementCount, emit])
+  }, [counting, withAnnotation, withRoi, roiConfirmed, cellCountColour, dotSize, incrementCount, setDotHistory, emit])
 
   // Undoes/redoes the last tally click - pops (or re-pushes) a dot feature
   // between the two stacks and removes/re-adds it from the map, alongside
@@ -568,6 +570,7 @@ function MapNode() {
     if (feature === undefined) return
     if (feature) cellCountDotsSourceRef.current.removeFeature(feature)
     cellCountRedoRef.current.push(feature)
+    setDotHistory(dotsFromHistory(cellCountHistoryRef.current))
     decrementCount()
   }
 
@@ -577,6 +580,7 @@ function MapNode() {
     if (feature === undefined) return
     if (feature) cellCountDotsSourceRef.current.addFeature(feature)
     cellCountHistoryRef.current.push(feature)
+    setDotHistory(dotsFromHistory(cellCountHistoryRef.current))
     incrementCount()
   }
 
@@ -631,9 +635,10 @@ function MapNode() {
     if (counting) {
       cellCountHistoryRef.current = []
       cellCountRedoRef.current = []
+      setDotHistory([])
     }
     // Deliberately only depends on `counting` - see comment above.
-  }, [counting])
+  }, [counting, setDotHistory])
 
   // Assembles `pending` the moment counting stops - the counterpart to
   // CellCounterToolPicker's handleStop, which only flips `counting` off.
@@ -666,12 +671,7 @@ function MapNode() {
     // that can change live mid-session - there's no single colour to
     // snapshot, only each dot's own. Clicks with no dot (withAnnotation was
     // off) don't contribute one.
-    const dots = cellCountHistoryRef.current
-      .filter((feature): feature is Feature<Point> => feature !== null)
-      .map((feature) => {
-        const [x, y] = feature.getGeometry()!.getCoordinates()
-        return { x, y, colour: feature.get('colour') as string }
-      })
+    const dots = dotsFromHistory(cellCountHistoryRef.current)
 
     setCellCountPending({
       count: cellCount,

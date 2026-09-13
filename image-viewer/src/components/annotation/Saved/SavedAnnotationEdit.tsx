@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useAnnotationStoreContext } from '../../../context/AnnotationStoreContext'
 import type { Annotation } from '../../../interfaces/Annotation'
 import ColourPicker from '../../colour-picker/ColourPicker'
+import DockedCard from '../../toolbar/DockedCard'
 import '../FreeForm/AnnotationForm.css'
 
 interface SavedAnnotationEditProps {
@@ -54,52 +55,58 @@ function SavedAnnotationEdit({ annotation, onBack }: SavedAnnotationEditProps) {
 
   return (
     <div className="annotation-form">
-      <label className="annotation-form-field">
-        Label
-        <input
-          type="text"
-          value={label}
-          maxLength={64}
-          onChange={(e) => setLabel(e.target.value)}
-        />
-      </label>
+      <DockedCard className="annotation-form-field-card">
+        <label className="annotation-form-field">
+          Label
+          <input
+            type="text"
+            value={label}
+            maxLength={64}
+            onChange={(e) => setLabel(e.target.value)}
+          />
+        </label>
+      </DockedCard>
 
-      <label className="annotation-form-field">
-        Notes
-        <textarea
-          value={notes}
-          maxLength={256}
-          rows={3}
-          placeholder="Add any thoughts on this annotation"
-          onChange={(e) => setNotes(e.target.value)}
-        />
-      </label>
+      <DockedCard className="annotation-form-field-card annotation-form-notes-card">
+        <label className="annotation-form-field">
+          Notes
+          <textarea
+            value={notes}
+            maxLength={256}
+            rows={3}
+            placeholder="Add any thoughts on this annotation"
+            onChange={(e) => setNotes(e.target.value)}
+          />
+        </label>
+      </DockedCard>
 
-      <ColourPicker value={colour} onChange={handleColourChange} />
+      <DockedCard title="Colour" className="annotation-form-colour-card">
+        <ColourPicker value={colour} onChange={handleColourChange} />
+      </DockedCard>
 
-      <div className="annotation-form-actions">
-        <button type="button" className="annotation-form-button" onClick={onBack}>
-          Back
-        </button>
-        <button
-          type="button"
-          className="annotation-form-button annotation-form-button--primary"
-          disabled={!label.trim()}
-          onClick={handleSave}
-        >
-          Save
-        </button>
-      </div>
-      <div className="annotation-form-actions">
-        <button
-          type="button"
-          className="annotation-form-button annotation-form-button--danger"
-          data-cy="delete-button"
-          onClick={handleDelete}
-        >
-          Delete
-        </button>
-      </div>
+      <DockedCard title="Actions" className="annotation-form-actions-card">
+        <div className="annotation-form-actions annotation-form-actions--stacked">
+          <button
+            type="button"
+            className="annotation-form-button annotation-form-button--primary"
+            disabled={!label.trim()}
+            onClick={handleSave}
+          >
+            Save
+          </button>
+          <button
+            type="button"
+            className="annotation-form-button annotation-form-button--danger"
+            data-cy="delete-button"
+            onClick={handleDelete}
+          >
+            Delete
+          </button>
+          <button type="button" className="annotation-form-button" onClick={onBack}>
+            Back
+          </button>
+        </div>
+      </DockedCard>
     </div>
   )
 }

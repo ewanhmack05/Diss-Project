@@ -58,17 +58,55 @@
   border: 1px solid var(--white-30);
 }
 
+/* Portaled straight to document.body (see ColourPicker.tsx) rather than
+   rendered inline - position:fixed here means it's placed in JS (computed
+   from the toggle button's own position) and is otherwise unclipped by any
+   ancestor's overflow:hidden, including a docked panel's fixed-height box.
+   Hidden (not unmounted) until that position is measured, so there's no
+   flash at the wrong spot; border-radius matches react-colour-palette's own
+   .rcp-root exactly (12px, its own fixed value) so the shadow silhouette
+   isn't a mismatched rectangle around rounded content. */
 .colour-picker-custom-panel {
-  align-self: flex-start;
+  position: fixed;
+  z-index: 50;
+  border-radius: 12px;
+  box-shadow: 0 0.5em 1.5em var(--black-35);
 }
 
-/* Docked top/bottom panels reflow their contents into a wrapped row (see
-   FreeFormToolPicker.css/AnnotationForm.css/CellCounterToolPicker.css) so
-   everything fits within the dock's fixed height without scrolling - this
-   just gives the colour picker, one item in that row, a sensible width so
-   its swatches don't wrap to an awkward one-or-two-per-line count. */
+/* Docked top/bottom panels lay the swatches and the Custom toggle out in
+   one row rather than stacked - stacked made this the one two-row-tall
+   control sitting among a line of otherwise single-row buttons/selects,
+   which is a big part of why the docked toolbars looked mismatched. Always
+   wrapped in a "Colour" DockedCard (see DockedCard.css) in docked mode,
+   which is what actually sizes/stretches the group now; this just governs
+   the swatches+Custom row inside it. */
 .draggable-panel--docked-top .colour-picker,
 .draggable-panel--docked-bottom .colour-picker {
-  flex: 0 1 auto;
-  min-width: 14em;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.8em;
+}
+
+.draggable-panel--docked-top .colour-picker-swatches,
+.draggable-panel--docked-bottom .colour-picker-swatches {
+  flex-wrap: nowrap;
+}
+
+.draggable-panel--docked-top .colour-picker-swatch,
+.draggable-panel--docked-bottom .colour-picker-swatch {
+  width: 2em;
+  height: 2em;
+  flex-shrink: 0;
+}
+
+.draggable-panel--docked-top .colour-picker-custom-toggle,
+.draggable-panel--docked-bottom .colour-picker-custom-toggle {
+  padding: 0.6em 0.8em;
+  font-size: 1.05em;
+}
+
+.draggable-panel--docked-top .colour-picker-custom-toggle-swatch,
+.draggable-panel--docked-bottom .colour-picker-custom-toggle-swatch {
+  width: 1.5em;
+  height: 1.5em;
 }

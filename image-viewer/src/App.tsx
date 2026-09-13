@@ -50,7 +50,7 @@ import './App.css'
 // the left/right edges when top or bottom is occupied, so they stop where
 // that panel starts instead of running underneath it. Must match
 // DockEdge.css's .dock-edge--top/--bottom height.
-const EDGE_CROSS_SIZE = '18em'
+const EDGE_CROSS_SIZE = '21em'
 
 // A floating panel's fixed width (see DraggablePanel.css's .draggable-panel)
 // - used to work out where to place a panel the instant it's pulled off a

@@ -103,6 +103,12 @@
   margin-top: 0.25em;
 }
 
+/* Back/Save/Delete (see SavedCountEdit) - stacked rather than a row, same
+   treatment as CellCounterToolPicker's Undo/Redo pair. */
+.cell-count-form-actions--stacked {
+  flex-direction: column;
+}
+
 .cell-count-form-button {
   flex: 1;
   padding: 0.5em;
@@ -134,26 +140,109 @@
   color: var(--danger);
 }
 
-/* Same reflow as FreeFormToolPicker.css - see there for why. */
+/* Same reflow, and the same align-items:stretch reasoning, as
+   AnnotationForm.css's docked rule - flex:1 lets this actually grow to fill
+   the dock's fixed 21em height (see DockEdge.css) instead of sizing to its
+   own content. Label/Notes/Details/Actions are each wrapped in a
+   DockedCard (see DockedCard.css) - its flex:1 is what actually fills the
+   row's full width instead of leaving empty margins on the sides, and
+   align-items:stretch here matches every card in a line to the tallest
+   one's height, so they read as one consistent row instead of
+   differently-sized pieces. */
 .draggable-panel--docked-top .cell-count-form,
 .draggable-panel--docked-bottom .cell-count-form {
+  flex: 1;
   flex-direction: row;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: stretch;
+  align-content: space-evenly;
+  gap: 1em 1.5em;
 }
 
-.draggable-panel--docked-top .cell-count-form-field,
-.draggable-panel--docked-bottom .cell-count-form-field {
-  flex: 0 1 auto;
-  min-width: 10em;
+.draggable-panel--docked-top .cell-count-form-field-card,
+.draggable-panel--docked-bottom .cell-count-form-field-card {
+  min-width: 12em;
+}
+
+.draggable-panel--docked-top .cell-count-form-notes-card,
+.draggable-panel--docked-bottom .cell-count-form-notes-card {
+  min-width: 18em;
+}
+
+.draggable-panel--docked-top .cell-count-form-field input[type='text'],
+.draggable-panel--docked-bottom .cell-count-form-field input[type='text'],
+.draggable-panel--docked-top .cell-count-form-field textarea,
+.draggable-panel--docked-bottom .cell-count-form-field textarea,
+.draggable-panel--docked-top .cell-count-form-static,
+.draggable-panel--docked-bottom .cell-count-form-static {
+  padding: 0.6em 0.7em;
+  font-size: 1.05em;
+}
+
+.draggable-panel--docked-top .cell-count-form-details-card,
+.draggable-panel--docked-bottom .cell-count-form-details-card {
+  min-width: 14em;
+}
+
+/* SavedCountEdit's Details card bundles the colour breakdown and the
+   annotation/ROI facts in on top of Count/Dot size (see the comment
+   there) - wider floor than AddCellCountForm's plain Count/Dot size
+   version needs, so the two "With ..." rows and the colour chips aren't
+   squeezed in a tight/split-dock row. */
+.draggable-panel--docked-top .cell-count-form-summary-card,
+.draggable-panel--docked-bottom .cell-count-form-summary-card {
+  min-width: 26em;
 }
 
 .draggable-panel--docked-top .cell-count-form-row,
 .draggable-panel--docked-bottom .cell-count-form-row {
-  flex: 0 0 auto;
+  align-items: center;
+}
+
+.draggable-panel--docked-top .cell-count-form-actions-card,
+.draggable-panel--docked-bottom .cell-count-form-actions-card {
+  min-width: 12em;
+}
+
+/* DockedCard.css centers a card's content by default - fine when every
+   card in the row is a similar height, but SavedCountEdit's bulky Details
+   card (colour breakdown plus two fact rows) stretches Label/Notes/Actions
+   a lot taller than their own content needs, so centering left a chunk of
+   dead space above and below each. Top-align all four instead. */
+.draggable-panel--docked-top .docked-card.cell-count-form-field-card,
+.draggable-panel--docked-bottom .docked-card.cell-count-form-field-card,
+.draggable-panel--docked-top .docked-card.cell-count-form-details-card,
+.draggable-panel--docked-bottom .docked-card.cell-count-form-details-card,
+.draggable-panel--docked-top .docked-card.cell-count-form-actions-card,
+.draggable-panel--docked-bottom .docked-card.cell-count-form-actions-card {
+  justify-content: flex-start;
 }
 
 .draggable-panel--docked-top .cell-count-form-actions,
 .draggable-panel--docked-bottom .cell-count-form-actions {
-  flex: 0 0 auto;
+  align-items: center;
+}
+
+/* Overrides the align-items:center above for the stacked (Back/Save/Delete)
+   case - centering left them sized to their own text and narrower than the
+   card, so "Actions" didn't read as sitting above them; stretch makes them
+   fill the card's width instead, matching CellCounterToolPicker's
+   Undo/Redo treatment. */
+.draggable-panel--docked-top .cell-count-form-actions.cell-count-form-actions--stacked,
+.draggable-panel--docked-bottom .cell-count-form-actions.cell-count-form-actions--stacked {
+  align-items: stretch;
+}
+
+.draggable-panel--docked-top .cell-count-form-button,
+.draggable-panel--docked-bottom .cell-count-form-button {
+  padding: 0.9em 1.3em;
+  font-size: 1.05em;
+}
+
+/* Three stacked buttons instead of two - shorter vertical padding, same
+   font-size/horizontal padding as the row case. */
+.draggable-panel--docked-top .cell-count-form-actions--stacked .cell-count-form-button,
+.draggable-panel--docked-bottom .cell-count-form-actions--stacked .cell-count-form-button {
+  padding-top: 0.4em;
+  padding-bottom: 0.4em;
 }

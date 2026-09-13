@@ -2,6 +2,7 @@ import { useDrawContext } from '../../../context/DrawContext'
 import { useCellCountDrawContext } from '../../../context/CellCountDrawContext'
 import { ShapeOrder, ShapeTools, LineThicknessOptions, type LineStyleName } from '../Tools'
 import ColourPicker from '../../colour-picker/ColourPicker'
+import DockedCard from '../../toolbar/DockedCard'
 import './FreeFormToolPicker.css'
 
 function FreeFormToolPicker() {
@@ -23,27 +24,23 @@ function FreeFormToolPicker() {
 
   return (
     <div className="free-form-tool-picker">
-      <div className="free-form-tool-picker-shapes">
-        {ShapeOrder.map((shape) => (
-          <button
-            key={shape}
-            type="button"
-            className={`free-form-tool-picker-shape${activeTool === shape ? ' free-form-tool-picker-shape--active' : ''}`}
-            disabled={counting}
-            onClick={() => setActiveTool(activeTool === shape ? null : shape)}
-          >
-            {ShapeTools[shape].label}
-          </button>
-        ))}
-      </div>
+      <DockedCard title="Shape" className="free-form-tool-picker-shapes-card">
+        <div className="free-form-tool-picker-shapes">
+          {ShapeOrder.map((shape) => (
+            <button
+              key={shape}
+              type="button"
+              className={`free-form-tool-picker-shape${activeTool === shape ? ' free-form-tool-picker-shape--active' : ''}`}
+              disabled={counting}
+              onClick={() => setActiveTool(activeTool === shape ? null : shape)}
+            >
+              {ShapeTools[shape].label}
+            </button>
+          ))}
+        </div>
+      </DockedCard>
 
-      {counting && (
-        <p className="free-form-tool-picker-hint">
-          Stop counting to draw an annotation.
-        </p>
-      )}
-
-      <div className="free-form-tool-picker-row">
+      <DockedCard className="free-form-tool-picker-row">
         <label className="free-form-tool-picker-field">
           Thickness
           <select
@@ -68,13 +65,29 @@ function FreeFormToolPicker() {
             <option value="dashed">Dashed</option>
           </select>
         </label>
-      </div>
+      </DockedCard>
 
-      <ColourPicker value={colour} onChange={setColour} />
+      <DockedCard title="Colour" className="free-form-tool-picker-colour-card">
+        <ColourPicker value={colour} onChange={setColour} />
+      </DockedCard>
 
-      {activeTool && (
+      {/* Exactly one hint at a time (counting takes precedence over an
+          active tool, which is impossible anyway - see the mutual-exclusion
+          comment above) - two of these rendering at once was the extra row
+          that threw off every card's apparent size, since flex:1 on
+          DockedCard shares the row's width by how many lines/items are
+          actually there. */}
+      {counting ? (
+        <p className="free-form-tool-picker-hint">
+          Stop counting to draw an annotation.
+        </p>
+      ) : activeTool ? (
         <p className="free-form-tool-picker-hint">
           Draw on the image to place your {ShapeTools[activeTool].label.toLowerCase()}.
+        </p>
+      ) : (
+        <p className="free-form-tool-picker-hint">
+          Select a shape to draw an annotation.
         </p>
       )}
     </div>

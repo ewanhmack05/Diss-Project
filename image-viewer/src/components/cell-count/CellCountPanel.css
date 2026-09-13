@@ -50,7 +50,6 @@
   padding: 1em;
   flex: 1;
   min-height: 0;
-  display: flex;
   flex-direction: column;
   /* Fallback scroll for a New/counting view taller than the available
      space - the Saved list (a flex:1 child - see SavedCountList.css)
@@ -59,7 +58,7 @@
   overflow-y: auto;
 }
 
-/* Docked top/bottom has less vertical budget (a fixed 16em) than a tall
+/* Docked top/bottom has less vertical budget (a fixed 21em) than a tall
    floating/left/right panel, so trims the padding a bit to help the
    reflowed content (see CellCounterToolPicker.css etc.) actually fit. */
 .draggable-panel--docked-top .cell-count-panel-content,

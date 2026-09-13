@@ -39,6 +39,12 @@
   margin-top: 0.25em;
 }
 
+/* Save/Delete/Back (see SavedAnnotationEdit) - stacked rather than a row,
+   same treatment as CellCountForm.css's Back/Save/Delete. */
+.annotation-form-actions--stacked {
+  flex-direction: column;
+}
+
 .annotation-form-button {
   flex: 1;
   padding: 0.5em;
@@ -70,21 +76,92 @@
   color: var(--danger);
 }
 
-/* Same reflow as FreeFormToolPicker.css - see there for why. */
+/* Same reflow, and the same align-items:stretch reasoning, as
+   FreeFormToolPicker.css's docked rule - flex:1 lets this actually grow to
+   fill the dock's fixed 21em height (see DockEdge.css) instead of sizing to
+   its own content. Label/Notes/Colour/Actions are each wrapped in a
+   DockedCard (see DockedCard.css) - its flex:1 is what actually fills the
+   row's full width instead of leaving empty margins on the sides, and
+   align-items:stretch here matches every card in a line to the tallest
+   one's height (Notes' 3-row textarea, usually) so they read as one
+   consistent row instead of a jumble of differently-sized pieces. */
 .draggable-panel--docked-top .annotation-form,
 .draggable-panel--docked-bottom .annotation-form {
+  flex: 1;
   flex-direction: row;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: stretch;
+  align-content: space-evenly;
+  gap: 1em 1.5em;
 }
 
-.draggable-panel--docked-top .annotation-form-field,
-.draggable-panel--docked-bottom .annotation-form-field {
-  flex: 0 1 auto;
+.draggable-panel--docked-top .annotation-form-field-card,
+.draggable-panel--docked-bottom .annotation-form-field-card {
+  min-width: 13em;
+}
+
+.draggable-panel--docked-top .annotation-form-notes-card,
+.draggable-panel--docked-bottom .annotation-form-notes-card {
+  min-width: 18em;
+}
+
+.draggable-panel--docked-top .annotation-form-field input[type='text'],
+.draggable-panel--docked-bottom .annotation-form-field input[type='text'],
+.draggable-panel--docked-top .annotation-form-field textarea,
+.draggable-panel--docked-bottom .annotation-form-field textarea {
+  padding: 0.6em 0.7em;
+  font-size: 1.05em;
+}
+
+.draggable-panel--docked-top .annotation-form-colour-card,
+.draggable-panel--docked-bottom .annotation-form-colour-card {
+  min-width: 33em;
+}
+
+.draggable-panel--docked-top .annotation-form-actions-card,
+.draggable-panel--docked-bottom .annotation-form-actions-card {
   min-width: 12em;
+}
+
+/* DockedCard.css centers a card's content by default - fine when every
+   card in the row is a similar height, but the Colour card (33em wide,
+   8 swatches) is usually taller than Label/Actions need, so centering
+   left a chunk of dead space above and below each. Top-align instead,
+   same treatment as CellCountForm.css's Label/Details/Actions cards. */
+.draggable-panel--docked-top .docked-card.annotation-form-field-card,
+.draggable-panel--docked-bottom .docked-card.annotation-form-field-card,
+.draggable-panel--docked-top .docked-card.annotation-form-colour-card,
+.draggable-panel--docked-bottom .docked-card.annotation-form-colour-card,
+.draggable-panel--docked-top .docked-card.annotation-form-actions-card,
+.draggable-panel--docked-bottom .docked-card.annotation-form-actions-card {
+  justify-content: flex-start;
 }
 
 .draggable-panel--docked-top .annotation-form-actions,
 .draggable-panel--docked-bottom .annotation-form-actions {
-  flex: 0 0 auto;
+  align-items: center;
+  margin-top: 0;
+}
+
+/* Overrides the align-items:center above for the stacked (Save/Delete/Back)
+   case - centering left them sized to their own text and narrower than the
+   card, so "Actions" didn't read as sitting above them; stretch makes them
+   fill the card's width instead. */
+.draggable-panel--docked-top .annotation-form-actions.annotation-form-actions--stacked,
+.draggable-panel--docked-bottom .annotation-form-actions.annotation-form-actions--stacked {
+  align-items: stretch;
+}
+
+.draggable-panel--docked-top .annotation-form-button,
+.draggable-panel--docked-bottom .annotation-form-button {
+  padding: 0.9em 1.3em;
+  font-size: 1.05em;
+}
+
+/* Three stacked buttons instead of two - shorter vertical padding, same
+   font-size/horizontal padding as the row case. */
+.draggable-panel--docked-top .annotation-form-actions--stacked .annotation-form-button,
+.draggable-panel--docked-bottom .annotation-form-actions--stacked .annotation-form-button {
+  padding-top: 0.4em;
+  padding-bottom: 0.4em;
 }

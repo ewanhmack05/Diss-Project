@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
 import { ColorPicker, toColor } from 'react-colour-palette'
 import 'react-colour-palette/dist/index.css'
 import { PreDefinedColours } from '../annotation/Tools'
+import { computePopupPosition, type Position } from './popupPosition'
 import './ColourPicker.css'
 
 interface ColourPickerProps {
@@ -9,30 +11,66 @@ interface ColourPickerProps {
   onChange: (colour: string) => void
 }
 
+const POPUP_WIDTH = 224
+
 function ColourPicker({ value, onChange }: ColourPickerProps) {
   const [customOpen, setCustomOpen] = useState(false)
-  const containerRef = useRef<HTMLDivElement | null>(null)
-  const [pickerWidth, setPickerWidth] = useState(224)
+  const toggleRef = useRef<HTMLButtonElement | null>(null)
+  const popupRef = useRef<HTMLDivElement | null>(null)
+  const [position, setPosition] = useState<Position | null>(null)
 
-  // react-colour-palette's `width` is a literal pixel number, not a CSS unit -
-  // it won't scale with the app's own em-based sizing (including a host's
-  // `options.fontSize`), so a fixed value here can end up wider than its
-  // container and force a horizontal scrollbar. Track the actual available
-  // width instead. containerRef is the outer .colour-picker div, which is
-  // stretched to fill its parent regardless of whether the picker itself is
-  // open, so it reflects real available space rather than hugging content.
+  // A fixed-position portal rather than something rendered inline in the
+  // panel's own flow - a docked top/bottom panel has a fixed height (see
+  // DockEdge.css) with no room for this to grow into, and the panel's own
+  // overflow:hidden would otherwise just clip it. Measured in two passes:
+  // the popup first renders off-screen (see the style below) so popupRef
+  // has a real size to read, then this repositions it before the browser
+  // paints (useLayoutEffect, not useEffect), so there's no visible jump.
+  useLayoutEffect(() => {
+    if (!customOpen) {
+      setPosition(null)
+      return
+    }
+    const toggle = toggleRef.current
+    const popup = popupRef.current
+    if (!toggle || !popup) return
+
+    setPosition(
+      computePopupPosition(
+        toggle.getBoundingClientRect(),
+        { width: popup.offsetWidth, height: popup.offsetHeight },
+        { width: window.innerWidth, height: window.innerHeight }
+      )
+    )
+  }, [customOpen])
+
+  // Standard popup dismissal - an outside click/tap or Escape closes it.
   useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-    const observer = new ResizeObserver(([entry]) => {
-      setPickerWidth(Math.floor(entry.contentRect.width))
-    })
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [])
+    if (!customOpen) return
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node
+      if (toggleRef.current?.contains(target) || popupRef.current?.contains(target)) return
+      setCustomOpen(false)
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setCustomOpen(false)
+    }
+
+    window.addEventListener('pointerdown', handlePointerDown)
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [customOpen])
+
+  const popupStyle: CSSProperties = position
+    ? { top: position.top, left: position.left, visibility: 'visible' }
+    : { top: 0, left: 0, visibility: 'hidden' }
 
   return (
-    <div className="colour-picker" ref={containerRef}>
+    <div className="colour-picker">
       <div className="colour-picker-swatches">
         {PreDefinedColours.map((swatch) => (
           <button
@@ -50,6 +88,7 @@ function ColourPicker({ value, onChange }: ColourPickerProps) {
       </div>
 
       <button
+        ref={toggleRef}
         type="button"
         className={`colour-picker-custom-toggle${customOpen ? ' colour-picker-custom-toggle--active' : ''}`}
         aria-expanded={customOpen}
@@ -59,18 +98,20 @@ function ColourPicker({ value, onChange }: ColourPickerProps) {
         <span className="colour-picker-custom-toggle-swatch" style={{ backgroundColor: value }} />
       </button>
 
-      {customOpen && (
-        <div className="colour-picker-custom-panel">
-          <ColorPicker
-            color={toColor('hex', value)}
-            onChange={(next) => onChange(next.hex)}
-            width={pickerWidth}
-            height={120}
-            hideRGB
-            dark
-          />
-        </div>
-      )}
+      {customOpen &&
+        createPortal(
+          <div ref={popupRef} className="colour-picker-custom-panel" style={popupStyle}>
+            <ColorPicker
+              color={toColor('hex', value)}
+              onChange={(next) => onChange(next.hex)}
+              width={POPUP_WIDTH}
+              height={120}
+              hideRGB
+              dark
+            />
+          </div>,
+          document.body
+        )}
     </div>
   )
 }

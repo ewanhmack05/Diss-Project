@@ -46,19 +46,155 @@
   cursor: pointer;
 }
 
-.cell-counter-tool-picker-checkbox input[type='checkbox'] {
-  width: 1em;
-  height: 1em;
-  accent-color: var(--accent);
-  cursor: pointer;
+/* Holds the "With region of interest" checkbox and its Box size select on
+   one line (see CellCounterToolPicker) - wraps only if the card gets
+   squeezed narrower than both can fit side by side. */
+.cell-counter-tool-picker-roi-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
 }
 
-.cell-counter-tool-picker-tally {
+/* Same look as .cell-counter-tool-picker-field select - not nested inside
+   one itself, since there's no "Box size" text label here (aria-label
+   covers accessibility instead, to keep this row compact next to the
+   checkbox). */
+.cell-counter-tool-picker-roi-box-size {
+  padding: 0.35em;
+  font-family: var(--sans);
+  font-size: 1em;
+  color: var(--chrome-text);
+  background: var(--white-06);
+  border: 1px solid transparent;
+  border-radius: 0.3125rem;
+}
+
+.cell-counter-tool-picker-roi-box-size option {
+  color: var(--chrome-bg-solid);
+  background: var(--white);
+}
+
+/* An on/off switch rather than a tick-box - still a real
+   <input type="checkbox"> underneath (so keyboard/checked-state semantics
+   are untouched, and CellCounterToolPicker.tsx needs no changes), just
+   redrawn as a track+thumb via appearance:none. Sized so the thumb (1em
+   round) sits with a 0.15em gap on every side of the track (1.3em tall),
+   and travels the exact remaining width (2.4 - 1 - 0.15*2 = 1.1em) when
+   checked. */
+.cell-counter-tool-picker-checkbox input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: 2.4em;
+  height: 1.3em;
+  margin: 0;
+  flex-shrink: 0;
+  background: var(--white-10);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cell-counter-tool-picker-checkbox input[type='checkbox']::before {
+  content: '';
+  position: absolute;
+  top: 0.15em;
+  left: 0.15em;
+  width: 1em;
+  height: 1em;
+  background: var(--chrome-text);
+  border-radius: 50%;
+  transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cell-counter-tool-picker-checkbox input[type='checkbox']:checked {
+  background: var(--accent);
+}
+
+.cell-counter-tool-picker-checkbox input[type='checkbox']:checked::before {
+  transform: translateX(1.1em);
+  background: var(--white);
+}
+
+.cell-counter-tool-picker-checkbox input[type='checkbox']:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* The spare card's content while there's no click history to show (see
+   CellCounterDuring) - big and centred so it reads as the box's whole
+   purpose, not a small label alone in an otherwise-empty card. */
+.cell-counter-tool-picker-tally-big {
   margin: 0;
   font-family: var(--sans);
-  font-size: 1.1em;
-  font-weight: 600;
+  font-size: 1.6em;
+  font-weight: 700;
   color: var(--chrome-text);
+  text-align: center;
+}
+
+/* The running count for the annotated (History) case - sits below Stop
+   counting (see CellCounterDuring), in the row's own leftover space rather
+   than inside the History card fighting the list for room. */
+.cell-counter-tool-picker-count-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4em;
+  margin: 0;
+  font-size: 0.9em;
+  color: var(--chrome-text-secondary);
+}
+
+.cell-counter-tool-picker-count-line strong {
+  font-family: var(--sans);
+  font-size: 1.4em;
+  font-weight: 700;
+  color: var(--chrome-text);
+}
+
+.cell-counter-tool-picker-history-empty {
+  margin: 0;
+  font-size: 0.85em;
+  color: var(--chrome-text-secondary);
+  text-align: center;
+}
+
+/* Newest click first (see CellCounterDuring, which reverses the rendered
+   rows but keeps each row's key tied to its position in dotHistory, not
+   its display order) and capped so a long session scrolls internally
+   instead of pushing the rest of the row taller than the docked height
+   allows or growing unbounded in the floating layout. */
+.cell-counter-tool-picker-history {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 12em;
+  overflow-y: auto;
+}
+
+.cell-counter-tool-picker-history-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  font-size: 0.85em;
+  color: var(--chrome-text);
+}
+
+.cell-counter-tool-picker-history-swatch {
+  flex-shrink: 0;
+  width: 0.7em;
+  height: 0.7em;
+  border-radius: 50%;
+}
+
+.cell-counter-tool-picker-history-coords {
+  color: var(--chrome-text-secondary);
 }
 
 .cell-counter-tool-picker-actions {
@@ -68,6 +204,13 @@
 
 .cell-counter-tool-picker-actions .cell-counter-tool-picker-button {
   flex: 1;
+}
+
+/* Undo/Redo specifically (see CellCounterDuring) - stacked rather than
+   side by side. Cancel/Confirm (the ROI-placement pair, same base class)
+   stays a row. */
+.cell-counter-tool-picker-actions--stacked {
+  flex-direction: column;
 }
 
 .cell-counter-tool-picker-button {
@@ -80,6 +223,7 @@
   border: none;
   border-radius: 0.3125rem;
   cursor: pointer;
+  white-space: nowrap;
   transition: color 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -102,39 +246,232 @@
   color: var(--chrome-text-secondary);
 }
 
-/* Same reflow as FreeFormToolPicker.css - see there for why. Shared by
-   CellCounterDuring too, which reuses these class names. */
+/* Same reflow, and the same align-items:stretch reasoning, as
+   FreeFormToolPicker.css's docked rule - flex:1 lets this actually grow to
+   fill the dock's fixed 21em height (see DockEdge.css) instead of sizing to
+   its own content. Dot size, Colour, Options (and the spare card) are each
+   wrapped in a DockedCard (see DockedCard.css) - its flex:1 is what
+   actually fills the row's full width instead of leaving empty margins on
+   the sides, and align-items:stretch here matches every card in a line to
+   the tallest one's height, so they read as one consistent row instead of
+   a jumble of differently-sized pieces. Shared by CellCounterDuring too,
+   which reuses these class names for its own Dot size/Colour/Actions
+   cards (the ROI-placement Cancel/Confirm pair gets its own
+   roi-actions-card class instead - see below). */
 .draggable-panel--docked-top .cell-counter-tool-picker,
 .draggable-panel--docked-bottom .cell-counter-tool-picker {
+  flex: 1;
   flex-direction: row;
   flex-wrap: wrap;
-  align-items: flex-start;
-  /* Tighter row-gap than the column layout's 0.75em - the tally/hint text
-     wrapping onto their own full-width rows (see flex-basis:100% below)
-     otherwise pushed the counting view just past the 16em dock height. */
-  row-gap: 0.35em;
+  align-items: stretch;
+  align-content: space-evenly;
+  gap: 1em 1.5em;
+}
+
+.draggable-panel--docked-top .cell-counter-tool-picker-field-card,
+.draggable-panel--docked-bottom .cell-counter-tool-picker-field-card,
+.draggable-panel--docked-top .cell-counter-tool-picker-spare-card,
+.draggable-panel--docked-bottom .cell-counter-tool-picker-spare-card {
+  min-width: 9em;
+}
+
+.draggable-panel--docked-top .cell-counter-tool-picker-colour-card,
+.draggable-panel--docked-bottom .cell-counter-tool-picker-colour-card {
+  min-width: 33em;
+}
+
+/* The ROI-placement screen (see CellCounterDuring) has just this one card
+   in the row, so it's the only item left after the hint's own full-width
+   line - flex-grow:0 plus margin:auto centers it in the leftover space
+   instead of it sticking to the row's start edge, and a wider basis than
+   the 16em Options/Actions share is what stops "Confirm placement"
+   wrapping onto two lines. .docked-card.cell-counter-tool-picker-roi-actions-card
+   (not just the plain class), same reasoning as Options/Actions above -
+   reliably beats DockedCard.css's own flex:1 1 0 regardless of load order. */
+.draggable-panel--docked-top .docked-card.cell-counter-tool-picker-roi-actions-card,
+.draggable-panel--docked-bottom .docked-card.cell-counter-tool-picker-roi-actions-card {
+  flex: 0 1 26em;
+  margin: 0 auto;
+}
+
+/* Wider floor than the plain spare-card slot needs (see above) - a colour
+   swatch plus "x, y" text wants more room than a blank card or a lone
+   tally number ever did. Only bites in a tight/split-dock row; the roomy
+   case is still governed by the shared spare-card flex:1, so this doesn't
+   touch the "same slot, same flex-grow" resize-prevention rule. */
+.draggable-panel--docked-top .cell-counter-tool-picker-history-card,
+.draggable-panel--docked-bottom .cell-counter-tool-picker-history-card {
+  min-width: 14em;
+}
+
+/* DockedCard.css centers a card's content by default, which reads fine for
+   a single tally number but left a short history list floating in the
+   middle of the card with dead space above it - top-align instead so rows
+   fill from the top down as they arrive. */
+.draggable-panel--docked-top .docked-card.cell-counter-tool-picker-history-card,
+.draggable-panel--docked-bottom .docked-card.cell-counter-tool-picker-history-card {
+  justify-content: flex-start;
+}
+
+/* A flex:1 list (filling whatever height align-items:stretch gave the
+   card) sounds right but isn't - the row's stretch height is itself
+   derived from each card's own natural content height, and an unbounded
+   list is exactly the content driving that, so the card (and the whole
+   row) just kept growing with every click instead of ever settling.
+   A definite `height` (not max-height) is what actually keeps the card a
+   constant size - max-height only clamps the top end, so with a handful
+   of dots the box still sat shorter than that cap and visibly grew each
+   click until it hit it. Same reasoning for the empty-state paragraph
+   below - it needs the same fixed height, or switching between "no clicks
+   yet" and the list is itself a size jump. */
+.draggable-panel--docked-top .cell-counter-tool-picker-history,
+.draggable-panel--docked-bottom .cell-counter-tool-picker-history {
+  height: 3.8em;
+}
+
+.draggable-panel--docked-top .cell-counter-tool-picker-history-empty,
+.draggable-panel--docked-bottom .cell-counter-tool-picker-history-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 3.8em;
+}
+
+.draggable-panel--docked-top .cell-counter-tool-picker-history-row,
+.draggable-panel--docked-bottom .cell-counter-tool-picker-history-row {
+  font-size: 0.95em;
+}
+
+/* Same full-width-line treatment as Start/Stop counting just above it (see
+   the direct-child combinator rule below) - sits in the row's own leftover
+   vertical space instead of squeezed inside a card. */
+.draggable-panel--docked-top .cell-counter-tool-picker-count-line,
+.draggable-panel--docked-bottom .cell-counter-tool-picker-count-line {
+  flex-basis: 100%;
+  font-size: 1.05em;
+}
+
+.draggable-panel--docked-top .cell-counter-tool-picker-count-line strong,
+.draggable-panel--docked-bottom .cell-counter-tool-picker-count-line strong {
+  font-size: 1.8em;
+}
+
+/* Neither of these grows (flex:0, not the flex:1 DockedCard.css sets by
+   default) - Options' toggles and Actions' stacked Undo/Redo don't need
+   anywhere near as much width as e.g. the Colour card's 8 swatches, and
+   flex:1 would otherwise stretch them to match that width regardless.
+   Both share the exact same basis deliberately: Options and Actions are
+   the same 3rd-card slot in the idle vs. counting-in-progress views (see
+   CellCounterToolPicker vs CellCounterDuring) - if one grew differently
+   from the other, the *other* flex:1 cards (Dot size, Colour, the spare)
+   would end up sharing a different amount of leftover space between the
+   two screens, which is what made every card look like it resized when
+   you clicked Start counting. .docked-card.cell-counter-tool-picker-*-card
+   (not just the plain class) so this reliably beats DockedCard.css's own
+   flex:1, rather than depending on which file's CSS happens to load
+   later. */
+.draggable-panel--docked-top .docked-card.cell-counter-tool-picker-options-card,
+.draggable-panel--docked-bottom .docked-card.cell-counter-tool-picker-options-card,
+.draggable-panel--docked-top .docked-card.cell-counter-tool-picker-actions-card,
+.draggable-panel--docked-bottom .docked-card.cell-counter-tool-picker-actions-card {
+  flex: 0 1 16em;
 }
 
 .draggable-panel--docked-top .cell-counter-tool-picker-field,
 .draggable-panel--docked-bottom .cell-counter-tool-picker-field {
-  flex: 0 1 auto;
-  min-width: 7em;
+  font-size: 1em;
+}
+
+.draggable-panel--docked-top .cell-counter-tool-picker-field select,
+.draggable-panel--docked-bottom .cell-counter-tool-picker-field select,
+.draggable-panel--docked-top .cell-counter-tool-picker-field input[type='number'],
+.draggable-panel--docked-bottom .cell-counter-tool-picker-field input[type='number'] {
+  padding: 0.6em 0.7em;
+  font-size: 1.1em;
 }
 
 .draggable-panel--docked-top .cell-counter-tool-picker-checkbox,
 .draggable-panel--docked-bottom .cell-counter-tool-picker-checkbox {
-  flex: 0 0 auto;
+  font-size: 1.05em;
+}
+
+/* Deliberately smaller than the other docked selects (which get 1.1em and
+   0.6em/0.7em padding) - this one shares a fixed-width card with the "With
+   region of interest" label, and the Options/Actions cards' shared width
+   (see the flex:0 1 16em rule above) isn't something to touch just to fit
+   this. Compact is what keeps it on the checkbox's own line instead of
+   wrapping to a second one. */
+.draggable-panel--docked-top .cell-counter-tool-picker-roi-box-size,
+.draggable-panel--docked-bottom .cell-counter-tool-picker-roi-box-size {
+  padding: 0.4em 0.5em;
+  font-size: 0.95em;
+}
+
+/* Bigger track (2.8x1.5em), thumb scaled to match (1.2em, same 0.15em
+   inset) - travel is 2.8 - 1.2 - 0.15*2 = 1.3em. */
+.draggable-panel--docked-top .cell-counter-tool-picker-checkbox input[type='checkbox'],
+.draggable-panel--docked-bottom .cell-counter-tool-picker-checkbox input[type='checkbox'] {
+  width: 2.8em;
+  height: 1.5em;
+}
+
+.draggable-panel--docked-top .cell-counter-tool-picker-checkbox input[type='checkbox']::before,
+.draggable-panel--docked-bottom .cell-counter-tool-picker-checkbox input[type='checkbox']::before {
+  width: 1.2em;
+  height: 1.2em;
+}
+
+.draggable-panel--docked-top .cell-counter-tool-picker-checkbox input[type='checkbox']:checked::before,
+.draggable-panel--docked-bottom .cell-counter-tool-picker-checkbox input[type='checkbox']:checked::before {
+  transform: translateX(1.3em);
 }
 
 .draggable-panel--docked-top .cell-counter-tool-picker-actions,
 .draggable-panel--docked-bottom .cell-counter-tool-picker-actions {
-  flex: 0 0 auto;
-  min-width: 10em;
+  align-items: center;
 }
 
-.draggable-panel--docked-top .cell-counter-tool-picker-tally,
-.draggable-panel--docked-bottom .cell-counter-tool-picker-tally,
+/* Overrides the align-items:center above for the stacked (Undo/Redo) case
+   specifically - centering left them sized to their own text and narrower
+   than the card, so "Actions" didn't read as sitting above them; stretch
+   makes them fill the card's width instead, matching the title above. */
+.draggable-panel--docked-top .cell-counter-tool-picker-actions.cell-counter-tool-picker-actions--stacked,
+.draggable-panel--docked-bottom .cell-counter-tool-picker-actions.cell-counter-tool-picker-actions--stacked {
+  align-items: stretch;
+}
+
+.draggable-panel--docked-top .cell-counter-tool-picker-button,
+.draggable-panel--docked-bottom .cell-counter-tool-picker-button {
+  padding: 0.9em 1.3em;
+  font-size: 1.05em;
+}
+
+/* Undo/Redo specifically - shorter than other docked buttons (less
+   vertical padding, same font-size/horizontal padding) since two of them
+   are stacked in the same card rather than sitting alone. */
+.draggable-panel--docked-top .cell-counter-tool-picker-actions--stacked .cell-counter-tool-picker-button,
+.draggable-panel--docked-bottom .cell-counter-tool-picker-actions--stacked .cell-counter-tool-picker-button {
+  padding-top: 0.2em;
+  padding-bottom: 0.2em;
+}
+
+/* Start/Stop counting specifically (the direct-child combinator excludes
+   Undo/Redo/Cancel/Confirm, which sit a level deeper inside a card's
+   actions div) - its own full-width line, same as the tally/hint below,
+   so it's never squeezed into whatever's left over at the end of the
+   cards' line and forced to wrap its own text. */
+.draggable-panel--docked-top .cell-counter-tool-picker > .cell-counter-tool-picker-button,
+.draggable-panel--docked-bottom .cell-counter-tool-picker > .cell-counter-tool-picker-button {
+  flex-basis: 100%;
+}
+
+.draggable-panel--docked-top .cell-counter-tool-picker-tally-big,
+.draggable-panel--docked-bottom .cell-counter-tool-picker-tally-big {
+  font-size: 2.2em;
+}
+
 .draggable-panel--docked-top .cell-counter-tool-picker-hint,
 .draggable-panel--docked-bottom .cell-counter-tool-picker-hint {
   flex-basis: 100%;
+  text-align: center;
 }

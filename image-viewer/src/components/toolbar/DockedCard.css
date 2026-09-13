@@ -1,0 +1,38 @@
+/* No styling by default - a docked-only treatment (see below). In
+   floating/left/right mode this is an invisible wrapper so those panels
+   keep their existing plain stacked-column look untouched. */
+.docked-card-title {
+  display: none;
+}
+
+/* Grouped-card look for the docked-top/bottom toolbars: each logical
+   group (a field, the colour picker, a set of toggles) sits in its own
+   subtle card instead of floating loose in the row, which is what made
+   the row read as a jumble of mismatched shapes. flex:1 lets every card
+   grow to share the row's full width instead of leaving empty margins on
+   the sides; the row's own align-items:stretch (see e.g.
+   FreeFormToolPicker.css) matches every card in a line to the tallest
+   one's height, and justify-content:center here centres this card's own
+   content within that shared height. */
+.draggable-panel--docked-top .docked-card,
+.draggable-panel--docked-bottom .docked-card {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.4em;
+  background: var(--white-06);
+  border: 1px solid var(--white-08);
+  border-radius: 0.6em;
+  padding: 0.7em 1em;
+}
+
+.draggable-panel--docked-top .docked-card-title,
+.draggable-panel--docked-bottom .docked-card-title {
+  display: block;
+  font-size: 0.75em;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--chrome-text-secondary);
+  font-weight: 700;
+}

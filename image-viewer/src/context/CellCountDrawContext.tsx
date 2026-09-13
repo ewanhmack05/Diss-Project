@@ -36,6 +36,11 @@ interface CellCountDrawContextValue {
   boxSizeMicrons: number
   roiConfirmed: boolean
   pending: PendingCellCount | null
+  // Live click-by-click record for the current session, kept in step with
+  // MapNode's own cellCountHistoryRef (push/undo/redo/reset) - see
+  // CellCounterDuring's history card. Only ever populated when
+  // withAnnotation is on, same as cellCountHistoryRef itself.
+  dotHistory: CellCountDot[]
   setCounting: (counting: boolean) => void
   setColour: (colour: string) => void
   setDotSize: (size: number) => void
@@ -47,6 +52,7 @@ interface CellCountDrawContextValue {
   decrementCount: () => void
   resetCount: () => void
   setPending: (pending: PendingCellCount | null) => void
+  setDotHistory: (dots: CellCountDot[]) => void
   // Undo/redo actually happens in MapNode (it's the one holding both the
   // placed-dot features and the map to remove/re-add them from) - these
   // are just a request bell CellCounterDuring's Undo/Redo buttons can
@@ -85,6 +91,7 @@ function CellCountDrawContextProvider({ children }: { children: ReactNode }) {
   const [boxSizeMicrons, setBoxSizeMicrons] = useState(DEFAULT_BOX_SIZE_MICRONS)
   const [roiConfirmed, setRoiConfirmed] = useState(false)
   const [pending, setPending] = useState<PendingCellCount | null>(null)
+  const [dotHistory, setDotHistory] = useState<CellCountDot[]>([])
   const [undoSignal, setUndoSignal] = useState(0)
   const [redoSignal, setRedoSignal] = useState(0)
 
@@ -106,6 +113,7 @@ function CellCountDrawContextProvider({ children }: { children: ReactNode }) {
         boxSizeMicrons,
         roiConfirmed,
         pending,
+        dotHistory,
         setCounting,
         setColour,
         setDotSize,
@@ -117,6 +125,7 @@ function CellCountDrawContextProvider({ children }: { children: ReactNode }) {
         decrementCount,
         resetCount,
         setPending,
+        setDotHistory,
         undoSignal,
         redoSignal,
         requestUndo,
