@@ -14,11 +14,13 @@ import { AnnotationStoreContextProvider } from './context/AnnotationStoreContext
 import { CellCountStoreContextProvider } from './context/CellCountStoreContext'
 import { CellCountDrawContextProvider } from './context/CellCountDrawContext'
 import { DrawContextProvider } from './context/DrawContext'
+import { RotationContextProvider } from './context/RotationContext'
 import { ToastContextProvider } from './context/ToastContext'
 import { EventContextProvider } from './context/EventContext'
 import MapNode from './components/MapNode'
 import AnnotationsPanel from './components/annotation/AnnotationsPanel'
 import CellCountPanel from './components/cell-count/CellCountPanel'
+import RotationPanel from './components/rotation/RotationPanel'
 import Toolbar, { type ToolName } from './components/toolbar/Toolbar'
 import DraggablePanel from './components/toolbar/DraggablePanel'
 import DockZones from './components/toolbar/DockZone'
@@ -101,9 +103,11 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, options, on }: AppPr
             <CellCountStoreContextProvider baseUrl={annotationStoreUrl}>
               <CellCountDrawContextProvider>
                 <DrawContextProvider>
-                  <ToolbarContextProvider>
-                    <ViewerShell fontSize={options?.fontSize} tools={options?.tools} />
-                  </ToolbarContextProvider>
+                  <RotationContextProvider>
+                    <ToolbarContextProvider>
+                      <ViewerShell fontSize={options?.fontSize} tools={options?.tools} />
+                    </ToolbarContextProvider>
+                  </RotationContextProvider>
                 </DrawContextProvider>
               </CellCountDrawContextProvider>
             </CellCountStoreContextProvider>
@@ -129,6 +133,7 @@ interface PanelDef {
 const INITIAL_POSITIONS: Record<string, Position> = {
   'annotations-panel': { x: 256, y: 32 },
   'cellcount-panel': { x: 256, y: 290 },
+  'rotation-panel': { x: 256, y: 520 },
 }
 
 interface ViewerShellProps {
@@ -146,6 +151,7 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
   const panelRefs = useRef<Record<string, RefObject<HTMLDivElement | null>>>({
     'annotations-panel': createRef<HTMLDivElement>(),
     'cellcount-panel': createRef<HTMLDivElement>(),
+    'rotation-panel': createRef<HTMLDivElement>(),
   }).current
   // One hidden, always-mounted probe per edge, sized/positioned exactly
   // like a real DockEdge (see .dock-edge--probe in DockEdge.css) purely so
@@ -160,6 +166,7 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
   const panelDefs: PanelDef[] = [
     { id: 'annotations-panel', title: 'Annotations', tool: 'annotations', content: <AnnotationsPanel /> },
     { id: 'cellcount-panel', title: 'Cell Count', tool: 'cellcount', content: <CellCountPanel /> },
+    { id: 'rotation-panel', title: 'Rotate', tool: 'rotate', content: <RotationPanel /> },
   ]
 
   // Only set while dragging a panel that started out docked - see

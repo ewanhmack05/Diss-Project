@@ -1,0 +1,95 @@
+.rotation-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75em;
+  padding: 1em;
+  font-family: var(--sans);
+}
+
+.draggable-panel--docked-top .rotation-panel,
+.draggable-panel--docked-bottom .rotation-panel {
+  padding: 0.5em 1em;
+  gap: 0.5em;
+}
+
+.rotation-panel-dial {
+  width: 7em;
+  height: 7em;
+  touch-action: none;
+  cursor: grab;
+}
+
+.rotation-panel-dial-track {
+  fill: none;
+  stroke: var(--chrome-text-secondary);
+  stroke-width: 2;
+}
+
+.rotation-panel-dial-tick {
+  stroke: var(--chrome-text-secondary);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.rotation-panel-dial-needle {
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.rotation-panel-dial-handle {
+  fill: var(--accent);
+}
+
+.rotation-panel-readout {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  color: var(--chrome-text-secondary);
+  font-size: 0.9em;
+}
+
+.rotation-panel-readout input {
+  width: 4em;
+  padding: 0.3em 0.4em;
+  font-family: var(--sans);
+  color: var(--chrome-text);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--chrome-text-secondary);
+  border-radius: 0.25em;
+}
+
+.rotation-panel-readout input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.rotation-panel-quick-adjust {
+  display: flex;
+  gap: 0.4em;
+}
+
+.rotation-panel-quick-adjust button,
+.rotation-panel-reset {
+  padding: 0.4em 0.6em;
+  font-family: var(--sans);
+  font-size: 0.85em;
+  color: var(--chrome-text);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid transparent;
+  border-radius: 0.25em;
+  cursor: pointer;
+}
+
+.rotation-panel-quick-adjust button:hover,
+.rotation-panel-reset:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.rotation-panel-quick-adjust button:active,
+.rotation-panel-reset:active {
+  border-color: var(--accent-active);
+  color: var(--accent-active);
+}

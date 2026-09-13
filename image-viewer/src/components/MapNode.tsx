@@ -19,11 +19,13 @@ import {
   setStyleReferenceResolution,
 } from './open-layers/Styles'
 import { featureToGeoJson, geoJsonToFeature } from './open-layers/GeoJSON'
+import { degreesToRadians, radiansToDegrees } from './rotation/rotation'
 import { parseCellCountDots } from './cell-count/CellCountDots'
 import { computeViewedCellCountExtent } from './cell-count/CellCountView'
 import { useImageViewerContext } from '../context/ImageViewerContext'
 import { useAnnotationStoreContext } from '../context/AnnotationStoreContext'
 import { useDrawContext } from '../context/DrawContext'
+import { useRotationContext } from '../context/RotationContext'
 import { useCellCountDrawContext } from '../context/CellCountDrawContext'
 import { useCellCountStoreContext } from '../context/CellCountStoreContext'
 import { useToolbarContext } from '../context/ToolbarContext'
@@ -47,11 +49,17 @@ interface RoiDrag {
   last: Coordinate
 }
 
+// A rotation round-tripped through radians won't come back bit-for-bit
+// equal, so the context<->map sync effects compare against this instead of
+// using strict equality.
+const ROTATION_EPSILON_DEGREES = 0.01
+
 function MapNode() {
   const { source } = useImageViewerContext()
   const { annotations, selectedAnnotationId, annotationsSource } = useAnnotationStoreContext()
   const { activeTool, colour, lineThickness, lineStyle, setActiveTool, pending, setPending } =
     useDrawContext()
+  const { rotationDegrees, setRotationDegrees, resetRotation } = useRotationContext()
   const {
     counting,
     colour: cellCountColour,
@@ -105,10 +113,20 @@ function MapNode() {
   const cellCountRedoRef = useRef<(Feature<Point> | null)[]>([])
   const lastUndoSignalRef = useRef(undoSignal)
   const lastRedoSignalRef = useRef(redoSignal)
+  const rotationDegreesRef = useRef(rotationDegrees)
   const [error, setError] = useState<string | null>(null)
+  // Bumped right after mapRef.current is (re)built - the map is constructed
+  // asynchronously (after the slide-metadata fetch resolves), so nothing
+  // about that assignment is visible to React's own effect scheduling.
+  // Without this, the map->context rotation listener below would only ever
+  // attach the first time rotationDegrees itself changes, which for a slide
+  // that opens unrotated may never happen - leaving Alt+Shift+drag silently
+  // unsynced until the user first touches the panel.
+  const [mapVersion, setMapVersion] = useState(0)
 
   useEffect(() => {
     setError(null)
+    resetRotation()
     if (!mapElement.current) return
 
     let cancelled = false
@@ -172,6 +190,7 @@ function MapNode() {
         // slide's raw pixel dimensions.
         const resolutions = mapRef.current.getView().getResolutions()
         setStyleReferenceResolution(resolutions?.[0] ?? 1)
+        setMapVersion((version) => version + 1)
       })
       .catch(() => {
         if (!cancelled) {
@@ -218,6 +237,55 @@ function MapNode() {
     viewedDotsLayerRef.current?.setVisible(cellCountVisible)
     viewedRoiLayerRef.current?.setVisible(cellCountVisible)
   }, [cellCountVisible])
+
+  useEffect(() => {
+    rotationDegreesRef.current = rotationDegrees
+  }, [rotationDegrees])
+
+  // Push a context rotation change onto the map. Guarded with an epsilon
+  // rather than !== since a value round-tripped through radians won't come
+  // back bit-for-bit equal - and skipping the call when it's already close
+  // enough is what stops this from fighting the map->context effect below
+  // (that one pushes the map's rotation back into context on every change,
+  // which would otherwise bounce straight back here and loop forever).
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+
+    const view = map.getView()
+    const currentDegrees = radiansToDegrees(view.getRotation() ?? 0)
+    if (Math.abs(currentDegrees - rotationDegrees) > ROTATION_EPSILON_DEGREES) {
+      view.setRotation(degreesToRadians(rotationDegrees))
+    }
+  }, [rotationDegrees])
+
+  // OpenLayers already supports free rotation with no extra config - the map
+  // is constructed with no explicit `interactions` option, so it uses
+  // ol/interaction/defaults(), which includes DragRotate (Alt+Shift+drag)
+  // and PinchRotate (touch). This mirrors the map's own rotation into
+  // context whenever it changes that way, so the panel's dial/readout stay
+  // in sync with a rotation the user applied directly on the map. Keyed off
+  // mapVersion (not rotationDegrees) so it (re)attaches exactly once per map
+  // instance rather than on every rotation change - it reads the latest
+  // rotationDegrees via a ref instead, so the epsilon check still sees a
+  // fresh value without needing to re-bind the listener for it.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+
+    const view = map.getView()
+    const handleRotationChange = () => {
+      const mapDegrees = radiansToDegrees(view.getRotation() ?? 0)
+      if (Math.abs(mapDegrees - rotationDegreesRef.current) > ROTATION_EPSILON_DEGREES) {
+        setRotationDegrees(mapDegrees)
+      }
+    }
+
+    view.on('change:rotation', handleRotationChange)
+    return () => {
+      view.un('change:rotation', handleRotationChange)
+    }
+  }, [mapVersion, setRotationDegrees])
 
   // Bring a saved annotation into view when it's selected for editing -
   // reads the already-built feature straight off the annotations source

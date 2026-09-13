@@ -28,6 +28,7 @@ createRoot(document.getElementById('root')!).render(
           'fullscreen',
           'annotations',
           'cellcount',
+          'rotate',
         ]
       }}
       on={(event, payload) => {
