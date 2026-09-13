@@ -26,6 +26,13 @@ const TOAST_MESSAGES: Record<string, { message: string; variant: 'success' | 'er
   'cellcounts:load-error': { message: "Couldn't reach the annotation store", variant: 'error' },
   'cellcount:click-outside-roi': { message: "Can't click here", variant: 'error' },
   'slide:load-error': { message: "Couldn't reach the tile server", variant: 'error' },
+  'imageadjustment:created': { message: 'Preset saved', variant: 'success' },
+  'imageadjustment:created:error': { message: "Couldn't save preset", variant: 'error' },
+  'imageadjustment:updated': { message: 'Preset updated', variant: 'success' },
+  'imageadjustment:updated:error': { message: "Couldn't update preset", variant: 'error' },
+  'imageadjustment:deleted': { message: 'Preset deleted', variant: 'success' },
+  'imageadjustment:deleted:error': { message: "Couldn't delete preset", variant: 'error' },
+  'imageadjustments:load-error': { message: "Couldn't reach the annotation store", variant: 'error' },
 }
 
 interface EventContextProviderProps {

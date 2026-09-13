@@ -1,0 +1,223 @@
+.adjustments-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+  padding: 1em;
+  font-family: var(--sans);
+}
+
+.draggable-panel--docked-top .adjustments-panel,
+.draggable-panel--docked-bottom .adjustments-panel {
+  flex-direction: row;
+  padding: 0.5em 1em;
+  gap: 0.5em;
+}
+
+.adjustments-panel-sliders-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+}
+
+.adjustments-panel-slider {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  color: var(--chrome-text);
+  font-size: 0.9em;
+}
+
+.adjustments-panel-slider-header {
+  display: flex;
+  justify-content: space-between;
+  color: var(--chrome-text-secondary);
+}
+
+.adjustments-panel-slider-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--chrome-text);
+}
+
+.adjustments-panel-slider input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 1.2em;
+  background: transparent;
+  cursor: pointer;
+}
+
+.adjustments-panel-slider input[type='range']::-webkit-slider-runnable-track {
+  height: 0.3em;
+  background: var(--white-08);
+  border-radius: 0.15em;
+}
+
+.adjustments-panel-slider input[type='range']::-moz-range-track {
+  height: 0.3em;
+  background: var(--white-08);
+  border-radius: 0.15em;
+}
+
+.adjustments-panel-slider input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 0.9em;
+  height: 0.9em;
+  margin-top: -0.3em;
+  background: var(--accent);
+  border-radius: 50%;
+  border: none;
+}
+
+.adjustments-panel-slider input[type='range']::-moz-range-thumb {
+  width: 0.9em;
+  height: 0.9em;
+  background: var(--accent);
+  border-radius: 50%;
+  border: none;
+}
+
+.adjustments-panel-slider input[type='range']:active::-webkit-slider-thumb {
+  background: var(--accent-active);
+}
+
+.adjustments-panel-slider input[type='range']:active::-moz-range-thumb {
+  background: var(--accent-active);
+}
+
+.adjustments-panel-reset {
+  align-self: flex-start;
+  padding: 0.4em 0.8em;
+  font-family: var(--sans);
+  font-size: 0.85em;
+  color: var(--chrome-text);
+  background: var(--white-08);
+  border: 1px solid transparent;
+  border-radius: 0.25em;
+  cursor: pointer;
+}
+
+.adjustments-panel-reset:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.adjustments-panel-reset:active {
+  border-color: var(--accent-active);
+  color: var(--accent-active);
+}
+
+.adjustments-panel-presets-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  min-height: 0;
+}
+
+.adjustments-panel-save-row {
+  display: flex;
+  gap: 0.4em;
+}
+
+.adjustments-panel-name-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.3em 0.4em;
+  font-family: var(--sans);
+  color: var(--chrome-text);
+  background: var(--white-08);
+  border: 1px solid var(--chrome-text-secondary);
+  border-radius: 0.25em;
+}
+
+.adjustments-panel-name-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.adjustments-panel-save-button {
+  padding: 0.4em 0.8em;
+  font-family: var(--sans);
+  font-size: 0.85em;
+  color: var(--chrome-text);
+  background: var(--white-08);
+  border: 1px solid transparent;
+  border-radius: 0.25em;
+  cursor: pointer;
+}
+
+.adjustments-panel-save-button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.adjustments-panel-save-button:disabled {
+  color: var(--disabled);
+  cursor: not-allowed;
+}
+
+.adjustments-panel-presets-empty {
+  margin: 0;
+  font-size: 0.9em;
+  color: var(--chrome-text-secondary);
+}
+
+.adjustments-panel-preset-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+  max-height: 12em;
+  overflow-y: auto;
+}
+
+.adjustments-panel-preset-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+  padding: 0.4em 0.5em;
+  border-radius: 0.3125rem;
+}
+
+.adjustments-panel-preset-row:hover {
+  background: var(--white-06);
+}
+
+.adjustments-panel-preset-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--chrome-text);
+  font-size: 0.9em;
+}
+
+.adjustments-panel-preset-actions {
+  display: flex;
+  gap: 0.3em;
+  flex-shrink: 0;
+}
+
+.adjustments-panel-preset-actions button {
+  padding: 0.3em 0.5em;
+  font-family: var(--sans);
+  font-size: 0.8em;
+  color: var(--chrome-text);
+  background: var(--white-06);
+  border: none;
+  border-radius: 0.3125rem;
+  cursor: pointer;
+}
+
+.adjustments-panel-preset-actions button:hover {
+  color: var(--accent);
+}
+
+.adjustments-panel-preset-actions button.adjustments-panel-preset-delete:hover {
+  color: var(--danger);
+}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useToolbarContext } from '../../context/ToolbarContext'
+import adjustmentsIconSvg from '../../icons/adjustments.svg?raw'
 import annotationsIconSvg from '../../icons/annotations.svg?raw'
 import cellcountIconSvg from '../../icons/cellcount.svg?raw'
 import fullscreenEnterIconSvg from '../../icons/fullscreen-enter.svg?raw'
@@ -21,9 +22,9 @@ function Icon({ svg }: { svg: string }) {
   return <span className="toolbar-icon" dangerouslySetInnerHTML={{ __html: svg }} />
 }
 
-type ToolName = 'fullscreen' | 'annotations' | 'cellcount' | 'rotate' | 'ruler'
+type ToolName = 'fullscreen' | 'annotations' | 'cellcount' | 'rotate' | 'ruler' | 'adjustments'
 
-const DEFAULT_TOOLS: ToolName[] = ['fullscreen', 'annotations', 'cellcount', 'rotate', 'ruler']
+const DEFAULT_TOOLS: ToolName[] = ['fullscreen', 'annotations', 'cellcount', 'rotate', 'ruler', 'adjustments']
 
 interface ToolbarProps {
   tools?: ToolName[]
@@ -108,6 +109,16 @@ function Toolbar({ tools = DEFAULT_TOOLS }: ToolbarProps) {
           onClick={() => toggleTool('ruler')}
         >
           <Icon svg={rulerIconSvg} />
+        </button>
+      )}
+      {tools.includes('adjustments') && (
+        <button
+          type="button"
+          className={`toolbar-button${activeTools.includes('adjustments') ? ' toolbar-button--active' : ''}`}
+          title="Adjustments"
+          onClick={() => toggleTool('adjustments')}
+        >
+          <Icon svg={adjustmentsIconSvg} />
         </button>
       )}
     </div>

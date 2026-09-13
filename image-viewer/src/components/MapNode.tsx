@@ -10,6 +10,7 @@ import type { Coordinate } from 'ol/coordinate'
 import Draw, { type DrawEvent } from 'ol/interaction/Draw'
 import Translate from 'ol/interaction/Translate'
 import VectorLayer from 'ol/layer/Vector'
+import type WebGLTileLayer from 'ol/layer/WebGLTile'
 import VectorSource from 'ol/source/Vector'
 import { OpenLayerMap } from './open-layers/OpenLayers'
 import {
@@ -31,6 +32,7 @@ import { useAnnotationStoreContext } from '../context/AnnotationStoreContext'
 import { useDrawContext } from '../context/DrawContext'
 import { useRotationContext } from '../context/RotationContext'
 import { useRulerContext } from '../context/RulerContext'
+import { useAdjustmentsContext } from '../context/AdjustmentsContext'
 import { useCellCountDrawContext } from '../context/CellCountDrawContext'
 import { useCellCountStoreContext } from '../context/CellCountStoreContext'
 import { useToolbarContext } from '../context/ToolbarContext'
@@ -66,6 +68,7 @@ function MapNode() {
     useDrawContext()
   const { rotationDegrees, setRotationDegrees, resetRotation } = useRotationContext()
   const { setLastMeasurement, clearSignal: rulerClearSignal } = useRulerContext()
+  const { values: adjustmentValues, resetValues: resetAdjustments } = useAdjustmentsContext()
   const {
     counting,
     colour: cellCountColour,
@@ -92,6 +95,7 @@ function MapNode() {
 
   const mapElement = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<Map | null>(null)
+  const baseLayerRef = useRef<WebGLTileLayer | null>(null)
   const drawSourceRef = useRef(new VectorSource())
   const cellCountDotsSourceRef = useRef(new VectorSource())
   const roiSourceRef = useRef(new VectorSource())
@@ -139,6 +143,7 @@ function MapNode() {
     setError(null)
     resetRotation()
     setLastMeasurement(null)
+    resetAdjustments()
     if (!mapElement.current) return
 
     let cancelled = false
@@ -194,7 +199,7 @@ function MapNode() {
         viewedDotsLayerRef.current = viewedDotsLayer
         viewedRoiLayerRef.current = viewedRoiLayer
         rulerLayerRef.current = rulerLayer
-        mapRef.current = OpenLayerMap(
+        const { map, baseLayer } = OpenLayerMap(
           mapElement.current,
           { width: metadata.width, height: metadata.height },
           { baseUrl: `${slideUrl}/`, tileSize: metadata.tileSize },
@@ -202,6 +207,8 @@ function MapNode() {
           metadata.mppX,
           [annotationsLayer, drawLayer, cellCountDotsLayer, roiLayer, viewedDotsLayer, viewedRoiLayer, rulerLayer]
         )
+        mapRef.current = map
+        baseLayerRef.current = baseLayer
         // The view's own coarsest resolution (post native-scale capping,
         // i.e. genuinely as zoomed-out as this slide's view can go) - see
         // Styles.ts's coarsestResolution for why the arrowhead and dash
@@ -222,6 +229,7 @@ function MapNode() {
       cancelled = true
       mapRef.current?.setTarget(undefined)
       mapRef.current = null
+      baseLayerRef.current = null
     }
   }, [source, emit])
 
@@ -381,6 +389,25 @@ function MapNode() {
       view.un('change:rotation', handleRotationChange)
     }
   }, [mapVersion, setRotationDegrees])
+
+  // Pushes live slider/preset values onto the base layer's WebGL style
+  // variables - cheap, no shader rebuild (see adjustmentsStyle in
+  // OpenLayers.ts). mapVersion has to be a dep too, not just
+  // adjustmentValues: a slider dragged while the next slide is still
+  // loading changes adjustmentValues while baseLayerRef.current is still
+  // null, so that call is a no-op - without mapVersion here, the freshly
+  // built layer (which always starts at DEFAULT_ADJUSTMENTS, see
+  // zoomifyLayer) would never pick up that pending change once it exists.
+  useEffect(() => {
+    baseLayerRef.current?.updateStyleVariables({
+      red: adjustmentValues.red,
+      green: adjustmentValues.green,
+      blue: adjustmentValues.blue,
+      brightness: adjustmentValues.brightness,
+      contrast: adjustmentValues.contrast,
+      gamma: adjustmentValues.gamma,
+    })
+  }, [adjustmentValues, mapVersion])
 
   // Bring a saved annotation into view when it's selected for editing -
   // reads the already-built feature straight off the annotations source

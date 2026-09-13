@@ -30,6 +30,7 @@ createRoot(document.getElementById('root')!).render(
           'cellcount',
           'rotate',
           'ruler',
+          'adjustments',
         ]
       }}
       on={(event, payload) => {

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using AnnotationStore.Annotations;
 using AnnotationStore.CellCounts;
+using AnnotationStore.ImageAdjustments;
 using DotNetEnv;
 using Microsoft.EntityFrameworkCore;
 using OpenTelemetry.Metrics;
@@ -132,6 +133,39 @@ app.MapDelete("/cellcounts/{id:guid}", async (Guid id, AnnotationDbContext db) =
     var existing = await db.CellCounts.FindAsync(id);
     if (existing is null) return Results.NotFound();
     db.CellCounts.Remove(existing);
+    await db.SaveChangesAsync();
+    return Results.NoContent();
+});
+
+// Image adjustment endpoints
+
+app.MapGet("/imageadjustments", async (string slideId, AnnotationDbContext db) =>
+    Results.Ok(await db.ImageAdjustments.Where(a => a.SlideId == slideId).ToListAsync()));
+
+app.MapPost("/imageadjustments", async (AnnotationStore.ImageAdjustments.ImageAdjustments adjustment, AnnotationDbContext db) =>
+{
+    if (adjustment.ImageAdjustmentId == Guid.Empty) adjustment.ImageAdjustmentId = Guid.NewGuid();
+    adjustment.Created = DateTimeOffset.UtcNow;
+    db.ImageAdjustments.Add(adjustment);
+    await db.SaveChangesAsync();
+    return Results.Created($"/imageadjustments/{adjustment.ImageAdjustmentId}", adjustment);
+});
+
+app.MapPut("/imageadjustments/{id:guid}", async (Guid id, AnnotationStore.ImageAdjustments.ImageAdjustments update, AnnotationDbContext db) =>
+{
+    var existing = await db.ImageAdjustments.FindAsync(id);
+    if (existing is null) return Results.NotFound();
+    existing.AdjustmentName = update.AdjustmentName;
+    existing.Adjustments = update.Adjustments;
+    await db.SaveChangesAsync();
+    return Results.Ok(existing);
+});
+
+app.MapDelete("/imageadjustments/{id:guid}", async (Guid id, AnnotationDbContext db) =>
+{
+    var existing = await db.ImageAdjustments.FindAsync(id);
+    if (existing is null) return Results.NotFound();
+    db.ImageAdjustments.Remove(existing);
     await db.SaveChangesAsync();
     return Results.NoContent();
 });

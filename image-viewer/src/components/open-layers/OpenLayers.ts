@@ -1,10 +1,11 @@
 import { Map, View } from 'ol'
-import TileLayer from 'ol/layer/Tile'
+import WebGLTileLayer, { type Options as WebGLTileLayerOptions } from 'ol/layer/WebGLTile'
 import Zoomify from 'ol/source/Zoomify'
 import Projection from 'ol/proj/Projection'
 import OverviewMap from 'ol/control/OverviewMap'
 import Control from 'ol/control/Control'
 import type BaseLayer from 'ol/layer/Base'
+import { DEFAULT_ADJUSTMENTS, type ImageAdjustmentValues } from '../adjustments/adjustments'
 
 interface ImageSize {
   width: number
@@ -98,28 +99,72 @@ function clampOverviewBoxSize(
   }
 }
 
+// Maps live adjustment values onto a WebGLTileLayer style: variables so a
+// slider drag can update via updateStyleVariables (cheap, no shader rebuild)
+// instead of setStyle. band 4 (alpha) passes through untouched - brightness/
+// contrast/gamma are applied by the layer itself via the style's own
+// brightness/contrast/gamma expressions, on top of the per-channel gain this
+// color expression applies first.
+function adjustmentsStyle(values: ImageAdjustmentValues) {
+  return {
+    variables: {
+      red: values.red,
+      green: values.green,
+      blue: values.blue,
+      brightness: values.brightness,
+      contrast: values.contrast,
+      gamma: values.gamma,
+    },
+    color: [
+      'array',
+      ['clamp', ['*', ['band', 1], ['var', 'red']], 0, 1],
+      ['clamp', ['*', ['band', 2], ['var', 'green']], 0, 1],
+      ['clamp', ['*', ['band', 3], ['var', 'blue']], 0, 1],
+      ['band', 4],
+    ],
+    brightness: ['var', 'brightness'],
+    contrast: ['var', 'contrast'],
+    gamma: ['var', 'gamma'],
+  }
+}
+
 // baseUrl must include the trailing slide segment, e.g.
 // "http://localhost:5095/slides/000/" - Zoomify appends
 // "TileGroup{g}/{z}-{x}-{y}.jpg" itself, matching tiler's route exactly.
 // tierSizeCalculation is left at its default ('default') deliberately -
 // tiler/Slides/ZoomifyTiling.cs reimplements that exact algorithm
 // server-side so client and server agree on tier/tile numbering.
+//
+// WebGLTileLayer (unlike ol/layer/Tile) isn't generic over its source type in
+// this OL version's own typings, so it's just `WebGLTileLayer` here rather
+// than parameterized on Zoomify - the source itself is still a Zoomify
+// underneath. Used for both the main map's base layer and the overview's
+// separate copy; only the main one ever has its style variables updated at
+// runtime (see MapNode), so the overview stays a neutral reference thumbnail.
 function zoomifyLayer(
   baseUrl: string,
   tileSize: number,
   size: ImageSize,
   projection: Projection,
   extent: number[]
-): TileLayer<Zoomify> {
-  return new TileLayer({
-    source: new Zoomify({
-      url: baseUrl,
-      size: [size.width, size.height],
-      extent,
-      tileSize,
-      projection,
-      crossOrigin: 'anonymous',
-    }),
+): WebGLTileLayer {
+  const source = new Zoomify({
+    url: baseUrl,
+    size: [size.width, size.height],
+    extent,
+    tileSize,
+    projection,
+    crossOrigin: 'anonymous',
+  })
+  return new WebGLTileLayer({
+    // WebGLTileLayer's own Options type only declares DataTileSource-based
+    // sources, but ol/layer/WebGLTile.js's getSourceBandCount_ works with any
+    // TileImage-based source too - it just falls back to a 4-band (r,g,b,a)
+    // default when the source doesn't declare its own bandCount, which is
+    // exactly Zoomify's case. This is a gap in ol's .d.ts, not a real
+    // runtime mismatch.
+    source: source as unknown as WebGLTileLayerOptions['source'],
+    style: adjustmentsStyle(DEFAULT_ADJUSTMENTS),
   })
 }
 
@@ -147,7 +192,7 @@ function buildBaseLayer(
   projection: Projection,
   extent: number[],
   size: ImageSize
-): BaseLayer {
+): WebGLTileLayer {
   return zoomifyLayer(spec.baseUrl, spec.tileSize, size, projection, extent)
 }
 
@@ -307,7 +352,7 @@ export function OpenLayerMap(
   objectivePower: number | null = null,
   mppX: number | null = null,
   extraLayers: BaseLayer[] = []
-): Map {
+): { map: Map; baseLayer: WebGLTileLayer } {
   const extent = getExtent(size)
   const projection = olProjection(extent)
   const resolutions = computeResolutionLadder(size, spec.tileSize)
@@ -379,7 +424,7 @@ export function OpenLayerMap(
   }
 
   map.getView().fit(extent)
-  return map
+  return { map, baseLayer }
 }
 
 export {
