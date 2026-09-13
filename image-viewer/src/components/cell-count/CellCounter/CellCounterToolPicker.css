@@ -135,6 +135,46 @@
   text-align: center;
 }
 
+/* The idle spare card's content (see CellCounterToolPicker) - a look back
+   at the last saved count, same swatch/label/count shape as a row in
+   SavedCountList. */
+.cell-counter-tool-picker-recent {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  min-width: 0;
+}
+
+.cell-counter-tool-picker-recent-swatch {
+  width: 0.9em;
+  height: 0.9em;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.cell-counter-tool-picker-recent-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9em;
+  color: var(--chrome-text);
+}
+
+.cell-counter-tool-picker-recent-count {
+  flex-shrink: 0;
+  font-size: 0.8em;
+  color: var(--chrome-text-secondary);
+}
+
+.cell-counter-tool-picker-recent-empty {
+  margin: 0;
+  font-size: 0.85em;
+  color: var(--chrome-text-secondary);
+  text-align: center;
+}
+
 /* The running count for the annotated (History) case - sits below Stop
    counting (see CellCounterDuring), in the row's own leftover space rather
    than inside the History card fighting the list for room. */
@@ -304,10 +344,44 @@
   min-width: 14em;
 }
 
-/* DockedCard.css centers a card's content by default, which reads fine for
-   a single tally number but left a short history list floating in the
-   middle of the card with dead space above it - top-align instead so rows
-   fill from the top down as they arrive. */
+/* Same reasoning as the history card above - a swatch plus a label plus a
+   count needs more room than the plain spare-card floor. */
+.draggable-panel--docked-top .cell-counter-tool-picker-recent-card,
+.draggable-panel--docked-bottom .cell-counter-tool-picker-recent-card {
+  min-width: 14em;
+}
+
+.draggable-panel--docked-top .cell-counter-tool-picker-recent-label,
+.draggable-panel--docked-bottom .cell-counter-tool-picker-recent-label,
+.draggable-panel--docked-top .cell-counter-tool-picker-recent-count,
+.draggable-panel--docked-bottom .cell-counter-tool-picker-recent-count {
+  font-size: 1.05em;
+}
+
+/* DockedCard.css centers a card's content by default - fine when every
+   card in the row is a similar height, but the Colour card (33em wide,
+   8 swatches) is usually taller than Dot size/Options/Recent need, so
+   centering left a chunk of dead space above and below each. Top-align
+   these four instead - same treatment as CellCountForm.css/
+   AnnotationForm.css's edit screens. Not the plain spare-card class here
+   (During's unannotated Count card also uses it, and stays deliberately
+   centered - see its own comment) - recent-card only, since that's
+   idle-specific. */
+.draggable-panel--docked-top .docked-card.cell-counter-tool-picker-field-card,
+.draggable-panel--docked-bottom .docked-card.cell-counter-tool-picker-field-card,
+.draggable-panel--docked-top .docked-card.cell-counter-tool-picker-colour-card,
+.draggable-panel--docked-bottom .docked-card.cell-counter-tool-picker-colour-card,
+.draggable-panel--docked-top .docked-card.cell-counter-tool-picker-options-card,
+.draggable-panel--docked-bottom .docked-card.cell-counter-tool-picker-options-card,
+.draggable-panel--docked-top .docked-card.cell-counter-tool-picker-recent-card,
+.draggable-panel--docked-bottom .docked-card.cell-counter-tool-picker-recent-card {
+  justify-content: flex-start;
+}
+
+/* Same reasoning as directly above - a single tally number reads fine
+   floating in the middle of an empty card, but a multi-row history list
+   left dead space above it - top-align so rows fill from the top down as
+   they arrive. */
 .draggable-panel--docked-top .docked-card.cell-counter-tool-picker-history-card,
 .draggable-panel--docked-bottom .docked-card.cell-counter-tool-picker-history-card {
   justify-content: flex-start;

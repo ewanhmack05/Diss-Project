@@ -1,5 +1,23 @@
 import { describe, expect, it } from 'vitest'
-import { computeViewedCellCountExtent, toggleViewedCellCountId } from './CellCountView'
+import { computeViewedCellCountExtent, toggleViewedCellCountId, mostRecentCellCount } from './CellCountView'
+import type { CellCount } from '../../interfaces/CellCount'
+
+function makeCellCount(id: string, created: string): CellCount {
+  return {
+    id,
+    label: id,
+    notes: '',
+    dots: '[]',
+    withAnnotation: true,
+    withRoi: false,
+    count: 0,
+    dotSize: 6,
+    locationX: null,
+    locationY: null,
+    regionOfInterest: null,
+    created,
+  }
+}
 
 describe('computeViewedCellCountExtent', () => {
   it('prefers the ROI extent when one is present, even with dots and a location', () => {
@@ -40,5 +58,24 @@ describe('toggleViewedCellCountId', () => {
   it('switches to the clicked one when a different one (or none) is being viewed', () => {
     expect(toggleViewedCellCountId('abc', 'xyz')).toBe('xyz')
     expect(toggleViewedCellCountId(null, 'xyz')).toBe('xyz')
+  })
+})
+
+describe('mostRecentCellCount', () => {
+  it('picks the one with the latest created timestamp, regardless of array order', () => {
+    const oldest = makeCellCount('a', '2024-01-01T00:00:00.000Z')
+    const newest = makeCellCount('b', '2024-06-01T00:00:00.000Z')
+    const middle = makeCellCount('c', '2024-03-01T00:00:00.000Z')
+
+    expect(mostRecentCellCount([oldest, newest, middle])).toBe(newest)
+  })
+
+  it('returns null for an empty store', () => {
+    expect(mostRecentCellCount([])).toBeNull()
+  })
+
+  it('returns the only entry for a single-item store', () => {
+    const only = makeCellCount('a', '2024-01-01T00:00:00.000Z')
+    expect(mostRecentCellCount([only])).toBe(only)
   })
 })

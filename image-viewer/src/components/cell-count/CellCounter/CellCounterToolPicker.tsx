@@ -1,7 +1,11 @@
 import { useCellCountDrawContext } from "../../../context/CellCountDrawContext";
+import { useCellCountStoreContext } from "../../../context/CellCountStoreContext";
 import { useDrawContext } from "../../../context/DrawContext";
 import { DotSizeOptions, RoiBoxSizeOptions } from "../Tools";
+import { parseCellCountDots, colourBreakdownFromDots } from "../CellCountDots";
+import { mostRecentCellCount } from "../CellCountView";
 import ColourPicker from "../../colour-picker/ColourPicker";
+import CellCountColourSwatch from "../CellCountColourSwatch";
 import DockedCard from "../../toolbar/DockedCard";
 import "./CellCounterToolPicker.css";
 
@@ -28,6 +32,8 @@ function CellCounterToolPicker() {
   // can't mean both "add a shape vertex" and "tally a cell" at once, so
   // counting can't start while a shape tool is selected.
   const { activeTool } = useDrawContext();
+  const { cellCounts } = useCellCountStoreContext();
+  const recentCellCount = mostRecentCellCount(cellCounts);
 
   const handleStart = () => {
     resetCount();
@@ -104,8 +110,29 @@ function CellCounterToolPicker() {
         </div>
       </DockedCard>
 
-      {/* Reserved for whatever comes next - deliberately empty for now. */}
-      <DockedCard className="cell-counter-tool-picker-spare-card" />
+      {/* The idle counterpart to CellCounterDuring's spare card - a look
+          back at the last saved count rather than anything about the one
+          about to start. Same spare-card class so this stays a 4-card row
+          matching During's, keeping flex:1 dividing the row identically
+          between the two screens (see During's own comment on this). */}
+      <DockedCard title="Recent" className="cell-counter-tool-picker-spare-card cell-counter-tool-picker-recent-card">
+        {recentCellCount ? (
+          <div className="cell-counter-tool-picker-recent">
+            <CellCountColourSwatch
+              breakdown={colourBreakdownFromDots(parseCellCountDots(recentCellCount.dots))}
+              className="cell-counter-tool-picker-recent-swatch"
+            />
+            <span className="cell-counter-tool-picker-recent-label">
+              {recentCellCount.label}
+            </span>
+            <span className="cell-counter-tool-picker-recent-count">
+              {recentCellCount.count}
+            </span>
+          </div>
+        ) : (
+          <p className="cell-counter-tool-picker-recent-empty">No counts saved yet</p>
+        )}
+      </DockedCard>
 
       <button
         type="button"

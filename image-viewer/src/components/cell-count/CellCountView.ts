@@ -1,5 +1,6 @@
 import { boundingExtent, buffer, type Extent } from 'ol/extent'
 import type { Coordinate } from 'ol/coordinate'
+import type { CellCount } from '../../interfaces/CellCount'
 
 const FIT_PADDING = 40
 const LOCATION_ONLY_HALF_SIZE = 10
@@ -35,4 +36,14 @@ function toggleViewedCellCountId(current: string | null, clickedId: string): str
   return current === clickedId ? null : clickedId
 }
 
-export { computeViewedCellCountExtent, toggleViewedCellCountId }
+// For the idle screen's "Recent" card (see CellCounterToolPicker) - the
+// store appends new counts to the end of its array (see
+// CellCountStoreContext's addCellCount), but an initial fetch isn't
+// guaranteed to arrive in that order, so this picks by `created` rather
+// than trusting array position.
+function mostRecentCellCount(cellCounts: CellCount[]): CellCount | null {
+  if (cellCounts.length === 0) return null
+  return cellCounts.reduce((latest, count) => (count.created > latest.created ? count : latest))
+}
+
+export { computeViewedCellCountExtent, toggleViewedCellCountId, mostRecentCellCount }
