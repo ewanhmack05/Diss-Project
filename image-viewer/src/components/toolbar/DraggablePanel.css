@@ -3,7 +3,7 @@
   width: 20em;
   background: var(--chrome-bg);
   border-radius: 0.5em;
-  box-shadow: 0 0.5em 1.5em rgba(0, 0, 0, 0.35);
+  box-shadow: 0 0.5em 1.5em var(--black-35);
   z-index: 15;
   overflow: hidden;
 }
@@ -41,7 +41,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.5em 0.75em;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--white-05);
 }
 
 .draggable-panel-handle {

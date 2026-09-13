@@ -19,7 +19,7 @@
   font-family: var(--sans);
   font-size: 1em;
   color: var(--chrome-text);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--white-06);
   border: 1px solid transparent;
   border-radius: 0.3125rem;
 }
@@ -50,7 +50,7 @@
   font-family: var(--sans);
   font-size: 1em;
   color: var(--chrome-text);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--white-03);
   border-radius: 0.3125rem;
 }
 
@@ -110,7 +110,7 @@
   font-size: 0.9em;
   font-weight: 600;
   color: var(--chrome-text);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--white-06);
   border: none;
   border-radius: 0.3125rem;
   cursor: pointer;
@@ -131,7 +131,7 @@
 }
 
 .cell-count-form-button--danger:hover:not(:disabled) {
-  color: #e05252;
+  color: var(--danger);
 }
 
 /* Same reflow as FreeFormToolPicker.css - see there for why. */

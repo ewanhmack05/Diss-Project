@@ -34,7 +34,7 @@
   font-size: 0.9em;
   font-weight: 600;
   color: var(--chrome-text);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--white-06);
   border: 1px solid transparent;
   border-radius: 0.3125rem;
   cursor: pointer;
@@ -55,7 +55,7 @@
   height: 1.25em;
   flex-shrink: 0;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid var(--white-30);
 }
 
 .colour-picker-custom-panel {

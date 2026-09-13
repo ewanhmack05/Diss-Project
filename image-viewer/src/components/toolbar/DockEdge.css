@@ -27,22 +27,22 @@
 
 .dock-edge--left {
   left: 0;
-  box-shadow: 0.25em 0 0.75em rgba(0, 0, 0, 0.35);
+  box-shadow: 0.25em 0 0.75em var(--black-35);
 }
 
 .dock-edge--right {
   right: 0;
-  box-shadow: -0.25em 0 0.75em rgba(0, 0, 0, 0.35);
+  box-shadow: -0.25em 0 0.75em var(--black-35);
 }
 
 .dock-edge--top {
   top: 0;
-  box-shadow: 0 0.25em 0.75em rgba(0, 0, 0, 0.35);
+  box-shadow: 0 0.25em 0.75em var(--black-35);
 }
 
 .dock-edge--bottom {
   bottom: 3.69em;
-  box-shadow: 0 -0.25em 0.75em rgba(0, 0, 0, 0.35);
+  box-shadow: 0 -0.25em 0.75em var(--black-35);
 }
 
 /* Always-mounted, invisible instance of each edge's real sizing (see
@@ -58,10 +58,10 @@
    gets a horizontal line, row split (top/bottom) gets a vertical one. */
 .dock-edge--left > .draggable-panel--docked + .draggable-panel--docked,
 .dock-edge--right > .draggable-panel--docked + .draggable-panel--docked {
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--white-08);
 }
 
 .dock-edge--top > .draggable-panel--docked + .draggable-panel--docked,
 .dock-edge--bottom > .draggable-panel--docked + .draggable-panel--docked {
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 1px solid var(--white-08);
 }

@@ -32,7 +32,7 @@
   font-family: var(--sans);
   font-size: 0.85em;
   color: var(--chrome-text);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--white-08);
   border: 1px solid transparent;
   border-radius: 0.25em;
   cursor: pointer;

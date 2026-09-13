@@ -1,0 +1,33 @@
+:root {
+  /* Surfaces */
+  --canvas-bg: #fff;
+  --chrome-bg-rgb: 31, 31, 31;
+  --chrome-bg: rgba(var(--chrome-bg-rgb), 0.902);
+  --chrome-bg-solid: #1f1f1f;
+  --chrome-text: #fff;
+  --chrome-text-secondary: #c7c4c4;
+  --border: rgb(199, 196, 196);
+  --disabled: rgba(152, 155, 154, 0.9);
+
+  /* Accent (teal) */
+  --accent-rgb: 118, 174, 174;
+  --accent: rgb(var(--accent-rgb));
+  --accent-active: #468888;
+
+  /* Status */
+  --danger: #e05252;
+
+  /* Plain constants*/
+  --white: #fff;
+  --black: #000;
+
+  /* Neutral overlay tints  */
+  --white-03: rgba(255, 255, 255, 0.03);
+  --white-05: rgba(255, 255, 255, 0.05);
+  --white-06: rgba(255, 255, 255, 0.06);
+  --white-08: rgba(255, 255, 255, 0.08);
+  --white-10: rgba(255, 255, 255, 0.1);
+  --white-22: rgba(255, 255, 255, 0.22);
+  --white-30: rgba(255, 255, 255, 0.3);
+  --black-35: rgba(0, 0, 0, 0.35);
+}

@@ -50,7 +50,7 @@
   font-size: 0.85em;
   font-weight: 600;
   color: var(--chrome-text);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--white-06);
   border: none;
   border-radius: 0.3125rem;
   cursor: pointer;
@@ -71,7 +71,7 @@
 }
 
 .saved-cell-count-list-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--white-06);
 }
 
 .saved-cell-count-list-swatch {

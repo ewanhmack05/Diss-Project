@@ -55,7 +55,7 @@
   padding: 0.3em 0.4em;
   font-family: var(--sans);
   color: var(--chrome-text);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--white-08);
   border: 1px solid var(--chrome-text-secondary);
   border-radius: 0.25em;
 }
@@ -76,7 +76,7 @@
   font-family: var(--sans);
   font-size: 0.85em;
   color: var(--chrome-text);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--white-08);
   border: 1px solid transparent;
   border-radius: 0.25em;
   cursor: pointer;

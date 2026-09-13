@@ -1,13 +1,6 @@
-:root {
-  --canvas-bg: #fff;
-  --chrome-bg: rgba(31, 31, 31, 0.902);
-  --chrome-text: #fff;
-  --chrome-text-secondary: #c7c4c4;
-  --accent: #76aeae;
-  --accent-active: #468888;
-  --disabled: rgba(152, 155, 154, 0.9);
-  --border: rgb(199, 196, 196);
+@import './palette.css';
 
+:root {
   --sans:
     'Source Sans Pro', Arial, sans-serif;
 
@@ -43,7 +36,7 @@ body {
    with a custom-drawn one. */
 .themed-scroll {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+  scrollbar-color: var(--white-22) transparent;
 }
 
 .themed-scroll::-webkit-scrollbar {
@@ -55,7 +48,7 @@ body {
 }
 
 .themed-scroll::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.22);
+  background: var(--white-22);
   border-radius: 0.3125rem;
 }
 

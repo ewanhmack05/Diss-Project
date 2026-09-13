@@ -12,7 +12,7 @@
 .cell-count-panel-tabs {
   display: flex;
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--white-10);
   /* Belt-and-braces: nothing above cell-count-panel-content scrolls in the
      normal (Saved list) case any more, since the list scrolls internally
      within its own bounded flex space - but a long New/counting view on a

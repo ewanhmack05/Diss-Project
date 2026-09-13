@@ -1,12 +1,12 @@
 .dock-zone {
   position: fixed;
-  background: rgba(118, 174, 174, 0.08);
+  background: rgba(var(--accent-rgb), 0.08);
   z-index: 14;
   pointer-events: none;
 }
 
 .dock-zone--over {
-  background: rgba(118, 174, 174, 0.25);
+  background: rgba(var(--accent-rgb), 0.25);
 }
 
 .dock-zone--left,
