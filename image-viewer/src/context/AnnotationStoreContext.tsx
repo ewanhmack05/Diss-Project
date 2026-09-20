@@ -4,8 +4,11 @@ import type { Annotation } from '../interfaces/Annotation'
 import { useImageViewerContext } from './ImageViewerContext'
 import { useEmitEvent } from './EventContext'
 import { useCollectionContext } from './CollectionContext'
+import { mergePolledItems } from './pollMerge'
 
 type Status = 'loading' | 'ready' | 'error'
+
+const POLL_INTERVAL_MS = 5000
 
 interface AnnotationStoreContextValue {
   annotations: Annotation[]
@@ -39,11 +42,23 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
   const [status, setStatus] = useState<Status>('loading')
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null)
   const annotationsSourceRef = useRef(new VectorSource())
+  // Ids this tab has added/deleted locally but whose POST/DELETE hasn't
+  // round-tripped yet - guards the poll below from clobbering an in-flight
+  // create or resurrecting an in-flight delete. Refs, not state: they don't
+  // need to trigger a render, just be current when a poll tick reads them.
+  const pendingCreateIdsRef = useRef<Set<string>>(new Set())
+  const pendingDeleteIdsRef = useRef<Set<string>>(new Set())
 
   // Load whatever's already saved for this slide - the reason to have a
   // backend at all is that this survives a reload, unlike plain React state.
   useEffect(() => {
     let cancelled = false
+
+    // A ref set from the previous collection means nothing once collectionId
+    // changes - carrying it over could wrongly preserve/suppress an id that
+    // just happens to collide in the new collection's list.
+    pendingCreateIdsRef.current.clear()
+    pendingDeleteIdsRef.current.clear()
 
     if (collectionId === null) {
       setStatus(collectionStatus === 'error' ? 'error' : 'loading')
@@ -75,6 +90,42 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
     }
   }, [baseUrl, slideId, collectionId, collectionStatus, emit])
 
+  // The load above only runs once per collection, so an annotation written
+  // straight against the store by something other than this tab (a second
+  // collaborator) would otherwise only ever show up after a manual reload.
+  // This polls for that, merging against this tab's own pending
+  // creates/deletes so a tick landing mid-write can't clobber or resurrect
+  // one (see mergePolledItems).
+  useEffect(() => {
+    if (collectionId === null || status === 'error') return
+
+    let cancelled = false
+
+    const poll = () => {
+      fetch(`${baseUrl}/annotations?collectionId=${encodeURIComponent(collectionId)}`)
+        .then((response) => {
+          if (!response.ok) throw new Error(String(response.status))
+          return response.json() as Promise<Annotation[]>
+        })
+        .then((data) => {
+          if (cancelled) return
+          setAnnotations((current) =>
+            mergePolledItems(data, current, pendingCreateIdsRef.current, pendingDeleteIdsRef.current)
+          )
+        })
+        .catch(() => {
+          // A single missed poll isn't worth surfacing - the next tick retries.
+        })
+    }
+
+    const intervalId = setInterval(poll, POLL_INTERVAL_MS)
+
+    return () => {
+      cancelled = true
+      clearInterval(intervalId)
+    }
+  }, [baseUrl, collectionId, status])
+
   // Writes are optimistic - update local state immediately for a responsive
   // UI (and emit the corresponding event right away), fire the request, and
   // emit a matching :error event - separately - if it didn't actually
@@ -90,6 +141,7 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
       emit('annotation:created:error', annotation)
       return
     }
+    pendingCreateIdsRef.current.add(annotation.id)
     setAnnotations((current) => [...current, annotation])
     emit('annotation:created', annotation)
     fetch(`${baseUrl}/annotations`, {
@@ -99,8 +151,10 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
     })
       .then((response) => {
         if (!response.ok) throw new Error(String(response.status))
+        pendingCreateIdsRef.current.delete(annotation.id)
       })
       .catch(() => {
+        pendingCreateIdsRef.current.delete(annotation.id)
         setStatus('error')
         emit('annotation:created:error', annotation)
       })
@@ -124,13 +178,16 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
   }
 
   const deleteAnnotation = (id: string) => {
+    pendingDeleteIdsRef.current.add(id)
     setAnnotations((current) => current.filter((a) => a.id !== id))
     emit('annotation:deleted', { id })
     fetch(`${baseUrl}/annotations/${id}`, { method: 'DELETE' })
       .then((response) => {
         if (!response.ok) throw new Error(String(response.status))
+        pendingDeleteIdsRef.current.delete(id)
       })
       .catch(() => {
+        pendingDeleteIdsRef.current.delete(id)
         setStatus('error')
         emit('annotation:deleted:error', { id })
       })

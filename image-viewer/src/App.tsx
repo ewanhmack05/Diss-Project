@@ -1,4 +1,4 @@
-import { createRef, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { createRef, lazy, Suspense, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import 'ol/ol.css'
 import {
   DndContext,
@@ -14,6 +14,7 @@ import { CollectionContextProvider } from './context/CollectionContext'
 import { AnnotationStoreContextProvider } from './context/AnnotationStoreContext'
 import { CellCountStoreContextProvider } from './context/CellCountStoreContext'
 import { CellCountDrawContextProvider } from './context/CellCountDrawContext'
+import { BotControlContextProvider } from './context/BotControlContext'
 import { DrawContextProvider } from './context/DrawContext'
 import { RotationContextProvider } from './context/RotationContext'
 import { RulerContextProvider } from './context/RulerContext'
@@ -49,6 +50,12 @@ import ToastStack from './components/toast/ToastStack'
 import type { ImageSource } from './interfaces/ImageSource'
 import './App.css'
 
+// Dynamically imported (see its use in panelDefs below) - three.js alone
+// adds several hundred kB to the bundle, not worth every visitor paying for
+// on first load just because the tool exists. It only actually fetches once
+// the Connectome tool is opened for the first time.
+const ConnectomePanel = lazy(() => import('./components/connectome/ConnectomePanel'))
+
 // Fixed height of a top/bottom DockEdge (see DockEdge.css) - used to inset
 // the left/right edges when top or bottom is occupied, so they stop where
 // that panel starts instead of running underneath it. Must match
@@ -60,6 +67,22 @@ const EDGE_CROSS_SIZE = '21em'
 // dock (see handleDragStart), since undocking can shrink its width a lot
 // (a top/bottom dock spans the full viewport) before it settles into this.
 const FLOATING_PANEL_WIDTH_EM = 20
+
+// Connectome gets its own, much bigger floating footprint - it's a 3D scene,
+// not a form, and 20em (the default every other panel uses) leaves barely
+// enough room to tell one neuron from another. Only affects this one panel
+// (see PanelDef's floatingWidthEm/floatingMaxHeightEm and DraggablePanel) -
+// docked sizing is untouched, and every other panel keeps the plain default.
+const CONNECTOME_FLOATING_WIDTH_EM = 56
+const CONNECTOME_FLOATING_MAX_HEIGHT_EM = 48
+
+// handleDragStart needs each panel's own floating width to compute where an
+// undocked panel should land (see its own comment) - Connectome's isn't
+// FLOATING_PANEL_WIDTH_EM like every other panel's, so this looks it up per
+// panel id instead of assuming one constant fits all.
+function floatingWidthEmFor(id: string): number {
+  return id === 'connectome-panel' ? CONNECTOME_FLOATING_WIDTH_EM : FLOATING_PANEL_WIDTH_EM
+}
 
 // event.activatorEvent is typed as a plain Event, but dnd-kit's actual
 // sensors (Pointer/Mouse/Touch) always fire from ones that carry
@@ -93,11 +116,12 @@ interface AppProps {
   source: string
   tilerServiceUrl: string
   annotationStoreUrl: string
+  liveServerUrl: string
   options?: AppOptions
   on?: (event: string, payload: unknown) => void
 }
 
-function App({ source, tilerServiceUrl, annotationStoreUrl, options, on }: AppProps) {
+function App({ source, tilerServiceUrl, annotationStoreUrl, liveServerUrl, options, on }: AppProps) {
   const imageSource: ImageSource = { tilerUrl: tilerServiceUrl, slideId: source }
 
   return (
@@ -112,9 +136,15 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, options, on }: AppPr
                     <RotationContextProvider>
                       <RulerContextProvider>
                         <AdjustmentsContextProvider baseUrl={annotationStoreUrl}>
-                          <ToolbarContextProvider>
-                            <ViewerShell fontSize={options?.fontSize} tools={options?.tools} />
-                          </ToolbarContextProvider>
+                          <BotControlContextProvider liveServerUrl={liveServerUrl}>
+                            <ToolbarContextProvider>
+                              <ViewerShell
+                                fontSize={options?.fontSize}
+                                tools={options?.tools}
+                                liveServerUrl={liveServerUrl}
+                              />
+                            </ToolbarContextProvider>
+                          </BotControlContextProvider>
                         </AdjustmentsContextProvider>
                       </RulerContextProvider>
                     </RotationContextProvider>
@@ -139,6 +169,10 @@ interface PanelDef {
   title: string
   tool: ToolId
   content: ReactNode
+  // See CONNECTOME_FLOATING_WIDTH_EM/floatingWidthEmFor above - undefined
+  // for every panel except the ones that opt into a bigger floating size.
+  floatingWidthEm?: number
+  floatingMaxHeightEm?: number
 }
 
 const INITIAL_POSITIONS: Record<string, Position> = {
@@ -147,14 +181,16 @@ const INITIAL_POSITIONS: Record<string, Position> = {
   'rotation-panel': { x: 256, y: 520 },
   'ruler-panel': { x: 256, y: 750 },
   'adjustments-panel': { x: 256, y: 980 },
+  'connectome-panel': { x: 256, y: 1210 },
 }
 
 interface ViewerShellProps {
   fontSize?: string
   tools?: ToolName[]
+  liveServerUrl: string
 }
 
-function ViewerShell({ fontSize, tools }: ViewerShellProps) {
+function ViewerShell({ fontSize, tools, liveServerUrl }: ViewerShellProps) {
   const { activeTools, toggleTool } = useToolbarContext()
   const [positions, setPositions] = useState<Record<string, Position>>(INITIAL_POSITIONS)
   const [dockAssignments, setDockAssignments] = useState<DockAssignments>(emptyDockAssignments)
@@ -167,6 +203,7 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
     'rotation-panel': createRef<HTMLDivElement>(),
     'ruler-panel': createRef<HTMLDivElement>(),
     'adjustments-panel': createRef<HTMLDivElement>(),
+    'connectome-panel': createRef<HTMLDivElement>(),
   }).current
   // One hidden, always-mounted probe per edge, sized/positioned exactly
   // like a real DockEdge (see .dock-edge--probe in DockEdge.css) purely so
@@ -184,6 +221,18 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
     { id: 'rotation-panel', title: 'Rotate', tool: 'rotate', content: <RotationPanel /> },
     { id: 'ruler-panel', title: 'Ruler', tool: 'ruler', content: <RulerPanel /> },
     { id: 'adjustments-panel', title: 'Adjustments', tool: 'adjustments', content: <AdjustmentsPanel /> },
+    {
+      id: 'connectome-panel',
+      title: 'FlyWire FAFB',
+      tool: 'connectome',
+      content: (
+        <Suspense fallback={<div className="connectome-panel-loading">Loading…</div>}>
+          <ConnectomePanel liveServerUrl={liveServerUrl} />
+        </Suspense>
+      ),
+      floatingWidthEm: CONNECTOME_FLOATING_WIDTH_EM,
+      floatingMaxHeightEm: CONNECTOME_FLOATING_MAX_HEIGHT_EM,
+    },
   ]
 
   // Only set while dragging a panel that started out docked - see
@@ -234,7 +283,7 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
       // grabbed it, as a fraction of its width, keeps it under the cursor
       // regardless of how much the width just changed - a no-op for
       // left/right docks, whose width already equals the floating one.
-      const floatingWidth = FLOATING_PANEL_WIDTH_EM * parseFloat(getComputedStyle(node).fontSize)
+      const floatingWidth = floatingWidthEmFor(id) * parseFloat(getComputedStyle(node).fontSize)
       const grabFraction = (pointer.x - rect.left) / rect.width
       const targetX = pointer.x - grabFraction * floatingWidth
       setPositions((prev) => ({ ...prev, [id]: { x: targetX, y: rect.top } }))
@@ -350,6 +399,8 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
             title={panel.title}
             x={positions[panel.id].x}
             y={positions[panel.id].y}
+            floatingWidthEm={panel.floatingWidthEm}
+            floatingMaxHeightEm={panel.floatingMaxHeightEm}
             zIndex={PANEL_Z_BASE + stackIndex(focusOrder, panel.id)}
             panelRef={panelRefs[panel.id]}
             onActivate={() => handleActivate(panel.id)}

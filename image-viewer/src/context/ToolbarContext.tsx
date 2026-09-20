@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
 
-type ToolId = 'annotations' | 'cellcount' | 'rotate' | 'ruler' | 'adjustments'
+type ToolId = 'annotations' | 'cellcount' | 'rotate' | 'ruler' | 'adjustments' | 'connectome'
 
 interface ToolbarContextValue {
   activeTools: ToolId[]

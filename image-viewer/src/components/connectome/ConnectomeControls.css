@@ -1,0 +1,149 @@
+.connectome-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+  padding: 0.75em;
+  border-top: 1px solid var(--white-08);
+}
+
+.connectome-controls--message {
+  align-items: center;
+  text-align: center;
+  font-size: 0.9em;
+  color: var(--chrome-text-secondary);
+}
+
+.connectome-controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6em;
+}
+
+.connectome-controls-row > * {
+  flex: 1;
+  min-width: 9em;
+}
+
+/* Same track+thumb switch as cell-counter-tool-picker-checkbox, mirrored
+   here rather than shared across the two - see CellCounterToolPicker.css's
+   own comment on the technique. The label text itself is what changes
+   ("Start"/"Stop" - see ConnectomeControls.tsx) rather than a separate
+   on/off word next to a static label, so the switch and its text always
+   agree about state. */
+.connectome-controls-switch {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.4em 0.6em;
+  font-size: 0.9em;
+  font-weight: 600;
+  color: var(--chrome-text);
+  background: var(--white-06);
+  border-radius: 0.3125rem;
+  cursor: pointer;
+}
+
+.connectome-controls-switch input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: 2.4em;
+  height: 1.3em;
+  margin: 0;
+  flex-shrink: 0;
+  background: var(--white-10);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.connectome-controls-switch input[type='checkbox']::before {
+  content: '';
+  position: absolute;
+  top: 0.15em;
+  left: 0.15em;
+  width: 1em;
+  height: 1em;
+  background: var(--chrome-text);
+  border-radius: 50%;
+  transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.connectome-controls-switch input[type='checkbox']:checked {
+  background: var(--accent);
+}
+
+.connectome-controls-switch input[type='checkbox']:checked::before {
+  transform: translateX(1.1em);
+  background: var(--white);
+}
+
+.connectome-controls-switch input[type='checkbox']:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.connectome-controls-button {
+  padding: 0.5em;
+  font-family: var(--sans);
+  font-size: 0.9em;
+  font-weight: 600;
+  color: var(--chrome-text);
+  background: var(--white-06);
+  border: none;
+  border-radius: 0.3125rem;
+  cursor: pointer;
+  transition: color 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.connectome-controls-button:hover:not(:disabled) {
+  color: var(--accent);
+}
+
+/* The working-area colour (see Styles.ts's WORKING_AREA_COLOUR) rather than
+   the teal --accent used everywhere else here - ties the "currently
+   drawing" state directly to the box's own colour on the map. */
+.connectome-controls-button--active {
+  color: #fff;
+  background: #8b5cf6;
+}
+
+.connectome-controls-button:disabled {
+  color: var(--disabled);
+  cursor: not-allowed;
+}
+
+.connectome-controls-status {
+  margin: 0;
+  font-size: 0.8em;
+  color: var(--chrome-text-secondary);
+}
+
+.connectome-controls-hint {
+  margin: 0;
+  font-size: 0.8em;
+  color: var(--chrome-text-secondary);
+  font-style: italic;
+}
+
+.connectome-controls-error {
+  margin: 0;
+  font-size: 0.8em;
+  color: var(--danger);
+}
+
+.connectome-controls-retry {
+  padding: 0.4em 1em;
+  font-family: var(--sans);
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--chrome-text);
+  background: var(--white-06);
+  border: none;
+  border-radius: 0.3125rem;
+  cursor: pointer;
+}
+
+.connectome-controls-retry:hover {
+  color: var(--accent);
+}

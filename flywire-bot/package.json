@@ -1,0 +1,28 @@
+{
+  "name": "flywire-bot",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Simulated second collaborator that replays public FlyWire connectome data into annotation-store as live annotations and cell counts.",
+  "type": "module",
+  "scripts": {
+    "prepare-data": "tsx scripts/prepare-seed-data.ts",
+    "start": "tsx src/bot.ts",
+    "test": "vitest run",
+    "typecheck": "tsc -b",
+    "lint": "oxlint"
+  },
+  "dependencies": {
+    "apache-arrow": "^21.2.0",
+    "fzstd": "^0.1.1",
+    "lz4js": "^0.2.0",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "@types/ws": "^8.18.1",
+    "oxlint": "^1.83.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1"
+  }
+}

@@ -3,3 +3,14 @@
   width: 100%;
   height: 100%;
 }
+
+/* Shown the instant the Connectome panel opens, before its own lazy-loaded
+   chunk (and ConnectomePanel.css within it) has arrived - kept here rather
+   than there so it doesn't depend on the very css import it's standing in
+   for. */
+.connectome-panel-loading {
+  padding: 1em;
+  font-family: var(--sans);
+  font-size: 0.9em;
+  color: var(--chrome-text-secondary);
+}

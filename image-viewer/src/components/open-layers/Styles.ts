@@ -192,6 +192,20 @@ function roiBoxStyle(): Style {
 	});
 }
 
+const WORKING_AREA_COLOUR = "#000000";
+
+// The bot's working-area box (see BotControlContext/MapNode) - same
+// outline+fill technique as roiBoxStyle, a different colour (and dash
+// pattern) so the two are never mistaken for each other on screen, and no
+// drag handles either: MapNode only ever replaces this wholesale, on a
+// fresh draw or a clear, it's never repositioned in place.
+function workingAreaBoxStyle(): Style {
+	return new Style({
+		stroke: new Stroke({ color: WORKING_AREA_COLOUR, width: 2, lineDash: [10, 6] }),
+		fill: new Fill({ color: `${WORKING_AREA_COLOUR}1a` }),
+	});
+}
+
 const RULER_COLOUR = "#ff9f1c";
 
 function rulerDistanceLabel(line: LineString, mppX: number | null, mppY: number | null): string | undefined {
@@ -252,6 +266,7 @@ export {
 	sketchStyle,
 	cellCountDotStyle,
 	roiBoxStyle,
+	workingAreaBoxStyle,
 	rulerStyle,
 	rulerSketchStyle,
 	arrowHeadRadius,

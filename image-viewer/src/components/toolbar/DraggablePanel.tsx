@@ -10,6 +10,13 @@ interface DraggablePanelProps {
   x: number
   y: number
   dockedSide?: DockSide | null
+  // Per-panel override of the floating width/max-height (see
+  // DraggablePanel.css's .draggable-panel/.draggable-panel-body defaults) -
+  // undefined for every panel except the ones that opt in (currently just
+  // Connectome, see App.tsx), so this changes nothing for the rest. Ignored
+  // once docked, same as x/y above - a DockEdge sizes its own children.
+  floatingWidthEm?: number
+  floatingMaxHeightEm?: number
   // Only meaningful while floating (see App.tsx) - a docked panel is a
   // plain flex child of its DockEdge, which is the thing that actually
   // competes for stacking order against other fixed-position elements.
@@ -38,6 +45,8 @@ function DraggablePanel({
   x,
   y,
   dockedSide = null,
+  floatingWidthEm,
+  floatingMaxHeightEm,
   zIndex,
   panelRef,
   onActivate,
@@ -59,10 +68,14 @@ function DraggablePanel({
   const style: CSSProperties = {
     left: dockedSide ? undefined : x,
     top: dockedSide ? undefined : y,
+    width: dockedSide || floatingWidthEm === undefined ? undefined : `${floatingWidthEm}em`,
     zIndex,
     visibility: dragging ? 'hidden' : undefined,
     transform: transform ? CSS.Translate.toString(transform) : undefined,
   }
+
+  const bodyStyle: CSSProperties | undefined =
+    dockedSide || floatingMaxHeightEm === undefined ? undefined : { maxHeight: `${floatingMaxHeightEm}em` }
 
   const dockedClasses = dockedSide
     ? ` draggable-panel--docked draggable-panel--docked-${dockedSide}`
@@ -88,7 +101,7 @@ function DraggablePanel({
           ×
         </button>
       </div>
-      <div className="draggable-panel-body themed-scroll">{children}</div>
+      <div className="draggable-panel-body themed-scroll" style={bodyStyle}>{children}</div>
     </div>
   )
 }

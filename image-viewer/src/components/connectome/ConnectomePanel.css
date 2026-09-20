@@ -1,0 +1,80 @@
+.connectome-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.connectome-panel-canvas {
+  position: relative;
+  flex: 1;
+  min-height: 16em;
+  background: var(--black);
+}
+
+.connectome-panel-canvas canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.connectome-panel-status {
+  position: absolute;
+  top: 0.6em;
+  left: 0.6em;
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.3em 0.6em;
+  font-family: var(--sans);
+  font-size: 0.8em;
+  color: var(--chrome-text);
+  background: var(--black-35);
+  border-radius: 1em;
+  pointer-events: none;
+}
+
+.connectome-panel-status-dot {
+  width: 0.55em;
+  height: 0.55em;
+  border-radius: 50%;
+  background: var(--disabled);
+}
+
+.connectome-panel-status--live .connectome-panel-status-dot {
+  background: #4ade80;
+  box-shadow: 0 0 0.4em #4ade80;
+}
+
+.connectome-panel-status--connecting .connectome-panel-status-dot {
+  background: #facc15;
+}
+
+.connectome-panel-status--disconnected .connectome-panel-status-dot {
+  background: var(--danger);
+}
+
+.connectome-panel-empty {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--sans);
+  font-size: 0.85em;
+  color: var(--chrome-text-secondary);
+  text-align: center;
+  pointer-events: none;
+}
+
+.connectome-panel-meta {
+  position: absolute;
+  bottom: 0.6em;
+  left: 0.6em;
+  padding: 0.3em 0.6em;
+  font-family: var(--sans);
+  font-size: 0.75em;
+  color: var(--chrome-text-secondary);
+  background: var(--black-35);
+  border-radius: 1em;
+  pointer-events: none;
+}
