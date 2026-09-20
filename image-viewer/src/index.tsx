@@ -22,6 +22,7 @@ createRoot(document.getElementById('root')!).render(
       source={'003'}
       tilerServiceUrl={`http://${backendHost}:5095`}
       annotationStoreUrl={`http://${backendHost}:5252`}
+      liveServerUrl={`http://${backendHost}:5300`}
       options={{
         fontSize: '11px',
         tools: [
@@ -31,6 +32,7 @@ createRoot(document.getElementById('root')!).render(
           'rotate',
           'ruler',
           'adjustments',
+          'connectome',
         ]
       }}
       on={(event, payload) => {

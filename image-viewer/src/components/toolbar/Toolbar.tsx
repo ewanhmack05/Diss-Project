@@ -3,6 +3,7 @@ import { useToolbarContext } from '../../context/ToolbarContext'
 import adjustmentsIconSvg from '../../icons/adjustments.svg?raw'
 import annotationsIconSvg from '../../icons/annotations.svg?raw'
 import cellcountIconSvg from '../../icons/cellcount.svg?raw'
+import connectomeIconSvg from '../../icons/connectome.svg?raw'
 import fullscreenEnterIconSvg from '../../icons/fullscreen-enter.svg?raw'
 import fullscreenExitIconSvg from '../../icons/fullscreen-exit.svg?raw'
 import rotateIconSvg from '../../icons/rotate.svg?raw'
@@ -22,9 +23,17 @@ function Icon({ svg }: { svg: string }) {
   return <span className="toolbar-icon" dangerouslySetInnerHTML={{ __html: svg }} />
 }
 
-type ToolName = 'fullscreen' | 'annotations' | 'cellcount' | 'rotate' | 'ruler' | 'adjustments'
+type ToolName = 'fullscreen' | 'annotations' | 'cellcount' | 'rotate' | 'ruler' | 'adjustments' | 'connectome'
 
-const DEFAULT_TOOLS: ToolName[] = ['fullscreen', 'annotations', 'cellcount', 'rotate', 'ruler', 'adjustments']
+const DEFAULT_TOOLS: ToolName[] = [
+  'fullscreen',
+  'annotations',
+  'cellcount',
+  'rotate',
+  'ruler',
+  'adjustments',
+  'connectome',
+]
 
 interface ToolbarProps {
   tools?: ToolName[]
@@ -119,6 +128,16 @@ function Toolbar({ tools = DEFAULT_TOOLS }: ToolbarProps) {
           onClick={() => toggleTool('adjustments')}
         >
           <Icon svg={adjustmentsIconSvg} />
+        </button>
+      )}
+      {tools.includes('connectome') && (
+        <button
+          type="button"
+          className={`toolbar-button${activeTools.includes('connectome') ? ' toolbar-button--active' : ''}`}
+          title="Connectome"
+          onClick={() => toggleTool('connectome')}
+        >
+          <Icon svg={connectomeIconSvg} />
         </button>
       )}
     </div>

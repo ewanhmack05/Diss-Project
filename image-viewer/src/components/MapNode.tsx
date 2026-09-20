@@ -7,7 +7,7 @@ import { fromExtent } from 'ol/geom/Polygon'
 import type Polygon from 'ol/geom/Polygon'
 import { containsCoordinate, type Extent } from 'ol/extent'
 import type { Coordinate } from 'ol/coordinate'
-import Draw, { type DrawEvent } from 'ol/interaction/Draw'
+import Draw, { createBox, type DrawEvent } from 'ol/interaction/Draw'
 import Translate from 'ol/interaction/Translate'
 import VectorLayer from 'ol/layer/Vector'
 import type WebGLTileLayer from 'ol/layer/WebGLTile'
@@ -18,10 +18,12 @@ import {
   sketchStyle,
   cellCountDotStyle,
   roiBoxStyle,
+  workingAreaBoxStyle,
   rulerStyle,
   rulerSketchStyle,
   setStyleReferenceResolution,
 } from './open-layers/Styles'
+import { extentToRegion, regionToExtent } from './open-layers/workingArea'
 import { featureToGeoJson, geoJsonToFeature } from './open-layers/GeoJSON'
 import { degreesToRadians, radiansToDegrees } from './rotation/rotation'
 import { pixelDistance, physicalDistanceMicrons, formatDistanceMicrons, formatDistancePixels } from './ruler/ruler'
@@ -36,6 +38,7 @@ import { useAdjustmentsContext } from '../context/AdjustmentsContext'
 import { useCellCountDrawContext } from '../context/CellCountDrawContext'
 import { useCellCountStoreContext } from '../context/CellCountStoreContext'
 import { useToolbarContext } from '../context/ToolbarContext'
+import { useBotControlContext } from '../context/BotControlContext'
 import { useEmitEvent } from '../context/EventContext'
 import { ShapeTools } from './annotation/Tools'
 import './MapNode.css'
@@ -88,9 +91,16 @@ function MapNode() {
   } = useCellCountDrawContext()
   const { cellCounts, viewedCellCountId } = useCellCountStoreContext()
   const { activeTools } = useToolbarContext()
+  const {
+    region: workingAreaRegion,
+    drawingWorkingArea,
+    setRegion: setWorkingAreaRegion,
+    stopDrawingWorkingArea,
+  } = useBotControlContext()
   const annotationsVisible = activeTools.includes('annotations')
   const cellCountVisible = activeTools.includes('cellcount')
   const rulerVisible = activeTools.includes('ruler')
+  const connectomeVisible = activeTools.includes('connectome')
   const emit = useEmitEvent()
 
   const mapElement = useRef<HTMLDivElement | null>(null)
@@ -107,6 +117,11 @@ function MapNode() {
   // it separate from any live counting session's own box.
   const viewedRoiSourceRef = useRef(new VectorSource())
   const rulerSourceRef = useRef(new VectorSource())
+  // The bot's current working-area box (see BotControlContext) - separate
+  // from roiSourceRef, a different concept entirely (a live collaborator's
+  // own drawing constraint, not anything scoped to this browser tab's own
+  // cell-counting session).
+  const workingAreaSourceRef = useRef(new VectorSource())
   const annotationsLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const drawLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const cellCountDotsLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
@@ -114,6 +129,7 @@ function MapNode() {
   const viewedDotsLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const viewedRoiLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const rulerLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
+  const workingAreaLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const roiFeatureRef = useRef<Feature<Polygon> | null>(null)
   const roiDragRef = useRef<RoiDrag | null>(null)
   const slideMetadataRef = useRef<SlideMetadata | null>(null)
@@ -192,6 +208,11 @@ function MapNode() {
           style: rulerStyle,
           visible: rulerVisible,
         })
+        const workingAreaLayer = new VectorLayer({
+          source: workingAreaSourceRef.current,
+          style: workingAreaBoxStyle,
+          visible: connectomeVisible,
+        })
         annotationsLayerRef.current = annotationsLayer
         drawLayerRef.current = drawLayer
         cellCountDotsLayerRef.current = cellCountDotsLayer
@@ -199,13 +220,23 @@ function MapNode() {
         viewedDotsLayerRef.current = viewedDotsLayer
         viewedRoiLayerRef.current = viewedRoiLayer
         rulerLayerRef.current = rulerLayer
+        workingAreaLayerRef.current = workingAreaLayer
         const { map, baseLayer } = OpenLayerMap(
           mapElement.current,
           { width: metadata.width, height: metadata.height },
           { baseUrl: `${slideUrl}/`, tileSize: metadata.tileSize },
           metadata.objectivePower,
           metadata.mppX,
-          [annotationsLayer, drawLayer, cellCountDotsLayer, roiLayer, viewedDotsLayer, viewedRoiLayer, rulerLayer]
+          [
+            annotationsLayer,
+            drawLayer,
+            cellCountDotsLayer,
+            roiLayer,
+            viewedDotsLayer,
+            viewedRoiLayer,
+            rulerLayer,
+            workingAreaLayer,
+          ]
         )
         mapRef.current = map
         baseLayerRef.current = baseLayer
@@ -277,6 +308,30 @@ function MapNode() {
     }
   }, [rulerVisible, setLastMeasurement])
 
+  // Same idea again, for the bot's working-area box - it isn't cleared on
+  // close, though (unlike the ruler's scratch measurement above): the region
+  // is the bot's own live constraint, owned by BotControlContext, not a
+  // scratch value tied to this panel being open.
+  useEffect(() => {
+    workingAreaLayerRef.current?.setVisible(connectomeVisible)
+  }, [connectomeVisible])
+
+  // Keeps the working-area overlay in sync with whatever BotControlContext
+  // currently has confirmed from the server - redrawn from scratch on every
+  // change rather than patched in place, same as the annotations-sync effect
+  // above. mapVersion is a dependency for the same reason it is on the
+  // adjustments effect: slideMetadataRef is a ref, not reactive, so if the
+  // region arrives (from the initial GET /control) before the slide's own
+  // metadata fetch resolves, this needs a second nudge once it does.
+  useEffect(() => {
+    workingAreaSourceRef.current.clear()
+    const metadata = slideMetadataRef.current
+    if (!workingAreaRegion || !metadata) return
+    workingAreaSourceRef.current.addFeature(
+      new Feature({ geometry: fromExtent(regionToExtent(workingAreaRegion, metadata)) })
+    )
+  }, [workingAreaRegion, mapVersion])
+
   // Explicit "Clear" button in the ruler panel - same signal-counter idiom
   // as undoSignal/redoSignal above, since the panel has no direct handle on
   // the map's vector source to clear it itself.
@@ -292,14 +347,14 @@ function MapNode() {
   // one measurement is ever shown at a time; drawend computes the distance
   // (real, if the slide reports mpp; pixels otherwise) and bakes the
   // formatted label onto the feature for rulerStyle to render. Also backs
-  // off while an annotation shape is selected or a cell count is running -
-  // both already put their own click handling on the map (see the Draw
-  // effect and the tally click listener below), and a click can only mean
-  // one thing at a time, same reasoning as FreeFormToolPicker disabling
-  // shape tools during counting.
+  // off while an annotation shape is selected, a cell count is running, or a
+  // working-area box is being dragged out - all three already put their own
+  // click handling on the map (see the Draw effects and the tally click
+  // listener below), and a click can only mean one thing at a time, same
+  // reasoning as FreeFormToolPicker disabling shape tools during counting.
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !rulerVisible || activeTool || counting) return
+    if (!map || !rulerVisible || activeTool || counting || drawingWorkingArea) return
 
     const metadata = slideMetadataRef.current
     const mppX = metadata?.mppX ?? null
@@ -339,7 +394,7 @@ function MapNode() {
     return () => {
       map.removeInteraction(draw)
     }
-  }, [rulerVisible, activeTool, counting, setLastMeasurement])
+  }, [rulerVisible, activeTool, counting, drawingWorkingArea, setLastMeasurement])
 
   useEffect(() => {
     rotationDegreesRef.current = rotationDegrees
@@ -429,8 +484,8 @@ function MapNode() {
     })
   }, [selectedAnnotationId, annotationsSource])
 
-  // Once a pending (just-drawn, unsaved) feature is cleared — by saving or
-  // discarding — clear it from the scratch draw source too.
+  // Once a pending (just-drawn, unsaved) feature is cleared - by saving or
+  // discarding - clear it from the scratch draw source too.
   useEffect(() => {
     if (!pending) {
       drawSourceRef.current.clear()
@@ -551,10 +606,12 @@ function MapNode() {
   // drops a visible dot; withRoi confines valid clicks to the ROI box,
   // rejecting (with a toast) anything outside it. Not attaching this
   // listener at all until roiConfirmed is what stops dragging the box into
-  // place from also registering as tally clicks.
+  // place from also registering as tally clicks - same reasoning for
+  // drawingWorkingArea, so a working-area drag mid-session doesn't also
+  // tally a click.
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !counting || (withRoi && !roiConfirmed)) return
+    if (!map || !counting || (withRoi && !roiConfirmed) || drawingWorkingArea) return
 
     const handleClick = (event: MapBrowserEvent) => {
       if (withRoi) {
@@ -584,7 +641,18 @@ function MapNode() {
     return () => {
       map.un('click', handleClick)
     }
-  }, [counting, withAnnotation, withRoi, roiConfirmed, cellCountColour, dotSize, incrementCount, setDotHistory, emit])
+  }, [
+    counting,
+    withAnnotation,
+    withRoi,
+    roiConfirmed,
+    drawingWorkingArea,
+    cellCountColour,
+    dotSize,
+    incrementCount,
+    setDotHistory,
+    emit,
+  ])
 
   // Undoes/redoes the last tally click - pops (or re-pushes) a dot feature
   // between the two stacks and removes/re-adds it from the map, alongside
@@ -766,7 +834,7 @@ function MapNode() {
   }, [viewedCellCountId, cellCounts])
 
   // While the naming form is open, let the user drag the just-drawn shape to
-  // reposition it — Translate mutates pending.feature's geometry in place, so
+  // reposition it - Translate mutates pending.feature's geometry in place, so
   // the eventual save picks up wherever it was last dropped.
   useEffect(() => {
     const map = mapRef.current
@@ -781,9 +849,11 @@ function MapNode() {
   }, [pending])
 
   // Wire an OpenLayers Draw interaction to whichever shape tool is selected.
+  // Backs off while a working-area box is being dragged out, same reasoning
+  // as the ruler effect above.
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !activeTool) return
+    if (!map || !activeTool || drawingWorkingArea) return
 
     const config = ShapeTools[activeTool]
     const draw = new Draw({
@@ -810,7 +880,50 @@ function MapNode() {
     return () => {
       map.removeInteraction(draw)
     }
-  }, [activeTool, colour, lineThickness, lineStyle, setActiveTool, setPending])
+  }, [activeTool, colour, lineThickness, lineStyle, drawingWorkingArea, setActiveTool, setPending])
+
+  // The bot's working-area box: drag a rectangle out on the slide, same
+  // createBox() technique as annotation Tools.ts's rectangle tool - but this
+  // is its own concept entirely (see BotControlContext), not scoped to any
+  // human session, so it gets its own plain Draw here rather than reusing
+  // ShapeTools. Backs off against the same other click-owning tools those
+  // now back off against in return (see their own updated guards above).
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !drawingWorkingArea || activeTool || counting) return
+
+    const draw = new Draw({
+      source: workingAreaSourceRef.current,
+      type: 'Circle',
+      geometryFunction: createBox(),
+      style: workingAreaBoxStyle,
+    })
+
+    draw.on('drawstart', () => {
+      workingAreaSourceRef.current.clear()
+    })
+
+    draw.on('drawend', (event: DrawEvent) => {
+      const metadata = slideMetadataRef.current
+      const extent = event.feature.getGeometry()?.getExtent()
+      // Cleared immediately rather than left showing the just-drawn sketch
+      // (which Draw adds to this source automatically) - the region-sync
+      // effect above is the only thing that ever draws a confirmed box, so
+      // if the POST below fails, nothing here claims a region took effect
+      // that the server never actually accepted.
+      workingAreaSourceRef.current.clear()
+      if (metadata && extent) {
+        setWorkingAreaRegion(extentToRegion(extent, metadata))
+      }
+      stopDrawingWorkingArea()
+    })
+
+    map.addInteraction(draw)
+
+    return () => {
+      map.removeInteraction(draw)
+    }
+  }, [drawingWorkingArea, activeTool, counting, setWorkingAreaRegion, stopDrawingWorkingArea])
 
   if (error) {
     return (
