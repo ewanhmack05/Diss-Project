@@ -429,8 +429,8 @@ function MapNode() {
     })
   }, [selectedAnnotationId, annotationsSource])
 
-  // Once a pending (just-drawn, unsaved) feature is cleared — by saving or
-  // discarding — clear it from the scratch draw source too.
+  // Once a pending (just-drawn, unsaved) feature is cleared - by saving or
+  // discarding - clear it from the scratch draw source too.
   useEffect(() => {
     if (!pending) {
       drawSourceRef.current.clear()
@@ -766,7 +766,7 @@ function MapNode() {
   }, [viewedCellCountId, cellCounts])
 
   // While the naming form is open, let the user drag the just-drawn shape to
-  // reposition it — Translate mutates pending.feature's geometry in place, so
+  // reposition it - Translate mutates pending.feature's geometry in place, so
   // the eventual save picks up wherever it was last dropped.
   useEffect(() => {
     const map = mapRef.current
