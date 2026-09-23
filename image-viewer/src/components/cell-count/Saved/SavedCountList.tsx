@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useCellCountStoreContext } from "../../../context/CellCountStoreContext";
 import { parseCellCountDots, colourBreakdownFromDots } from "../CellCountDots";
 import { toggleViewedCellCountId } from "../CellCountView";
@@ -14,6 +15,8 @@ function SavedCountList() {
     setSelectedCellCountId,
     setViewedCellCountId,
   } = useCellCountStoreContext();
+  // Kept here rather than reset on edit, so Back returns to the same results.
+  const [search, setSearch] = useState("");
 
   const editing = cellCounts.find((c) => c.id === selectedCellCountId);
   if (editing) {
@@ -41,58 +44,80 @@ function SavedCountList() {
     return <p className="saved-cell-count-list-empty">Nothing saved yet.</p>;
   }
 
+  const query = search.trim().toLowerCase();
+  const filtered = query
+    ? cellCounts.filter(
+        (c) =>
+          c.label.toLowerCase().includes(query) ||
+          c.notes.toLowerCase().includes(query),
+      )
+    : cellCounts;
+
   return (
-    <ul className="saved-cell-count-list themed-scroll">
-      {cellCounts.map((cellCount) => {
-        const isViewing = viewedCellCountId === cellCount.id;
-        return (
-          <li key={cellCount.id} className="saved-cell-count-list-row">
-            <button
-              type="button"
-              className="saved-cell-count-list-item"
-              onClick={() => setSelectedCellCountId(cellCount.id)}
-            >
-              <CellCountColourSwatch
-                breakdown={colourBreakdownFromDots(
-                  parseCellCountDots(cellCount.dots),
-                )}
-                className={`saved-cell-count-list-swatch${cellCount.withAnnotation ? "" : " saved-cell-count-list-swatch--hidden"}`}
-              />
-              <span className="saved-cell-count-list-label">
-                {cellCount.label}
-              </span>
-              <span className="saved-cell-count-list-count">
-                {cellCount.count}
-              </span>
-            </button>
-            <button
-              type="button"
-              className={`saved-cell-count-list-view${isViewing ? " saved-cell-count-list-view--active" : ""}${cellCount.withAnnotation ? "" : " saved-cell-count-list-view--hidden"}`}
-              disabled={
-                !cellCount.withAnnotation ||
-                cellCount.locationX === null ||
-                cellCount.locationY === null
-              }
-              tabIndex={cellCount.withAnnotation ? 0 : -1}
-              title={
-                cellCount.locationX === null
-                  ? "No location recorded for this count"
-                  : isViewing
-                    ? "Hide this count"
-                    : "Show this count on the map"
-              }
-              onClick={() =>
-                setViewedCellCountId(
-                  toggleViewedCellCountId(viewedCellCountId, cellCount.id),
-                )
-              }
-            >
-              {isViewing ? "Hide" : "View"}
-            </button>
-          </li>
-        );
-      })}
-    </ul>
+    <>
+      <input
+        type="search"
+        className="saved-cell-count-list-search"
+        value={search}
+        placeholder="Search saved counts"
+        onChange={(e) => setSearch(e.target.value)}
+      />
+      {filtered.length === 0 ? (
+        <p className="saved-cell-count-list-empty">No matches.</p>
+      ) : (
+        <ul className="saved-cell-count-list themed-scroll">
+          {filtered.map((cellCount) => {
+            const isViewing = viewedCellCountId === cellCount.id;
+            return (
+              <li key={cellCount.id} className="saved-cell-count-list-row">
+                <button
+                  type="button"
+                  className="saved-cell-count-list-item"
+                  onClick={() => setSelectedCellCountId(cellCount.id)}
+                >
+                  <CellCountColourSwatch
+                    breakdown={colourBreakdownFromDots(
+                      parseCellCountDots(cellCount.dots),
+                    )}
+                    className={`saved-cell-count-list-swatch${cellCount.withAnnotation ? "" : " saved-cell-count-list-swatch--hidden"}`}
+                  />
+                  <span className="saved-cell-count-list-label">
+                    {cellCount.label}
+                  </span>
+                  <span className="saved-cell-count-list-count">
+                    {cellCount.count}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className={`saved-cell-count-list-view${isViewing ? " saved-cell-count-list-view--active" : ""}${cellCount.withAnnotation ? "" : " saved-cell-count-list-view--hidden"}`}
+                  disabled={
+                    !cellCount.withAnnotation ||
+                    cellCount.locationX === null ||
+                    cellCount.locationY === null
+                  }
+                  tabIndex={cellCount.withAnnotation ? 0 : -1}
+                  title={
+                    cellCount.locationX === null
+                      ? "No location recorded for this count"
+                      : isViewing
+                        ? "Hide this count"
+                        : "Show this count on the map"
+                  }
+                  onClick={() =>
+                    setViewedCellCountId(
+                      toggleViewedCellCountId(viewedCellCountId, cellCount.id),
+                    )
+                  }
+                >
+                  {isViewing ? "Hide" : "View"}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </>
   );
 }
 

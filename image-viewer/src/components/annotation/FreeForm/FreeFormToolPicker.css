@@ -67,6 +67,83 @@
   background: var(--white);
 }
 
+.free-form-tool-picker-field input[type='text'],
+.free-form-tool-picker-field textarea {
+  padding: 0.5em;
+  font-family: var(--sans);
+  font-size: 1em;
+  color: var(--chrome-text);
+  background: var(--white-06);
+  border: 1px solid transparent;
+  border-radius: 0.3125rem;
+}
+
+.free-form-tool-picker-field textarea {
+  resize: vertical;
+}
+
+.free-form-tool-picker-field input[type='text']:focus,
+.free-form-tool-picker-field textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.free-form-tool-picker-quick-draw-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+/* Same on/off switch as CellCounterToolPicker.css's checkboxes. */
+.free-form-tool-picker-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  font-size: 0.9em;
+  color: var(--chrome-text);
+  cursor: pointer;
+}
+
+.free-form-tool-picker-toggle input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: 2.4em;
+  height: 1.3em;
+  margin: 0;
+  flex-shrink: 0;
+  background: var(--white-10);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.free-form-tool-picker-toggle input[type='checkbox']::before {
+  content: '';
+  position: absolute;
+  top: 0.15em;
+  left: 0.15em;
+  width: 1em;
+  height: 1em;
+  background: var(--chrome-text);
+  border-radius: 50%;
+  transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.free-form-tool-picker-toggle input[type='checkbox']:checked {
+  background: var(--accent);
+}
+
+.free-form-tool-picker-toggle input[type='checkbox']:checked::before {
+  transform: translateX(1.1em);
+  background: var(--white);
+}
+
+.free-form-tool-picker-toggle input[type='checkbox']:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .free-form-tool-picker-hint {
   margin: 0;
   font-size: 0.85em;
@@ -141,6 +218,12 @@
 .draggable-panel--docked-top .free-form-tool-picker-colour-card,
 .draggable-panel--docked-bottom .free-form-tool-picker-colour-card {
   min-width: 22em;
+}
+
+.draggable-panel--docked-top .free-form-tool-picker-quick-draw-card,
+.draggable-panel--docked-bottom .free-form-tool-picker-quick-draw-card {
+  min-width: 16em;
+  justify-content: flex-start;
 }
 
 .draggable-panel--docked-top .free-form-tool-picker-hint,

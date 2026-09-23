@@ -67,9 +67,18 @@ const ROTATION_EPSILON_DEGREES = 0.01
 
 function MapNode() {
   const { source } = useImageViewerContext()
-  const { annotations, selectedAnnotationId, annotationsSource } = useAnnotationStoreContext()
-  const { activeTool, colour, lineThickness, lineStyle, setActiveTool, pending, setPending } =
-    useDrawContext()
+  const { annotations, selectedAnnotationId, annotationsSource, addAnnotation } =
+    useAnnotationStoreContext()
+  const {
+    activeTool,
+    colour,
+    lineThickness,
+    lineStyle,
+    setActiveTool,
+    pending,
+    setPending,
+    quickDraw,
+  } = useDrawContext()
   const { rotationDegrees, setRotationDegrees, resetRotation } = useRotationContext()
   const { setLastMeasurement, clearSignal: rulerClearSignal } = useRulerContext()
   const { values: adjustmentValues, resetValues: resetAdjustments } = useAdjustmentsContext()
@@ -101,6 +110,14 @@ function MapNode() {
   const mapRef = useRef<Map | null>(null)
   const baseLayerRef = useRef<WebGLTileLayer | null>(null)
   const drawSourceRef = useRef(new VectorSource())
+  // Read inside the drawend handler - refs so typing a quick draw label
+  // doesn't tear down and rebuild the Draw interaction on every keystroke.
+  const quickDrawRef = useRef(quickDraw)
+  const addAnnotationRef = useRef(addAnnotation)
+  useEffect(() => {
+    quickDrawRef.current = quickDraw
+    addAnnotationRef.current = addAnnotation
+  })
   const cellCountDotsSourceRef = useRef(new VectorSource())
   const roiSourceRef = useRef(new VectorSource())
   // Separate from cellCountDotsSourceRef - "View" redraws a *saved* count's
@@ -808,10 +825,12 @@ function MapNode() {
     }
   }, [pending])
 
-  // Wire an OpenLayers Draw interaction to whichever shape tool is selected.
+  // Wire an OpenLayers Draw interaction to whichever shape tool is selected -
+  // only while the annotations panel is open, so a tool left selected can't
+  // keep drawing on the map after it's closed.
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !activeTool) return
+    if (!map || !activeTool || !annotationsVisible) return
 
     const config = ShapeTools[activeTool]
     const draw = new Draw({
@@ -829,6 +848,29 @@ function MapNode() {
       feature.set('lineThickness', lineThickness)
       feature.set('lineStyle', lineStyle)
       feature.set('shape', activeTool)
+
+      // Quick draw saves straight away and leaves the tool armed, so shapes
+      // can be drawn back to back. Draw adds the feature to the scratch
+      // source only after drawend, so drop it from there once it lands.
+      const quick = quickDrawRef.current
+      if (quick.enabled && quick.label.trim()) {
+        addAnnotationRef.current({
+          id: crypto.randomUUID(),
+          label: quick.label.trim(),
+          notes: quick.notes.trim(),
+          colour,
+          shape: activeTool,
+          lineStyle,
+          lineThickness,
+          geoJson: featureToGeoJson(feature),
+          created: new Date().toISOString(),
+        })
+        drawSourceRef.current.once('addfeature', (e) => {
+          if (e.feature) drawSourceRef.current.removeFeature(e.feature)
+        })
+        return
+      }
+
       setPending({ feature, shape: activeTool })
       setActiveTool(null)
     })
@@ -838,7 +880,7 @@ function MapNode() {
     return () => {
       map.removeInteraction(draw)
     }
-  }, [activeTool, colour, lineThickness, lineStyle, setActiveTool, setPending])
+  }, [activeTool, annotationsVisible, colour, lineThickness, lineStyle, setActiveTool, setPending])
 
   if (error) {
     return (

@@ -58,3 +58,22 @@
   font-size: 0.8em;
   color: var(--chrome-text-secondary);
 }
+
+.saved-annotation-list-search {
+  flex-shrink: 0;
+  box-sizing: border-box;
+  width: 100%;
+  margin-bottom: 0.5em;
+  padding: 0.5em;
+  font-family: var(--sans);
+  font-size: 0.95em;
+  color: var(--chrome-text);
+  background: var(--white-06);
+  border: 1px solid transparent;
+  border-radius: 0.3125rem;
+}
+
+.saved-annotation-list-search:focus {
+  outline: none;
+  border-color: var(--accent);
+}

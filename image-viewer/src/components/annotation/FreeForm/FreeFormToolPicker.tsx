@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useDrawContext } from '../../../context/DrawContext'
 import { useCellCountDrawContext } from '../../../context/CellCountDrawContext'
 import { ShapeOrder, ShapeTools, LineThicknessOptions, type LineStyleName } from '../Tools'
@@ -15,12 +16,22 @@ function FreeFormToolPicker() {
     setLineThickness,
     lineStyle,
     setLineStyle,
+    quickDraw,
+    setQuickDraw,
   } = useDrawContext()
   // A map click can only mean one thing at a time - see MapNode's separate
   // Draw interaction and cell-count click listener, neither aware of the
   // other. Rather than let both fire, shape tools are unavailable while a
   // count is running; CellCounterToolPicker mirrors this the other way.
   const { counting } = useCellCountDrawContext()
+  // Line is picked when the tab opens, and cleared again when it closes (or
+  // switches to Saved), so the map isn't left drawing with no panel showing.
+  // Deliberately only on mount/unmount - running it every render would force
+  // the tool back to Line whenever anything else was picked.
+  useEffect(() => {
+    if (!counting) setActiveTool('line')
+    return () => setActiveTool(null)
+  }, [])
 
   return (
     <div className="free-form-tool-picker">
@@ -71,6 +82,41 @@ function FreeFormToolPicker() {
         <ColourPicker value={colour} onChange={setColour} />
       </DockedCard>
 
+      <DockedCard title="Quick draw" className="free-form-tool-picker-quick-draw-card">
+        <label className="free-form-tool-picker-toggle">
+          <input
+            type="checkbox"
+            checked={quickDraw.enabled}
+            onChange={(e) => setQuickDraw({ ...quickDraw, enabled: e.target.checked })}
+          />
+          Save every shape with these details
+        </label>
+        {quickDraw.enabled && (
+          <>
+            <label className="free-form-tool-picker-field">
+              Label
+              <input
+                type="text"
+                value={quickDraw.label}
+                maxLength={64}
+                placeholder="Used for every shape"
+                onChange={(e) => setQuickDraw({ ...quickDraw, label: e.target.value })}
+              />
+            </label>
+            <label className="free-form-tool-picker-field">
+              Notes
+              <textarea
+                value={quickDraw.notes}
+                maxLength={256}
+                rows={2}
+                placeholder="Optional"
+                onChange={(e) => setQuickDraw({ ...quickDraw, notes: e.target.value })}
+              />
+            </label>
+          </>
+        )}
+      </DockedCard>
+
       {/* Exactly one hint at a time (counting takes precedence over an
           active tool, which is impossible anyway - see the mutual-exclusion
           comment above) - two of these rendering at once was the extra row
@@ -81,9 +127,14 @@ function FreeFormToolPicker() {
         <p className="free-form-tool-picker-hint">
           Stop counting to draw an annotation.
         </p>
+      ) : quickDraw.enabled && !quickDraw.label.trim() ? (
+        <p className="free-form-tool-picker-hint">
+          Add a label to use quick draw.
+        </p>
       ) : activeTool ? (
         <p className="free-form-tool-picker-hint">
-          Draw on the image to place your {ShapeTools[activeTool].label.toLowerCase()}.
+          Draw on the image to place your {ShapeTools[activeTool].label.toLowerCase()}
+          {quickDraw.enabled ? ' - each one saves straight away.' : '.'}
         </p>
       ) : (
         <p className="free-form-tool-picker-hint">
