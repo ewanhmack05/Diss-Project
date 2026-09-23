@@ -9,6 +9,7 @@ tiler/              .NET tile server for .mrxs whole-slide images. See tiler/REA
 annotation-store/   .NET + Postgres backend for persisted annotations. See annotation-store/README.md
 dashboard/          Grafana (Docker) - load, timing and error stats for the services. See dashboard/README.md
 scripts/            Dev scripts - stress-test data, SQL. See scripts/README.md
+docs/               Planning notes - auth, Azure, real-time libraries, sessions, rendering
 ```
 
 ## Prerequisites
@@ -45,51 +46,31 @@ and `tiler`/`annotation-store` accept any private-LAN origin, so no extra
 config is needed either way - opening it via `localhost` still works
 exactly as before.
 
-This is the base setup for the real time collaberation, all of this is rough work and to be taken as proof of concept
+This is the base setup for the real-time collaboration - all of this is
+rough work and to be taken as proof of concept.
 
-Todos for real time collaberation:
+## Planning - real-time collaboration
 
-- Set up auth, look into:
-  - ory
-  - authentik
-  - keycloak
+Todos and notes, split by area, in [docs/](docs):
 
-- Azure hosting? Something to discuss in future
-  - Most likely set up in a container stack on a VM, saves me having to think too much about the architecture of it, also saves pricing wise
-  - May be better setting up separate services
-  - Will need 1 db (annotation store), Only 1 image will be properly used for this so the tiler can get a hard coded image and path. Users will theoretically be handled by the auth and or azure
+| Area                                       | What's in it                                                                      |
+| ------------------------------------------ | --------------------------------------------------------------------------------- |
+| [Auth](docs/auth.md)                       | ory / authentik / keycloak - leaning Keycloak, how it connects to collections     |
+| [Azure](docs/azure.md)                     | separate apps vs one VM, price tables, what has to change first                   |
+| [Libraries](docs/libraries.md)             | Yjs / Automerge / Loro, the WebSocket (SignalR) hub, CRDT vs server-authoritative |
+| [Thought process](docs/thought-process.md) | how users connect, guest vs authenticated, host controls, navigation modes        |
+| [Rendering](docs/rendering.md)             | WebGPU question, what's on WebGL now, what the panning delay turned out to be     |
 
-  - Web app for the actual viewer
-  - app service for each different service, 2 so far, 3 if i add the webhook api [1]
+## Playback videos
 
-- Main setup for real time collap will be mutiple webooks running constant with the annotation store
-  Libraries to look into:
-- Yjs
-- Automerge
-- Loro
-- A WebSocket layer broadcasts operations between everyone viewing that slide
-  Periodically (or on save), CRDT state gets flattened and persisted into the existing .NET annotation store schema, so downstream querying/reporting doesn't need to change
-- Figure out connections, how will 2 users start the connection with eachother
-- Options:
-  - Url given out for session?
-  - Session string given out, e.g. 4 digit connection code fed into a panel?
-  - List of users currently online and a `request to connect` system?
-  - My thoughts:
-    - 2 types of user, authenticated and unauthenticated
-    - to invite authenticated we can use a basic user list (this can be supplied by either a self built user management or keycloak (probably just first name and last name, keep emails hidden))
-    - to invite unauthenticated we can share a short lifetime url
-    - host will have control over view only and ability to draw
-    - host can kick/remove users
-    - Navigations? Will owners navigation be the law or will each user navigate on their own. Is this something the owner can control? As a streaming rather than collaberation
+Per tab videos:
 
-- [1] New api to deal with real time processing, sitting between annotation store and viewer?
-  - connect tiler in, keep this new service as a centeralised processing for all of the existing services and keep webhooks there rather than their own services
-  - Also easier to port
+| Annotations                                                                                          | Cell Counter                                                                                          | Rotation                                                                                          |
+| ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| [![Annotations](https://img.youtube.com/vi/yB8OqfuKgpo/hqdefault.jpg)](https://youtu.be/yB8OqfuKgpo) | [![Cell Counter](https://img.youtube.com/vi/1cxGNTCnqkg/hqdefault.jpg)](https://youtu.be/1cxGNTCnqkg) | [![Rotation](https://img.youtube.com/vi/FFpnNC7cnAU/hqdefault.jpg)](https://youtu.be/FFpnNC7cnAU) |
+| [Watch](https://youtu.be/yB8OqfuKgpo)                                                                | [Watch](https://youtu.be/1cxGNTCnqkg)                                                                 | [Watch](https://youtu.be/FFpnNC7cnAU)                                                             |
 
-  - Look into events too
-
-- Webgpu for openLayers?
-  - Taking into account we could have 2 or more users drawing for an unknown amount of time, the load on openLayers could expand, so delegating the devices gpu to the rendering would save browser power and deal with the load
-
-Playback video:
-[![Watch the video](https://img.youtube.com/vi/6oge35ZzH3w/maxresdefault.jpg)](https://youtu.be/6oge35ZzH3w)
+| Ruler                                                                                          | Image Adjustments   | Tab docking         |
+| ---------------------------------------------------------------------------------------------- | ------------------- | ------------------- |
+| [![Ruler](https://img.youtube.com/vi/A7aCQ3hAo0c/hqdefault.jpg)](https://youtu.be/A7aCQ3hAo0c) | _Video coming soon_ | _Video coming soon_ |
+| [Watch](https://youtu.be/A7aCQ3hAo0c)                                                          | –                   | –                   |
