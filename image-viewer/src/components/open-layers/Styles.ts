@@ -7,31 +7,8 @@ import type Feature from "ol/Feature";
 import type { FeatureLike } from "ol/Feature";
 import type { FlatStyle, Rule } from "ol/style/flat";
 import { asArray } from "ol/color";
-import type { LineStyleName, ShapeTool } from "../annotation/Tools";
+import { ShapeTools, type LineStyleName, type ShapeTool } from "../annotation/Tools";
 import { pixelDistance, physicalDistanceMicrons, formatDistanceMicrons, formatDistancePixels } from "../ruler/ruler";
-
-// The slide's own coarsest view resolution (map units - i.e. native slide
-// pixels - per screen pixel at the most zoomed-out the view ever goes) -
-// set once per slide by MapNode right after the map is built (see
-// setStyleReferenceResolution), never touched again as the user zooms.
-// A shape's length in native slide pixels alone is a bad proxy for "does
-// this look short" - a slide's native size is tens of thousands of pixels,
-// so even a short-looking drag made while zoomed out covers thousands of
-// them (each screen pixel spans many native ones at low zoom), which made
-// an earlier version of the arrowhead cap below effectively never engage
-// for exactly the zoomed-out case it was meant to fix. Dividing by this
-// constant instead expresses length as "how many screen pixels this would
-// span if the view were fully zoomed out" - small, intuitive numbers,
-// normalized for the slide's own size, and still completely fixed once an
-// annotation is drawn (this constant doesn't change with the *current*
-// zoom, only with which slide is loaded), so it doesn't reintroduce any
-// scroll-dependence. Used by both the arrowhead cap and the dash-pattern
-// cap below, for the same reason in both places.
-let coarsestResolution = 1;
-
-function setStyleReferenceResolution(resolution: number): void {
-	coarsestResolution = resolution;
-}
 
 // Sum of consecutive-point distances - LinearRing has no built-in
 // getLength() (only getArea()), unlike LineString.
@@ -46,23 +23,24 @@ function ringPerimeter(coords: number[][]): number {
 }
 
 // A LineString's total length, or a Polygon's perimeter (its outer ring's
-// length) - whichever a shape actually has - in the same coarsest-view-
-// normalized units as coarsestResolution above. 0 for anything else (a
-// shape too small/degenerate to have a meaningful length, e.g. a point).
+// length) - whichever a shape actually has - in map units. 0 for anything
+// else (a shape too small/degenerate to have a meaningful length, e.g. a
+// point).
 function geometryLength(geometry: Geometry | undefined): number {
-	if (geometry instanceof LineString) return geometry.getLength() / coarsestResolution;
+	if (geometry instanceof LineString) return geometry.getLength();
 	if (geometry instanceof Polygon) {
 		const ring = geometry.getLinearRing(0);
-		return ring ? ringPerimeter(ring.getCoordinates()) / coarsestResolution : 0;
+		return ring ? ringPerimeter(ring.getCoordinates()) : 0;
 	}
 	return 0;
 }
 
 // Ensures at least this many dash+gap cycles fit along even a short dashed
 // shape, rather than one oversized dash barely fitting on it - mirrors
-// arrowHeadRadius's reasoning below. effectiveLength must already be in
-// coarsest-view-normalized units (see coarsestResolution/geometryLength
-// above), not raw map units.
+// arrowHeadRadius's reasoning below. effectiveLength is the shape's length
+// on screen at the current zoom, in pixels - measuring it against the fully
+// zoomed-out view instead made anything drawn zoomed in count as a few
+// pixels long, so its dashes shrank until the line looked solid.
 const DASH_MIN_REPEATS = 3;
 
 // The dash/gap lengths at full size - unchanged from before, just pulled
@@ -82,20 +60,25 @@ function lineDashFor(lineStyle: LineStyleName, lineThickness: number, effectiveL
 	return lineStyle === "dashed" ? dashPattern(lineThickness, effectiveLength) : undefined;
 }
 
-function baseStyle(colour: string, lineThickness: number, lineStyle: LineStyleName, geometry: Geometry | undefined): Style {
+function baseStyle(
+	colour: string,
+	lineThickness: number,
+	lineStyle: LineStyleName,
+	geometry: Geometry | undefined,
+	resolution: number,
+): Style {
 	return new Style({
 		stroke: new Stroke({
 			color: colour,
 			width: lineThickness,
-			lineDash: lineDashFor(lineStyle, lineThickness, geometryLength(geometry)),
+			lineDash: lineDashFor(lineStyle, lineThickness, geometryLength(geometry) / resolution),
 		}),
 		fill: new Fill({ color: `${colour}33` }),
 		image: new CircleStyle({ radius: 5, fill: new Fill({ color: colour }) }),
 	});
 }
 
-// Below this length (in coarsest-view screen pixels - see
-// coarsestResolution above) the head shrinks proportionally rather than
+// Below this on-screen length the head shrinks proportionally rather than
 // dwarfing its own shaft; at or above it, the head is simply the fixed
 // size it always was.
 const ARROWHEAD_LENGTH_RATIO = 9 / 40;
@@ -106,21 +89,24 @@ function arrowHeadMaxRadius(lineThickness: number): number {
 	return 6 + lineThickness * 1.5;
 }
 
-// segmentLength must already be in coarsest-view screen-pixel terms (see
-// coarsestResolution above), not raw map units - arrowHeadStyle does that
-// conversion before calling this; kept as a separate, pure function so the
-// cap arithmetic itself is unit-testable without mocking a LineString.
+// segmentLength must already be in screen pixels, not raw map units -
+// arrowHeadStyle does that conversion before calling this; kept as a
+// separate, pure function so the cap arithmetic itself is unit-testable
+// without mocking a LineString.
 function arrowHeadRadius(lineThickness: number, segmentLength: number): number {
 	return Math.min(arrowHeadMaxRadius(lineThickness), segmentLength * ARROWHEAD_LENGTH_RATIO);
 }
 
-function arrowHeadStyle(colour: string, lineThickness: number, line: LineString): Style | null {
+// Sized from the arrow's length on screen at the current zoom. Measuring it
+// against the fully zoomed-out view instead meant an arrow drawn zoomed in
+// counted as a few pixels long, so its head shrank to nothing.
+function arrowHeadStyle(colour: string, lineThickness: number, line: LineString, resolution: number): Style | null {
 	const coords = line.getCoordinates();
 	if (coords.length < 2) return null;
 	const [x1, y1] = coords[coords.length - 2];
 	const [x2, y2] = coords[coords.length - 1];
 	const angle = Math.atan2(y2 - y1, x2 - x1);
-	const segmentLength = Math.hypot(x2 - x1, y2 - y1) / coarsestResolution;
+	const segmentLength = Math.hypot(x2 - x1, y2 - y1) / resolution;
 	return new Style({
 		geometry: new Point([x2, y2]),
 		image: new RegularShape({
@@ -139,9 +125,10 @@ function withArrowHead(
 	colour: string,
 	lineThickness: number,
 	geometry: Geometry | undefined,
+	resolution: number,
 ): Style[] {
 	if (shape === "arrow" && geometry instanceof LineString) {
-		const arrow = arrowHeadStyle(colour, lineThickness, geometry);
+		const arrow = arrowHeadStyle(colour, lineThickness, geometry, resolution);
 		if (arrow) styles.push(arrow);
 	}
 	return styles;
@@ -151,43 +138,47 @@ function withArrowHead(
 // arrowhead and dash pattern both track the shape's current extent on
 // every pointer move, not just once drawend fires.
 function sketchStyle(shape: ShapeTool, colour: string, lineThickness: number, lineStyle: LineStyleName) {
-	return (feature: FeatureLike): Style[] => {
+	// For polygon, rectangle and circle, Draw also adds a helper line tracing
+	// the same outline. It's drawn the opposite way round to the polygon, so
+	// with dashes on, each one's dashes filled the other's gaps and the
+	// sketch looked solid - the polygon already shows every edge, so the
+	// helper line is left unstyled.
+	const hideSketchLine = ShapeTools[shape].drawType !== "LineString";
+	return (feature: FeatureLike, resolution: number): Style[] => {
 		const geometry = feature.getGeometry() as Geometry | undefined;
-		return withArrowHead([baseStyle(colour, lineThickness, lineStyle, geometry)], shape, colour, lineThickness, geometry);
+		if (hideSketchLine && geometry instanceof LineString) return [];
+		return withArrowHead([baseStyle(colour, lineThickness, lineStyle, geometry, resolution)], shape, colour, lineThickness, geometry, resolution);
 	};
 }
 
 // Finished features (both the just-drawn pending one and saved ones) carry
 // colour/lineThickness/lineStyle/shape as feature properties.
-function annotationStyle(feature: FeatureLike): Style[] {
+function annotationStyle(feature: FeatureLike, resolution: number): Style[] {
 	const colour = (feature.get("colour") as string | undefined) ?? "#fff614";
 	const lineThickness = (feature.get("lineThickness") as number | undefined) ?? 2;
 	const lineStyle = (feature.get("lineStyle") as LineStyleName | undefined) ?? "solid";
 	const shape = feature.get("shape") as ShapeTool | undefined;
 	const geometry = feature.getGeometry() as Geometry | undefined;
 
-	return withArrowHead([baseStyle(colour, lineThickness, lineStyle, geometry)], shape, colour, lineThickness, geometry);
+	return withArrowHead([baseStyle(colour, lineThickness, lineStyle, geometry, resolution)], shape, colour, lineThickness, geometry, resolution);
 }
 
 // Saved annotations render on the GPU (WebGLVectorLayer), which only takes
 // flat styles - no style functions, so anything annotationStyle works out
 // per render has to be baked onto the feature up front instead. Call this
-// whenever a saved annotation's feature is built, and again if
-// coarsestResolution changes (the dash lengths depend on it).
+// whenever a saved annotation's feature is built.
 function setAnnotationRenderProperties(feature: Feature<Geometry>): void {
 	const colour = (feature.get("colour") as string | undefined) ?? "#fff614";
 	const lineThickness = (feature.get("lineThickness") as number | undefined) ?? 2;
 	const lineStyle = (feature.get("lineStyle") as LineStyleName | undefined) ?? "solid";
 	const [red, green, blue] = asArray(colour);
-	const [dash, gap] = dashPattern(lineThickness, geometryLength(feature.getGeometry()));
 	feature.setProperties(
 		{
 			strokeColour: colour,
 			strokeWidth: lineThickness,
 			fillColour: [red, green, blue, 0.2],
 			dashed: lineStyle === "dashed" ? 1 : 0,
-			dash,
-			gap,
+			outlineLength: geometryLength(feature.getGeometry()),
 		},
 		true,
 	);
@@ -199,14 +190,20 @@ const annotationFlatBase: FlatStyle = {
 	"fill-color": ["get", "fillColour"],
 };
 
+// dashPattern above, worked out on the GPU so it follows the current zoom:
+// the dash+gap period is a third of the shape's on-screen length, capped at
+// the full-size period (5x the line width). The lower bound just keeps a
+// zero-length shape from dividing by zero in the shader.
+const dashPeriod = ["clamp", ["/", ["/", ["get", "outlineLength"], ["resolution"]], DASH_MIN_REPEATS], 0.01, ["*", ["get", "strokeWidth"], 5]];
+
 const annotationFlatStyle: Rule[] = [
 	{
 		filter: ["==", ["get", "dashed"], 1],
 		style: {
 			...annotationFlatBase,
 			"stroke-line-dash": [
-				["get", "dash"],
-				["get", "gap"],
+				["*", dashPeriod, 3 / 5],
+				["*", dashPeriod, 2 / 5],
 			],
 		},
 	},
@@ -216,13 +213,13 @@ const annotationFlatStyle: Rule[] = [
 // WebGL layers can't draw a styled point at a line's end, so saved arrows
 // get their heads from a small canvas layer on the same source - returns
 // nothing for every other shape, so that layer has very little to draw.
-function annotationArrowHeadStyle(feature: FeatureLike): Style | undefined {
+function annotationArrowHeadStyle(feature: FeatureLike, resolution: number): Style | undefined {
 	if (feature.get("shape") !== "arrow") return undefined;
 	const geometry = feature.getGeometry();
 	if (!(geometry instanceof LineString)) return undefined;
 	const colour = (feature.get("colour") as string | undefined) ?? "#fff614";
 	const lineThickness = (feature.get("lineThickness") as number | undefined) ?? 2;
-	return arrowHeadStyle(colour, lineThickness, geometry) ?? undefined;
+	return arrowHeadStyle(colour, lineThickness, geometry, resolution) ?? undefined;
 }
 
 // GPU version of cellCountDotStyle below - same look, for the placed and
@@ -337,5 +334,4 @@ export {
 	rulerSketchStyle,
 	arrowHeadRadius,
 	dashPattern,
-	setStyleReferenceResolution,
 };

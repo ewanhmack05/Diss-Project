@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { useDrawContext } from '../../../context/DrawContext'
 import { useCellCountDrawContext } from '../../../context/CellCountDrawContext'
 import { ShapeOrder, ShapeTools, LineThicknessOptions, type LineStyleName } from '../Tools'
@@ -24,14 +23,6 @@ function FreeFormToolPicker() {
   // other. Rather than let both fire, shape tools are unavailable while a
   // count is running; CellCounterToolPicker mirrors this the other way.
   const { counting } = useCellCountDrawContext()
-  // Line is picked when the tab opens, and cleared again when it closes (or
-  // switches to Saved), so the map isn't left drawing with no panel showing.
-  // Deliberately only on mount/unmount - running it every render would force
-  // the tool back to Line whenever anything else was picked.
-  useEffect(() => {
-    if (!counting) setActiveTool('line')
-    return () => setActiveTool(null)
-  }, [])
 
   return (
     <div className="free-form-tool-picker">

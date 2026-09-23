@@ -24,7 +24,6 @@ import {
   roiBoxFlatStyle,
   rulerStyle,
   rulerSketchStyle,
-  setStyleReferenceResolution,
 } from './open-layers/Styles'
 import { featureToGeoJson, geoJsonToFeature } from './open-layers/GeoJSON'
 import { degreesToRadians, radiansToDegrees } from './rotation/rotation'
@@ -74,7 +73,6 @@ function MapNode() {
     colour,
     lineThickness,
     lineStyle,
-    setActiveTool,
     pending,
     setPending,
     quickDraw,
@@ -247,13 +245,6 @@ function MapNode() {
         )
         mapRef.current = map
         baseLayerRef.current = baseLayer
-        // The view's own coarsest resolution (post native-scale capping,
-        // i.e. genuinely as zoomed-out as this slide's view can go) - see
-        // Styles.ts's coarsestResolution for why the arrowhead and dash
-        // pattern caps are both expressed relative to this rather than the
-        // slide's raw pixel dimensions.
-        const resolutions = mapRef.current.getView().getResolutions()
-        setStyleReferenceResolution(resolutions?.[0] ?? 1)
         setMapVersion((version) => version + 1)
       })
       .catch(() => {
@@ -275,8 +266,6 @@ function MapNode() {
   }, [source, emit])
 
   // Keep the map's annotations layer in sync with the saved-annotations store.
-  // Re-runs on mapVersion too, since the baked dash lengths depend on the
-  // slide's coarsest resolution, which is only known once the map is built.
   useEffect(() => {
     annotationsSource.clear()
     annotationsSource.addFeatures(
@@ -291,7 +280,7 @@ function MapNode() {
         return feature
       })
     )
-  }, [annotations, annotationsSource, mapVersion])
+  }, [annotations, annotationsSource])
 
   // Keep annotation shapes off the image unless the annotations panel is
   // actually open - re-applied on every toggle; the layers' own construction
@@ -827,10 +816,11 @@ function MapNode() {
 
   // Wire an OpenLayers Draw interaction to whichever shape tool is selected -
   // only while the annotations panel is open, so a tool left selected can't
-  // keep drawing on the map after it's closed.
+  // keep drawing on the map after it's closed. Also paused while a drawn
+  // shape is waiting on the save form.
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !activeTool || !annotationsVisible) return
+    if (!map || !activeTool || !annotationsVisible || pending) return
 
     const config = ShapeTools[activeTool]
     const draw = new Draw({
@@ -871,8 +861,9 @@ function MapNode() {
         return
       }
 
+      // The tool stays selected - the Draw interaction is paused while the
+      // form is open (see the pending check above) and picks back up after.
       setPending({ feature, shape: activeTool })
-      setActiveTool(null)
     })
 
     map.addInteraction(draw)
@@ -880,7 +871,7 @@ function MapNode() {
     return () => {
       map.removeInteraction(draw)
     }
-  }, [activeTool, annotationsVisible, colour, lineThickness, lineStyle, setActiveTool, setPending])
+  }, [activeTool, annotationsVisible, pending, colour, lineThickness, lineStyle, setPending])
 
   if (error) {
     return (

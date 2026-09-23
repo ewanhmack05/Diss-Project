@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { arrowHeadRadius, dashPattern } from './Styles'
 
-// segmentLength here is already normalized to "coarsest-view screen
-// pixels" (see Styles.ts's arrowHeadStyle/coarsestResolution) - not raw
-// map units, and not the live view's current screen pixels either.
+// segmentLength here is already in screen pixels at the current zoom (see
+// Styles.ts's arrowHeadStyle) - not raw map units.
 describe('arrowHeadRadius', () => {
   it('caps at the fixed max radius for a long segment', () => {
     // 6 + 2 * 1.5 = 9, reached once segmentLength * (9/40) >= 9 i.e. >= 40
@@ -30,8 +29,8 @@ describe('arrowHeadRadius', () => {
   })
 })
 
-// effectiveLength here is the same coarsest-view-normalized quantity as
-// arrowHeadRadius's segmentLength above (see Styles.ts's geometryLength).
+// effectiveLength here is the same on-screen length in pixels as
+// arrowHeadRadius's segmentLength above.
 describe('dashPattern', () => {
   it('is the full [6, 4] pattern once at least 3 cycles fit at full size (length >= 30)', () => {
     expect(dashPattern(2, 1000)).toEqual([6, 4])
