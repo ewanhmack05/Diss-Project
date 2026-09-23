@@ -3,7 +3,10 @@ import LineString from "ol/geom/LineString";
 import Polygon from "ol/geom/Polygon";
 import Point from "ol/geom/Point";
 import type Geometry from "ol/geom/Geometry";
+import type Feature from "ol/Feature";
 import type { FeatureLike } from "ol/Feature";
+import type { FlatStyle, Rule } from "ol/style/flat";
+import { asArray } from "ol/color";
 import type { LineStyleName, ShapeTool } from "../annotation/Tools";
 import { pixelDistance, physicalDistanceMicrons, formatDistanceMicrons, formatDistancePixels } from "../ruler/ruler";
 
@@ -166,6 +169,71 @@ function annotationStyle(feature: FeatureLike): Style[] {
 	return withArrowHead([baseStyle(colour, lineThickness, lineStyle, geometry)], shape, colour, lineThickness, geometry);
 }
 
+// Saved annotations render on the GPU (WebGLVectorLayer), which only takes
+// flat styles - no style functions, so anything annotationStyle works out
+// per render has to be baked onto the feature up front instead. Call this
+// whenever a saved annotation's feature is built, and again if
+// coarsestResolution changes (the dash lengths depend on it).
+function setAnnotationRenderProperties(feature: Feature<Geometry>): void {
+	const colour = (feature.get("colour") as string | undefined) ?? "#fff614";
+	const lineThickness = (feature.get("lineThickness") as number | undefined) ?? 2;
+	const lineStyle = (feature.get("lineStyle") as LineStyleName | undefined) ?? "solid";
+	const [red, green, blue] = asArray(colour);
+	const [dash, gap] = dashPattern(lineThickness, geometryLength(feature.getGeometry()));
+	feature.setProperties(
+		{
+			strokeColour: colour,
+			strokeWidth: lineThickness,
+			fillColour: [red, green, blue, 0.2],
+			dashed: lineStyle === "dashed" ? 1 : 0,
+			dash,
+			gap,
+		},
+		true,
+	);
+}
+
+const annotationFlatBase: FlatStyle = {
+	"stroke-color": ["get", "strokeColour"],
+	"stroke-width": ["get", "strokeWidth"],
+	"fill-color": ["get", "fillColour"],
+};
+
+const annotationFlatStyle: Rule[] = [
+	{
+		filter: ["==", ["get", "dashed"], 1],
+		style: {
+			...annotationFlatBase,
+			"stroke-line-dash": [
+				["get", "dash"],
+				["get", "gap"],
+			],
+		},
+	},
+	{ else: true, style: annotationFlatBase },
+];
+
+// WebGL layers can't draw a styled point at a line's end, so saved arrows
+// get their heads from a small canvas layer on the same source - returns
+// nothing for every other shape, so that layer has very little to draw.
+function annotationArrowHeadStyle(feature: FeatureLike): Style | undefined {
+	if (feature.get("shape") !== "arrow") return undefined;
+	const geometry = feature.getGeometry();
+	if (!(geometry instanceof LineString)) return undefined;
+	const colour = (feature.get("colour") as string | undefined) ?? "#fff614";
+	const lineThickness = (feature.get("lineThickness") as number | undefined) ?? 2;
+	return arrowHeadStyle(colour, lineThickness, geometry) ?? undefined;
+}
+
+// GPU version of cellCountDotStyle below - same look, for the placed and
+// viewed dot layers.
+const cellCountDotFlatStyle: FlatStyle = {
+	"circle-radius": ["get", "dotSize"],
+	"circle-fill-color": ["get", "colour"],
+	"circle-stroke-color": "#000",
+	"circle-stroke-width": 1,
+};
+
 // One placed cell-count dot - colour/dotSize carried as feature properties,
 // same convention as annotationStyle.
 function cellCountDotStyle(feature: FeatureLike): Style {
@@ -191,6 +259,14 @@ function roiBoxStyle(): Style {
 		fill: new Fill({ color: `${ROI_BOX_COLOUR}1a` }),
 	});
 }
+
+// GPU version of roiBoxStyle above.
+const roiBoxFlatStyle: FlatStyle = {
+	"stroke-color": ROI_BOX_COLOUR,
+	"stroke-width": 2,
+	"stroke-line-dash": [6, 4],
+	"fill-color": `${ROI_BOX_COLOUR}1a`,
+};
 
 const RULER_COLOUR = "#ff9f1c";
 
@@ -249,9 +325,14 @@ function rulerSketchStyle(mppX: number | null, mppY: number | null) {
 
 export {
 	annotationStyle,
+	annotationFlatStyle,
+	annotationArrowHeadStyle,
+	setAnnotationRenderProperties,
 	sketchStyle,
 	cellCountDotStyle,
+	cellCountDotFlatStyle,
 	roiBoxStyle,
+	roiBoxFlatStyle,
 	rulerStyle,
 	rulerSketchStyle,
 	arrowHeadRadius,

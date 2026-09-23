@@ -7,6 +7,7 @@ annotation. Proof of concept, one collaborator for now.
 image-viewer/      React + TypeScript + OpenLayers frontend. See image-viewer/README.md
 tiler/              .NET tile server for .mrxs whole-slide images. See tiler/README.md
 annotation-store/   .NET + Postgres backend for persisted annotations. See annotation-store/README.md
+dashboard/          Aspire dashboard (Docker) for the services' OpenTelemetry data. See dashboard/README.md
 ```
 
 ## Prerequisites
@@ -26,6 +27,10 @@ dotnet build && dotnet run --urls http://0.0.0.0:5095
 cd annotation-store/
 dotnet build && dotnet run --urls http://0.0.0.0:5252
 ```
+
+Optional: `cd dashboard/ && docker compose up -d` for traces, metrics and
+logs from `tiler` and `annotation-store` at http://localhost:18888. The
+services run the same without it.
 
 Each service has its own README with more detail. `image-viewer` is wired
 up to both `tiler` (loads a real slide by default) and `annotation-store`
@@ -50,7 +55,11 @@ Todos for real time collaberation:
 
 - Azure hosting? Something to discuss in future
   - Most likely set up in a container stack on a VM, saves me having to think too much about the architecture of it, also saves pricing wise
+  - May be better setting up separate services
   - Will need 1 db (annotation store), Only 1 image will be properly used for this so the tiler can get a hard coded image and path. Users will theoretically be handled by the auth and or azure
+
+  - Web app for the actual viewer
+  - app service for each different service, 2 so far, 3 if i add the webhook api [1]
 
 - Main setup for real time collap will be mutiple webooks running constant with the annotation store
   Libraries to look into:
@@ -70,6 +79,13 @@ Todos for real time collaberation:
     - to invite unauthenticated we can share a short lifetime url
     - host will have control over view only and ability to draw
     - host can kick/remove users
+    - Navigations? Will owners navigation be the law or will each user navigate on their own. Is this something the owner can control? As a streaming rather than collaberation
+
+- [1] New api to deal with real time processing, sitting between annotation store and viewer?
+  - connect tiler in, keep this new service as a centeralised processing for all of the existing services and keep webhooks there rather than their own services
+  - Also easier to port
+
+  - Look into events too
 
 - Webgpu for openLayers?
   - Taking into account we could have 2 or more users drawing for an unknown amount of time, the load on openLayers could expand, so delegating the devices gpu to the rendering would save browser power and deal with the load

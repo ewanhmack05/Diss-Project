@@ -6,6 +6,7 @@ using AnnotationStore.Collections;
 using AnnotationStore.ImageAdjustments;
 using DotNetEnv;
 using Microsoft.EntityFrameworkCore;
+using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -32,13 +33,28 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddOpenApi();
 
-// Console exporter - no collector to stand up for a dev/dissertation setup.
-// Swap AddConsoleExporter() for AddOtlpExporter() if this ever needs to feed
-// a real backend (Jaeger, Aspire dashboard, etc).
+// Traces, metrics and logs go to the dashboard (see dashboard/README.md)
+// over OTLP on localhost:4317 - sent in the background in batches, so it
+// adds nothing to a request, and nothing breaks if the dashboard isn't
+// running. Telemetry__Console=true prints them to the terminal as well (off by
+// default, same as the tiler).
+var consoleTelemetry = builder.Configuration.GetValue<bool>("Telemetry:Console");
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService("annotation-store"))
-    .WithTracing(tracing => tracing.AddAspNetCoreInstrumentation().AddConsoleExporter())
-    .WithMetrics(metrics => metrics.AddAspNetCoreInstrumentation().AddConsoleExporter());
+    .WithTracing(tracing =>
+    {
+        tracing.AddAspNetCoreInstrumentation().AddOtlpExporter();
+        if (consoleTelemetry) tracing.AddConsoleExporter();
+    })
+    .WithMetrics(metrics =>
+    {
+        // Every 5s rather than the default 60s, so the dashboard's charts
+        // keep up while you're watching them.
+        metrics.AddAspNetCoreInstrumentation().AddOtlpExporter((_, reader) =>
+            reader.PeriodicExportingMetricReaderOptions.ExportIntervalMilliseconds = 5000);
+        if (consoleTelemetry) metrics.AddConsoleExporter();
+    })
+    .WithLogging(logging => logging.AddOtlpExporter());
 
 var app = builder.Build();
 app.UseCors();

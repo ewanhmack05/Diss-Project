@@ -165,6 +165,10 @@ function zoomifyLayer(
     // runtime mismatch.
     source: source as unknown as WebGLTileLayerOptions['source'],
     style: adjustmentsStyle(DEFAULT_ADJUSTMENTS),
+    // Loads every lower-res level under the view too, so a tile that isn't in
+    // yet shows a blurry preview instead of a white gap. Each level down is a
+    // quarter of the tiles, so this adds about a third more requests.
+    preload: Infinity,
   })
 }
 

@@ -21,7 +21,7 @@
   right: 0;
   /* Must match App.tsx's EDGE_CROSS_SIZE, which insets the left/right
      edges by this same amount. */
-  height: 23e4;
+  height: 21em;
   flex-direction: row;
 }
 

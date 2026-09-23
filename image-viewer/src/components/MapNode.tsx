@@ -10,14 +10,18 @@ import type { Coordinate } from 'ol/coordinate'
 import Draw, { type DrawEvent } from 'ol/interaction/Draw'
 import Translate from 'ol/interaction/Translate'
 import VectorLayer from 'ol/layer/Vector'
+import WebGLVectorLayer from 'ol/layer/WebGLVector'
 import type WebGLTileLayer from 'ol/layer/WebGLTile'
 import VectorSource from 'ol/source/Vector'
 import { OpenLayerMap } from './open-layers/OpenLayers'
 import {
   annotationStyle,
+  annotationFlatStyle,
+  annotationArrowHeadStyle,
+  setAnnotationRenderProperties,
   sketchStyle,
-  cellCountDotStyle,
-  roiBoxStyle,
+  cellCountDotFlatStyle,
+  roiBoxFlatStyle,
   rulerStyle,
   rulerSketchStyle,
   setStyleReferenceResolution,
@@ -107,12 +111,13 @@ function MapNode() {
   // it separate from any live counting session's own box.
   const viewedRoiSourceRef = useRef(new VectorSource())
   const rulerSourceRef = useRef(new VectorSource())
-  const annotationsLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
+  const annotationsLayerRef = useRef<WebGLVectorLayer<VectorSource> | null>(null)
+  const annotationArrowsLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const drawLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
-  const cellCountDotsLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
-  const roiLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
-  const viewedDotsLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
-  const viewedRoiLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
+  const cellCountDotsLayerRef = useRef<WebGLVectorLayer<VectorSource> | null>(null)
+  const roiLayerRef = useRef<WebGLVectorLayer<VectorSource> | null>(null)
+  const viewedDotsLayerRef = useRef<WebGLVectorLayer<VectorSource> | null>(null)
+  const viewedRoiLayerRef = useRef<WebGLVectorLayer<VectorSource> | null>(null)
   const rulerLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const roiFeatureRef = useRef<Feature<Polygon> | null>(null)
   const roiDragRef = useRef<RoiDrag | null>(null)
@@ -157,9 +162,20 @@ function MapNode() {
       .then((metadata) => {
         if (cancelled || !mapElement.current) return
         slideMetadataRef.current = metadata
-        const annotationsLayer = new VectorLayer({
+        // Saved annotations, dots and ROI boxes draw on the GPU. The draw
+        // layer (in-progress and pending shapes) and the ruler stay on
+        // canvas - they only ever hold a feature or two, and need style
+        // functions and text that WebGL layers don't support.
+        // Nothing hit-tests these layers, so that's switched off too.
+        const annotationsLayer = new WebGLVectorLayer({
           source: annotationsSource,
-          style: annotationStyle,
+          style: annotationFlatStyle,
+          visible: annotationsVisible,
+          disableHitDetection: true,
+        })
+        const annotationArrowsLayer = new VectorLayer({
+          source: annotationsSource,
+          style: annotationArrowHeadStyle,
           visible: annotationsVisible,
         })
         const drawLayer = new VectorLayer({
@@ -167,25 +183,29 @@ function MapNode() {
           style: annotationStyle,
           visible: annotationsVisible,
         })
-        const cellCountDotsLayer = new VectorLayer({
+        const cellCountDotsLayer = new WebGLVectorLayer({
           source: cellCountDotsSourceRef.current,
-          style: cellCountDotStyle,
+          style: cellCountDotFlatStyle,
           visible: cellCountVisible,
+          disableHitDetection: true,
         })
-        const roiLayer = new VectorLayer({
+        const roiLayer = new WebGLVectorLayer({
           source: roiSourceRef.current,
-          style: roiBoxStyle,
+          style: roiBoxFlatStyle,
           visible: cellCountVisible,
+          disableHitDetection: true,
         })
-        const viewedDotsLayer = new VectorLayer({
+        const viewedDotsLayer = new WebGLVectorLayer({
           source: viewedDotsSourceRef.current,
-          style: cellCountDotStyle,
+          style: cellCountDotFlatStyle,
           visible: cellCountVisible,
+          disableHitDetection: true,
         })
-        const viewedRoiLayer = new VectorLayer({
+        const viewedRoiLayer = new WebGLVectorLayer({
           source: viewedRoiSourceRef.current,
-          style: roiBoxStyle,
+          style: roiBoxFlatStyle,
           visible: cellCountVisible,
+          disableHitDetection: true,
         })
         const rulerLayer = new VectorLayer({
           source: rulerSourceRef.current,
@@ -193,6 +213,7 @@ function MapNode() {
           visible: rulerVisible,
         })
         annotationsLayerRef.current = annotationsLayer
+        annotationArrowsLayerRef.current = annotationArrowsLayer
         drawLayerRef.current = drawLayer
         cellCountDotsLayerRef.current = cellCountDotsLayer
         roiLayerRef.current = roiLayer
@@ -205,7 +226,7 @@ function MapNode() {
           { baseUrl: `${slideUrl}/`, tileSize: metadata.tileSize },
           metadata.objectivePower,
           metadata.mppX,
-          [annotationsLayer, drawLayer, cellCountDotsLayer, roiLayer, viewedDotsLayer, viewedRoiLayer, rulerLayer]
+          [annotationsLayer, annotationArrowsLayer, drawLayer, cellCountDotsLayer, roiLayer, viewedDotsLayer, viewedRoiLayer, rulerLayer]
         )
         mapRef.current = map
         baseLayerRef.current = baseLayer
@@ -228,12 +249,17 @@ function MapNode() {
     return () => {
       cancelled = true
       mapRef.current?.setTarget(undefined)
+      // Each WebGL layer holds its own GL context and browsers only allow
+      // about 16 at once, so free them rather than leaking a set per slide.
+      mapRef.current?.getLayers().forEach((layer) => layer.dispose())
       mapRef.current = null
       baseLayerRef.current = null
     }
   }, [source, emit])
 
   // Keep the map's annotations layer in sync with the saved-annotations store.
+  // Re-runs on mapVersion too, since the baked dash lengths depend on the
+  // slide's coarsest resolution, which is only known once the map is built.
   useEffect(() => {
     annotationsSource.clear()
     annotationsSource.addFeatures(
@@ -244,16 +270,18 @@ function MapNode() {
         feature.set('lineThickness', annotation.lineThickness)
         feature.set('lineStyle', annotation.lineStyle)
         feature.set('shape', annotation.shape)
+        setAnnotationRenderProperties(feature)
         return feature
       })
     )
-  }, [annotations, annotationsSource])
+  }, [annotations, annotationsSource, mapVersion])
 
   // Keep annotation shapes off the image unless the annotations panel is
   // actually open - re-applied on every toggle; the layers' own construction
   // above already picks up whatever this was at map-build time.
   useEffect(() => {
     annotationsLayerRef.current?.setVisible(annotationsVisible)
+    annotationArrowsLayerRef.current?.setVisible(annotationsVisible)
     drawLayerRef.current?.setVisible(annotationsVisible)
   }, [annotationsVisible])
 
