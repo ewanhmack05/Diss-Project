@@ -1,0 +1,9 @@
+# Loads every dashboard JSON in grafana/dashboards/ into Grafana on startup.
+apiVersion: 1
+
+providers:
+  - name: "Diss Project"
+    type: file
+    options:
+      path: /diss-dashboards
+      foldersFromFilesStructure: false

@@ -33,8 +33,8 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddOpenApi();
 
-// Traces, metrics and logs go to the dashboard (see dashboard/README.md)
-// over OTLP on localhost:4317 - sent in the background in batches, so it
+// Traces, metrics and logs go to Grafana (see dashboard/README.md) over
+// OTLP on localhost:4317 - sent in the background in batches, so it
 // adds nothing to a request, and nothing breaks if the dashboard isn't
 // running. Telemetry__Console=true prints them to the terminal as well (off by
 // default, same as the tiler).
@@ -50,7 +50,9 @@ builder.Services.AddOpenTelemetry()
     {
         // Every 5s rather than the default 60s, so the dashboard's charts
         // keep up while you're watching them.
-        metrics.AddAspNetCoreInstrumentation().AddOtlpExporter((_, reader) =>
+        // System.Runtime is .NET's built-in meter - CPU, memory, GC and
+        // thread pool, for the dashboard's machine row.
+        metrics.AddAspNetCoreInstrumentation().AddMeter("System.Runtime").AddOtlpExporter((_, reader) =>
             reader.PeriodicExportingMetricReaderOptions.ExportIntervalMilliseconds = 5000);
         if (consoleTelemetry) metrics.AddConsoleExporter();
     })

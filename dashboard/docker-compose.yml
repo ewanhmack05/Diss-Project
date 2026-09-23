@@ -1,0 +1,19 @@
+# Grafana with Prometheus, Tempo and Loki built in (grafana/otel-lgtm), for
+# statistics from tiler and annotation-store - load, timing, errors and
+# machine usage. The services send to it over OTLP (see their Program.cs).
+services:
+  grafana:
+    image: grafana/otel-lgtm:latest
+    container_name: diss-dashboard
+    ports:
+      - "3000:3000" # Grafana - http://localhost:3000
+      - "4317:4317" # OTLP over gRPC - where the services send
+      - "4318:4318" # OTLP over HTTP - for the browser later on
+    environment:
+      # Opens straight onto the services dashboard instead of Grafana's
+      # welcome page.
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /diss-dashboards/services.json
+    volumes:
+      - ./grafana/dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/diss.yaml:ro
+      - ./grafana/dashboards:/diss-dashboards:ro
+    restart: unless-stopped

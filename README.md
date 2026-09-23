@@ -7,7 +7,7 @@ annotation. Proof of concept, one collaborator for now.
 image-viewer/      React + TypeScript + OpenLayers frontend. See image-viewer/README.md
 tiler/              .NET tile server for .mrxs whole-slide images. See tiler/README.md
 annotation-store/   .NET + Postgres backend for persisted annotations. See annotation-store/README.md
-dashboard/          Aspire dashboard (Docker) for the services' OpenTelemetry data. See dashboard/README.md
+dashboard/          Grafana (Docker) - load, timing and error stats for the services. See dashboard/README.md
 ```
 
 ## Prerequisites
@@ -28,9 +28,9 @@ cd annotation-store/
 dotnet build && dotnet run --urls http://0.0.0.0:5252
 ```
 
-Optional: `cd dashboard/ && docker compose up -d` for traces, metrics and
-logs from `tiler` and `annotation-store` at http://localhost:18888. The
-services run the same without it.
+Optional: `cd dashboard/ && docker compose up -d` for load, timing and
+error stats from `tiler` and `annotation-store` at http://localhost:3000.
+The services run the same without it.
 
 Each service has its own README with more detail. `image-viewer` is wired
 up to both `tiler` (loads a real slide by default) and `annotation-store`
