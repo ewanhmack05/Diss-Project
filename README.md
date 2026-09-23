@@ -8,6 +8,7 @@ image-viewer/      React + TypeScript + OpenLayers frontend. See image-viewer/RE
 tiler/              .NET tile server for .mrxs whole-slide images. See tiler/README.md
 annotation-store/   .NET + Postgres backend for persisted annotations. See annotation-store/README.md
 dashboard/          Grafana (Docker) - load, timing and error stats for the services. See dashboard/README.md
+scripts/            Dev scripts - stress-test data, SQL. See scripts/README.md
 ```
 
 ## Prerequisites

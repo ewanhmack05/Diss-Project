@@ -1,0 +1,3 @@
+BEGIN;
+DELETE FROM "CellCounts";
+COMMIT;
