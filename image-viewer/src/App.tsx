@@ -11,6 +11,7 @@ import { restrictToWindowEdges } from '@dnd-kit/modifiers'
 import { ImageViewerContextProvider } from './context/ImageViewerContext'
 import { ToolbarContextProvider, useToolbarContext, type ToolId } from './context/ToolbarContext'
 import { CollectionContextProvider } from './context/CollectionContext'
+import { RealtimeContextProvider } from './context/RealtimeContext'
 import { AnnotationStoreContextProvider } from './context/AnnotationStoreContext'
 import { CellCountStoreContextProvider } from './context/CellCountStoreContext'
 import { CellCountDrawContextProvider } from './context/CellCountDrawContext'
@@ -46,6 +47,7 @@ import {
 } from './components/toolbar/dock'
 import { bringToFront, stackIndex } from './components/toolbar/focusOrder'
 import ToastStack from './components/toast/ToastStack'
+import PresenceList from './components/presence/PresenceList'
 import type { ImageSource } from './interfaces/ImageSource'
 import './App.css'
 
@@ -93,11 +95,13 @@ interface AppProps {
   source: string
   tilerServiceUrl: string
   annotationStoreUrl: string
+  // Optional - without it the viewer works on its own, just not live.
+  realtimeHubUrl?: string
   options?: AppOptions
   on?: (event: string, payload: unknown) => void
 }
 
-function App({ source, tilerServiceUrl, annotationStoreUrl, options, on }: AppProps) {
+function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, options, on }: AppProps) {
   const imageSource: ImageSource = { tilerUrl: tilerServiceUrl, slideId: source }
 
   return (
@@ -105,23 +109,25 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, options, on }: AppPr
       <EventContextProvider on={on}>
         <ImageViewerContextProvider source={imageSource}>
           <CollectionContextProvider baseUrl={annotationStoreUrl}>
-            <AnnotationStoreContextProvider baseUrl={annotationStoreUrl}>
-              <CellCountStoreContextProvider baseUrl={annotationStoreUrl}>
-                <CellCountDrawContextProvider>
-                  <DrawContextProvider>
-                    <RotationContextProvider>
-                      <RulerContextProvider>
-                        <AdjustmentsContextProvider baseUrl={annotationStoreUrl}>
-                          <ToolbarContextProvider>
-                            <ViewerShell fontSize={options?.fontSize} tools={options?.tools} />
-                          </ToolbarContextProvider>
-                        </AdjustmentsContextProvider>
-                      </RulerContextProvider>
-                    </RotationContextProvider>
-                  </DrawContextProvider>
-                </CellCountDrawContextProvider>
-              </CellCountStoreContextProvider>
-            </AnnotationStoreContextProvider>
+            <RealtimeContextProvider hubUrl={realtimeHubUrl}>
+              <AnnotationStoreContextProvider baseUrl={annotationStoreUrl}>
+                <CellCountStoreContextProvider baseUrl={annotationStoreUrl}>
+                  <CellCountDrawContextProvider>
+                    <DrawContextProvider>
+                      <RotationContextProvider>
+                        <RulerContextProvider>
+                          <AdjustmentsContextProvider baseUrl={annotationStoreUrl}>
+                            <ToolbarContextProvider>
+                              <ViewerShell fontSize={options?.fontSize} tools={options?.tools} />
+                            </ToolbarContextProvider>
+                          </AdjustmentsContextProvider>
+                        </RulerContextProvider>
+                      </RotationContextProvider>
+                    </DrawContextProvider>
+                  </CellCountDrawContextProvider>
+                </CellCountStoreContextProvider>
+              </AnnotationStoreContextProvider>
+            </RealtimeContextProvider>
           </CollectionContextProvider>
         </ImageViewerContextProvider>
       </EventContextProvider>
@@ -407,6 +413,7 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
       </DndContext>
 
       <Toolbar tools={tools} />
+      <PresenceList />
       <ToastStack />
     </div>
   )

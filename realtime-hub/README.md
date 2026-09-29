@@ -54,6 +54,8 @@ type Participant = {
   connectionId: string; slideId: string; userId: string; displayName: string;
   colour: string; joined: string; viewport: Viewport | null;
 };
+// extent is the view box before rotation (centre ± half the screen size, in
+// map units) - turn it by rotation round the centre to get what's on screen.
 type Viewport = { center: [number, number]; resolution: number; rotation: number; extent: [number, number, number, number] };
 type ViewportUpdate = { connectionId: string; viewport: Viewport };
 type AnnotationOp = { kind: 'create' | 'update' | 'delete'; entity: 'annotation' | 'cellCount'; id: string; data?: unknown };

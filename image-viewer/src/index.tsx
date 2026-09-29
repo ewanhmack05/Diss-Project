@@ -5,8 +5,7 @@ import App from './App.tsx'
 
 // Matches whatever host this page was itself loaded from - 'localhost' when
 // opened locally, or this machine's LAN IP when opened from another device
-// on the network (see annotation-store/tiler's Program.cs for the CORS side
-// of that). Hardcoding 'localhost' here would break the moment this page is
+// on the network (see each service's Program.cs for the CORS side of that). Hardcoding 'localhost' here would break the moment this page is
 // opened as anything other than http://localhost:5173 itself.
 const backendHost = window.location.hostname
 
@@ -22,6 +21,7 @@ createRoot(document.getElementById('root')!).render(
       source={'003'}
       tilerServiceUrl={`http://${backendHost}:5095`}
       annotationStoreUrl={`http://${backendHost}:5252`}
+      realtimeHubUrl={`http://${backendHost}:5180`}
       options={{
         fontSize: '11px',
         tools: [

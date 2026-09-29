@@ -30,7 +30,7 @@ dotnet build && dotnet run --urls http://0.0.0.0:5095
 cd annotation-store/
 dotnet build && dotnet run --urls http://0.0.0.0:5252
 
-cd realtime-hub/     # optional for now - the viewer isn't wired up to it yet
+cd realtime-hub/     # optional - the viewer works without it, just not live
 dotnet build && dotnet run --urls http://0.0.0.0:5180
 ```
 

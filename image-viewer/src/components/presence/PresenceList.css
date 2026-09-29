@@ -1,0 +1,43 @@
+/* Top-left, just right of the zoom buttons (see MapNode.css's .ol-zoom). */
+.presence-list {
+  position: fixed;
+  top: 1em;
+  left: 3.75em;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25em;
+  max-width: calc(100vw - 18em);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.presence-chip,
+.presence-status {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  height: 2em;
+  padding: 0 0.6em;
+  color: var(--chrome-text);
+  background: var(--chrome-bg);
+  border-radius: 0.25em;
+  font-family: var(--sans);
+  font-size: 1em;
+  white-space: nowrap;
+  pointer-events: auto;
+}
+
+.presence-chip--me {
+  color: var(--chrome-text-secondary);
+}
+
+.presence-status {
+  color: var(--chrome-text-secondary);
+  font-style: italic;
+}
+
+.presence-dot {
+  width: 0.6em;
+  height: 0.6em;
+  border-radius: 50%;
+}

@@ -18,8 +18,9 @@ public record Participant(
     DateTimeOffset Joined,
     Viewport? Viewport = null);
 
-// OpenLayers view state. Extent is what's actually on screen, in map units -
-// saves everyone else working it out from a screen size they don't know.
+// OpenLayers view state. Extent is the view box before rotation, in map
+// units - turn it by Rotation round Center to get what's actually on screen.
+// Saves everyone else working it out from a screen size they don't know.
 public record Viewport(double[] Center, double Resolution, double Rotation, double[] Extent);
 
 public record ViewportUpdate(string ConnectionId, Viewport Viewport);

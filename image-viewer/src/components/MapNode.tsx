@@ -3,8 +3,7 @@ import { Collection, Feature, type Map, type MapBrowserEvent } from 'ol'
 import type Geometry from 'ol/geom/Geometry'
 import type LineString from 'ol/geom/LineString'
 import Point from 'ol/geom/Point'
-import { fromExtent } from 'ol/geom/Polygon'
-import type Polygon from 'ol/geom/Polygon'
+import Polygon, { fromExtent } from 'ol/geom/Polygon'
 import { containsCoordinate, type Extent } from 'ol/extent'
 import type { Coordinate } from 'ol/coordinate'
 import Draw, { type DrawEvent } from 'ol/interaction/Draw'
@@ -24,12 +23,15 @@ import {
   roiBoxFlatStyle,
   rulerStyle,
   rulerSketchStyle,
+  remoteViewportStyle,
+  remoteViewportOverviewStyle,
 } from './open-layers/Styles'
 import { featureToGeoJson, geoJsonToFeature } from './open-layers/GeoJSON'
 import { degreesToRadians, radiansToDegrees } from './rotation/rotation'
 import { pixelDistance, physicalDistanceMicrons, formatDistanceMicrons, formatDistancePixels } from './ruler/ruler'
 import { parseCellCountDots, dotsFromHistory } from './cell-count/CellCountDots'
 import { computeViewedCellCountExtent } from './cell-count/CellCountView'
+import { viewportFrom, viewportRing } from './realtime/realtime'
 import { useImageViewerContext } from '../context/ImageViewerContext'
 import { useAnnotationStoreContext } from '../context/AnnotationStoreContext'
 import { useDrawContext } from '../context/DrawContext'
@@ -39,6 +41,7 @@ import { useAdjustmentsContext } from '../context/AdjustmentsContext'
 import { useCellCountDrawContext } from '../context/CellCountDrawContext'
 import { useCellCountStoreContext } from '../context/CellCountStoreContext'
 import { useToolbarContext } from '../context/ToolbarContext'
+import { useRealtimeContext } from '../context/RealtimeContext'
 import { useEmitEvent } from '../context/EventContext'
 import { ShapeTools } from './annotation/Tools'
 import './MapNode.css'
@@ -99,6 +102,7 @@ function MapNode() {
   } = useCellCountDrawContext()
   const { cellCounts, viewedCellCountId } = useCellCountStoreContext()
   const { activeTools } = useToolbarContext()
+  const { others, sendViewport } = useRealtimeContext()
   const annotationsVisible = activeTools.includes('annotations')
   const cellCountVisible = activeTools.includes('cellcount')
   const rulerVisible = activeTools.includes('ruler')
@@ -126,6 +130,8 @@ function MapNode() {
   // it separate from any live counting session's own box.
   const viewedRoiSourceRef = useRef(new VectorSource())
   const rulerSourceRef = useRef(new VectorSource())
+  // Everyone else's viewport, drawn on both the main and overview maps.
+  const remoteViewportsSourceRef = useRef(new VectorSource())
   const annotationsLayerRef = useRef<WebGLVectorLayer<VectorSource> | null>(null)
   const annotationArrowsLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const drawLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
@@ -227,6 +233,10 @@ function MapNode() {
           style: rulerStyle,
           visible: rulerVisible,
         })
+        const remoteViewportsLayer = new VectorLayer({
+          source: remoteViewportsSourceRef.current,
+          style: remoteViewportStyle,
+        })
         annotationsLayerRef.current = annotationsLayer
         annotationArrowsLayerRef.current = annotationArrowsLayer
         drawLayerRef.current = drawLayer
@@ -235,13 +245,16 @@ function MapNode() {
         viewedDotsLayerRef.current = viewedDotsLayer
         viewedRoiLayerRef.current = viewedRoiLayer
         rulerLayerRef.current = rulerLayer
-        const { map, baseLayer } = OpenLayerMap(
+        const { map, baseLayer, overviewMap } = OpenLayerMap(
           mapElement.current,
           { width: metadata.width, height: metadata.height },
           { baseUrl: `${slideUrl}/`, tileSize: metadata.tileSize },
           metadata.objectivePower,
           metadata.mppX,
-          [annotationsLayer, annotationArrowsLayer, drawLayer, cellCountDotsLayer, roiLayer, viewedDotsLayer, viewedRoiLayer, rulerLayer]
+          [annotationsLayer, annotationArrowsLayer, drawLayer, cellCountDotsLayer, roiLayer, viewedDotsLayer, viewedRoiLayer, rulerLayer, remoteViewportsLayer]
+        )
+        overviewMap.addLayer(
+          new VectorLayer({ source: remoteViewportsSourceRef.current, style: remoteViewportOverviewStyle })
         )
         mapRef.current = map
         baseLayerRef.current = baseLayer
@@ -281,6 +294,46 @@ function MapNode() {
       })
     )
   }, [annotations, annotationsSource])
+
+  // Tell the hub where you are whenever the view moves or the window
+  // resizes. The context throttles it and resends it after a reconnect.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+
+    const view = map.getView()
+    const send = () => {
+      const center = view.getCenter()
+      const resolution = view.getResolution()
+      const size = map.getSize()
+      if (!center || resolution === undefined || !size) return
+      sendViewport(viewportFrom([center[0], center[1]], resolution, view.getRotation(), [size[0], size[1]]))
+    }
+
+    send()
+    view.on('change', send)
+    map.on('change:size', send)
+    return () => {
+      view.un('change', send)
+      map.un('change:size', send)
+    }
+  }, [mapVersion, sendViewport])
+
+  // Redraw everyone else's viewport whenever one moves or someone comes/goes.
+  useEffect(() => {
+    const source = remoteViewportsSourceRef.current
+    source.clear()
+    source.addFeatures(
+      others
+        .filter((participant) => participant.viewport)
+        .map((participant) => {
+          const feature = new Feature({ geometry: new Polygon([viewportRing(participant.viewport!)]) })
+          feature.set('colour', participant.colour)
+          feature.set('label', participant.displayName)
+          return feature
+        })
+    )
+  }, [others])
 
   // Keep annotation shapes off the image unless the annotations panel is
   // actually open - re-applied on every toggle; the layers' own construction

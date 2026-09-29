@@ -4,6 +4,8 @@ import type { Annotation } from '../interfaces/Annotation'
 import { useImageViewerContext } from './ImageViewerContext'
 import { useEmitEvent } from './EventContext'
 import { useCollectionContext } from './CollectionContext'
+import { useRealtimeContext } from './RealtimeContext'
+import { applyOp } from '../components/realtime/realtime'
 
 type Status = 'loading' | 'ready' | 'error'
 
@@ -34,6 +36,7 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
   const { slideId } = source
   const emit = useEmitEvent()
   const { collectionId, status: collectionStatus } = useCollectionContext()
+  const { sendOp, onOp } = useRealtimeContext()
 
   const [annotations, setAnnotations] = useState<Annotation[]>([])
   const [status, setStatus] = useState<Status>('loading')
@@ -75,6 +78,18 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
     }
   }, [baseUrl, slideId, collectionId, collectionStatus, emit])
 
+  // Someone else's change, already saved by them - just mirror it locally.
+  // No toast/emit here, those are for your own actions.
+  useEffect(
+    () =>
+      onOp(({ op }) => {
+        if (op.entity !== 'annotation') return
+        setAnnotations((current) => applyOp(current, op))
+        if (op.kind === 'delete') setSelectedAnnotationId((current) => (current === op.id ? null : current))
+      }),
+    [onOp]
+  )
+
   // Writes are optimistic - update local state immediately for a responsive
   // UI (and emit the corresponding event right away), fire the request, and
   // emit a matching :error event - separately - if it didn't actually
@@ -92,6 +107,9 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
     }
     setAnnotations((current) => [...current, annotation])
     emit('annotation:created', annotation)
+    // Sent straight away rather than after the save, to keep the delay down.
+    // A save that then fails isn't rolled back for anyone, same as locally.
+    sendOp({ kind: 'create', entity: 'annotation', id: annotation.id, data: annotation })
     fetch(`${baseUrl}/annotations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -109,6 +127,7 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
   const updateAnnotation = (id: string, patch: Partial<Annotation>) => {
     setAnnotations((current) => current.map((a) => (a.id === id ? { ...a, ...patch } : a)))
     emit('annotation:updated', { id, patch })
+    sendOp({ kind: 'update', entity: 'annotation', id, data: patch })
     fetch(`${baseUrl}/annotations/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -126,6 +145,7 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
   const deleteAnnotation = (id: string) => {
     setAnnotations((current) => current.filter((a) => a.id !== id))
     emit('annotation:deleted', { id })
+    sendOp({ kind: 'delete', entity: 'annotation', id })
     fetch(`${baseUrl}/annotations/${id}`, { method: 'DELETE' })
       .then((response) => {
         if (!response.ok) throw new Error(String(response.status))

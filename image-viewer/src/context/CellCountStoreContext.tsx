@@ -3,6 +3,8 @@ import type { CellCount } from '../interfaces/CellCount'
 import { useImageViewerContext } from './ImageViewerContext'
 import { useEmitEvent } from './EventContext'
 import { useCollectionContext } from './CollectionContext'
+import { useRealtimeContext } from './RealtimeContext'
+import { applyOp } from '../components/realtime/realtime'
 
 type Status = 'loading' | 'ready' | 'error'
 
@@ -35,6 +37,7 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
   const { slideId } = source
   const emit = useEmitEvent()
   const { collectionId, status: collectionStatus } = useCollectionContext()
+  const { sendOp, onOp } = useRealtimeContext()
 
   const [cellCounts, setCellCounts] = useState<CellCount[]>([])
   const [status, setStatus] = useState<Status>('loading')
@@ -74,6 +77,20 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
     }
   }, [baseUrl, slideId, collectionId, collectionStatus, emit])
 
+  // Same as AnnotationStoreContext - mirror someone else's saved change.
+  useEffect(
+    () =>
+      onOp(({ op }) => {
+        if (op.entity !== 'cellCount') return
+        setCellCounts((current) => applyOp(current, op))
+        if (op.kind === 'delete') {
+          setSelectedCellCountId((current) => (current === op.id ? null : current))
+          setViewedCellCountId((current) => (current === op.id ? null : current))
+        }
+      }),
+    [onOp]
+  )
+
   const addCellCount = (cellCount: CellCount) => {
     // Same reasoning as AnnotationStoreContext.addAnnotation - counting can
     // start and finish before collectionId resolves, and posting null would
@@ -84,6 +101,7 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
     }
     setCellCounts((current) => [...current, cellCount])
     emit('cellcount:created', cellCount)
+    sendOp({ kind: 'create', entity: 'cellCount', id: cellCount.id, data: cellCount })
     fetch(`${baseUrl}/cellcounts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -101,6 +119,7 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
   const updateCellCount = (id: string, patch: Partial<CellCount>) => {
     setCellCounts((current) => current.map((c) => (c.id === id ? { ...c, ...patch } : c)))
     emit('cellcount:updated', { id, patch })
+    sendOp({ kind: 'update', entity: 'cellCount', id, data: patch })
     fetch(`${baseUrl}/cellcounts/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -118,6 +137,7 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
   const deleteCellCount = (id: string) => {
     setCellCounts((current) => current.filter((c) => c.id !== id))
     emit('cellcount:deleted', { id })
+    sendOp({ kind: 'delete', entity: 'cellCount', id })
     fetch(`${baseUrl}/cellcounts/${id}`, { method: 'DELETE' })
       .then((response) => {
         if (!response.ok) throw new Error(String(response.status))

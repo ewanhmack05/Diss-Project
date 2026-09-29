@@ -320,6 +320,39 @@ function rulerSketchStyle(mppX: number | null, mppY: number | null) {
 	};
 }
 
+// Other people's viewports - an outline in their colour, with their name
+// pinned to their top-left corner (see viewportRing) rather than the middle,
+// which would sit right over the centre of your own view if you're both
+// looking at the same place.
+function remoteViewportStyle(feature: FeatureLike): Style[] {
+	const colour = feature.get("colour") as string;
+	const label = feature.get("label") as string | undefined;
+	const geometry = feature.getGeometry();
+	const outline = new Style({ stroke: new Stroke({ color: colour, width: 2 }) });
+	if (!label || !(geometry instanceof Polygon)) return [outline];
+	const corner = geometry.getCoordinates()[0][0];
+	return [
+		outline,
+		new Style({
+			geometry: new Point(corner),
+			text: new Text({
+				text: label,
+				font: "600 12px 'Source Sans Pro', Arial, sans-serif",
+				fill: new Fill({ color: "#fff" }),
+				backgroundFill: new Fill({ color: colour }),
+				padding: [1, 4, 1, 4],
+				textAlign: "left",
+				textBaseline: "top",
+			}),
+		}),
+	];
+}
+
+// Same outline on the overview map, just thinner and no name - it's tiny.
+function remoteViewportOverviewStyle(feature: FeatureLike): Style {
+	return new Style({ stroke: new Stroke({ color: feature.get("colour") as string, width: 1.5 }) });
+}
+
 export {
 	annotationStyle,
 	annotationFlatStyle,
@@ -332,6 +365,8 @@ export {
 	roiBoxFlatStyle,
 	rulerStyle,
 	rulerSketchStyle,
+	remoteViewportStyle,
+	remoteViewportOverviewStyle,
 	arrowHeadRadius,
 	dashPattern,
 };

@@ -356,7 +356,7 @@ export function OpenLayerMap(
   objectivePower: number | null = null,
   mppX: number | null = null,
   extraLayers: BaseLayer[] = []
-): { map: Map; baseLayer: WebGLTileLayer } {
+): { map: Map; baseLayer: WebGLTileLayer; overviewMap: Map } {
   const extent = getExtent(size)
   const projection = olProjection(extent)
   const resolutions = computeResolutionLadder(size, spec.tileSize)
@@ -428,7 +428,7 @@ export function OpenLayerMap(
   }
 
   map.getView().fit(extent)
-  return { map, baseLayer }
+  return { map, baseLayer, overviewMap: overview.getOverviewMap() }
 }
 
 export {
