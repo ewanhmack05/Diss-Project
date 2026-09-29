@@ -31,3 +31,15 @@ describe('nextSave', () => {
     expect(next?.notes).toHaveLength(256)
   })
 })
+
+describe('nextSave for a cell count', () => {
+  const count = { label: 'Mitoses', notes: '', withAnnotation: true, withRoi: false, count: 12, dotSize: 6 }
+
+  it('passes the counted facts through untouched', () => {
+    expect(nextSave({ ...count, notes: 'hot spot' }, count)).toEqual({ ...count, notes: 'hot spot' })
+  })
+
+  it('skips a save that would change nothing', () => {
+    expect(nextSave({ ...count, label: ' Mitoses ' }, count)).toBeNull()
+  })
+})

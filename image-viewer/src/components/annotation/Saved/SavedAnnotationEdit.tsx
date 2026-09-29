@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAnnotationStoreContext } from '../../../context/AnnotationStoreContext'
-import { useRealtimeContext } from '../../../context/RealtimeContext'
 import type { Annotation } from '../../../interfaces/Annotation'
 import { setAnnotationRenderProperties } from '../../open-layers/Styles'
 import { debounce, throttle } from '../../realtime/realtime'
 import { useSharedFields } from '../../realtime/useSharedFields'
-import { LABEL_MAX, NOTES_MAX, nextSave } from './autosave'
+import EditingWith from '../../realtime/EditingWith'
+import { LABEL_MAX, NOTES_MAX, nextSave } from '../../realtime/autosave'
 import ColourPicker from '../../colour-picker/ColourPicker'
 import DockedCard from '../../toolbar/DockedCard'
 import '../FreeForm/AnnotationForm.css'
@@ -27,7 +27,6 @@ const COLOUR_MS = 200
 // something different for each of them.
 function SavedAnnotationEdit({ annotation, onBack }: SavedAnnotationEditProps) {
   const { annotationsSource, updateAnnotation, deleteAnnotation } = useAnnotationStoreContext()
-  const { others } = useRealtimeContext()
   const [colour, setColour] = useState(annotation.colour)
 
   // Read by the save, which outlives any one render.
@@ -97,8 +96,6 @@ function SavedAnnotationEdit({ annotation, onBack }: SavedAnnotationEditProps) {
     onBack()
   }
 
-  const coEditors = others.filter((participant) => editors.includes(participant.connectionId))
-
   return (
     <div className="annotation-form">
       <DockedCard className="annotation-form-field-card">
@@ -146,16 +143,7 @@ function SavedAnnotationEdit({ annotation, onBack }: SavedAnnotationEditProps) {
           </button>
         </div>
         <p className="annotation-form-hint">Changes save as you go.</p>
-        {coEditors.length > 0 && (
-          <ul className="annotation-form-editors" aria-label="Also editing">
-            {coEditors.map((participant) => (
-              <li key={participant.connectionId} className="annotation-form-editor">
-                <span className="annotation-form-editor-dot" style={{ backgroundColor: participant.colour }} />
-                {participant.displayName}
-              </li>
-            ))}
-          </ul>
-        )}
+        <EditingWith editors={editors} />
       </DockedCard>
     </div>
   )

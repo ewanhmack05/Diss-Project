@@ -22,6 +22,7 @@ function SavedCountList() {
   if (editing) {
     return (
       <SavedCountEdit
+        key={editing.id}
         cellCount={editing}
         onBack={() => setSelectedCellCountId(null)}
       />

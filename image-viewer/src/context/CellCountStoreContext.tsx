@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { CellCount } from '../interfaces/CellCount'
 import { useImageViewerContext } from './ImageViewerContext'
 import { useEmitEvent } from './EventContext'
@@ -8,13 +8,16 @@ import { applyOp } from '../components/realtime/realtime'
 
 type Status = 'loading' | 'ready' | 'error'
 
+// The editable bits plus the counted facts the PUT also overwrites.
+type CellCountEdit = Pick<CellCount, 'label' | 'notes' | 'withAnnotation' | 'withRoi' | 'count' | 'dotSize'>
+
 interface CellCountStoreContextValue {
   cellCounts: CellCount[]
   status: Status
   selectedCellCountId: string | null
   viewedCellCountId: string | null
   addCellCount: (cellCount: CellCount) => void
-  updateCellCount: (id: string, patch: Partial<CellCount>) => void
+  updateCellCount: (id: string, patch: CellCountEdit) => void
   deleteCellCount: (id: string) => void
   setSelectedCellCountId: (id: string | null) => void
   setViewedCellCountId: (id: string | null) => void
@@ -43,6 +46,9 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
   const [status, setStatus] = useState<Status>('loading')
   const [selectedCellCountId, setSelectedCellCountId] = useState<string | null>(null)
   const [viewedCellCountId, setViewedCellCountId] = useState<string | null>(null)
+  // Same as AnnotationStoreContext - a form closing because its count was
+  // deleted mustn't then PUT its last autosave to something that's gone.
+  const deletedIdsRef = useRef(new Set<string>())
 
   useEffect(() => {
     let cancelled = false
@@ -82,6 +88,7 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
     () =>
       onOp(({ op }) => {
         if (op.entity !== 'cellCount') return
+        if (op.kind === 'delete') deletedIdsRef.current.add(op.id)
         setCellCounts((current) => applyOp(current, op))
         if (op.kind === 'delete') {
           setSelectedCellCountId((current) => (current === op.id ? null : current))
@@ -116,7 +123,9 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
       })
   }
 
-  const updateCellCount = (id: string, patch: Partial<CellCount>) => {
+  // annotation-store's PUT replaces all of these together, so pass them all.
+  const updateCellCount = (id: string, patch: CellCountEdit) => {
+    if (deletedIdsRef.current.has(id)) return
     setCellCounts((current) => current.map((c) => (c.id === id ? { ...c, ...patch } : c)))
     emit('cellcount:updated', { id, patch })
     sendOp({ kind: 'update', entity: 'cellCount', id, data: patch })
@@ -135,6 +144,7 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
   }
 
   const deleteCellCount = (id: string) => {
+    deletedIdsRef.current.add(id)
     setCellCounts((current) => current.filter((c) => c.id !== id))
     emit('cellcount:deleted', { id })
     sendOp({ kind: 'delete', entity: 'cellCount', id })
@@ -176,3 +186,4 @@ function useCellCountStoreContext(): CellCountStoreContextValue {
 }
 
 export { CellCountStoreContextProvider, useCellCountStoreContext }
+export type { CellCountEdit }

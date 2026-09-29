@@ -37,7 +37,9 @@ any edge of the screen - two panels on the same edge split it evenly.
     Everything saves as it changes; the form lists who else is editing
 - **Cell Count** - place dots to manually count cells (e.g. mitotic figures),
   with a running tally, dot size and colour options, and an optional region
-  of interest box. Saved counts can be reopened and viewed on the slide
+  of interest box. Saved counts can be reopened and viewed on the slide.
+  A saved count's label and notes are shared live and autosave, the same
+  as annotations
 - **Rotate** - rotate the slide view
 - **Ruler** - measure a straight-line distance, shown in µm using the slide's
   microns-per-pixel, or in pixels
