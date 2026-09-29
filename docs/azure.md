@@ -75,7 +75,7 @@ auto-shutdown. Dropping Grafana for Application Insights could fit a B2s
 
 ## Before anything is public
 
-- CORS currently accepts any private-LAN origin
+- CORS currently accepts any origin - needs a real list
 - Grafana is anonymous admin - put it behind a login or SSH tunnel
 - Port 4317 (telemetry) must stay internal
 - Scalar/OpenAPI stay Development-only

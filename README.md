@@ -7,6 +7,7 @@ annotation. Proof of concept, one collaborator for now.
 image-viewer/      React + TypeScript + OpenLayers frontend. See image-viewer/README.md
 tiler/              .NET tile server for .mrxs whole-slide images. See tiler/README.md
 annotation-store/   .NET + Postgres backend for persisted annotations. See annotation-store/README.md
+realtime-hub/       .NET SignalR hub - rooms per slide, live annotation ops and viewports. See realtime-hub/README.md
 dashboard/          Grafana (Docker) - load, timing and error stats for the services. See dashboard/README.md
 scripts/            Dev scripts - stress-test data, SQL. See scripts/README.md
 docs/               Planning notes - auth, Azure, real-time libraries, sessions, rendering
@@ -28,6 +29,9 @@ dotnet build && dotnet run --urls http://0.0.0.0:5095
 
 cd annotation-store/
 dotnet build && dotnet run --urls http://0.0.0.0:5252
+
+cd realtime-hub/     # optional for now - the viewer isn't wired up to it yet
+dotnet build && dotnet run --urls http://0.0.0.0:5180
 ```
 
 Optional: `cd dashboard/ && docker compose up -d` for load, timing and
@@ -42,7 +46,7 @@ Binding to `0.0.0.0` (rather than `localhost`) and running `npm run dev`
 (which passes `--host` to Vite) makes all three reachable from another
 device on the same network - open `http://<this machine's LAN IP>:5173`
 from it. `image-viewer` talks to whichever host it was itself loaded from,
-and `tiler`/`annotation-store` accept any private-LAN origin, so no extra
+and the backend services accept any origin, so no extra
 config is needed either way - opening it via `localhost` still works
 exactly as before.
 
