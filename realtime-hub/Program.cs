@@ -8,7 +8,9 @@ using Scalar.AspNetCore;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton<SlideRooms>();
-builder.Services.AddSignalR().AddJsonProtocol(options => HubJson.Configure(options.PayloadSerializerOptions));
+// The 32KB default silently dropped long freehand annotations.
+builder.Services.AddSignalR(options => options.MaximumReceiveMessageSize = 1024 * 1024)
+    .AddJsonProtocol(options => HubJson.Configure(options.PayloadSerializerOptions));
 
 // Any origin, so the viewer works from other devices on the network too.
 // SignalR sends credentials, and AllowAnyOrigin can't be combined with
@@ -59,6 +61,7 @@ app.MapHub<SlideHub>("/hubs/slides");
 // Read-only look at who's connected - handy from Scalar/curl while testing.
 app.MapGet("/rooms", (SlideRooms rooms) => Results.Ok(rooms.Summary()));
 app.MapGet("/rooms/{slideId}", (string slideId, SlideRooms rooms) => Results.Ok(rooms.InSlide(slideId)));
+app.MapGet("/rooms/{slideId}/docs", (string slideId, SlideRooms rooms) => Results.Ok(rooms.DocsInSlide(slideId)));
 
 app.Run();
 

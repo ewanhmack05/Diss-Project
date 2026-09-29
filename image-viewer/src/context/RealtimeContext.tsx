@@ -1,10 +1,19 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { HubConnectionBuilder, LogLevel, type HubConnection } from '@microsoft/signalr'
 import {
+  docStateFromWire,
+  fromBase64,
   throttle,
+  toBase64,
   type AnnotationOp,
+  type DocEditors,
+  type DocState,
+  type DocStateWire,
+  type DocUpdateWire,
   type JoinResult,
   type Participant,
+  type Sketch,
+  type SketchUpdate,
   type StampedOp,
   type Viewport,
   type ViewportUpdate,
@@ -17,6 +26,8 @@ import { useEmitEvent } from './EventContext'
 type RealtimeStatus = 'off' | 'connecting' | 'connected' | 'reconnecting' | 'offline'
 
 type OpHandler = (op: StampedOp) => void
+type DocUpdateHandler = (docId: string, update: Uint8Array) => void
+type DocEditorsHandler = (docId: string, editors: string[]) => void
 
 interface RealtimeContextValue {
   status: RealtimeStatus
@@ -24,8 +35,17 @@ interface RealtimeContextValue {
   others: Participant[]
   sendOp: (op: AnnotationOp) => void
   sendViewport: (viewport: Viewport) => void
+  // Null once you finish or give up drawing.
+  sendSketch: (sketch: Sketch | null) => void
   // Returns an unsubscribe, so it drops straight into a useEffect.
   onOp: (handler: OpHandler) => () => void
+  // Shared docs (see sharedFields.ts). openDoc resolves null when not
+  // connected; the others quietly do nothing then.
+  openDoc: (docId: string, seed: Uint8Array) => Promise<DocState | null>
+  sendDocUpdate: (docId: string, update: Uint8Array) => void
+  closeDoc: (docId: string) => void
+  onDocUpdate: (handler: DocUpdateHandler) => () => void
+  onDocEditors: (handler: DocEditorsHandler) => () => void
 }
 
 const RealtimeContext = createContext<RealtimeContextValue | null>(null)
@@ -70,9 +90,13 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
   const connectionRef = useRef<HubConnection | null>(null)
   const joinedRef = useRef(false)
   const lastViewportRef = useRef<Viewport | null>(null)
+  const lastSketchRef = useRef<Sketch | null>(null)
   const opHandlersRef = useRef(new Set<OpHandler>())
-  // One per connection, made in the effect below.
+  const docUpdateHandlersRef = useRef(new Set<DocUpdateHandler>())
+  const docEditorsHandlersRef = useRef(new Set<DocEditorsHandler>())
+  // One of each per connection, made in the effect below.
   const throttledViewportRef = useRef<((viewport: Viewport) => void) | null>(null)
+  const throttledSketchRef = useRef<ReturnType<typeof throttle<[Sketch]>> | null>(null)
 
   useEffect(() => {
     if (!hubUrl) return
@@ -88,6 +112,12 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
       connection.send('UpdateViewport', viewport).catch(() => {})
     }, VIEWPORT_THROTTLE_MS)
     throttledViewportRef.current = throttledViewport
+    // Same rate as viewports - plenty to watch a line being drawn.
+    const throttledSketch = throttle((sketch: Sketch) => {
+      if (!joinedRef.current) return
+      connection.send('UpdateSketch', sketch).catch(() => {})
+    }, VIEWPORT_THROTTLE_MS)
+    throttledSketchRef.current = throttledSketch
 
     let stopped = false
     let retryTimer: ReturnType<typeof setTimeout> | undefined
@@ -112,6 +142,7 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
       setStatus('connected')
       retryMs = RETRY_MIN_MS
       if (lastViewportRef.current) connection.send('UpdateViewport', lastViewportRef.current).catch(() => {})
+      if (lastSketchRef.current) connection.send('UpdateSketch', lastSketchRef.current).catch(() => {})
     }
 
     const start = async () => {
@@ -140,6 +171,16 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
     )
     connection.on('ViewportUpdated', ({ connectionId, viewport }: ViewportUpdate) =>
       setOthers((current) => current.map((p) => (p.connectionId === connectionId ? { ...p, viewport } : p)))
+    )
+    connection.on('SketchUpdated', ({ connectionId, sketch }: SketchUpdate) =>
+      setOthers((current) => current.map((p) => (p.connectionId === connectionId ? { ...p, sketch } : p)))
+    )
+    connection.on('DocUpdated', ({ docId, update }: DocUpdateWire) => {
+      const bytes = fromBase64(update)
+      docUpdateHandlersRef.current.forEach((handler) => handler(docId, bytes))
+    })
+    connection.on('DocEditorsChanged', ({ docId, editors }: DocEditors) =>
+      docEditorsHandlersRef.current.forEach((handler) => handler(docId, editors))
     )
     connection.on('AnnotationOp', (op: StampedOp) => {
       opHandlersRef.current.forEach((handler) => handler(op))
@@ -170,6 +211,8 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
       reset()
       throttledViewport.cancel()
       throttledViewportRef.current = null
+      throttledSketch.cancel()
+      throttledSketchRef.current = null
       connectionRef.current = null
       connection.stop()
     }
@@ -188,6 +231,20 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
     throttledViewportRef.current?.(viewport)
   }, [])
 
+  // Finishing goes out straight away rather than waiting on the throttle,
+  // so a saved shape and its sketch aren't both on screen for a moment.
+  const sendSketch = useCallback((sketch: Sketch | null) => {
+    lastSketchRef.current = sketch
+    const throttled = throttledSketchRef.current
+    if (sketch) {
+      throttled?.(sketch)
+      return
+    }
+    throttled?.cancel()
+    const connection = connectionRef.current
+    if (connection && joinedRef.current) connection.send('UpdateSketch', null).catch(() => {})
+  }, [])
+
   const onOp = useCallback((handler: OpHandler) => {
     opHandlersRef.current.add(handler)
     return () => {
@@ -195,8 +252,56 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
     }
   }, [])
 
+  const openDoc = useCallback(async (docId: string, seed: Uint8Array) => {
+    const connection = connectionRef.current
+    if (!connection || !joinedRef.current) return null
+    const wire = await connection.invoke<DocStateWire>('OpenDoc', docId, toBase64(seed))
+    return docStateFromWire(wire)
+  }, [])
+
+  const sendDocUpdate = useCallback((docId: string, update: Uint8Array) => {
+    const connection = connectionRef.current
+    if (!connection || !joinedRef.current) return
+    connection.send('SendDocUpdate', docId, toBase64(update)).catch(() => {})
+  }, [])
+
+  const closeDoc = useCallback((docId: string) => {
+    const connection = connectionRef.current
+    if (!connection || !joinedRef.current) return
+    connection.send('CloseDoc', docId).catch(() => {})
+  }, [])
+
+  const onDocUpdate = useCallback((handler: DocUpdateHandler) => {
+    docUpdateHandlersRef.current.add(handler)
+    return () => {
+      docUpdateHandlersRef.current.delete(handler)
+    }
+  }, [])
+
+  const onDocEditors = useCallback((handler: DocEditorsHandler) => {
+    docEditorsHandlersRef.current.add(handler)
+    return () => {
+      docEditorsHandlersRef.current.delete(handler)
+    }
+  }, [])
+
   return (
-    <RealtimeContext.Provider value={{ status: hubUrl ? status : 'off', me, others, sendOp, sendViewport, onOp }}>
+    <RealtimeContext.Provider
+      value={{
+        status: hubUrl ? status : 'off',
+        me,
+        others,
+        sendOp,
+        sendViewport,
+        sendSketch,
+        onOp,
+        openDoc,
+        sendDocUpdate,
+        closeDoc,
+        onDocUpdate,
+        onDocEditors,
+      }}
+    >
       {children}
     </RealtimeContext.Provider>
   )

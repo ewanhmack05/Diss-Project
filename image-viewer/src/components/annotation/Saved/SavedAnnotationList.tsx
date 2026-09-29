@@ -13,7 +13,11 @@ function SavedAnnotationList() {
   const editing = annotations.find((a) => a.id === selectedAnnotationId)
   if (editing) {
     return (
-      <SavedAnnotationEdit annotation={editing} onBack={() => setSelectedAnnotationId(null)} />
+      <SavedAnnotationEdit
+        key={editing.id}
+        annotation={editing}
+        onBack={() => setSelectedAnnotationId(null)}
+      />
     )
   }
 

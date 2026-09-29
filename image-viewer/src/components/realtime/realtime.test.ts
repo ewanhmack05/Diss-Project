@@ -2,7 +2,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import BaseObject from 'ol/Object'
 import type OlMap from 'ol/Map'
 import View from 'ol/View'
-import { applyOp, throttle, viewportFrom, viewportRing, watchView } from './realtime'
+import {
+  applyOp,
+  debounce,
+  docStateFromWire,
+  fromBase64,
+  throttle,
+  toBase64,
+  viewportFrom,
+  viewportRing,
+  watchView,
+} from './realtime'
 
 describe('applyOp', () => {
   const items = [
@@ -152,5 +162,84 @@ describe('watchView', () => {
     view.setRotation(0.5)
     map.set('size', [10, 10])
     expect(onMove).not.toHaveBeenCalled()
+  })
+})
+
+describe('base64', () => {
+  it('round-trips every byte value', () => {
+    const bytes = Uint8Array.from({ length: 256 }, (_, i) => i)
+    expect(fromBase64(toBase64(bytes))).toEqual(bytes)
+  })
+
+  it('matches what .NET sends for a byte[]', () => {
+    // Convert.ToBase64String(new byte[] { 1, 2, 250 })
+    expect(toBase64(Uint8Array.from([1, 2, 250]))).toBe('AQL6')
+  })
+})
+
+describe('docStateFromWire', () => {
+  it('decodes the updates and keeps the rest', () => {
+    const state = docStateFromWire({
+      docId: 'annotation:1',
+      instanceId: 'i',
+      seeded: false,
+      updates: ['AQL6'],
+      editors: ['c1', 'c2'],
+    })
+    expect(state).toEqual({ instanceId: 'i', seeded: false, updates: [Uint8Array.from([1, 2, 250])], editors: ['c1', 'c2'] })
+  })
+})
+
+describe('debounce', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('runs once after calls stop, with the last args', () => {
+    const fn = vi.fn()
+    const debounced = debounce(fn, 100)
+    debounced(1)
+    vi.advanceTimersByTime(60)
+    debounced(2)
+    vi.advanceTimersByTime(60)
+    expect(fn).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(40)
+    expect(fn).toHaveBeenCalledExactlyOnceWith(2)
+  })
+
+  it('flush runs a waiting call now, and only once', () => {
+    const fn = vi.fn()
+    const debounced = debounce(fn, 100)
+    debounced('x')
+    debounced.flush()
+    expect(fn).toHaveBeenCalledExactlyOnceWith('x')
+    vi.advanceTimersByTime(200)
+    debounced.flush()
+    expect(fn).toHaveBeenCalledTimes(1)
+  })
+
+  it('cancel drops a waiting call', () => {
+    const fn = vi.fn()
+    const debounced = debounce(fn, 100)
+    debounced()
+    debounced.cancel()
+    debounced.flush()
+    vi.advanceTimersByTime(200)
+    expect(fn).not.toHaveBeenCalled()
+  })
+})
+
+describe('throttle flush', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('sends the waiting call straight away', () => {
+    const fn = vi.fn()
+    const throttled = throttle(fn, 100)
+    throttled('a')
+    throttled('b')
+    throttled.flush()
+    expect(fn.mock.calls).toEqual([['a'], ['b']])
+    vi.advanceTimersByTime(200)
+    expect(fn).toHaveBeenCalledTimes(2)
   })
 })

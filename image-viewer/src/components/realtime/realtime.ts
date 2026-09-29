@@ -3,6 +3,7 @@
 
 import type OlMap from 'ol/Map'
 import type View from 'ol/View'
+import type { LineStyleName, ShapeTool } from '../annotation/Tools'
 
 type Coord = [number, number]
 
@@ -23,6 +24,52 @@ interface Participant {
   colour: string
   joined: string
   viewport: Viewport | null
+  sketch: Sketch | null
+}
+
+// Something someone is part way through drawing. The hub never looks
+// inside data, it just passes it on and keeps the latest for late joiners.
+type Sketch = { tool: 'annotation'; data: AnnotationSketch }
+
+interface AnnotationSketch {
+  shape: ShapeTool
+  colour: string
+  lineThickness: number
+  lineStyle: LineStyleName
+  geoJson: string
+}
+
+interface SketchUpdate {
+  connectionId: string
+  sketch: Sketch | null
+}
+
+// Shared docs carry raw Yjs updates, base64 on the wire.
+interface DocStateWire {
+  docId: string
+  instanceId: string
+  seeded: boolean
+  updates: string[]
+  editors: string[]
+}
+
+interface DocState {
+  instanceId: string
+  // True when the hub started the doc from our seed.
+  seeded: boolean
+  updates: Uint8Array[]
+  editors: string[]
+}
+
+interface DocUpdateWire {
+  docId: string
+  connectionId: string
+  update: string
+}
+
+interface DocEditors {
+  docId: string
+  editors: string[]
 }
 
 interface ViewportUpdate {
@@ -97,6 +144,28 @@ function viewportFrom(center: Coord, resolution: number, rotation: number, size:
   }
 }
 
+function toBase64(bytes: Uint8Array): string {
+  let binary = ''
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+  return btoa(binary)
+}
+
+function fromBase64(base64: string): Uint8Array {
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return bytes
+}
+
+function docStateFromWire(wire: DocStateWire): DocState {
+  return {
+    instanceId: wire.instanceId,
+    seeded: wire.seeded,
+    updates: wire.updates.map(fromBase64),
+    editors: wire.editors,
+  }
+}
+
 // Calls onMove whenever the view pans, zooms, rotates or the map resizes.
 // Listens to the per-property events, not the view's 'change' - OL only
 // fires that when an interaction starts or ends, so a drag would go quiet
@@ -140,13 +209,66 @@ function throttle<A extends unknown[]>(fn: (...args: A) => void, ms: number) {
     timer = null
     pending = null
   }
+  // Sends whatever's waiting now rather than at the end of the window.
+  throttled.flush = () => {
+    if (timer) clearTimeout(timer)
+    flush()
+  }
   return throttled
 }
 
-export { applyOp, viewportRing, viewportFrom, watchView, throttle }
+// Calls fn once calls stop for `ms`, with the latest args. flush() runs a
+// waiting call straight away, for when the caller is about to go away.
+function debounce<A extends unknown[]>(fn: (...args: A) => void, ms: number) {
+  let timer: ReturnType<typeof setTimeout> | null = null
+  let pending: A | null = null
+
+  const run = () => {
+    timer = null
+    if (!pending) return
+    const args = pending
+    pending = null
+    fn(...args)
+  }
+
+  const debounced = (...args: A) => {
+    pending = args
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(run, ms)
+  }
+  debounced.flush = () => {
+    if (timer) clearTimeout(timer)
+    run()
+  }
+  debounced.cancel = () => {
+    if (timer) clearTimeout(timer)
+    timer = null
+    pending = null
+  }
+  return debounced
+}
+
+export {
+  applyOp,
+  viewportRing,
+  viewportFrom,
+  watchView,
+  throttle,
+  debounce,
+  toBase64,
+  fromBase64,
+  docStateFromWire,
+}
 export type {
   Viewport,
   Participant,
+  Sketch,
+  AnnotationSketch,
+  SketchUpdate,
+  DocState,
+  DocStateWire,
+  DocUpdateWire,
+  DocEditors,
   ViewportUpdate,
   OpKind,
   OpEntity,

@@ -25,6 +25,7 @@ import {
   rulerSketchStyle,
   remoteViewportStyle,
   remoteViewportOverviewStyle,
+  remoteSketchStyle,
 } from './open-layers/Styles'
 import { featureToGeoJson, geoJsonToFeature } from './open-layers/GeoJSON'
 import { degreesToRadians, radiansToDegrees } from './rotation/rotation'
@@ -32,6 +33,7 @@ import { pixelDistance, physicalDistanceMicrons, formatDistanceMicrons, formatDi
 import { parseCellCountDots, dotsFromHistory } from './cell-count/CellCountDots'
 import { computeViewedCellCountExtent } from './cell-count/CellCountView'
 import { viewportFrom, viewportRing, watchView } from './realtime/realtime'
+import { annotationSketch, remoteSketchFeatures, type SketchLook } from './realtime/sketch'
 import { useImageViewerContext } from '../context/ImageViewerContext'
 import { useAnnotationStoreContext } from '../context/AnnotationStoreContext'
 import { useDrawContext } from '../context/DrawContext'
@@ -66,6 +68,13 @@ interface RoiDrag {
 // equal, so the context<->map sync effects compare against this instead of
 // using strict equality.
 const ROTATION_EPSILON_DEGREES = 0.01
+
+// The sketch to send for a shape, or null if there's nothing to send yet.
+function sketchOf(map: Map, feature: Feature<Geometry>, look: SketchLook) {
+  const geometry = feature.getGeometry()
+  const resolution = map.getView().getResolution()
+  return geometry && resolution ? annotationSketch(geometry, look, resolution) : null
+}
 
 function MapNode() {
   const { source } = useImageViewerContext()
@@ -102,7 +111,7 @@ function MapNode() {
   } = useCellCountDrawContext()
   const { cellCounts, viewedCellCountId } = useCellCountStoreContext()
   const { activeTools } = useToolbarContext()
-  const { others, sendViewport } = useRealtimeContext()
+  const { others, sendViewport, sendSketch } = useRealtimeContext()
   const annotationsVisible = activeTools.includes('annotations')
   const cellCountVisible = activeTools.includes('cellcount')
   const rulerVisible = activeTools.includes('ruler')
@@ -132,6 +141,9 @@ function MapNode() {
   const rulerSourceRef = useRef(new VectorSource())
   // Everyone else's viewport, drawn on both the main and overview maps.
   const remoteViewportsSourceRef = useRef(new VectorSource())
+  // Shapes other people are part way through drawing.
+  const remoteSketchesSourceRef = useRef(new VectorSource())
+  const remoteSketchesLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const annotationsLayerRef = useRef<WebGLVectorLayer<VectorSource> | null>(null)
   const annotationArrowsLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const drawLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
@@ -233,6 +245,12 @@ function MapNode() {
           style: rulerStyle,
           visible: rulerVisible,
         })
+        const remoteSketchesLayer = new VectorLayer({
+          source: remoteSketchesSourceRef.current,
+          style: remoteSketchStyle,
+          visible: annotationsVisible,
+        })
+        remoteSketchesLayerRef.current = remoteSketchesLayer
         const remoteViewportsLayer = new VectorLayer({
           source: remoteViewportsSourceRef.current,
           style: remoteViewportStyle,
@@ -251,7 +269,7 @@ function MapNode() {
           { baseUrl: `${slideUrl}/`, tileSize: metadata.tileSize },
           metadata.objectivePower,
           metadata.mppX,
-          [annotationsLayer, annotationArrowsLayer, drawLayer, cellCountDotsLayer, roiLayer, viewedDotsLayer, viewedRoiLayer, rulerLayer, remoteViewportsLayer]
+          [annotationsLayer, annotationArrowsLayer, drawLayer, cellCountDotsLayer, roiLayer, viewedDotsLayer, viewedRoiLayer, rulerLayer, remoteSketchesLayer, remoteViewportsLayer]
         )
         overviewMap.addLayer(
           new VectorLayer({ source: remoteViewportsSourceRef.current, style: remoteViewportOverviewStyle })
@@ -330,6 +348,13 @@ function MapNode() {
     )
   }, [others])
 
+  // Redraw what everyone else is mid-drawing whenever it changes.
+  useEffect(() => {
+    const source = remoteSketchesSourceRef.current
+    source.clear()
+    source.addFeatures(remoteSketchFeatures(others))
+  }, [others])
+
   // Keep annotation shapes off the image unless the annotations panel is
   // actually open - re-applied on every toggle; the layers' own construction
   // above already picks up whatever this was at map-build time.
@@ -337,6 +362,7 @@ function MapNode() {
     annotationsLayerRef.current?.setVisible(annotationsVisible)
     annotationArrowsLayerRef.current?.setVisible(annotationsVisible)
     drawLayerRef.current?.setVisible(annotationsVisible)
+    remoteSketchesLayerRef.current?.setVisible(annotationsVisible)
   }, [annotationsVisible])
 
   // Same idea as the annotations layer above, for the cell-count panel.
@@ -862,6 +888,32 @@ function MapNode() {
     }
   }, [pending])
 
+  // Others see the drawn shape while it waits to be named, following it as
+  // it's dragged or recoloured. Cleared once it's saved or thrown away -
+  // saving sends the create first, so there's no gap in between.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !pending) return
+
+    const feature = pending.feature
+    const send = () =>
+      sendSketch(
+        sketchOf(map, feature, {
+          shape: pending.shape,
+          colour: feature.get('colour'),
+          lineThickness: feature.get('lineThickness'),
+          lineStyle: feature.get('lineStyle'),
+        })
+      )
+    send()
+    feature.on(['change', 'propertychange'], send)
+
+    return () => {
+      feature.un(['change', 'propertychange'], send)
+      sendSketch(null)
+    }
+  }, [pending, sendSketch])
+
   // Wire an OpenLayers Draw interaction to whichever shape tool is selected -
   // only while the annotations panel is open, so a tool left selected can't
   // keep drawing on the map after it's closed. Also paused while a drawn
@@ -880,7 +932,27 @@ function MapNode() {
       style: sketchStyle(activeTool, colour, lineThickness, lineStyle),
     })
 
+    // Others watch the shape grow as it's drawn.
+    const look: SketchLook = { shape: activeTool, colour, lineThickness, lineStyle }
+    let sketching: Feature<Geometry> | null = null
+    const sendSketching = () => {
+      if (sketching) sendSketch(sketchOf(map, sketching, look))
+    }
+    const stopSketching = () => {
+      sketching?.un('change', sendSketching)
+      sketching = null
+    }
+    draw.on('drawstart', (event: DrawEvent) => {
+      sketching = event.feature as Feature<Geometry>
+      sketching.on('change', sendSketching)
+    })
+    draw.on('drawabort', () => {
+      stopSketching()
+      sendSketch(null)
+    })
+
     draw.on('drawend', (event: DrawEvent) => {
+      stopSketching()
       const feature = event.feature as Feature<Geometry>
       feature.set('colour', colour)
       feature.set('lineThickness', lineThickness)
@@ -906,6 +978,7 @@ function MapNode() {
         drawSourceRef.current.once('addfeature', (e) => {
           if (e.feature) drawSourceRef.current.removeFeature(e.feature)
         })
+        sendSketch(null)
         return
       }
 
@@ -917,9 +990,12 @@ function MapNode() {
     map.addInteraction(draw)
 
     return () => {
+      // Switching tool or closing the panel mid-shape throws it away.
+      if (sketching) sendSketch(null)
+      stopSketching()
       map.removeInteraction(draw)
     }
-  }, [activeTool, annotationsVisible, pending, colour, lineThickness, lineStyle, setPending])
+  }, [activeTool, annotationsVisible, pending, colour, lineThickness, lineStyle, setPending, sendSketch])
 
   if (error) {
     return (

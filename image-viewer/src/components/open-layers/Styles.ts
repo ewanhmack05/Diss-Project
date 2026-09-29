@@ -348,6 +348,44 @@ function remoteViewportStyle(feature: FeatureLike): Style[] {
 	];
 }
 
+// Where someone's pen is on a shape they're still drawing - the end of a
+// line, or the last real corner of a polygon (its ring closes back onto the
+// first point, so that's the one before the end).
+function penPosition(geometry: Geometry | undefined): number[] | undefined {
+	if (geometry instanceof LineString) return geometry.getLastCoordinate();
+	if (geometry instanceof Polygon) {
+		const ring = geometry.getCoordinates()[0] ?? [];
+		return ring.length >= 2 ? ring[ring.length - 2] : ring[0];
+	}
+	return undefined;
+}
+
+// Someone else's shape as they draw it - looks like the finished annotation
+// will, with their name tagged at the pen in their presence colour.
+function remoteSketchStyle(feature: FeatureLike, resolution: number): Style[] {
+	const styles = annotationStyle(feature, resolution);
+	const pen = penPosition(feature.getGeometry() as Geometry | undefined);
+	const owner = feature.get("owner") as string | undefined;
+	if (!pen || !owner) return styles;
+	styles.push(
+		new Style({
+			geometry: new Point(pen),
+			text: new Text({
+				text: owner,
+				font: "600 12px 'Source Sans Pro', Arial, sans-serif",
+				fill: new Fill({ color: "#fff" }),
+				backgroundFill: new Fill({ color: feature.get("ownerColour") as string }),
+				padding: [1, 4, 1, 4],
+				textAlign: "left",
+				textBaseline: "bottom",
+				offsetX: 8,
+				offsetY: -8,
+			}),
+		}),
+	);
+	return styles;
+}
+
 // Same outline on the overview map, just thinner and no name - it's tiny.
 function remoteViewportOverviewStyle(feature: FeatureLike): Style {
 	return new Style({ stroke: new Stroke({ color: feature.get("colour") as string, width: 1.5 }) });
@@ -367,6 +405,8 @@ export {
 	rulerSketchStyle,
 	remoteViewportStyle,
 	remoteViewportOverviewStyle,
+	remoteSketchStyle,
+	penPosition,
 	arrowHeadRadius,
 	dashPattern,
 };

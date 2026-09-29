@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.SignalR;
 
 namespace RealtimeHub.Slides;
@@ -9,15 +10,23 @@ public interface ISlideClient
     Task UserJoined(Participant participant);
     Task UserLeft(string connectionId);
     Task ViewportUpdated(ViewportUpdate update);
+    Task SketchUpdated(SketchUpdate update);
     Task AnnotationOp(StampedOp op);
+    Task DocUpdated(DocUpdate update);
+    Task DocEditorsChanged(DocEditors editors);
 }
 
 // One SignalR group per slide. A connection is in at most one slide at a
 // time - joining another just moves it. No auth yet, so userId/displayName
 // are whatever the client says (fake users for now, sessions come later).
+// Each open shared doc gets its own group inside the slide.
 public class SlideHub(SlideRooms rooms, ILogger<SlideHub> logger) : Hub<ISlideClient>
 {
+    public const int MaxDocIdLength = 128;
+    public const int MaxDocUpdateBytes = 64 * 1024;
+
     public static string GroupName(string slideId) => $"slide:{slideId}";
+    public static string DocGroupName(string slideId, string docId) => $"doc:{slideId}:{docId}";
 
     public async Task<JoinResult> JoinSlide(string slideId, string userId, string displayName)
     {
@@ -46,6 +55,23 @@ public class SlideHub(SlideRooms rooms, ILogger<SlideHub> logger) : Hub<ISlideCl
             .ViewportUpdated(new ViewportUpdate(Context.ConnectionId, viewport));
     }
 
+    // Null clears it. Kept on the participant like the viewport.
+    public async Task UpdateSketch(Sketch? sketch)
+    {
+        if (sketch is not null)
+        {
+            if (string.IsNullOrWhiteSpace(sketch.Tool)) throw new HubException("sketch.tool is required");
+            // A missing data field can't be serialised back out, so it would
+            // break the relay rather than just this call.
+            if (sketch.Data.ValueKind == JsonValueKind.Undefined)
+                throw new HubException("sketch.data is required");
+        }
+
+        var me = rooms.SetSketch(Context.ConnectionId, sketch) ?? throw NotJoined();
+        await Clients.OthersInGroup(GroupName(me.SlideId))
+            .SketchUpdated(new SketchUpdate(Context.ConnectionId, sketch));
+    }
+
     // Relay only - the sender still saves to annotation-store itself for now.
     // Returns the stamped op so the sender knows its seq too.
     public async Task<StampedOp> SendAnnotationOp(AnnotationOp op)
@@ -59,6 +85,51 @@ public class SlideHub(SlideRooms rooms, ILogger<SlideHub> logger) : Hub<ISlideCl
         return stamped;
     }
 
+    // The seed is only used if nobody has the doc open yet.
+    public async Task<DocState> OpenDoc(string docId, byte[] seed)
+    {
+        ValidateDocId(docId);
+        ValidateUpdate(seed, "seed");
+        var me = rooms.Get(Context.ConnectionId) ?? throw NotJoined();
+        var group = DocGroupName(me.SlideId, docId);
+
+        // Into the group before the snapshot, so any update that lands after
+        // it still reaches us. Getting one twice is harmless to Yjs, missing
+        // one isn't.
+        await Groups.AddToGroupAsync(Context.ConnectionId, group);
+        var state = rooms.OpenDoc(Context.ConnectionId, me.SlideId, docId, seed);
+        if (state is null)
+        {
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, group);
+            throw NotJoined();
+        }
+
+        await Clients.OthersInGroup(group).DocEditorsChanged(new DocEditors(docId, state.Editors));
+        logger.LogInformation("{UserId} opened doc {DocId} on {SlideId} ({Editors} editors, {Updates} updates)",
+            me.UserId, docId, me.SlideId, state.Editors.Count, state.Updates.Count);
+        return state;
+    }
+
+    public async Task SendDocUpdate(string docId, byte[] update)
+    {
+        ValidateUpdate(update, "update");
+        var me = rooms.Get(Context.ConnectionId) ?? throw NotJoined();
+        if (docId is null || !rooms.AppendDocUpdate(Context.ConnectionId, me.SlideId, docId, update))
+            throw new HubException("Open the doc first");
+
+        await Clients.OthersInGroup(DocGroupName(me.SlideId, docId))
+            .DocUpdated(new DocUpdate(docId, Context.ConnectionId, update));
+    }
+
+    public async Task CloseDoc(string docId)
+    {
+        if (docId is null) return;
+        var closed = rooms.CloseDoc(Context.ConnectionId, docId);
+        if (closed is null) return;
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, DocGroupName(closed.SlideId, docId));
+        await AfterDocClosed(closed);
+    }
+
     // SignalR drops the connection from its groups on its own, but the
     // room still needs tidying and everyone else needs telling.
     public override async Task OnDisconnectedAsync(Exception? exception)
@@ -66,8 +137,10 @@ public class SlideHub(SlideRooms rooms, ILogger<SlideHub> logger) : Hub<ISlideCl
         var left = rooms.Leave(Context.ConnectionId);
         if (left is not null)
         {
-            await Clients.Group(GroupName(left.SlideId)).UserLeft(left.ConnectionId);
-            logger.LogInformation("{UserId} dropped from slide {SlideId}", left.UserId, left.SlideId);
+            var me = left.Participant;
+            await Clients.Group(GroupName(me.SlideId)).UserLeft(me.ConnectionId);
+            foreach (var doc in left.Docs) await AfterDocClosed(doc);
+            logger.LogInformation("{UserId} dropped from slide {SlideId}", me.UserId, me.SlideId);
         }
         await base.OnDisconnectedAsync(exception);
     }
@@ -76,8 +149,41 @@ public class SlideHub(SlideRooms rooms, ILogger<SlideHub> logger) : Hub<ISlideCl
     {
         var left = rooms.Leave(Context.ConnectionId);
         if (left is null) return;
-        await Groups.RemoveFromGroupAsync(Context.ConnectionId, GroupName(left.SlideId));
-        await Clients.Group(GroupName(left.SlideId)).UserLeft(left.ConnectionId);
+        var me = left.Participant;
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, GroupName(me.SlideId));
+        foreach (var doc in left.Docs)
+        {
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, DocGroupName(doc.SlideId, doc.DocId));
+            await AfterDocClosed(doc);
+        }
+        await Clients.Group(GroupName(me.SlideId)).UserLeft(me.ConnectionId);
+    }
+
+    // Tell whoever still has the doc open, or note that it's gone.
+    private async Task AfterDocClosed(ClosedDoc doc)
+    {
+        if (doc.Editors.Count > 0)
+        {
+            await Clients.Group(DocGroupName(doc.SlideId, doc.DocId))
+                .DocEditorsChanged(new DocEditors(doc.DocId, doc.Editors));
+        }
+        else
+        {
+            logger.LogInformation("Dropped doc {DocId} on {SlideId} ({Updates} updates)",
+                doc.DocId, doc.SlideId, doc.Updates);
+        }
+    }
+
+    private static void ValidateDocId(string docId)
+    {
+        if (string.IsNullOrWhiteSpace(docId)) throw new HubException("docId is required");
+        if (docId.Length > MaxDocIdLength) throw new HubException($"docId is longer than {MaxDocIdLength} characters");
+    }
+
+    private static void ValidateUpdate(byte[] bytes, string name)
+    {
+        if (bytes is null || bytes.Length == 0) throw new HubException($"{name} is required");
+        if (bytes.Length > MaxDocUpdateBytes) throw new HubException($"{name} is bigger than {MaxDocUpdateBytes} bytes");
     }
 
     private static HubException NotJoined() => new("Join a slide first");

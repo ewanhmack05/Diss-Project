@@ -165,3 +165,33 @@
   padding-top: 0.4em;
   padding-bottom: 0.4em;
 }
+
+.annotation-form-hint {
+  margin: 0.4em 0 0;
+  font-size: 0.8em;
+  color: var(--chrome-text-secondary);
+}
+
+/* Who else has this annotation's edit form open (see SavedAnnotationEdit). */
+.annotation-form-editors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3em 0.75em;
+  margin: 0.4em 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8em;
+  color: var(--chrome-text);
+}
+
+.annotation-form-editor {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+}
+
+.annotation-form-editor-dot {
+  width: 0.6em;
+  height: 0.6em;
+  border-radius: 50%;
+}

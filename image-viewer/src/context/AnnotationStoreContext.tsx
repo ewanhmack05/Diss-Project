@@ -19,7 +19,7 @@ interface AnnotationStoreContextValue {
   // does against a pending draw's feature.
   annotationsSource: VectorSource
   addAnnotation: (annotation: Annotation) => void
-  updateAnnotation: (id: string, patch: Partial<Annotation>) => void
+  updateAnnotation: (id: string, patch: Pick<Annotation, 'label' | 'notes' | 'colour'>) => void
   deleteAnnotation: (id: string) => void
   setSelectedAnnotationId: (id: string | null) => void
 }
@@ -42,6 +42,10 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
   const [status, setStatus] = useState<Status>('loading')
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null)
   const annotationsSourceRef = useRef(new VectorSource())
+  // Anything deleted, by you or anyone else. An edit form that closes
+  // because its annotation was deleted still flushes its last autosave,
+  // and that has to be dropped rather than PUT to something that's gone.
+  const deletedIdsRef = useRef(new Set<string>())
 
   // Load whatever's already saved for this slide - the reason to have a
   // backend at all is that this survives a reload, unlike plain React state.
@@ -84,6 +88,7 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
     () =>
       onOp(({ op }) => {
         if (op.entity !== 'annotation') return
+        if (op.kind === 'delete') deletedIdsRef.current.add(op.id)
         setAnnotations((current) => applyOp(current, op))
         if (op.kind === 'delete') setSelectedAnnotationId((current) => (current === op.id ? null : current))
       }),
@@ -124,7 +129,10 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
       })
   }
 
-  const updateAnnotation = (id: string, patch: Partial<Annotation>) => {
+  // annotation-store's PUT replaces label, notes and colour together, so
+  // pass all three.
+  const updateAnnotation = (id: string, patch: Pick<Annotation, 'label' | 'notes' | 'colour'>) => {
+    if (deletedIdsRef.current.has(id)) return
     setAnnotations((current) => current.map((a) => (a.id === id ? { ...a, ...patch } : a)))
     emit('annotation:updated', { id, patch })
     sendOp({ kind: 'update', entity: 'annotation', id, data: patch })
@@ -143,6 +151,7 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
   }
 
   const deleteAnnotation = (id: string) => {
+    deletedIdsRef.current.add(id)
     setAnnotations((current) => current.filter((a) => a.id !== id))
     emit('annotation:deleted', { id })
     sendOp({ kind: 'delete', entity: 'annotation', id })
