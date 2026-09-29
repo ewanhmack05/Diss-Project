@@ -31,7 +31,7 @@ import { degreesToRadians, radiansToDegrees } from './rotation/rotation'
 import { pixelDistance, physicalDistanceMicrons, formatDistanceMicrons, formatDistancePixels } from './ruler/ruler'
 import { parseCellCountDots, dotsFromHistory } from './cell-count/CellCountDots'
 import { computeViewedCellCountExtent } from './cell-count/CellCountView'
-import { viewportFrom, viewportRing } from './realtime/realtime'
+import { viewportFrom, viewportRing, watchView } from './realtime/realtime'
 import { useImageViewerContext } from '../context/ImageViewerContext'
 import { useAnnotationStoreContext } from '../context/AnnotationStoreContext'
 import { useDrawContext } from '../context/DrawContext'
@@ -311,12 +311,7 @@ function MapNode() {
     }
 
     send()
-    view.on('change', send)
-    map.on('change:size', send)
-    return () => {
-      view.un('change', send)
-      map.un('change:size', send)
-    }
+    return watchView(view, map, send)
   }, [mapVersion, sendViewport])
 
   // Redraw everyone else's viewport whenever one moves or someone comes/goes.

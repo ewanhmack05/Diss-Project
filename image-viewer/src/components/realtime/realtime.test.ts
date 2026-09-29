@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { applyOp, throttle, viewportFrom, viewportRing } from './realtime'
+import BaseObject from 'ol/Object'
+import type OlMap from 'ol/Map'
+import View from 'ol/View'
+import { applyOp, throttle, viewportFrom, viewportRing, watchView } from './realtime'
 
 describe('applyOp', () => {
   const items = [
@@ -109,5 +112,45 @@ describe('throttle', () => {
     throttled.cancel()
     vi.advanceTimersByTime(200)
     expect(fn).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('watchView', () => {
+  const setup = () => {
+    const view = new View({ center: [0, 0], resolution: 1 })
+    // A real Map needs a DOM; it only uses Object's property events here.
+    const map = new BaseObject() as unknown as OlMap
+    const onMove = vi.fn()
+    const stop = watchView(view, map, onMove)
+    return { view, map, onMove, stop }
+  }
+
+  it('fires on every step of a drag, not just when it ends', () => {
+    const { view, onMove } = setup()
+    view.beginInteraction()
+    onMove.mockClear()
+    view.setCenter([10, 0])
+    view.setCenter([20, 0])
+    view.setCenter([30, 0])
+    expect(onMove).toHaveBeenCalledTimes(3)
+    view.endInteraction()
+  })
+
+  it('fires on zoom, rotate and resize', () => {
+    const { view, map, onMove } = setup()
+    view.setResolution(4)
+    view.setRotation(1)
+    map.set('size', [100, 100])
+    expect(onMove).toHaveBeenCalledTimes(3)
+  })
+
+  it('stops firing once unsubscribed', () => {
+    const { view, map, onMove, stop } = setup()
+    stop()
+    view.setCenter([5, 5])
+    view.setResolution(2)
+    view.setRotation(0.5)
+    map.set('size', [10, 10])
+    expect(onMove).not.toHaveBeenCalled()
   })
 })

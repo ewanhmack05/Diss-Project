@@ -1,6 +1,9 @@
 // Wire shapes for realtime-hub (see realtime-hub/README.md) plus the small
 // pure bits the context and map need, kept here so they're testable.
 
+import type OlMap from 'ol/Map'
+import type View from 'ol/View'
+
 type Coord = [number, number]
 
 interface Viewport {
@@ -94,6 +97,20 @@ function viewportFrom(center: Coord, resolution: number, rotation: number, size:
   }
 }
 
+// Calls onMove whenever the view pans, zooms, rotates or the map resizes.
+// Listens to the per-property events, not the view's 'change' - OL only
+// fires that when an interaction starts or ends, so a drag would go quiet
+// until the mouse was released. Returns an unsubscribe.
+function watchView(view: View, map: OlMap, onMove: () => void): () => void {
+  const viewEvents = ['change:center', 'change:resolution', 'change:rotation'] as const
+  viewEvents.forEach((type) => view.on(type, onMove))
+  map.on('change:size', onMove)
+  return () => {
+    viewEvents.forEach((type) => view.un(type, onMove))
+    map.un('change:size', onMove)
+  }
+}
+
 // Calls fn at most once per `ms`, always with the latest args - the last
 // call in a burst is never dropped, so others end up where you stopped.
 function throttle<A extends unknown[]>(fn: (...args: A) => void, ms: number) {
@@ -126,7 +143,7 @@ function throttle<A extends unknown[]>(fn: (...args: A) => void, ms: number) {
   return throttled
 }
 
-export { applyOp, viewportRing, viewportFrom, throttle }
+export { applyOp, viewportRing, viewportFrom, watchView, throttle }
 export type {
   Viewport,
   Participant,
