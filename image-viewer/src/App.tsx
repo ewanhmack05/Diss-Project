@@ -1,4 +1,4 @@
-import { createRef, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { createRef, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import 'ol/ol.css'
 import {
   DndContext,
@@ -47,6 +47,7 @@ import {
   type DockSide,
 } from './components/toolbar/dock'
 import { bringToFront, stackIndex } from './components/toolbar/focusOrder'
+import { clampToBounds, placeInColumns, type Bounds, type Rect } from './components/toolbar/panelPlacement'
 import ToastStack from './components/toast/ToastStack'
 import PresenceList from './components/presence/PresenceList'
 import type { ImageSource } from './interfaces/ImageSource'
@@ -148,13 +149,19 @@ interface PanelDef {
   content: ReactNode
 }
 
-const INITIAL_POSITIONS: Record<string, Position> = {
-  'annotations-panel': { x: 256, y: 32 },
-  'cellcount-panel': { x: 256, y: 290 },
-  'rotation-panel': { x: 256, y: 520 },
-  'ruler-panel': { x: 256, y: 750 },
-  'adjustments-panel': { x: 256, y: 980 },
-  'realtime': { x: 256, y: 32 },
+// Where the first floating panel opens - the rest flow down and across
+// from here (see panelPlacement.ts's placeInColumns).
+const PANEL_ORIGIN: Position = { x: 256, y: 32 }
+
+// Minimum space kept between a floating panel and the screen edges/toolbar.
+const PANEL_MARGIN = 8
+
+function samePositions(a: Record<string, Position>, b: Record<string, Position>): boolean {
+  const keys = Object.keys(a)
+  return (
+    keys.length === Object.keys(b).length &&
+    keys.every((key) => b[key] && a[key].x === b[key].x && a[key].y === b[key].y)
+  )
 }
 
 interface ViewerShellProps {
@@ -164,7 +171,7 @@ interface ViewerShellProps {
 
 function ViewerShell({ fontSize, tools }: ViewerShellProps) {
   const { activeTools, toggleTool } = useToolbarContext()
-  const [positions, setPositions] = useState<Record<string, Position>>(INITIAL_POSITIONS)
+  const [positions, setPositions] = useState<Record<string, Position>>({})
   const [dockAssignments, setDockAssignments] = useState<DockAssignments>(emptyDockAssignments)
   const [previewRect, setPreviewRect] = useState<DockRect | null>(null)
   const [focusOrder, setFocusOrder] = useState<string[]>([])
@@ -298,10 +305,11 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
       setDockAssignments((prev) => dockPanel(prev, id, target.side, insertAtStart))
       return
     }
-    setPositions((prev) => ({
-      ...prev,
-      [id]: { x: prev[id].x + event.delta.x, y: prev[id].y + event.delta.y },
-    }))
+    setPositions((prev) => {
+      const current = prev[id]
+      if (!current) return prev
+      return { ...prev, [id]: { x: current.x + event.delta.x, y: current.y + event.delta.y } }
+    })
   }
 
   const handleDragCancel = () => {
@@ -318,6 +326,83 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
       .filter((panel): panel is PanelDef => Boolean(panel)),
   })).filter((group) => group.panels.length > 0)
 
+  // Floating panels only get a position once they've been measured - the
+  // first render of a newly opened one is hidden at PANEL_ORIGIN, then this
+  // places it before the browser paints. Runs after every render and only
+  // sets state when something moved, so it also covers drops and panels
+  // coming off a dock.
+  const appRef = useRef<HTMLDivElement>(null)
+  const floatingKey = floatingPanelDefs.map((panel) => panel.id).join(',')
+
+  // The viewport minus a margin, and minus the toolbar so a panel never ends
+  // up underneath it.
+  const panelBounds = (): Bounds => {
+    const toolbar = appRef.current?.querySelector('.toolbar')
+    const bottom = toolbar ? toolbar.getBoundingClientRect().top : window.innerHeight
+    return {
+      left: PANEL_MARGIN,
+      top: PANEL_MARGIN,
+      right: window.innerWidth - PANEL_MARGIN,
+      bottom: bottom - PANEL_MARGIN,
+    }
+  }
+
+  // Clamps panels that already have a spot back on screen and places new
+  // ones into the columns around them. Closed panels keep their spot, so
+  // reopening one puts it back where it was. The panel mid-drag is left
+  // alone - its drop position is already worked out (see handleDragStart).
+  const fitPanels = () => {
+    const bounds = panelBounds()
+    const next: Record<string, Position> = { ...positions }
+    // Plain object rather than the DOMRect itself - DOMRect's fields are
+    // getters, so spreading one (as placeInColumns does) copies nothing.
+    const sizeOf = (id: string) => {
+      const rect = panelRefs[id]?.current?.getBoundingClientRect()
+      return rect ? { width: rect.width, height: rect.height } : null
+    }
+    const occupied: Rect[] = []
+    const unplaced: string[] = []
+    for (const { id } of floatingPanelDefs) {
+      const size = sizeOf(id)
+      if (!size) continue
+      if (!next[id]) {
+        unplaced.push(id)
+        continue
+      }
+      if (id !== activeDragId) next[id] = clampToBounds(next[id], size, bounds)
+      occupied.push({ ...next[id], width: size.width, height: size.height })
+    }
+    for (const id of unplaced) {
+      const size = sizeOf(id)
+      if (!size) continue
+      next[id] = placeInColumns(size, occupied, bounds, PANEL_ORIGIN)
+      occupied.push({ ...next[id], width: size.width, height: size.height })
+    }
+    if (!samePositions(positions, next)) setPositions(next)
+  }
+
+  const fitPanelsRef = useRef(fitPanels)
+  useLayoutEffect(() => {
+    fitPanelsRef.current = fitPanels
+    fitPanels()
+  })
+
+  // Re-fit when the window shrinks, or when a panel grows (e.g. a saved
+  // list loading in) enough to push it off the bottom.
+  useEffect(() => {
+    const refit = () => fitPanelsRef.current()
+    window.addEventListener('resize', refit)
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(refit)
+    for (const id of floatingKey.split(',')) {
+      const node = panelRefs[id]?.current
+      if (node) observer?.observe(node)
+    }
+    return () => {
+      window.removeEventListener('resize', refit)
+      observer?.disconnect()
+    }
+  }, [floatingKey, panelRefs])
+
   // Left/right stop short of whichever of top/bottom is currently occupied
   // (see DockZone.css and DockEdge.css) - top/bottom always own the full
   // width, left/right just get whatever vertical space is left over.
@@ -332,7 +417,7 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
   } as CSSProperties
 
   return (
-    <div className="app" style={shellStyle}>
+    <div ref={appRef} className="app" style={shellStyle}>
       <MapNode />
 
       <DndContext
@@ -358,13 +443,13 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
             key={panel.id}
             id={panel.id}
             title={panel.title}
-            x={positions[panel.id].x}
-            y={positions[panel.id].y}
+            x={positions[panel.id]?.x ?? PANEL_ORIGIN.x}
+            y={positions[panel.id]?.y ?? PANEL_ORIGIN.y}
             zIndex={PANEL_Z_BASE + stackIndex(focusOrder, panel.id)}
             panelRef={panelRefs[panel.id]}
             onActivate={() => handleActivate(panel.id)}
             onClose={() => toggleTool(panel.tool)}
-            dragging={activeDragId === panel.id}
+            hidden={activeDragId === panel.id || !positions[panel.id]}
           >
             {panel.content}
           </DraggablePanel>
@@ -381,8 +466,8 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
                 key={panel.id}
                 id={panel.id}
                 title={panel.title}
-                x={positions[panel.id].x}
-                y={positions[panel.id].y}
+                x={positions[panel.id]?.x ?? PANEL_ORIGIN.x}
+                y={positions[panel.id]?.y ?? PANEL_ORIGIN.y}
                 dockedSide={side}
                 panelRef={panelRefs[panel.id]}
                 onClose={() => toggleTool(panel.tool)}
