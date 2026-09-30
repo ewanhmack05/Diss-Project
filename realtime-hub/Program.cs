@@ -21,6 +21,9 @@ builder.Services.AddCors(options =>
         policy.SetIsOriginAllowed(_ => true).AllowAnyMethod().AllowAnyHeader().AllowCredentials());
 });
 
+// Same enum strings on the /rooms endpoints as over the hub.
+builder.Services.ConfigureHttpJsonOptions(options => HubJson.Configure(options.SerializerOptions));
+
 builder.Services.AddOpenApi();
 
 // Same setup as annotation-store - goes to Grafana if it's running, nothing
@@ -62,6 +65,9 @@ app.MapHub<SlideHub>("/hubs/slides");
 app.MapGet("/rooms", (SlideRooms rooms) => Results.Ok(rooms.Summary()));
 app.MapGet("/rooms/{slideId}", (string slideId, SlideRooms rooms) => Results.Ok(rooms.InSlide(slideId)));
 app.MapGet("/rooms/{slideId}/docs", (string slideId, SlideRooms rooms) => Results.Ok(rooms.DocsInSlide(slideId)));
+// Blind like it is over the hub - no dots until it's revealed.
+app.MapGet("/rooms/{slideId}/comparison", (string slideId, SlideRooms rooms) =>
+    rooms.ComparisonInSlide(slideId) is { } comparison ? Results.Ok(comparison) : Results.NoContent());
 
 app.Run();
 

@@ -7,6 +7,10 @@ import { mostRecentCellCount } from "../CellCountView";
 import ColourPicker from "../../colour-picker/ColourPicker";
 import CellCountColourSwatch from "../CellCountColourSwatch";
 import DockedCard from "../../toolbar/DockedCard";
+import ComparisonInvite from "../comparison/ComparisonInvite";
+import { useComparisonContext } from "../../../context/ComparisonContext";
+import { useRealtimeContext } from "../../../context/RealtimeContext";
+import "../comparison/Comparison.css";
 import "./CellCounterToolPicker.css";
 
 // The pre-count config screen - only rendered while idle (see CellCounter).
@@ -34,6 +38,8 @@ function CellCounterToolPicker() {
   const { activeTool } = useDrawContext();
   const { cellCounts } = useCellCountStoreContext();
   const recentCellCount = mostRecentCellCount(cellCounts);
+  const { status } = useRealtimeContext();
+  const { canHost, host } = useComparisonContext();
 
   const handleStart = () => {
     resetCount();
@@ -43,6 +49,8 @@ function CellCounterToolPicker() {
 
   return (
     <div className="cell-counter-tool-picker">
+      <ComparisonInvite />
+
       <DockedCard className="cell-counter-tool-picker-field-card">
         <label className="cell-counter-tool-picker-field">
           Dot size
@@ -134,14 +142,32 @@ function CellCounterToolPicker() {
         )}
       </DockedCard>
 
-      <button
-        type="button"
-        className="cell-counter-tool-picker-button cell-counter-tool-picker-button--primary"
-        disabled={activeTool !== null}
-        onClick={handleStart}
-      >
-        Start counting
-      </button>
+      {/* Comparison needs the hub, so it's not offered at all without one. */}
+      <div className="comparison-buttons">
+        <button
+          type="button"
+          className="cell-counter-tool-picker-button cell-counter-tool-picker-button--primary"
+          disabled={activeTool !== null}
+          onClick={handleStart}
+        >
+          Start counting
+        </button>
+        {status !== "off" && (
+          <button
+            type="button"
+            className="cell-counter-tool-picker-button"
+            disabled={activeTool !== null || !canHost}
+            title={
+              canHost
+                ? "Everyone on this slide counts the same region, then the counts are compared"
+                : "Needs someone else on the slide, and no comparison already running"
+            }
+            onClick={host}
+          >
+            Start comparison
+          </button>
+        )}
+      </div>
 
       {activeTool ? (
         <p className="cell-counter-tool-picker-hint">

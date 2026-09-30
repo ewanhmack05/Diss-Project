@@ -1,5 +1,7 @@
 import { useRealtimeContext } from '../../context/RealtimeContext'
 import DockedCard from '../toolbar/DockedCard'
+import ComparisonInvite from '../cell-count/comparison/ComparisonInvite'
+import { useComparisonContext } from '../../context/ComparisonContext'
 import './RealTimePanel.css'
 
 const STATUS_TEXT = {
@@ -12,6 +14,8 @@ const STATUS_TEXT = {
 // Lists everyone on this slide, you first.
 function RealTimePanel() {
     const { status, me, others } = useRealtimeContext()
+    const { comparison, myCounter } = useComparisonContext()
+    const handedIn = comparison?.counters.filter((c) => c.state === 'submitted').length ?? 0
 
     return (
         <div className="realtime-panel">
@@ -32,6 +36,14 @@ function RealTimePanel() {
                     ))}
                 </ul>
             </DockedCard>
+            <ComparisonInvite />
+            {comparison && myCounter?.state !== 'invited' && (
+                <p className="realtime-status">
+                    {comparison.revealed
+                        ? 'Comparison count finished'
+                        : `Comparison count running - ${handedIn} of ${comparison.counters.length} handed in`}
+                </p>
+            )}
         </div>
     )
 }

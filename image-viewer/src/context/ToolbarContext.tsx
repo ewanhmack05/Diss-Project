@@ -1,10 +1,13 @@
-import { createContext, useContext, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
 
 type ToolId = 'annotations' | 'cellcount' | 'rotate' | 'ruler' | 'adjustments' | 'realtime'
 
 interface ToolbarContextValue {
   activeTools: ToolId[]
   toggleTool: (id: ToolId) => void
+  // Opens it if it isn't already - for things like a comparison invite
+  // that need a panel showing.
+  openTool: (id: ToolId) => void
 }
 
 const ToolbarContext = createContext<ToolbarContextValue | null>(null)
@@ -18,8 +21,12 @@ function ToolbarContextProvider({ children }: { children: ReactNode }) {
     )
   }
 
+  const openTool = useCallback((id: ToolId) => {
+    setActiveTools((current) => (current.includes(id) ? current : [...current, id]))
+  }, [])
+
   return (
-    <ToolbarContext.Provider value={{ activeTools, toggleTool }}>
+    <ToolbarContext.Provider value={{ activeTools, toggleTool, openTool }}>
       {children}
     </ToolbarContext.Provider>
   )

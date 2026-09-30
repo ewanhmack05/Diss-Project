@@ -3,7 +3,9 @@ import { DotSizeOptions } from '../Tools'
 import ColourPicker from '../../colour-picker/ColourPicker'
 import DockedCard from '../../toolbar/DockedCard'
 import { formatDistancePixels } from '../../ruler/ruler'
+import { useComparisonContext } from '../../../context/ComparisonContext'
 import './CellCounterToolPicker.css'
+import '../comparison/Comparison.css'
 
 // Rendered for the whole time counting is active (see CellCounter) - first
 // the ROI placement step if withRoi is on and not yet confirmed, then the
@@ -26,6 +28,10 @@ function CellCounterDuring() {
     requestUndo,
     requestRedo,
   } = useCellCountDrawContext()
+  const { stage, submit, quit } = useComparisonContext()
+  // Hosting still, once the box is confirmed, means the hub hasn't answered
+  // yet - hand in waits for that.
+  const comparing = stage === 'counting' || stage === 'hosting'
 
   // Just flips `counting` off - MapNode is the one that actually assembles
   // `pending` (it's the only place with both the map, for `location`, and
@@ -47,7 +53,9 @@ function CellCounterDuring() {
     return (
       <div className="cell-counter-tool-picker">
         <p className="cell-counter-tool-picker-hint">
-          Drag the box into position, then confirm to start counting.
+          {stage === 'hosting'
+            ? 'Drag the box into position, then confirm. Everyone else on the slide is invited to count inside it too.'
+            : 'Drag the box into position, then confirm to start counting.'}
         </p>
         {/* Its own class rather than reusing cell-counter-tool-picker-actions-card
             - that one is pinned to flex:0 1 16em to match Options' width in
@@ -145,13 +153,34 @@ function CellCounterDuring() {
         </DockedCard>
       )}
 
-      <button
-        type="button"
-        className="cell-counter-tool-picker-button cell-counter-tool-picker-button--primary"
-        onClick={handleStop}
-      >
-        Stop counting
-      </button>
+      {comparing ? (
+        <>
+          <div className="comparison-buttons">
+            <button type="button" className="cell-counter-tool-picker-button" onClick={quit}>
+              Leave comparison
+            </button>
+            <button
+              type="button"
+              className="cell-counter-tool-picker-button cell-counter-tool-picker-button--primary"
+              disabled={stage !== 'counting'}
+              onClick={submit}
+            >
+              Hand in count
+            </button>
+          </div>
+          <p className="cell-counter-tool-picker-hint">
+            Comparison count - nobody sees anyone else&apos;s dots until everyone has handed in.
+          </p>
+        </>
+      ) : (
+        <button
+          type="button"
+          className="cell-counter-tool-picker-button cell-counter-tool-picker-button--primary"
+          onClick={handleStop}
+        >
+          Stop counting
+        </button>
+      )}
 
       {/* Unannotated already has its own dedicated Count card above (no
           history to compete with it for room) - this is just for the

@@ -386,6 +386,32 @@ function remoteSketchStyle(feature: FeatureLike, resolution: number): Style[] {
 	return styles;
 }
 
+const COMPARISON_MISSED_COLOUR = "#ff3b30";
+
+// A revealed comparison count (see MapNode) - `kind` says which bit this is.
+// Dots are in their counter's colour, and each cell not everyone found gets
+// a dashed ring the size of the match radius. Never smaller than the dot
+// plus a gap though, or zoomed out it'd hide behind it.
+function comparisonResultStyle(feature: FeatureLike, resolution: number): Style {
+	switch (feature.get("kind")) {
+		case "roi":
+			return roiBoxStyle();
+		case "missed": {
+			const dotSize = (feature.get("dotSize") as number | undefined) ?? 6;
+			const radius = (feature.get("radius") as number) / resolution;
+			return new Style({
+				image: new CircleStyle({
+					radius: Math.max(radius, dotSize + 5),
+					stroke: new Stroke({ color: COMPARISON_MISSED_COLOUR, width: 2, lineDash: [4, 3] }),
+					fill: new Fill({ color: `${COMPARISON_MISSED_COLOUR}26` }),
+				}),
+			});
+		}
+		default:
+			return cellCountDotStyle(feature);
+	}
+}
+
 // Same outline on the overview map, just thinner and no name - it's tiny.
 function remoteViewportOverviewStyle(feature: FeatureLike): Style {
 	return new Style({ stroke: new Stroke({ color: feature.get("colour") as string, width: 1.5 }) });
@@ -406,6 +432,7 @@ export {
 	remoteViewportStyle,
 	remoteViewportOverviewStyle,
 	remoteSketchStyle,
+	comparisonResultStyle,
 	penPosition,
 	arrowHeadRadius,
 	dashPattern,

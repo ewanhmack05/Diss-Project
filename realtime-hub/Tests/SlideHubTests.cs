@@ -455,4 +455,181 @@ public class SlideHubTests : IClassFixture<WebApplicationFactory<Program>>
         var doc = Assert.Single(docs!);
         Assert.Equal(new DocSummary("ann-1", state.InstanceId, 2, 2, 8), doc);
     }
+
+    private static readonly ComparisonSettings Settings = new("{\"type\":\"Polygon\"}", 6, 20);
+
+    private static Task<Comparison> StartComparison(HubConnection c) =>
+        c.InvokeAsync<Comparison>("StartComparison", Settings);
+
+    private static ComparisonDot[] Dots(params double[] xs) => xs.Select(x => new ComparisonDot(x, x)).ToArray();
+
+    // Waits for the first ComparisonChanged that matches, skipping any before it.
+    private static Task<Comparison?> NextComparison(HubConnection c, Func<Comparison?, bool> match)
+    {
+        var tcs = new TaskCompletionSource<Comparison?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        c.On<Comparison?>(nameof(ISlideClient.ComparisonChanged), value =>
+        {
+            if (match(value)) tcs.TrySetResult(value);
+        });
+        return tcs.Task.WaitAsync(Timeout);
+    }
+
+    private static CounterState StateOf(Comparison comparison, string connectionId) =>
+        comparison.Counters.Single(c => c.ConnectionId == connectionId).State;
+
+    [Fact]
+    public async Task Comparison_InvitesEveryone_AndHidesDotsUntilTheReveal()
+    {
+        var slide = NewSlide();
+        await using var a = await ConnectAsync();
+        await using var b = await ConnectAsync();
+        await using var c = await ConnectAsync();
+        var aId = (await Join(a, slide, "a")).Me.ConnectionId;
+        var bId = (await Join(b, slide, "b")).Me.ConnectionId;
+        var cId = (await Join(c, slide, "c")).Me.ConnectionId;
+
+        var invited = NextComparison(b, x => x is not null);
+        var started = await StartComparison(a);
+        Assert.Equal(aId, started.HostConnectionId);
+        Assert.Equal(aId, started.Counters[0].ConnectionId);
+        Assert.Equal(CounterState.Counting, StateOf(started, aId));
+        Assert.Equal(CounterState.Invited, StateOf(started, bId));
+        Assert.Equal(Settings, (await invited)!.Settings);
+
+        await b.InvokeAsync("JoinComparison", started.Id);
+
+        var aHandedIn = NextComparison(b, x => x is not null && StateOf(x, aId) == CounterState.Submitted);
+        await a.InvokeAsync("SubmitComparison", started.Id, Dots(1, 2, 3));
+        var blind = (await aHandedIn)!;
+        Assert.False(blind.Revealed);
+        Assert.All(blind.Counters, counter => Assert.Null(counter.Dots));
+
+        // c never answered, so it goes ahead without them.
+        var revealed = NextComparison(c, x => x is { Revealed: true });
+        await b.InvokeAsync("SubmitComparison", started.Id, Dots(1, 2));
+        var result = (await revealed)!;
+        Assert.Equal([aId, bId], result.Counters.Select(x => x.ConnectionId));
+        Assert.Equal(3, result.Counters[0].Dots!.Count);
+        Assert.Equal(2, result.Counters[1].Dots!.Count);
+        Assert.DoesNotContain(result.Counters, x => x.ConnectionId == cId);
+    }
+
+    [Fact]
+    public async Task Comparison_OneAtATime_AndLateJoinersAreInvited()
+    {
+        var slide = NewSlide();
+        await using var a = await ConnectAsync();
+        await using var b = await ConnectAsync();
+        await using var c = await ConnectAsync();
+        await Join(a, slide, "a");
+        await Join(b, slide, "b");
+        var started = await StartComparison(a);
+
+        var ex = await Assert.ThrowsAsync<HubException>(() => StartComparison(b));
+        Assert.Contains("already running", ex.Message);
+
+        var aSeesC = NextComparison(a, x => x?.Counters.Count == 3);
+        var cJoin = await Join(c, slide, "c");
+        Assert.Equal(started.Id, cJoin.Comparison!.Id);
+        Assert.Equal(CounterState.Invited, StateOf(cJoin.Comparison, cJoin.Me.ConnectionId));
+        await aSeesC;
+    }
+
+    [Fact]
+    public async Task Comparison_IsDropped_OnceItCantGetToTwo()
+    {
+        var slide = NewSlide();
+        await using var a = await ConnectAsync();
+        await using var b = await ConnectAsync();
+        await Join(a, slide, "a");
+        var bId = (await Join(b, slide, "b")).Me.ConnectionId;
+        var started = await StartComparison(a);
+
+        var declined = NextComparison(a, x => x is not null && x.Counters.All(c => c.ConnectionId != bId));
+        await b.InvokeAsync("LeaveComparison", started.Id);
+        await declined;
+
+        var dropped = NextComparison(a, x => x is null);
+        await a.InvokeAsync("SubmitComparison", started.Id, Dots(1));
+        Assert.Null(await dropped);
+
+        var comparison = await _factory.CreateClient().GetAsync($"/rooms/{slide}/comparison");
+        Assert.Equal(System.Net.HttpStatusCode.NoContent, comparison.StatusCode);
+    }
+
+    [Fact]
+    public async Task Comparison_CounterDropping_CanTriggerTheReveal()
+    {
+        var slide = NewSlide();
+        await using var a = await ConnectAsync();
+        await using var b = await ConnectAsync();
+        var c = await ConnectAsync();
+        await Join(a, slide, "a");
+        await Join(b, slide, "b");
+        await Join(c, slide, "c");
+        var started = await StartComparison(a);
+        await b.InvokeAsync("JoinComparison", started.Id);
+        await c.InvokeAsync("JoinComparison", started.Id);
+        await a.InvokeAsync("SubmitComparison", started.Id, Dots(1));
+        await b.InvokeAsync("SubmitComparison", started.Id, Dots(1));
+
+        var revealed = NextComparison(a, x => x is { Revealed: true });
+        await c.DisposeAsync();
+        Assert.Equal(2, (await revealed)!.Counters.Count);
+    }
+
+    [Fact]
+    public async Task Comparison_RevealedOne_GoesOnceEveryoneLeaves_OrANewOneStarts()
+    {
+        var slide = NewSlide();
+        await using var a = await ConnectAsync();
+        await using var b = await ConnectAsync();
+        await Join(a, slide, "a");
+        await Join(b, slide, "b");
+
+        var first = await StartComparison(a);
+        await b.InvokeAsync("JoinComparison", first.Id);
+        await a.InvokeAsync("SubmitComparison", first.Id, Dots(1));
+        await b.InvokeAsync("SubmitComparison", first.Id, Dots(1));
+
+        // A revealed one doesn't block the next.
+        var second = await StartComparison(b);
+        Assert.NotEqual(first.Id, second.Id);
+        await a.InvokeAsync("JoinComparison", second.Id);
+        await a.InvokeAsync("SubmitComparison", second.Id, Dots(2));
+        await b.InvokeAsync("SubmitComparison", second.Id, Dots(2));
+
+        var aLeft = NextComparison(b, x => x is { Counters.Count: 1 });
+        await a.InvokeAsync("LeaveComparison", second.Id);
+        await aLeft;
+        var gone = NextComparison(a, x => x is null);
+        await b.InvokeAsync("LeaveComparison", second.Id);
+        Assert.Null(await gone);
+    }
+
+    [Fact]
+    public async Task Comparison_BadCallsAreRejected()
+    {
+        var slide = NewSlide();
+        await using var a = await ConnectAsync();
+        await using var b = await ConnectAsync();
+        await Join(a, slide, "a");
+        await Join(b, slide, "b");
+
+        async Task Rejected(HubConnection c, string method, object?[] args, string message)
+        {
+            var ex = await Assert.ThrowsAsync<HubException>(() => c.InvokeCoreAsync(method, args));
+            Assert.Contains(message, ex.Message);
+        }
+
+        await Rejected(a, "StartComparison", [Settings with { RoiGeoJson = "" }], "roiGeoJson is required");
+        await Rejected(a, "StartComparison", [Settings with { DotSize = 0 }], "dotSize must be above 0");
+        await Rejected(a, "StartComparison", [Settings with { MatchRadius = 0 }], "matchRadius must be above 0");
+        await Rejected(a, "JoinComparison", [Guid.NewGuid()], "isn't running");
+
+        var started = await StartComparison(a);
+        await Rejected(b, "SubmitComparison", [started.Id, Dots(1)], "not counting");
+        await Rejected(a, "JoinComparison", [started.Id], "not invited");
+        await Rejected(a, "SubmitComparison", [started.Id, new ComparisonDot[SlideHub.MaxComparisonDots + 1]], "More than");
+    }
 }

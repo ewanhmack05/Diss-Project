@@ -2,7 +2,8 @@
 
 .NET SignalR service for real-time collaboration. Everyone viewing the same
 slide shares a room, and the hub relays annotation changes, viewports,
-in-progress drawing and shared text edits between them. Kept separate from annotation-store so it can be ported and
+in-progress drawing and shared text edits between them, and runs comparison
+cell counts. Kept separate from annotation-store so it can be ported and
 reused (see [docs/libraries.md](../docs/libraries.md)).
 
 This is step 1 of the plan - no auth or sessions yet, so users are whatever
@@ -39,6 +40,10 @@ Connect to `/hubs/slides`. Enums go over the wire as camelCase strings
 | `OpenDoc`          | `docId`, `seed` (base64)            | `DocState`   | Seed only used if the doc isn't open yet. Safe to repeat |
 | `SendDocUpdate`    | `docId`, `update` (base64)          | -            | Open the doc first. Max 64KB                             |
 | `CloseDoc`         | `docId`                             | -            | No-op if it isn't open                                   |
+| `StartComparison`  | `ComparisonSettings`                | `Comparison` | Invites everyone else. Fails if one is still running     |
+| `JoinComparison`   | `comparisonId`                      | -            | Only from `invited`, before the reveal                   |
+| `SubmitComparison` | `comparisonId`, `ComparisonDot[]`   | -            | Only while `counting`. Max 10,000 dots                   |
+| `LeaveComparison`  | `comparisonId`                      | -            | Decline, give up, or close the results. No-op if not in it |
 
 ### Hub → client
 
@@ -51,8 +56,10 @@ Connect to `/hubs/slides`. Enums go over the wire as camelCase strings
 | `AnnotationOp`      | `StampedOp`      | Someone else changes an annotation                    |
 | `DocUpdated`        | `DocUpdate`      | Another editor of a doc you have open changes it      |
 | `DocEditorsChanged` | `DocEditors`     | Someone opens, closes, leaves or drops a doc you have |
+| `ComparisonChanged` | `Comparison \| null` | Anything about the slide's comparison changes, `null` once it's dropped |
 
-Nothing is echoed back to the sender.
+Nothing is echoed back to the sender, apart from `ComparisonChanged`, which
+goes to the whole slide so clients have one place to keep their copy.
 
 ### Shapes
 
@@ -69,7 +76,18 @@ type Sketch = { tool: string; data: unknown };  // tool: 'annotation' for now, l
 type SketchUpdate = { connectionId: string; sketch: Sketch | null };
 type AnnotationOp = { kind: 'create' | 'update' | 'delete'; entity: 'annotation' | 'cellCount'; id: string; data?: unknown };
 type StampedOp = { seq: number; serverTime: string; connectionId: string; userId: string; op: AnnotationOp };
-type JoinResult = { me: Participant; others: Participant[]; seq: number };
+type JoinResult = { me: Participant; others: Participant[]; seq: number; comparison: Comparison | null };
+// matchRadius is in map units - dots closer than this are the same cell.
+type ComparisonSettings = { roiGeoJson: string; dotSize: number; matchRadius: number };
+type ComparisonDot = { x: number; y: number };
+type Counter = {
+  connectionId: string; displayName: string; colour: string;
+  state: 'invited' | 'counting' | 'submitted'; dots: ComparisonDot[] | null;
+};
+type Comparison = {
+  id: string; hostConnectionId: string; settings: ComparisonSettings;
+  started: string; revealed: boolean; counters: Counter[];
+};
 // Byte arrays (seed, update, updates) are base64 strings both ways.
 // editors are connection ids, in the order they opened the doc.
 type DocState = { docId: string; instanceId: string; seeded: boolean; updates: string[]; editors: string[] };
@@ -97,6 +115,17 @@ type DocEditors = { docId: string; editors: string[] };
 - **Dropping** - once the last editor closes, leaves the slide or drops, the
   doc is gone and the next opener seeds it again. No compaction, since a doc
   only lives for one editing session and the fields are short.
+- **Comparison counts** - one per slide. Everyone counts the host's ROI on
+  their own, then the dots are compared. `dots` is `null` on everyone until
+  it's revealed, so nobody can copy.
+  - Starting invites everyone in the slide, and anyone who joins the slide
+    before the reveal. The host is `counting` straight away.
+  - It's revealed once nobody is still `counting` and at least two have
+    submitted. Anyone still `invited` then is dropped from it.
+  - It's dropped if it can never get to two (nobody left counting or
+    invited), or once everyone has left a revealed one. A revealed one is
+    also replaced if someone starts a new one.
+  - Disconnecting or switching slide counts as leaving it.
 - **Message size** - the hub accepts messages up to 1MB (SignalR's default
   of 32KB dropped long freehand annotations).
 
@@ -107,6 +136,7 @@ type DocEditors = { docId: string; editors: string[] };
 | `GET /rooms`               | slide id → number of people connected                            |
 | `GET /rooms/{slideId}`     | participants in that slide                                       |
 | `GET /rooms/{slideId}/docs`| open docs: `docId`, `instanceId`, `editors`, `updates`, `bytes`  |
+| `GET /rooms/{slideId}/comparison` | the running comparison (no dots until revealed), 204 if none |
 
 ## Notes
 

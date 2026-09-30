@@ -4,7 +4,15 @@ namespace RealtimeHub.Slides;
 // dropped, and Updates is how many it was holding.
 public record ClosedDoc(string SlideId, string DocId, IReadOnlyList<string> Editors, int Updates);
 
-public record LeaveResult(Participant Participant, IReadOnlyList<ClosedDoc> Docs);
+// Comparison is null once it's been dropped.
+public record ComparisonChange(string SlideId, Comparison? Comparison);
+
+// Comparison is only set if they were part of one.
+public record LeaveResult(Participant Participant, IReadOnlyList<ClosedDoc> Docs, ComparisonChange? Comparison);
+
+// Thrown for comparison calls that don't fit its current state, e.g.
+// joining one that's already revealed. The message goes back to the client.
+public class ComparisonException(string message) : Exception(message);
 
 public record DocSummary(string DocId, Guid InstanceId, int Editors, int Updates, long Bytes);
 
@@ -28,6 +36,8 @@ public class SlideRooms
         public Dictionary<string, Participant> Participants { get; } = new();
         public Dictionary<string, SharedDoc> Docs { get; } = new();
         public long Seq;
+        // One at a time per slide.
+        public Comparison? Comparison;
     }
 
     private class SharedDoc
@@ -53,7 +63,16 @@ public class SlideRooms
 
             room.Participants[connectionId] = me;
             _slideByConnection[connectionId] = slideId;
-            return new JoinResult(me, others, room.Seq);
+
+            // Turning up part way through still gets you an invite.
+            if (room.Comparison is { Revealed: false } running)
+            {
+                room.Comparison = running with
+                {
+                    Counters = [.. running.Counters, new Counter(connectionId, me.DisplayName, me.Colour, CounterState.Invited)],
+                };
+            }
+            return new JoinResult(me, others, room.Seq, room.Comparison?.Blind());
         }
     }
 
@@ -70,9 +89,10 @@ public class SlideRooms
                 .Select(d => d.Key)
                 .ToList();
             var docs = openDocs.Select(docId => CloseDoc(room, slideId, docId, connectionId)).ToList();
+            var comparison = RemoveCounter(room, connectionId) ? new ComparisonChange(slideId, room.Comparison) : null;
 
             if (room.Participants.Count == 0) _rooms.Remove(slideId);
-            return new LeaveResult(participant!, docs);
+            return new LeaveResult(participant!, docs, comparison);
         }
     }
 
@@ -169,6 +189,78 @@ public class SlideRooms
         }
     }
 
+    // Everyone else in the room is invited. A revealed one gets replaced,
+    // one still going doesn't. Null if the connection isn't in a slide.
+    public ComparisonChange? StartComparison(string connectionId, ComparisonSettings settings)
+    {
+        lock (_lock)
+        {
+            if (!_slideByConnection.TryGetValue(connectionId, out var slideId)) return null;
+            var room = _rooms[slideId];
+            if (room.Comparison is { Revealed: false }) throw new ComparisonException("A comparison is already running");
+
+            var counters = room.Participants.Values
+                .OrderBy(p => p.ConnectionId == connectionId ? 0 : 1)
+                .Select(p => new Counter(p.ConnectionId, p.DisplayName, p.Colour,
+                    p.ConnectionId == connectionId ? CounterState.Counting : CounterState.Invited))
+                .ToList();
+            room.Comparison = new Comparison(Guid.NewGuid(), connectionId, settings, DateTimeOffset.UtcNow, false, counters);
+            return new ComparisonChange(slideId, room.Comparison);
+        }
+    }
+
+    public ComparisonChange? JoinComparison(string connectionId, Guid comparisonId)
+    {
+        lock (_lock)
+        {
+            if (!_slideByConnection.TryGetValue(connectionId, out var slideId)) return null;
+            var room = _rooms[slideId];
+            var comparison = Current(room, comparisonId);
+            if (comparison.Revealed) throw new ComparisonException("That comparison has finished");
+            var me = comparison.Counters.FirstOrDefault(c => c.ConnectionId == connectionId);
+            if (me?.State != CounterState.Invited) throw new ComparisonException("You're not invited to that comparison");
+
+            room.Comparison = WithCounter(comparison, me with { State = CounterState.Counting });
+            return new ComparisonChange(slideId, room.Comparison);
+        }
+    }
+
+    // Declining, giving up part way, or closing the results. Null if they
+    // weren't in it, so there's nothing to tell anyone.
+    public ComparisonChange? LeaveComparison(string connectionId, Guid comparisonId)
+    {
+        lock (_lock)
+        {
+            if (!_slideByConnection.TryGetValue(connectionId, out var slideId)) return null;
+            var room = _rooms[slideId];
+            if (room.Comparison?.Id != comparisonId) return null;
+            return RemoveCounter(room, connectionId) ? new ComparisonChange(slideId, room.Comparison) : null;
+        }
+    }
+
+    public ComparisonChange? SubmitComparison(string connectionId, Guid comparisonId, IReadOnlyList<ComparisonDot> dots)
+    {
+        lock (_lock)
+        {
+            if (!_slideByConnection.TryGetValue(connectionId, out var slideId)) return null;
+            var room = _rooms[slideId];
+            var comparison = Current(room, comparisonId);
+            var me = comparison.Counters.FirstOrDefault(c => c.ConnectionId == connectionId);
+            if (me?.State != CounterState.Counting) throw new ComparisonException("You're not counting in that comparison");
+
+            room.Comparison = Settle(WithCounter(comparison, me with { State = CounterState.Submitted, Dots = dots.ToList() }));
+            return new ComparisonChange(slideId, room.Comparison);
+        }
+    }
+
+    public Comparison? ComparisonInSlide(string slideId)
+    {
+        lock (_lock)
+        {
+            return _rooms.TryGetValue(slideId, out var room) ? room.Comparison?.Blind() : null;
+        }
+    }
+
     public StampedOp? Stamp(string connectionId, AnnotationOp op)
     {
         lock (_lock)
@@ -206,6 +298,52 @@ public class SlideRooms
         doc.Editors.Remove(connectionId);
         if (doc.Editors.Count == 0) room.Docs.Remove(docId);
         return new ClosedDoc(slideId, docId, doc.Editors.ToList(), doc.Updates.Count);
+    }
+
+    private static Comparison Current(Room room, Guid comparisonId) =>
+        room.Comparison?.Id == comparisonId
+            ? room.Comparison
+            : throw new ComparisonException("That comparison isn't running any more");
+
+    private static Comparison WithCounter(Comparison comparison, Counter counter) =>
+        comparison with
+        {
+            Counters = comparison.Counters.Select(c => c.ConnectionId == counter.ConnectionId ? counter : c).ToList(),
+        };
+
+    // Caller holds the lock. False if they weren't in the comparison.
+    private static bool RemoveCounter(Room room, string connectionId)
+    {
+        var comparison = room.Comparison;
+        if (comparison is null || comparison.Counters.All(c => c.ConnectionId != connectionId)) return false;
+        room.Comparison = Settle(comparison with
+        {
+            Counters = comparison.Counters.Where(c => c.ConnectionId != connectionId).ToList(),
+        });
+        return true;
+    }
+
+    // Reveals once nobody is still counting and at least two have handed in -
+    // anyone still sitting on an invite misses out. Dropped once it can never
+    // get to two, or once everyone has closed the results.
+    private static Comparison? Settle(Comparison comparison)
+    {
+        if (comparison.Revealed) return comparison.Counters.Count > 0 ? comparison : null;
+
+        var counting = comparison.Counters.Count(c => c.State == CounterState.Counting);
+        var submitted = comparison.Counters.Count(c => c.State == CounterState.Submitted);
+        var invited = comparison.Counters.Count(c => c.State == CounterState.Invited);
+
+        if (counting == 0 && submitted >= 2)
+        {
+            return comparison with
+            {
+                Revealed = true,
+                Counters = comparison.Counters.Where(c => c.State == CounterState.Submitted).ToList(),
+            };
+        }
+        if (counting + submitted == 0 || (counting == 0 && invited == 0)) return null;
+        return comparison;
     }
 
     // First colour nobody in the room has, or wrap round once they're all taken.

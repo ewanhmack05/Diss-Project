@@ -55,7 +55,38 @@ public record DocUpdate(string DocId, string ConnectionId, byte[] Update);
 // Connection ids, in the order they opened the doc.
 public record DocEditors(string DocId, IReadOnlyList<string> Editors);
 
-public record JoinResult(Participant Me, IReadOnlyList<Participant> Others, long Seq);
+// Comparison count - everyone counts the same ROI on their own, then the
+// dots are compared. The hub holds back everyone's dots until they've all
+// submitted, so nobody can copy.
+public enum CounterState { Invited, Counting, Submitted }
+
+public record ComparisonDot(double X, double Y);
+
+public record Counter(
+    string ConnectionId,
+    string DisplayName,
+    string Colour,
+    CounterState State,
+    IReadOnlyList<ComparisonDot>? Dots = null);
+
+// What the host picks. MatchRadius is in map units - two dots closer than
+// this count as the same cell. Worked out by the host so everyone uses one.
+public record ComparisonSettings(string RoiGeoJson, int DotSize, double MatchRadius);
+
+public record Comparison(
+    Guid Id,
+    string HostConnectionId,
+    ComparisonSettings Settings,
+    DateTimeOffset Started,
+    bool Revealed,
+    IReadOnlyList<Counter> Counters)
+{
+    // Dots stay on the hub until the reveal.
+    public Comparison Blind() =>
+        Revealed ? this : this with { Counters = Counters.Select(c => c with { Dots = null }).ToList() };
+}
+
+public record JoinResult(Participant Me, IReadOnlyList<Participant> Others, long Seq, Comparison? Comparison = null);
 
 public static class HubJson
 {

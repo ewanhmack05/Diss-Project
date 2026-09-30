@@ -20,6 +20,7 @@ import { RotationContextProvider } from './context/RotationContext'
 import { RulerContextProvider } from './context/RulerContext'
 import { AdjustmentsContextProvider } from './context/AdjustmentsContext'
 import { ToastContextProvider } from './context/ToastContext'
+import { ComparisonContextProvider } from './context/ComparisonContext'
 import { EventContextProvider } from './context/EventContext'
 import MapNode from './components/MapNode'
 import AnnotationsPanel from './components/annotation/AnnotationsPanel'
@@ -120,7 +121,9 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, opti
                         <RulerContextProvider>
                           <AdjustmentsContextProvider baseUrl={annotationStoreUrl}>
                             <ToolbarContextProvider>
-                              <ViewerShell fontSize={options?.fontSize} tools={options?.tools} />
+                              <ComparisonContextProvider>
+                                <ViewerShell fontSize={options?.fontSize} tools={options?.tools} />
+                              </ComparisonContextProvider>
                             </ToolbarContextProvider>
                           </AdjustmentsContextProvider>
                         </RulerContextProvider>

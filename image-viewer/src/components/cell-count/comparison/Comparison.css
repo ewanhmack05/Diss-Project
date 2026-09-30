@@ -1,0 +1,181 @@
+.comparison {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+}
+
+/* Its own box even when not docked, so it doesn't blend into the settings
+   below it. Docked, DockedCard.css's card look takes over. */
+.comparison-invite {
+  padding: 0.6em 0.7em;
+  background: var(--white-06);
+  border-radius: 0.4em;
+}
+
+.comparison-text {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4em;
+  margin: 0 0 0.5em;
+  font-size: 0.9em;
+  color: var(--chrome-text);
+}
+
+.comparison-hint {
+  margin: 0;
+  font-size: 0.85em;
+  color: var(--chrome-text-secondary);
+}
+
+.comparison-hint--centred {
+  text-align: center;
+}
+
+.comparison-swatch {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 0.7em;
+  height: 0.7em;
+  border-radius: 50%;
+}
+
+/* Matches the dashed ring MapNode draws round a cell not everyone found
+   (see comparisonResultStyle). */
+.comparison-ring {
+  display: inline-block;
+  width: 0.8em;
+  height: 0.8em;
+  margin-right: 0.2em;
+  vertical-align: -0.1em;
+  border: 2px dashed #ff3b30;
+  border-radius: 50%;
+}
+
+.comparison-figure {
+  margin: 0;
+  font-size: 0.9em;
+  color: var(--chrome-text-secondary);
+  text-align: center;
+}
+
+.comparison-figure strong {
+  font-family: var(--sans);
+  font-size: 1.8em;
+  font-weight: 700;
+  color: var(--chrome-text);
+}
+
+.comparison-counters {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.comparison-counter {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  font-size: 0.9em;
+  color: var(--chrome-text);
+}
+
+.comparison-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.comparison-state {
+  flex-shrink: 0;
+  font-size: 0.9em;
+  color: var(--chrome-text-secondary);
+}
+
+.comparison-state--submitted {
+  color: var(--accent-active);
+}
+
+.comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85em;
+  color: var(--chrome-text);
+}
+
+.comparison-table th {
+  font-weight: 600;
+  color: var(--chrome-text-secondary);
+  text-align: right;
+  cursor: help;
+}
+
+.comparison-table td {
+  padding: 0.2em 0;
+  text-align: right;
+}
+
+.comparison-table th + th,
+.comparison-table td + td {
+  padding-left: 0.6em;
+}
+
+.comparison-table-name {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  text-align: left;
+}
+
+.comparison-table + .comparison-hint {
+  margin-top: 0.5em;
+}
+
+/* Two buttons side by side under the cards - Start counting/Start
+   comparison, or Hand in/Leave while counting in one. */
+.comparison-buttons {
+  display: flex;
+  gap: 0.5em;
+}
+
+.comparison-buttons .cell-counter-tool-picker-button {
+  flex: 1;
+}
+
+/* Same row layout as the counter's own screens when docked top/bottom
+   (see CellCounterToolPicker.css). */
+.draggable-panel--docked-top .comparison,
+.draggable-panel--docked-bottom .comparison {
+  flex: 1;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: stretch;
+  align-content: space-evenly;
+  gap: 1em 1.5em;
+}
+
+.draggable-panel--docked-top .comparison-card,
+.draggable-panel--docked-bottom .comparison-card {
+  min-width: 16em;
+}
+
+.draggable-panel--docked-top .docked-card.comparison-card--narrow,
+.draggable-panel--docked-bottom .docked-card.comparison-card--narrow {
+  flex: 0 1 14em;
+  min-width: 10em;
+}
+
+.draggable-panel--docked-top .comparison > .comparison-hint,
+.draggable-panel--docked-bottom .comparison > .comparison-hint,
+.draggable-panel--docked-top .comparison > .cell-counter-tool-picker-button,
+.draggable-panel--docked-bottom .comparison > .cell-counter-tool-picker-button,
+.draggable-panel--docked-top .comparison-buttons,
+.draggable-panel--docked-bottom .comparison-buttons,
+.draggable-panel--docked-top .docked-card.comparison-invite,
+.draggable-panel--docked-bottom .docked-card.comparison-invite {
+  flex-basis: 100%;
+}

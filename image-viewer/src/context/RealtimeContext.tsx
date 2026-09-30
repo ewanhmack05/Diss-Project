@@ -6,6 +6,9 @@ import {
   throttle,
   toBase64,
   type AnnotationOp,
+  type Comparison,
+  type ComparisonDot,
+  type ComparisonSettings,
   type DocEditors,
   type DocState,
   type DocStateWire,
@@ -46,6 +49,14 @@ interface RealtimeContextValue {
   closeDoc: (docId: string) => void
   onDocUpdate: (handler: DocUpdateHandler) => () => void
   onDocEditors: (handler: DocEditorsHandler) => () => void
+  // The comparison count running on this slide, if any (see
+  // ComparisonContext). These reject with the hub's message if the call
+  // doesn't fit its current state, or if not connected.
+  comparison: Comparison | null
+  startComparison: (settings: ComparisonSettings) => Promise<Comparison>
+  joinComparison: (id: string) => Promise<void>
+  leaveComparison: (id: string) => Promise<void>
+  submitComparison: (id: string, dots: ComparisonDot[]) => Promise<void>
 }
 
 const RealtimeContext = createContext<RealtimeContextValue | null>(null)
@@ -85,6 +96,7 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
   const [status, setStatus] = useState<Exclude<RealtimeStatus, 'off'>>('connecting')
   const [me, setMe] = useState<Participant | null>(null)
   const [others, setOthers] = useState<Participant[]>([])
+  const [comparison, setComparison] = useState<Comparison | null>(null)
 
   const identityRef = useRef(guestIdentity())
   const connectionRef = useRef<HubConnection | null>(null)
@@ -128,6 +140,7 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
       joinedRef.current = false
       setMe(null)
       setOthers([])
+      setComparison(null)
     }
 
     // Also used after a reconnect - that's a new connection id as far as
@@ -139,6 +152,7 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
       joinedRef.current = true
       setMe(result.me)
       setOthers(result.others)
+      setComparison(result.comparison)
       setStatus('connected')
       retryMs = RETRY_MIN_MS
       if (lastViewportRef.current) connection.send('UpdateViewport', lastViewportRef.current).catch(() => {})
@@ -182,6 +196,8 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
     connection.on('DocEditorsChanged', ({ docId, editors }: DocEditors) =>
       docEditorsHandlersRef.current.forEach((handler) => handler(docId, editors))
     )
+    // Comes to the sender too, so this is the only place it's set.
+    connection.on('ComparisonChanged', (next: Comparison | null) => setComparison(next))
     connection.on('AnnotationOp', (op: StampedOp) => {
       opHandlersRef.current.forEach((handler) => handler(op))
       emit('realtime:op', op)
@@ -285,6 +301,25 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
     }
   }, [])
 
+  // Needs a joined connection, unlike the fire and forget sends above -
+  // the caller wants to know if it didn't happen.
+  const invokeJoined = useCallback(<T,>(method: string, ...args: unknown[]) => {
+    const connection = connectionRef.current
+    if (!connection || !joinedRef.current) return Promise.reject(new Error('Not connected'))
+    return connection.invoke<T>(method, ...args)
+  }, [])
+
+  const startComparison = useCallback(
+    (settings: ComparisonSettings) => invokeJoined<Comparison>('StartComparison', settings),
+    [invokeJoined]
+  )
+  const joinComparison = useCallback((id: string) => invokeJoined<void>('JoinComparison', id), [invokeJoined])
+  const leaveComparison = useCallback((id: string) => invokeJoined<void>('LeaveComparison', id), [invokeJoined])
+  const submitComparison = useCallback(
+    (id: string, dots: ComparisonDot[]) => invokeJoined<void>('SubmitComparison', id, dots),
+    [invokeJoined]
+  )
+
   return (
     <RealtimeContext.Provider
       value={{
@@ -300,6 +335,11 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
         closeDoc,
         onDocUpdate,
         onDocEditors,
+        comparison,
+        startComparison,
+        joinComparison,
+        leaveComparison,
+        submitComparison,
       }}
     >
       {children}

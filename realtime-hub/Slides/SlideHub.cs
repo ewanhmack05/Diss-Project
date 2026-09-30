@@ -14,6 +14,8 @@ public interface ISlideClient
     Task AnnotationOp(StampedOp op);
     Task DocUpdated(DocUpdate update);
     Task DocEditorsChanged(DocEditors editors);
+    // Null once it's been dropped.
+    Task ComparisonChanged(Comparison? comparison);
 }
 
 // One SignalR group per slide. A connection is in at most one slide at a
@@ -24,6 +26,8 @@ public class SlideHub(SlideRooms rooms, ILogger<SlideHub> logger) : Hub<ISlideCl
 {
     public const int MaxDocIdLength = 128;
     public const int MaxDocUpdateBytes = 64 * 1024;
+    public const int MaxRoiGeoJsonLength = 16 * 1024;
+    public const int MaxComparisonDots = 10_000;
 
     public static string GroupName(string slideId) => $"slide:{slideId}";
     public static string DocGroupName(string slideId, string docId) => $"doc:{slideId}:{docId}";
@@ -39,6 +43,9 @@ public class SlideHub(SlideRooms rooms, ILogger<SlideHub> logger) : Hub<ISlideCl
             string.IsNullOrWhiteSpace(displayName) ? userId : displayName);
         await Groups.AddToGroupAsync(Context.ConnectionId, GroupName(slideId));
         await Clients.OthersInGroup(GroupName(slideId)).UserJoined(result.Me);
+        // They've just been added to it as invited, so everyone else's list is out of date.
+        if (result.Comparison is { Revealed: false })
+            await Clients.OthersInGroup(GroupName(slideId)).ComparisonChanged(result.Comparison);
 
         logger.LogInformation("{UserId} joined slide {SlideId} ({Count} others)",
             userId, slideId, result.Others.Count);
@@ -83,6 +90,47 @@ public class SlideHub(SlideRooms rooms, ILogger<SlideHub> logger) : Hub<ISlideCl
         var stamped = rooms.Stamp(Context.ConnectionId, op) ?? throw NotJoined();
         await Clients.OthersInGroup(GroupName(me.SlideId)).AnnotationOp(stamped);
         return stamped;
+    }
+
+    // Starts a comparison count on the host's ROI, inviting everyone else in
+    // the slide. The host is counting straight away.
+    public async Task<Comparison> StartComparison(ComparisonSettings settings)
+    {
+        if (settings is null) throw new HubException("settings are required");
+        if (string.IsNullOrWhiteSpace(settings.RoiGeoJson)) throw new HubException("settings.roiGeoJson is required");
+        if (settings.RoiGeoJson.Length > MaxRoiGeoJsonLength)
+            throw new HubException($"settings.roiGeoJson is longer than {MaxRoiGeoJsonLength} characters");
+        if (settings.DotSize <= 0) throw new HubException("settings.dotSize must be above 0");
+        if (!double.IsFinite(settings.MatchRadius) || settings.MatchRadius <= 0)
+            throw new HubException("settings.matchRadius must be above 0");
+
+        var change = Comparisons(() => rooms.StartComparison(Context.ConnectionId, settings)) ?? throw NotJoined();
+        await Broadcast(change);
+        return change.Comparison!.Blind();
+    }
+
+    public async Task JoinComparison(Guid comparisonId)
+    {
+        var change = Comparisons(() => rooms.JoinComparison(Context.ConnectionId, comparisonId)) ?? throw NotJoined();
+        await Broadcast(change);
+    }
+
+    // Declines an invite, gives up part way, or closes the results.
+    public async Task LeaveComparison(Guid comparisonId)
+    {
+        var change = rooms.LeaveComparison(Context.ConnectionId, comparisonId);
+        if (change is not null) await Broadcast(change);
+    }
+
+    public async Task SubmitComparison(Guid comparisonId, IReadOnlyList<ComparisonDot> dots)
+    {
+        if (dots is null) throw new HubException("dots are required");
+        if (dots.Count > MaxComparisonDots) throw new HubException($"More than {MaxComparisonDots} dots");
+        if (dots.Any(d => d is null || !double.IsFinite(d.X) || !double.IsFinite(d.Y)))
+            throw new HubException("Every dot needs a finite x and y");
+
+        var change = Comparisons(() => rooms.SubmitComparison(Context.ConnectionId, comparisonId, dots)) ?? throw NotJoined();
+        await Broadcast(change);
     }
 
     // The seed is only used if nobody has the doc open yet.
@@ -140,6 +188,7 @@ public class SlideHub(SlideRooms rooms, ILogger<SlideHub> logger) : Hub<ISlideCl
             var me = left.Participant;
             await Clients.Group(GroupName(me.SlideId)).UserLeft(me.ConnectionId);
             foreach (var doc in left.Docs) await AfterDocClosed(doc);
+            if (left.Comparison is not null) await Broadcast(left.Comparison);
             logger.LogInformation("{UserId} dropped from slide {SlideId}", me.UserId, me.SlideId);
         }
         await base.OnDisconnectedAsync(exception);
@@ -157,6 +206,24 @@ public class SlideHub(SlideRooms rooms, ILogger<SlideHub> logger) : Hub<ISlideCl
             await AfterDocClosed(doc);
         }
         await Clients.Group(GroupName(me.SlideId)).UserLeft(me.ConnectionId);
+        if (left.Comparison is not null) await Broadcast(left.Comparison);
+    }
+
+    // Everyone in the slide gets it, sender included, so there's one path
+    // for keeping the client's copy up to date.
+    private Task Broadcast(ComparisonChange change) =>
+        Clients.Group(GroupName(change.SlideId)).ComparisonChanged(change.Comparison?.Blind());
+
+    private static ComparisonChange? Comparisons(Func<ComparisonChange?> call)
+    {
+        try
+        {
+            return call();
+        }
+        catch (ComparisonException e)
+        {
+            throw new HubException(e.Message);
+        }
     }
 
     // Tell whoever still has the doc open, or note that it's gone.

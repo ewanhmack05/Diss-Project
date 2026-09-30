@@ -26,12 +26,14 @@ import {
   remoteViewportStyle,
   remoteViewportOverviewStyle,
   remoteSketchStyle,
+  comparisonResultStyle,
 } from './open-layers/Styles'
 import { featureToGeoJson, geoJsonToFeature } from './open-layers/GeoJSON'
 import { degreesToRadians, radiansToDegrees } from './rotation/rotation'
 import { pixelDistance, physicalDistanceMicrons, formatDistanceMicrons, formatDistancePixels } from './ruler/ruler'
 import { parseCellCountDots, dotsFromHistory } from './cell-count/CellCountDots'
 import { computeViewedCellCountExtent } from './cell-count/CellCountView'
+import { compareCounts } from './cell-count/comparison/compare'
 import { viewportFrom, viewportRing, watchView } from './realtime/realtime'
 import { annotationSketch, remoteSketchFeatures, type SketchLook } from './realtime/sketch'
 import { useImageViewerContext } from '../context/ImageViewerContext'
@@ -44,6 +46,7 @@ import { useCellCountDrawContext } from '../context/CellCountDrawContext'
 import { useCellCountStoreContext } from '../context/CellCountStoreContext'
 import { useToolbarContext } from '../context/ToolbarContext'
 import { useRealtimeContext } from '../context/RealtimeContext'
+import { useComparisonContext } from '../context/ComparisonContext'
 import { useEmitEvent } from '../context/EventContext'
 import { ShapeTools } from './annotation/Tools'
 import './MapNode.css'
@@ -68,6 +71,11 @@ interface RoiDrag {
 // equal, so the context<->map sync effects compare against this instead of
 // using strict equality.
 const ROTATION_EPSILON_DEGREES = 0.01
+
+// How close two people's dots have to be to count as the same cell in a
+// comparison - about a nucleus' radius. Slides with no mpp get pixels.
+const MATCH_RADIUS_MICRONS = 6
+const MATCH_RADIUS_PIXELS = 12
 
 // The sketch to send for a shape, or null if there's nothing to send yet.
 function sketchOf(map: Map, feature: Feature<Geometry>, look: SketchLook) {
@@ -112,6 +120,8 @@ function MapNode() {
   const { cellCounts, viewedCellCountId } = useCellCountStoreContext()
   const { activeTools } = useToolbarContext()
   const { others, sendViewport, sendSketch } = useRealtimeContext()
+  const { stage: comparisonStage, results: comparisonResults, fixedRoiGeoJson, start: startComparison } =
+    useComparisonContext()
   const annotationsVisible = activeTools.includes('annotations')
   const cellCountVisible = activeTools.includes('cellcount')
   const rulerVisible = activeTools.includes('ruler')
@@ -138,6 +148,10 @@ function MapNode() {
   // Same as viewedDotsSourceRef, but for a saved count's ROI box - keeps
   // it separate from any live counting session's own box.
   const viewedRoiSourceRef = useRef(new VectorSource())
+  // Everyone's dots once a comparison is revealed, plus rings round the
+  // cells not everyone found.
+  const comparisonSourceRef = useRef(new VectorSource())
+  const comparisonLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const rulerSourceRef = useRef(new VectorSource())
   // Everyone else's viewport, drawn on both the main and overview maps.
   const remoteViewportsSourceRef = useRef(new VectorSource())
@@ -245,6 +259,12 @@ function MapNode() {
           style: rulerStyle,
           visible: rulerVisible,
         })
+        const comparisonLayer = new VectorLayer({
+          source: comparisonSourceRef.current,
+          style: comparisonResultStyle,
+          visible: cellCountVisible,
+        })
+        comparisonLayerRef.current = comparisonLayer
         const remoteSketchesLayer = new VectorLayer({
           source: remoteSketchesSourceRef.current,
           style: remoteSketchStyle,
@@ -269,7 +289,7 @@ function MapNode() {
           { baseUrl: `${slideUrl}/`, tileSize: metadata.tileSize },
           metadata.objectivePower,
           metadata.mppX,
-          [annotationsLayer, annotationArrowsLayer, drawLayer, cellCountDotsLayer, roiLayer, viewedDotsLayer, viewedRoiLayer, rulerLayer, remoteSketchesLayer, remoteViewportsLayer]
+          [annotationsLayer, annotationArrowsLayer, drawLayer, cellCountDotsLayer, roiLayer, viewedDotsLayer, viewedRoiLayer, comparisonLayer, rulerLayer, remoteSketchesLayer, remoteViewportsLayer]
         )
         overviewMap.addLayer(
           new VectorLayer({ source: remoteViewportsSourceRef.current, style: remoteViewportOverviewStyle })
@@ -366,12 +386,15 @@ function MapNode() {
   }, [annotationsVisible])
 
   // Same idea as the annotations layer above, for the cell-count panel.
+  // Your own dots hide behind the results while they're up - the results
+  // show them again, in your comparison colour.
   useEffect(() => {
-    cellCountDotsLayerRef.current?.setVisible(cellCountVisible)
+    cellCountDotsLayerRef.current?.setVisible(cellCountVisible && !comparisonResults)
+    comparisonLayerRef.current?.setVisible(cellCountVisible)
     roiLayerRef.current?.setVisible(cellCountVisible)
     viewedDotsLayerRef.current?.setVisible(cellCountVisible)
     viewedRoiLayerRef.current?.setVisible(cellCountVisible)
-  }, [cellCountVisible])
+  }, [cellCountVisible, comparisonResults])
 
   // Same idea again, for the ruler - and since a measurement is a one-off
   // scratch reading rather than something saved, closing the tool clears it
@@ -581,17 +604,74 @@ function MapNode() {
       center[1] + halfHeight,
     ]
 
-    const feature = new Feature({ geometry: fromExtent(initialExtent) })
+    // Joining someone's comparison - their box, not a fresh one here.
+    const feature = fixedRoiGeoJson
+      ? (geoJsonToFeature(fixedRoiGeoJson) as Feature<Polygon>)
+      : new Feature({ geometry: fromExtent(initialExtent) })
     roiFeatureRef.current = feature
     roiSourceRef.current.addFeature(feature)
 
-    map.getView().fit(initialExtent, {
+    map.getView().fit(feature.getGeometry()!.getExtent(), {
       size: map.getSize(),
       padding: [80, 80, 80, 80],
       minResolution: 1,
       duration: 400,
     })
-  }, [counting, withRoi, boxSizeMicrons])
+  }, [counting, withRoi, boxSizeMicrons, fixedRoiGeoJson])
+
+  // Hosting a comparison - once the box is confirmed, tell the hub, which
+  // invites everyone else into it.
+  useEffect(() => {
+    const roi = roiFeatureRef.current
+    if (comparisonStage !== 'hosting' || !counting || !roiConfirmed || !roi) return
+    const mppX = slideMetadataRef.current?.mppX ?? null
+    const matchRadius = mppX ? MATCH_RADIUS_MICRONS / mppX : MATCH_RADIUS_PIXELS
+    startComparison(featureToGeoJson(roi), matchRadius)
+    // Only on confirming - start() ignores anything once it's not hosting.
+  }, [comparisonStage, counting, roiConfirmed])
+
+  // Draws a revealed comparison: everyone's dots in their own colour, and a
+  // ring the size of the match radius round each cell someone missed.
+  useEffect(() => {
+    const map = mapRef.current
+    const source = comparisonSourceRef.current
+    source.clear()
+    if (!map || !comparisonResults) return
+
+    const { settings, counters } = comparisonResults
+    const colourOf = new globalThis.Map(counters.map((c) => [c.connectionId, c.colour]))
+    const summary = compareCounts(
+      counters.map((c) => ({ connectionId: c.connectionId, dots: c.dots ?? [] })),
+      settings.matchRadius
+    )
+
+    const roi = geoJsonToFeature(settings.roiGeoJson)
+    roi.set('kind', 'roi')
+    const rings = summary.cells
+      .filter((cell) => cell.foundBy.length < counters.length)
+      .map((cell) => {
+        const feature = new Feature({ geometry: new Point([cell.x, cell.y]) })
+        feature.set('kind', 'missed')
+        feature.set('radius', settings.matchRadius)
+        feature.set('dotSize', settings.dotSize)
+        return feature
+      })
+    const dots = counters.flatMap((counter) =>
+      (counter.dots ?? []).map(({ x, y }) => {
+        const feature = new Feature({ geometry: new Point([x, y]) })
+        feature.set('kind', 'dot')
+        feature.set('colour', colourOf.get(counter.connectionId))
+        feature.set('dotSize', settings.dotSize)
+        return feature
+      })
+    )
+    source.addFeatures([roi, ...rings, ...dots])
+
+    const extent = roi.getGeometry()?.getExtent()
+    if (extent) {
+      map.getView().fit(extent, { size: map.getSize(), padding: [80, 80, 80, 80], minResolution: 1, duration: 400 })
+    }
+  }, [comparisonResults, mapVersion])
 
   // Lets the ROI box be dragged into place before counting starts - only
   // active during that placement phase (not once roiConfirmed), since

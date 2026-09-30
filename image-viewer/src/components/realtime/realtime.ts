@@ -96,10 +96,44 @@ interface StampedOp {
   op: AnnotationOp
 }
 
+// Comparison count - see realtime-hub/README.md. Dots are null on everyone
+// until it's revealed.
+type CounterState = 'invited' | 'counting' | 'submitted'
+
+interface ComparisonDot {
+  x: number
+  y: number
+}
+
+interface Counter {
+  connectionId: string
+  displayName: string
+  colour: string
+  state: CounterState
+  dots: ComparisonDot[] | null
+}
+
+interface ComparisonSettings {
+  roiGeoJson: string
+  dotSize: number
+  // Map units. Dots closer than this are the same cell.
+  matchRadius: number
+}
+
+interface Comparison {
+  id: string
+  hostConnectionId: string
+  settings: ComparisonSettings
+  started: string
+  revealed: boolean
+  counters: Counter[]
+}
+
 interface JoinResult {
   me: Participant
   others: Participant[]
   seq: number
+  comparison: Comparison | null
 }
 
 // Applies someone else's op to a local list. A create for an id we already
@@ -275,4 +309,9 @@ export type {
   AnnotationOp,
   StampedOp,
   JoinResult,
+  CounterState,
+  ComparisonDot,
+  Counter,
+  ComparisonSettings,
+  Comparison,
 }
