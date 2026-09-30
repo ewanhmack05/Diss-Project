@@ -40,6 +40,13 @@ other?
 All three run on the same data: each user's viewport broadcast over the
 real-time channel, throttled to ~10 updates/sec.
 
+### Collaberation
+
+2 options for Cell Count:
+
+- **Shared Count** - multiple users working on the same count, can work in different areas of the slide, all tallying to the same count
+- **Comparison Count** - multiple users work on the same area, and then their final counts are compared to eachother (e.g. overlapping dots or areas without dots)
+
 ### Shared vs personal
 
 Collections hold annotations, cell counts and image adjustments - decide
