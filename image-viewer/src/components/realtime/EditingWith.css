@@ -1,0 +1,22 @@
+.editing-with {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3em 0.75em;
+  margin: 0.4em 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8em;
+  color: var(--chrome-text);
+}
+
+.editing-with-person {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+}
+
+.editing-with-dot {
+  width: 0.6em;
+  height: 0.6em;
+  border-radius: 50%;
+}

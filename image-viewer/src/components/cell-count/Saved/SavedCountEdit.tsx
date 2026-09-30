@@ -1,7 +1,12 @@
-import { useState } from 'react'
-import { useCellCountStoreContext } from '../../../context/CellCountStoreContext'
+import { useEffect, useRef, useState } from 'react'
+import { useCellCountStoreContext, type CellCountEdit } from '../../../context/CellCountStoreContext'
 import type { CellCount } from '../../../interfaces/CellCount'
+import { debounce } from '../../realtime/realtime'
+import { useSharedFields } from '../../realtime/useSharedFields'
+import { LABEL_MAX, NOTES_MAX, nextSave } from '../../realtime/autosave'
+import EditingWith from '../../realtime/EditingWith'
 import { parseCellCountDots, colourBreakdownFromDots } from '../CellCountDots'
+import CountedBy from '../CountedBy'
 import CellCountColourSwatch from '../CellCountColourSwatch'
 import DockedCard from '../../toolbar/DockedCard'
 import '../CellCounter/CellCountForm.css'
@@ -11,36 +16,62 @@ interface SavedCountEditProps {
   onBack: () => void
 }
 
-// Simpler than SavedAnnotationEdit - a cell count has no geometry, so
-// there's no OL feature anywhere to keep a live colour preview in sync
-// with (or revert on an unsaved exit); this just edits local form state
-// and writes it on Save. Only label/notes are actually editable - colour
-// breakdown, withAnnotation/withRoi, and count/dot size are all facts
-// about how the session was counted, same "not something to retype after
-// the fact" call already made for count/dot size on the initial save
-// screen. They still ride along in the PUT body unchanged (the endpoint
-// overwrites whatever it's given), just not as editable fields.
+const FIELDS = ['label', 'notes'] as const
+const AUTOSAVE_MS = 500
+
+// Same as SavedAnnotationEdit: label and notes are shared live, so several
+// people can type in them at once, and everything saves as it changes.
+// Only label/notes are editable - colour breakdown, withAnnotation/withRoi
+// and count/dot size are facts about how the session was counted. They
+// still ride along in the PUT body unchanged (the endpoint overwrites
+// whatever it's given), just not as editable fields.
 function SavedCountEdit({ cellCount, onBack }: SavedCountEditProps) {
   const { updateCellCount, deleteCellCount } = useCellCountStoreContext()
-  const [label, setLabel] = useState(cellCount.label)
-  const [notes, setNotes] = useState(cellCount.notes)
 
-  const colourBreakdown = colourBreakdownFromDots(parseCellCountDots(cellCount.dots))
+  // Read by the save, which outlives any one render.
+  const [initial] = useState<CellCountEdit>(() => ({
+    label: cellCount.label,
+    notes: cellCount.notes ?? '',
+    withAnnotation: cellCount.withAnnotation,
+    withRoi: cellCount.withRoi,
+    count: cellCount.count,
+    dotSize: cellCount.dotSize,
+  }))
+  const latestRef = useRef(initial)
+  const savedRef = useRef(initial)
+  const updateRef = useRef(updateCellCount)
+  useEffect(() => {
+    updateRef.current = updateCellCount
+  })
 
-  const handleSave = () => {
-    if (!label.trim()) return
-    updateCellCount(cellCount.id, {
-      label: label.trim(),
-      notes: notes.trim(),
-      withAnnotation: cellCount.withAnnotation,
-      withRoi: cellCount.withRoi,
-      count: cellCount.count,
-      dotSize: cellCount.dotSize,
-    })
-    onBack()
-  }
+  const [saveText] = useState(() =>
+    debounce(() => {
+      const next = nextSave(latestRef.current, savedRef.current)
+      if (!next) return
+      savedRef.current = next
+      updateRef.current(cellCount.id, next)
+    }, AUTOSAVE_MS)
+  )
+
+  const { values, editors, fieldProps } = useSharedFields(
+    `cellCount:${cellCount.id}`,
+    FIELDS,
+    { label: initial.label, notes: initial.notes },
+    // Remote changes save too, so the last save always has the merged text.
+    (next) => {
+      latestRef.current = { ...latestRef.current, ...next }
+      saveText()
+    }
+  )
+
+  // Closing the form, however it happens, saves whatever's still waiting.
+  useEffect(() => () => saveText.flush(), [saveText])
+
+  const dots = parseCellCountDots(cellCount.dots)
+  const colourBreakdown = colourBreakdownFromDots(dots)
 
   const handleDelete = () => {
+    saveText.cancel()
     deleteCellCount(cellCount.id)
     onBack()
   }
@@ -50,24 +81,21 @@ function SavedCountEdit({ cellCount, onBack }: SavedCountEditProps) {
       <DockedCard className="cell-count-form-field-card">
         <label className="cell-count-form-field">
           Label
-          <input
-            type="text"
-            value={label}
-            maxLength={64}
-            onChange={(e) => setLabel(e.target.value)}
-          />
+          <input type="text" maxLength={LABEL_MAX} {...fieldProps('label')} />
         </label>
+        {!values.label.trim() && (
+          <p className="cell-count-form-hint">A label is needed, so the last one is kept for now.</p>
+        )}
       </DockedCard>
 
       <DockedCard className="cell-count-form-field-card cell-count-form-notes-card">
         <label className="cell-count-form-field">
           Notes
           <textarea
-            value={notes}
-            maxLength={256}
+            maxLength={NOTES_MAX}
             rows={3}
             placeholder="Add any thoughts on this count"
-            onChange={(e) => setNotes(e.target.value)}
+            {...fieldProps('notes')}
           />
         </label>
       </DockedCard>
@@ -96,6 +124,8 @@ function SavedCountEdit({ cellCount, onBack }: SavedCountEditProps) {
             )}
           </div>
         </div>
+
+        <CountedBy dots={dots} />
 
         <div className="cell-count-form-row">
           <div className="cell-count-form-field">
@@ -127,10 +157,9 @@ function SavedCountEdit({ cellCount, onBack }: SavedCountEditProps) {
           <button
             type="button"
             className="cell-count-form-button cell-count-form-button--primary"
-            disabled={!label.trim()}
-            onClick={handleSave}
+            onClick={onBack}
           >
-            Save
+            Done
           </button>
           <button
             type="button"
@@ -140,10 +169,9 @@ function SavedCountEdit({ cellCount, onBack }: SavedCountEditProps) {
           >
             Delete
           </button>
-          <button type="button" className="cell-count-form-button" onClick={onBack}>
-            Back
-          </button>
         </div>
+        <p className="cell-count-form-hint">Changes save as you go.</p>
+        <EditingWith editors={editors} />
       </DockedCard>
     </div>
   )

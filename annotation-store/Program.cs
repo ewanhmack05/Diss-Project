@@ -1,5 +1,3 @@
-using System.Net;
-using System.Net.Sockets;
 using AnnotationStore.Annotations;
 using AnnotationStore.CellCounts;
 using AnnotationStore.Collections;
@@ -25,10 +23,12 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<AnnotationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("AnnotationStore")));
 
+// Any origin, so the viewer works from other devices on the network too.
+// Needs a real origin list once deployed.
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
-        policy.SetIsOriginAllowed(IsAllowedOrigin).AllowAnyMethod().AllowAnyHeader());
+        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
 });
 
 builder.Services.AddOpenApi();
@@ -156,8 +156,11 @@ app.MapDelete("/collections/{id:guid}", async (Guid id, AnnotationDbContext db) 
 
 // Annotation endpoints
 
+// Newest first. Sorted after loading rather than in SQL - the tests run on
+// SQLite, which can't order by DateTimeOffset, and one collection's list is small.
 app.MapGet("/annotations", async (Guid collectionId, AnnotationDbContext db) =>
-    Results.Ok(await db.Annotations.Where(a => a.CollectionId == collectionId).ToListAsync()));
+    Results.Ok((await db.Annotations.Where(a => a.CollectionId == collectionId).ToListAsync())
+        .OrderByDescending(a => a.Created)));
 
 app.MapPost("/annotations", async (Annotation annotation, AnnotationDbContext db) =>
 {
@@ -196,11 +199,13 @@ app.MapDelete("/annotations/{id:guid}", async (Guid id, AnnotationDbContext db) 
 
 // Cell count endpoints
 
+// Newest first, same as annotations.
 app.MapGet("/cellcounts", async (Guid collectionId, AnnotationDbContext db) =>
-    Results.Ok(await db.CellCounts
+    Results.Ok((await db.CellCounts
         .Where(c => c.CollectionId == collectionId)
         .Include(c => c.RegionOfInterest)
-        .ToListAsync()));
+        .ToListAsync())
+        .OrderByDescending(c => c.Created)));
 
 app.MapPost("/cellcounts", async (CellCount cellCount, AnnotationDbContext db) =>
 {
@@ -282,31 +287,6 @@ app.MapDelete("/imageadjustments/{id:guid}", async (Guid id, AnnotationDbContext
 });
 
 app.Run();
-
-// Allows localhost (the normal case) plus any origin on a private LAN
-// (RFC 1918) address, so image-viewer can be opened from another device on
-// the same network (a phone, another laptop) - without hardcoding this
-// machine's actual IP here, which changes across networks and DHCP
-// renewals.
-static bool IsAllowedOrigin(string origin)
-{
-    if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri)) return false;
-    if (uri.Host is "localhost" or "127.0.0.1") return true;
-    return IPAddress.TryParse(uri.Host, out var ip) && IsPrivateNetworkAddress(ip);
-}
-
-static bool IsPrivateNetworkAddress(IPAddress ip)
-{
-    if (ip.AddressFamily != AddressFamily.InterNetwork) return false;
-    var bytes = ip.GetAddressBytes();
-    return bytes[0] switch
-    {
-        10 => true, // 10.0.0.0/8 - also covers ZeroTier's default range
-        172 => bytes[1] is >= 16 and <= 31, // 172.16.0.0/12
-        192 => bytes[1] == 168, // 192.168.0.0/16
-        _ => false,
-    };
-}
 
 // Lets the test project point WebApplicationFactory<Program> at this app.
 public partial class Program;

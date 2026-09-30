@@ -7,6 +7,7 @@ annotation. Proof of concept, one collaborator for now.
 image-viewer/      React + TypeScript + OpenLayers frontend. See image-viewer/README.md
 tiler/              .NET tile server for .mrxs whole-slide images. See tiler/README.md
 annotation-store/   .NET + Postgres backend for persisted annotations. See annotation-store/README.md
+realtime-hub/       .NET SignalR hub - rooms per slide, live annotation ops and viewports. See realtime-hub/README.md
 dashboard/          Grafana (Docker) - load, timing and error stats for the services. See dashboard/README.md
 scripts/            Dev scripts - stress-test data, SQL. See scripts/README.md
 docs/               Planning notes - auth, Azure, real-time libraries, sessions, rendering
@@ -21,13 +22,16 @@ PostgreSQL, Git LFS, and recommended VS Code extensions.
 
 ```bash
 cd image-viewer/
-npm run dev          # http://localhost:5173 - also reachable on your LAN IP, see below
+npm run dev          # http://localhost:5173 - also reachable from other machines, see below
 
 cd tiler/
-dotnet build && dotnet run --urls http://0.0.0.0:5095
+dotnet build && dotnet run --urls http://localhost:5095
 
 cd annotation-store/
-dotnet build && dotnet run --urls http://0.0.0.0:5252
+dotnet build && dotnet run --urls http://localhost:5252
+
+cd realtime-hub/     # optional - the viewer works without it, just not live
+dotnet build && dotnet run --urls http://localhost:5180
 ```
 
 Optional: `cd dashboard/ && docker compose up -d` for load, timing and
@@ -38,13 +42,13 @@ Each service has its own README with more detail. `image-viewer` is wired
 up to both `tiler` (loads a real slide by default) and `annotation-store`
 (annotations persist to Postgres, scoped per slide).
 
-Binding to `0.0.0.0` (rather than `localhost`) and running `npm run dev`
-(which passes `--host` to Vite) makes all three reachable from another
-device on the same network - open `http://<this machine's LAN IP>:5173`
-from it. `image-viewer` talks to whichever host it was itself loaded from,
-and `tiler`/`annotation-store` accept any private-LAN origin, so no extra
-config is needed either way - opening it via `localhost` still works
-exactly as before.
+To share it with another machine (LAN or VPN), they open
+`http://<this machine's IP>:5173`. Only port 5173 needs to be reachable -
+the Vite server proxies `/tiler`, `/store` and `/hub` through to the three
+services on localhost (see `image-viewer/vite.config.ts`), so they stay off
+the network and no firewall rules are needed for them. `npm run dev` passes
+`--host`, so Vite already listens on every interface. `vite preview` uses
+the same proxy.
 
 This is the base setup for the real-time collaboration - all of this is
 rough work and to be taken as proof of concept.
@@ -60,6 +64,7 @@ Todos and notes, split by area, in [docs/](docs):
 | [Libraries](docs/libraries.md)             | Yjs / Automerge / Loro, the WebSocket (SignalR) hub, CRDT vs server-authoritative |
 | [Thought process](docs/thought-process.md) | how users connect, guest vs authenticated, host controls, navigation modes        |
 | [Rendering](docs/rendering.md)             | WebGPU question, what's on WebGL now, what the panning delay turned out to be     |
+| [Breakdowns](docs/breakdown)               | per-service walkthroughs of how each one works - [realtime-hub](docs/breakdown/realtime-hub.md) so far |
 
 ## Playback videos
 

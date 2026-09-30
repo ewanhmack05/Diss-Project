@@ -21,6 +21,8 @@ public class CellCount
     // separately, since a session can use more than one colour (colour is
     // changeable live while counting). Empty for a click made with
     // withAnnotation off - it still tallies, but there's no dot to record.
+    // Dots from a shared count also carry `"placedBy":{"userId","name"}` -
+    // who put each one there. Never read here, so it needed no migration.
     // Fixed at creation - not updatable via PUT, same as GeoJson/Location.
     public string Dots { get; set; } = "[]";
     public bool WithAnnotation { get; set; }

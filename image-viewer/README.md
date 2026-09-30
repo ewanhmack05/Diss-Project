@@ -5,8 +5,13 @@ collaboration around whole-slide image annotation. Proof of concept.
 
 Slides are loaded as tiled pyramids from `tiler`, and annotations, cell
 counts and image adjustment presets are saved to `annotation-store`
-(Postgres), grouped into a collection per slide. Real-time sync between
-users is not built yet - see the root README and `docs/`.
+(Postgres), grouped into a collection per slide. Everyone on the same slide
+is kept in sync through `realtime-hub` - annotation and cell count changes
+show up for others straight away, shapes show up while they're still being
+drawn, an annotation's label and notes can be typed in by several people at
+once, other people's viewports are drawn as coloured outlines (main map and
+overview), and who's on the slide shows top-left. No accounts yet, each tab
+is a made-up guest.
 
 ## Tools
 
@@ -22,11 +27,19 @@ any edge of the screen - two panels on the same edge split it evenly.
     interaction)
   - The arrowhead tracks the live sketch while drawing, not just once finished
   - Annotations can be drawn anywhere, including outside the slide's border
+  - Other people's shapes show while they draw them, and while they sit
+    waiting to be named, tagged with their name in their presence colour
   - **Saved** lists the slide's annotations; opening one shows an edit form
-    for its label, notes and colour, with Delete
+    for its label, notes and colour, with Delete. Label and notes are shared
+    live with anyone else who has the same annotation open - a
+    [Yjs](https://github.com/yjs/yjs) CRDT, so two people typing in the same
+    box both keep their text (`src/components/realtime/sharedFields.ts`).
+    Everything saves as it changes; the form lists who else is editing
 - **Cell Count** - place dots to manually count cells (e.g. mitotic figures),
   with a running tally, dot size and colour options, and an optional region
-  of interest box. Saved counts can be reopened and viewed on the slide
+  of interest box. Saved counts can be reopened and viewed on the slide.
+  A saved count's label and notes are shared live and autosave, the same
+  as annotations
 - **Rotate** - rotate the slide view
 - **Ruler** - measure a straight-line distance, shown in µm using the slide's
   microns-per-pixel, or in pixels
@@ -50,12 +63,14 @@ npm run lint    # oxlint
 ```
 
 Needs `tiler` and `annotation-store` running (see the root README).
+`realtime-hub` is optional - without it the viewer works on its own, keeps
+retrying in the background and shows "Offline" top-left.
 
 ## Pointing it at a slide
 
 `src/index.tsx` sets which slide opens (`source`, currently `003`) and which
-tools appear in the toolbar. The `tiler` (port 5095) and `annotation-store`
-(port 5252) URLs use whichever host the page was loaded from, so it works the
+tools appear in the toolbar. The `tiler` (port 5095), `annotation-store`
+(port 5252) and `realtime-hub` (port 5180) URLs use whichever host the page was loaded from, so it works the
 same from `localhost` or from another device on the network.
 
 Available slide IDs are listed in `tiler/README.md`.

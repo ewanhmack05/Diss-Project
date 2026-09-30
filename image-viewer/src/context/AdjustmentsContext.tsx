@@ -10,6 +10,7 @@ import {
 import { useImageViewerContext } from './ImageViewerContext'
 import { useEmitEvent } from './EventContext'
 import { useCollectionContext } from './CollectionContext'
+import { newId } from '../newId'
 
 type Status = 'loading' | 'ready' | 'error'
 
@@ -90,7 +91,7 @@ function AdjustmentsContextProvider({ baseUrl, children }: AdjustmentsContextPro
       return
     }
     const preset: ImageAdjustmentPreset = {
-      imageAdjustmentId: crypto.randomUUID(),
+      imageAdjustmentId: newId(),
       collectionId,
       adjustmentName: name,
       adjustments: serializeAdjustments(values),

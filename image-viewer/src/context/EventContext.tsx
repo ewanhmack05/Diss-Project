@@ -8,7 +8,7 @@ const EventContext = createContext<EmitEvent | null>(null)
 // Maps the viewer's public event names (see App's `on` prop) to a toast.
 // Covers annotation and cell count CRUD outcomes - both the optimistic
 // local change and, separately, whether it actually persisted - plus the
-// connection failures a host can't otherwise see (tiler, annotation store).
+// connection failures a host can't otherwise see (tiler, annotation store, real-time hub).
 const TOAST_MESSAGES: Record<string, { message: string; variant: 'success' | 'error' }> = {
   'annotation:created': { message: 'Annotation saved', variant: 'success' },
   'annotation:created:error': { message: "Couldn't save annotation", variant: 'error' },
@@ -34,6 +34,18 @@ const TOAST_MESSAGES: Record<string, { message: string; variant: 'success' | 'er
   'imageadjustment:deleted': { message: 'Preset deleted', variant: 'success' },
   'imageadjustment:deleted:error': { message: "Couldn't delete preset", variant: 'error' },
   'imageadjustments:load-error': { message: "Couldn't reach the annotation store", variant: 'error' },
+  'realtime:connect-error': { message: "Couldn't reach the real-time hub", variant: 'error' },
+  'comparison:invited': { message: "You've been invited to a comparison count", variant: 'success' },
+  'comparison:revealed': { message: 'Comparison results are in', variant: 'success' },
+  'comparison:ended': { message: 'The comparison count ended early', variant: 'error' },
+  'comparison:start-error': { message: "Couldn't start the comparison", variant: 'error' },
+  'comparison:join-error': { message: "Couldn't join the comparison", variant: 'error' },
+  'comparison:submit-error': { message: "Couldn't hand in your count", variant: 'error' },
+  'sharedcount:invited': { message: "You've been invited to a shared count", variant: 'success' },
+  'sharedcount:ended': { message: 'The shared count has ended', variant: 'success' },
+  'sharedcount:start-error': { message: "Couldn't start the shared count", variant: 'error' },
+  'sharedcount:join-error': { message: "Couldn't join the shared count", variant: 'error' },
+  'sharedcount:finish-error': { message: "Couldn't finish the shared count", variant: 'error' },
 }
 
 interface EventContextProviderProps {

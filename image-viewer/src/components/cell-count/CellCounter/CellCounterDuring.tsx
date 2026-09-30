@@ -3,7 +3,11 @@ import { DotSizeOptions } from '../Tools'
 import ColourPicker from '../../colour-picker/ColourPicker'
 import DockedCard from '../../toolbar/DockedCard'
 import { formatDistancePixels } from '../../ruler/ruler'
+import { useComparisonContext } from '../../../context/ComparisonContext'
+import { useSharedCountContext } from '../../../context/SharedCountContext'
+import { useRealtimeContext } from '../../../context/RealtimeContext'
 import './CellCounterToolPicker.css'
+import '../comparison/Comparison.css'
 
 // Rendered for the whole time counting is active (see CellCounter) - first
 // the ROI placement step if withRoi is on and not yet confirmed, then the
@@ -26,6 +30,15 @@ function CellCounterDuring() {
     requestUndo,
     requestRedo,
   } = useCellCountDrawContext()
+  const { stage, submit, quit } = useComparisonContext()
+  // Hosting still, once the box is confirmed, means the hub hasn't answered
+  // yet - hand in waits for that.
+  const comparing = stage === 'counting' || stage === 'hosting'
+  const shared = useSharedCountContext()
+  const sharing = shared.stage !== null
+  const { me } = useRealtimeContext()
+  // Anyone who's been in it, in the order they came.
+  const sharedContributors = shared.sharedCount?.contributors.filter((c) => c.state !== 'invited') ?? []
 
   // Just flips `counting` off - MapNode is the one that actually assembles
   // `pending` (it's the only place with both the map, for `location`, and
@@ -47,7 +60,11 @@ function CellCounterDuring() {
     return (
       <div className="cell-counter-tool-picker">
         <p className="cell-counter-tool-picker-hint">
-          Drag the box into position, then confirm to start counting.
+          {stage === 'hosting'
+            ? 'Drag the box into position, then confirm. Everyone else on the slide is invited to count inside it too.'
+            : shared.stage === 'hosting'
+              ? 'Drag the box into position, then confirm. Everyone else on the slide is invited to add to the count inside it.'
+              : 'Drag the box into position, then confirm to start counting.'}
         </p>
         {/* Its own class rather than reusing cell-counter-tool-picker-actions-card
             - that one is pinned to flex:0 1 16em to match Options' width in
@@ -114,7 +131,33 @@ function CellCounterDuring() {
           it's just a big tally instead. With it on, dotHistory (kept live
           by MapNode alongside its own undo/redo stack) gives an actual
           click-by-click log. */}
-      {withAnnotation ? (
+      {sharing ? (
+        <DockedCard
+          title="Counting"
+          className="cell-counter-tool-picker-spare-card cell-counter-tool-picker-history-card"
+        >
+          {sharedContributors.length === 0 ? (
+            <p className="cell-counter-tool-picker-history-empty">Starting…</p>
+          ) : (
+            <ul className="comparison-counters">
+              {sharedContributors.map((contributor) => (
+                <li key={contributor.connectionId} className="comparison-counter">
+                  <span className="comparison-swatch" style={{ background: contributor.colour }} />
+                  <span className="comparison-name">
+                    {contributor.displayName}
+                    {contributor.connectionId === me?.connectionId && ' (you)'}
+                    {contributor.connectionId === shared.sharedCount?.hostConnectionId && ' - host'}
+                  </span>
+                  <span className="comparison-state">
+                    {contributor.state === 'left' && 'left · '}
+                    {shared.tally.get(contributor.connectionId) ?? 0}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </DockedCard>
+      ) : withAnnotation ? (
         <DockedCard
           title="History"
           className="cell-counter-tool-picker-spare-card cell-counter-tool-picker-history-card"
@@ -145,22 +188,73 @@ function CellCounterDuring() {
         </DockedCard>
       )}
 
-      <button
-        type="button"
-        className="cell-counter-tool-picker-button cell-counter-tool-picker-button--primary"
-        onClick={handleStop}
-      >
-        Stop counting
-      </button>
+      {sharing ? (
+        <>
+          <div className="comparison-buttons">
+            <button type="button" className="cell-counter-tool-picker-button" onClick={shared.leave}>
+              Leave
+            </button>
+            {shared.isHost && (
+              <button
+                type="button"
+                className="cell-counter-tool-picker-button cell-counter-tool-picker-button--primary"
+                onClick={shared.finish}
+              >
+                Finish and save
+              </button>
+            )}
+          </div>
+          <p className="cell-counter-tool-picker-hint">
+            {shared.stage === 'hosting'
+              ? 'Starting the shared count…'
+              : shared.doubleCounts.size > 0
+                ? `Shared count - ${shared.doubleCounts.size} dots look like the same cell counted twice (ringed in red).`
+                : 'Shared count - everyone sees every dot. Undo only takes back your own.'}
+          </p>
+        </>
+      ) : comparing ? (
+        <>
+          <div className="comparison-buttons">
+            <button type="button" className="cell-counter-tool-picker-button" onClick={quit}>
+              Leave comparison
+            </button>
+            <button
+              type="button"
+              className="cell-counter-tool-picker-button cell-counter-tool-picker-button--primary"
+              disabled={stage !== 'counting'}
+              onClick={submit}
+            >
+              Hand in count
+            </button>
+          </div>
+          <p className="cell-counter-tool-picker-hint">
+            Comparison count - nobody sees anyone else&apos;s dots until everyone has handed in.
+          </p>
+        </>
+      ) : (
+        <button
+          type="button"
+          className="cell-counter-tool-picker-button cell-counter-tool-picker-button--primary"
+          onClick={handleStop}
+        >
+          Stop counting
+        </button>
+      )}
 
       {/* Unannotated already has its own dedicated Count card above (no
           history to compete with it for room) - this is just for the
           annotated case, in the row's own leftover space below the button
           rather than squeezed into the History card alongside the list. */}
-      {withAnnotation && (
+      {sharing ? (
         <p className="cell-counter-tool-picker-count-line">
-          Count <strong>{count}</strong>
+          Total <strong>{shared.sharedCount?.dots.length ?? 0}</strong> · yours {count}
         </p>
+      ) : (
+        withAnnotation && (
+          <p className="cell-counter-tool-picker-count-line">
+            Count <strong>{count}</strong>
+          </p>
+        )
       )}
     </div>
   )

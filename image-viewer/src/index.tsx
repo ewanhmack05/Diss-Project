@@ -3,12 +3,10 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 
-// Matches whatever host this page was itself loaded from - 'localhost' when
-// opened locally, or this machine's LAN IP when opened from another device
-// on the network (see annotation-store/tiler's Program.cs for the CORS side
-// of that). Hardcoding 'localhost' here would break the moment this page is
-// opened as anything other than http://localhost:5173 itself.
-const backendHost = window.location.hostname
+// The backends are proxied through the page's own server (see
+// vite.config.ts), so this works from localhost, the LAN or the VPN without
+// anything but port 5173 being reachable.
+const backend = window.location.origin
 
 // Available slide IDs, from tiler/data/ (each id.mrxs + a same-named
 // companion folder):
@@ -20,8 +18,9 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App
       source={'003'}
-      tilerServiceUrl={`http://${backendHost}:5095`}
-      annotationStoreUrl={`http://${backendHost}:5252`}
+      tilerServiceUrl={`${backend}/tiler`}
+      annotationStoreUrl={`${backend}/store`}
+      realtimeHubUrl={`${backend}/hub`}
       options={{
         fontSize: '11px',
         tools: [
@@ -31,6 +30,7 @@ createRoot(document.getElementById('root')!).render(
           'rotate',
           'ruler',
           'adjustments',
+          'realtime'
         ]
       }}
       on={(event, payload) => {

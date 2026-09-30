@@ -231,6 +231,16 @@ const cellCountDotFlatStyle: FlatStyle = {
 	"circle-stroke-width": 1,
 };
 
+// A dot in a shared count - same as a normal dot, but the outline is the
+// presence colour of whoever placed it, so the chosen colour can still mean
+// a category.
+const sharedDotFlatStyle: FlatStyle = {
+	"circle-radius": ["get", "dotSize"],
+	"circle-fill-color": ["get", "colour"],
+	"circle-stroke-color": ["get", "ownerColour"],
+	"circle-stroke-width": 2.5,
+};
+
 // One placed cell-count dot - colour/dotSize carried as feature properties,
 // same convention as annotationStyle.
 function cellCountDotStyle(feature: FeatureLike): Style {
@@ -320,6 +330,103 @@ function rulerSketchStyle(mppX: number | null, mppY: number | null) {
 	};
 }
 
+// Other people's viewports - an outline in their colour, with their name
+// pinned to their top-left corner (see viewportRing) rather than the middle,
+// which would sit right over the centre of your own view if you're both
+// looking at the same place.
+function remoteViewportStyle(feature: FeatureLike): Style[] {
+	const colour = feature.get("colour") as string;
+	const label = feature.get("label") as string | undefined;
+	const geometry = feature.getGeometry();
+	const outline = new Style({ stroke: new Stroke({ color: colour, width: 2 }) });
+	if (!label || !(geometry instanceof Polygon)) return [outline];
+	const corner = geometry.getCoordinates()[0][0];
+	return [
+		outline,
+		new Style({
+			geometry: new Point(corner),
+			text: new Text({
+				text: label,
+				font: "600 12px 'Source Sans Pro', Arial, sans-serif",
+				fill: new Fill({ color: "#fff" }),
+				backgroundFill: new Fill({ color: colour }),
+				padding: [1, 4, 1, 4],
+				textAlign: "left",
+				textBaseline: "top",
+			}),
+		}),
+	];
+}
+
+// Where someone's pen is on a shape they're still drawing - the end of a
+// line, or the last real corner of a polygon (its ring closes back onto the
+// first point, so that's the one before the end).
+function penPosition(geometry: Geometry | undefined): number[] | undefined {
+	if (geometry instanceof LineString) return geometry.getLastCoordinate();
+	if (geometry instanceof Polygon) {
+		const ring = geometry.getCoordinates()[0] ?? [];
+		return ring.length >= 2 ? ring[ring.length - 2] : ring[0];
+	}
+	return undefined;
+}
+
+// Someone else's shape as they draw it - looks like the finished annotation
+// will, with their name tagged at the pen in their presence colour.
+function remoteSketchStyle(feature: FeatureLike, resolution: number): Style[] {
+	const styles = annotationStyle(feature, resolution);
+	const pen = penPosition(feature.getGeometry() as Geometry | undefined);
+	const owner = feature.get("owner") as string | undefined;
+	if (!pen || !owner) return styles;
+	styles.push(
+		new Style({
+			geometry: new Point(pen),
+			text: new Text({
+				text: owner,
+				font: "600 12px 'Source Sans Pro', Arial, sans-serif",
+				fill: new Fill({ color: "#fff" }),
+				backgroundFill: new Fill({ color: feature.get("ownerColour") as string }),
+				padding: [1, 4, 1, 4],
+				textAlign: "left",
+				textBaseline: "bottom",
+				offsetX: 8,
+				offsetY: -8,
+			}),
+		}),
+	);
+	return styles;
+}
+
+const COMPARISON_MISSED_COLOUR = "#ff3b30";
+
+// A revealed comparison count (see MapNode) - `kind` says which bit this is.
+// Dots are in their counter's colour, and each cell not everyone found gets
+// a dashed ring the size of the match radius. Never smaller than the dot
+// plus a gap though, or zoomed out it'd hide behind it.
+function comparisonResultStyle(feature: FeatureLike, resolution: number): Style {
+	switch (feature.get("kind")) {
+		case "roi":
+			return roiBoxStyle();
+		case "missed": {
+			const dotSize = (feature.get("dotSize") as number | undefined) ?? 6;
+			const radius = (feature.get("radius") as number) / resolution;
+			return new Style({
+				image: new CircleStyle({
+					radius: Math.max(radius, dotSize + 5),
+					stroke: new Stroke({ color: COMPARISON_MISSED_COLOUR, width: 2, lineDash: [4, 3] }),
+					fill: new Fill({ color: `${COMPARISON_MISSED_COLOUR}26` }),
+				}),
+			});
+		}
+		default:
+			return cellCountDotStyle(feature);
+	}
+}
+
+// Same outline on the overview map, just thinner and no name - it's tiny.
+function remoteViewportOverviewStyle(feature: FeatureLike): Style {
+	return new Style({ stroke: new Stroke({ color: feature.get("colour") as string, width: 1.5 }) });
+}
+
 export {
 	annotationStyle,
 	annotationFlatStyle,
@@ -332,6 +439,12 @@ export {
 	roiBoxFlatStyle,
 	rulerStyle,
 	rulerSketchStyle,
+	remoteViewportStyle,
+	remoteViewportOverviewStyle,
+	remoteSketchStyle,
+	comparisonResultStyle,
+	sharedDotFlatStyle,
+	penPosition,
 	arrowHeadRadius,
 	dashPattern,
 };

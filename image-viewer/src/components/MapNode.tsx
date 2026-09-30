@@ -3,8 +3,7 @@ import { Collection, Feature, type Map, type MapBrowserEvent } from 'ol'
 import type Geometry from 'ol/geom/Geometry'
 import type LineString from 'ol/geom/LineString'
 import Point from 'ol/geom/Point'
-import { fromExtent } from 'ol/geom/Polygon'
-import type Polygon from 'ol/geom/Polygon'
+import Polygon, { fromExtent } from 'ol/geom/Polygon'
 import { containsCoordinate, type Extent } from 'ol/extent'
 import type { Coordinate } from 'ol/coordinate'
 import Draw, { type DrawEvent } from 'ol/interaction/Draw'
@@ -24,12 +23,20 @@ import {
   roiBoxFlatStyle,
   rulerStyle,
   rulerSketchStyle,
+  remoteViewportStyle,
+  remoteViewportOverviewStyle,
+  remoteSketchStyle,
+  comparisonResultStyle,
+  sharedDotFlatStyle,
 } from './open-layers/Styles'
 import { featureToGeoJson, geoJsonToFeature } from './open-layers/GeoJSON'
 import { degreesToRadians, radiansToDegrees } from './rotation/rotation'
 import { pixelDistance, physicalDistanceMicrons, formatDistanceMicrons, formatDistancePixels } from './ruler/ruler'
 import { parseCellCountDots, dotsFromHistory } from './cell-count/CellCountDots'
 import { computeViewedCellCountExtent } from './cell-count/CellCountView'
+import { compareCounts } from './cell-count/comparison/compare'
+import { viewportFrom, viewportRing, watchView } from './realtime/realtime'
+import { annotationSketch, remoteSketchFeatures, type SketchLook } from './realtime/sketch'
 import { useImageViewerContext } from '../context/ImageViewerContext'
 import { useAnnotationStoreContext } from '../context/AnnotationStoreContext'
 import { useDrawContext } from '../context/DrawContext'
@@ -39,9 +46,14 @@ import { useAdjustmentsContext } from '../context/AdjustmentsContext'
 import { useCellCountDrawContext } from '../context/CellCountDrawContext'
 import { useCellCountStoreContext } from '../context/CellCountStoreContext'
 import { useToolbarContext } from '../context/ToolbarContext'
+import { useRealtimeContext } from '../context/RealtimeContext'
+import { useComparisonContext } from '../context/ComparisonContext'
+import { useSharedCountContext } from '../context/SharedCountContext'
+import type { SharedDot } from './realtime/realtime'
 import { useEmitEvent } from '../context/EventContext'
 import { ShapeTools } from './annotation/Tools'
 import './MapNode.css'
+import { newId } from '../newId'
 
 interface SlideMetadata {
   width: number
@@ -63,6 +75,24 @@ interface RoiDrag {
 // equal, so the context<->map sync effects compare against this instead of
 // using strict equality.
 const ROTATION_EPSILON_DEGREES = 0.01
+
+// How close two people's dots have to be to count as the same cell in a
+// comparison - about a nucleus' radius. Slides with no mpp get pixels.
+const MATCH_RADIUS_MICRONS = 6
+const MATCH_RADIUS_PIXELS = 12
+
+// The sketch to send for a shape, or null if there's nothing to send yet.
+function sketchOf(map: Map, feature: Feature<Geometry>, look: SketchLook) {
+  const geometry = feature.getGeometry()
+  const resolution = map.getView().getResolution()
+  return geometry && resolution ? annotationSketch(geometry, look, resolution) : null
+}
+
+// What the hub needs for one of your dots in a shared count.
+function sharedDotOf(feature: Feature<Point>): Omit<SharedDot, 'connectionId'> {
+  const [x, y] = feature.getGeometry()!.getCoordinates()
+  return { id: String(feature.getId()), x, y, colour: feature.get('colour') as string }
+}
 
 function MapNode() {
   const { source } = useImageViewerContext()
@@ -96,9 +126,33 @@ function MapNode() {
     setDotHistory,
     undoSignal,
     redoSignal,
+    cancelling,
   } = useCellCountDrawContext()
   const { cellCounts, viewedCellCountId } = useCellCountStoreContext()
   const { activeTools } = useToolbarContext()
+  const { others, sendViewport, sendSketch, addSharedDot, removeSharedDot } = useRealtimeContext()
+  const {
+    stage: comparisonStage,
+    results: comparisonResults,
+    fixedRoiGeoJson: comparisonRoiGeoJson,
+    start: startComparison,
+  } = useComparisonContext()
+  const {
+    sharedCount,
+    stage: sharedStage,
+    doubleCounts,
+    fixedRoiGeoJson: sharedRoiGeoJson,
+    finishedDots,
+    start: startSharedCount,
+  } = useSharedCountContext()
+  // Joining someone else's count - their box, not a fresh one.
+  const fixedRoiGeoJson = comparisonRoiGeoJson ?? sharedRoiGeoJson
+  const sharedCounting = sharedStage === 'counting'
+  // Read by the click and undo/redo handlers, which don't rebuild on every change.
+  const sharedRef = useRef({ stage: sharedStage, addSharedDot, removeSharedDot })
+  useEffect(() => {
+    sharedRef.current = { stage: sharedStage, addSharedDot, removeSharedDot }
+  })
   const annotationsVisible = activeTools.includes('annotations')
   const cellCountVisible = activeTools.includes('cellcount')
   const rulerVisible = activeTools.includes('ruler')
@@ -125,7 +179,25 @@ function MapNode() {
   // Same as viewedDotsSourceRef, but for a saved count's ROI box - keeps
   // it separate from any live counting session's own box.
   const viewedRoiSourceRef = useRef(new VectorSource())
+  // Everyone's dots once a comparison is revealed, plus rings round the
+  // cells not everyone found.
+  const comparisonSourceRef = useRef(new VectorSource())
+  const comparisonLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
+  // Everyone's dots during a shared count, yours included, ringed in the
+  // colour of whoever placed them. Kept by dot id so a new dot doesn't
+  // rebuild the lot.
+  const sharedDotsSourceRef = useRef(new VectorSource())
+  const sharedDotFeaturesRef = useRef(new globalThis.Map<string, Feature<Point>>())
+  const sharedDotsLayerRef = useRef<WebGLVectorLayer<VectorSource> | null>(null)
+  // Rings round dots two people have both put on the same cell.
+  const doubleCountSourceRef = useRef(new VectorSource())
+  const doubleCountLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const rulerSourceRef = useRef(new VectorSource())
+  // Everyone else's viewport, drawn on both the main and overview maps.
+  const remoteViewportsSourceRef = useRef(new VectorSource())
+  // Shapes other people are part way through drawing.
+  const remoteSketchesSourceRef = useRef(new VectorSource())
+  const remoteSketchesLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const annotationsLayerRef = useRef<WebGLVectorLayer<VectorSource> | null>(null)
   const annotationArrowsLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const drawLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
@@ -227,6 +299,35 @@ function MapNode() {
           style: rulerStyle,
           visible: rulerVisible,
         })
+        const comparisonLayer = new VectorLayer({
+          source: comparisonSourceRef.current,
+          style: comparisonResultStyle,
+          visible: cellCountVisible,
+        })
+        comparisonLayerRef.current = comparisonLayer
+        const sharedDotsLayer = new WebGLVectorLayer({
+          source: sharedDotsSourceRef.current,
+          style: sharedDotFlatStyle,
+          visible: cellCountVisible,
+          disableHitDetection: true,
+        })
+        sharedDotsLayerRef.current = sharedDotsLayer
+        const doubleCountLayer = new VectorLayer({
+          source: doubleCountSourceRef.current,
+          style: comparisonResultStyle,
+          visible: cellCountVisible,
+        })
+        doubleCountLayerRef.current = doubleCountLayer
+        const remoteSketchesLayer = new VectorLayer({
+          source: remoteSketchesSourceRef.current,
+          style: remoteSketchStyle,
+          visible: annotationsVisible,
+        })
+        remoteSketchesLayerRef.current = remoteSketchesLayer
+        const remoteViewportsLayer = new VectorLayer({
+          source: remoteViewportsSourceRef.current,
+          style: remoteViewportStyle,
+        })
         annotationsLayerRef.current = annotationsLayer
         annotationArrowsLayerRef.current = annotationArrowsLayer
         drawLayerRef.current = drawLayer
@@ -235,13 +336,16 @@ function MapNode() {
         viewedDotsLayerRef.current = viewedDotsLayer
         viewedRoiLayerRef.current = viewedRoiLayer
         rulerLayerRef.current = rulerLayer
-        const { map, baseLayer } = OpenLayerMap(
+        const { map, baseLayer, overviewMap } = OpenLayerMap(
           mapElement.current,
           { width: metadata.width, height: metadata.height },
           { baseUrl: `${slideUrl}/`, tileSize: metadata.tileSize },
           metadata.objectivePower,
           metadata.mppX,
-          [annotationsLayer, annotationArrowsLayer, drawLayer, cellCountDotsLayer, roiLayer, viewedDotsLayer, viewedRoiLayer, rulerLayer]
+          [annotationsLayer, annotationArrowsLayer, drawLayer, cellCountDotsLayer, roiLayer, viewedDotsLayer, viewedRoiLayer, comparisonLayer, doubleCountLayer, sharedDotsLayer, rulerLayer, remoteSketchesLayer, remoteViewportsLayer]
+        )
+        overviewMap.addLayer(
+          new VectorLayer({ source: remoteViewportsSourceRef.current, style: remoteViewportOverviewStyle })
         )
         mapRef.current = map
         baseLayerRef.current = baseLayer
@@ -282,6 +386,48 @@ function MapNode() {
     )
   }, [annotations, annotationsSource])
 
+  // Tell the hub where you are whenever the view moves or the window
+  // resizes. The context throttles it and resends it after a reconnect.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+
+    const view = map.getView()
+    const send = () => {
+      const center = view.getCenter()
+      const resolution = view.getResolution()
+      const size = map.getSize()
+      if (!center || resolution === undefined || !size) return
+      sendViewport(viewportFrom([center[0], center[1]], resolution, view.getRotation(), [size[0], size[1]]))
+    }
+
+    send()
+    return watchView(view, map, send)
+  }, [mapVersion, sendViewport])
+
+  // Redraw everyone else's viewport whenever one moves or someone comes/goes.
+  useEffect(() => {
+    const source = remoteViewportsSourceRef.current
+    source.clear()
+    source.addFeatures(
+      others
+        .filter((participant) => participant.viewport)
+        .map((participant) => {
+          const feature = new Feature({ geometry: new Polygon([viewportRing(participant.viewport!)]) })
+          feature.set('colour', participant.colour)
+          feature.set('label', participant.displayName)
+          return feature
+        })
+    )
+  }, [others])
+
+  // Redraw what everyone else is mid-drawing whenever it changes.
+  useEffect(() => {
+    const source = remoteSketchesSourceRef.current
+    source.clear()
+    source.addFeatures(remoteSketchFeatures(others))
+  }, [others])
+
   // Keep annotation shapes off the image unless the annotations panel is
   // actually open - re-applied on every toggle; the layers' own construction
   // above already picks up whatever this was at map-build time.
@@ -289,15 +435,21 @@ function MapNode() {
     annotationsLayerRef.current?.setVisible(annotationsVisible)
     annotationArrowsLayerRef.current?.setVisible(annotationsVisible)
     drawLayerRef.current?.setVisible(annotationsVisible)
+    remoteSketchesLayerRef.current?.setVisible(annotationsVisible)
   }, [annotationsVisible])
 
   // Same idea as the annotations layer above, for the cell-count panel.
+  // Your own dots hide behind comparison results or a shared count while
+  // either is up - both draw them again with everyone else's.
   useEffect(() => {
-    cellCountDotsLayerRef.current?.setVisible(cellCountVisible)
+    cellCountDotsLayerRef.current?.setVisible(cellCountVisible && !comparisonResults && !sharedCounting)
+    comparisonLayerRef.current?.setVisible(cellCountVisible)
+    sharedDotsLayerRef.current?.setVisible(cellCountVisible)
+    doubleCountLayerRef.current?.setVisible(cellCountVisible)
     roiLayerRef.current?.setVisible(cellCountVisible)
     viewedDotsLayerRef.current?.setVisible(cellCountVisible)
     viewedRoiLayerRef.current?.setVisible(cellCountVisible)
-  }, [cellCountVisible])
+  }, [cellCountVisible, comparisonResults, sharedCounting])
 
   // Same idea again, for the ruler - and since a measurement is a one-off
   // scratch reading rather than something saved, closing the tool clears it
@@ -507,17 +659,132 @@ function MapNode() {
       center[1] + halfHeight,
     ]
 
-    const feature = new Feature({ geometry: fromExtent(initialExtent) })
+    // Joining someone's comparison - their box, not a fresh one here.
+    const feature = fixedRoiGeoJson
+      ? (geoJsonToFeature(fixedRoiGeoJson) as Feature<Polygon>)
+      : new Feature({ geometry: fromExtent(initialExtent) })
     roiFeatureRef.current = feature
     roiSourceRef.current.addFeature(feature)
 
-    map.getView().fit(initialExtent, {
+    map.getView().fit(feature.getGeometry()!.getExtent(), {
       size: map.getSize(),
       padding: [80, 80, 80, 80],
       minResolution: 1,
       duration: 400,
     })
-  }, [counting, withRoi, boxSizeMicrons])
+  }, [counting, withRoi, boxSizeMicrons, fixedRoiGeoJson])
+
+  // Hosting a comparison - once the box is confirmed, tell the hub, which
+  // invites everyone else into it.
+  useEffect(() => {
+    const roi = roiFeatureRef.current
+    if (comparisonStage !== 'hosting' || !counting || !roiConfirmed || !roi) return
+    const mppX = slideMetadataRef.current?.mppX ?? null
+    const matchRadius = mppX ? MATCH_RADIUS_MICRONS / mppX : MATCH_RADIUS_PIXELS
+    startComparison(featureToGeoJson(roi), matchRadius)
+    // Only on confirming - start() ignores anything once it's not hosting.
+  }, [comparisonStage, counting, roiConfirmed])
+
+  // Hosting a shared count - straight away with no ROI, or once the box is
+  // confirmed if there is one.
+  useEffect(() => {
+    if (sharedStage !== 'hosting' || !counting || (withRoi && !roiConfirmed)) return
+    const roi = withRoi ? roiFeatureRef.current : null
+    if (withRoi && !roi) return
+    const mppX = slideMetadataRef.current?.mppX ?? null
+    const matchRadius = mppX ? MATCH_RADIUS_MICRONS / mppX : MATCH_RADIUS_PIXELS
+    startSharedCount(roi ? featureToGeoJson(roi) : null, matchRadius)
+    // Same as the comparison - start() ignores anything once it's not hosting.
+  }, [sharedStage, counting, withRoi, roiConfirmed])
+
+  // Keeps the shared dots layer in step with the count - only adding and
+  // removing what changed.
+  useEffect(() => {
+    const source = sharedDotsSourceRef.current
+    const features = sharedDotFeaturesRef.current
+    const dots = sharedCounting ? (sharedCount?.dots ?? []) : []
+    const ownerColour = new globalThis.Map(sharedCount?.contributors.map((c) => [c.connectionId, c.colour]) ?? [])
+
+    const wanted = new Set(dots.map((dot) => dot.id))
+    features.forEach((feature, id) => {
+      if (wanted.has(id)) return
+      source.removeFeature(feature)
+      features.delete(id)
+    })
+    const added = dots
+      .filter((dot) => !features.has(dot.id))
+      .map((dot) => {
+        const feature = new Feature({ geometry: new Point([dot.x, dot.y]) })
+        feature.set('colour', dot.colour)
+        feature.set('dotSize', sharedCount!.settings.dotSize)
+        feature.set('ownerColour', ownerColour.get(dot.connectionId) ?? '#000')
+        features.set(dot.id, feature)
+        return feature
+      })
+    if (added.length > 0) source.addFeatures(added)
+  }, [sharedCount, sharedCounting])
+
+  // A ring round each dot that looks like a double count.
+  useEffect(() => {
+    const source = doubleCountSourceRef.current
+    source.clear()
+    if (!sharedCounting || !sharedCount || doubleCounts.size === 0) return
+    const { dotSize: size, matchRadius } = sharedCount.settings
+    source.addFeatures(
+      sharedCount.dots
+        .filter((dot) => doubleCounts.has(dot.id))
+        .map((dot) => {
+          const feature = new Feature({ geometry: new Point([dot.x, dot.y]) })
+          feature.set('kind', 'missed')
+          feature.set('radius', matchRadius)
+          feature.set('dotSize', size)
+          return feature
+        })
+    )
+  }, [sharedCount, sharedCounting, doubleCounts])
+
+  // Draws a revealed comparison: everyone's dots in their own colour, and a
+  // ring the size of the match radius round each cell someone missed.
+  useEffect(() => {
+    const map = mapRef.current
+    const source = comparisonSourceRef.current
+    source.clear()
+    if (!map || !comparisonResults) return
+
+    const { settings, counters } = comparisonResults
+    const colourOf = new globalThis.Map(counters.map((c) => [c.connectionId, c.colour]))
+    const summary = compareCounts(
+      counters.map((c) => ({ connectionId: c.connectionId, dots: c.dots ?? [] })),
+      settings.matchRadius
+    )
+
+    const roi = geoJsonToFeature(settings.roiGeoJson)
+    roi.set('kind', 'roi')
+    const rings = summary.cells
+      .filter((cell) => cell.foundBy.length < counters.length)
+      .map((cell) => {
+        const feature = new Feature({ geometry: new Point([cell.x, cell.y]) })
+        feature.set('kind', 'missed')
+        feature.set('radius', settings.matchRadius)
+        feature.set('dotSize', settings.dotSize)
+        return feature
+      })
+    const dots = counters.flatMap((counter) =>
+      (counter.dots ?? []).map(({ x, y }) => {
+        const feature = new Feature({ geometry: new Point([x, y]) })
+        feature.set('kind', 'dot')
+        feature.set('colour', colourOf.get(counter.connectionId))
+        feature.set('dotSize', settings.dotSize)
+        return feature
+      })
+    )
+    source.addFeatures([roi, ...rings, ...dots])
+
+    const extent = roi.getGeometry()?.getExtent()
+    if (extent) {
+      map.getView().fit(extent, { size: map.getSize(), padding: [80, 80, 80, 80], minResolution: 1, duration: 400 })
+    }
+  }, [comparisonResults, mapVersion])
 
   // Lets the ROI box be dragged into place before counting starts - only
   // active during that placement phase (not once roiConfirmed), since
@@ -591,6 +858,8 @@ function MapNode() {
     if (!map || !counting || (withRoi && !roiConfirmed)) return
 
     const handleClick = (event: MapBrowserEvent) => {
+      // Waiting on the hub to start the shared count - nowhere to send it yet.
+      if (sharedRef.current.stage === 'hosting') return
       if (withRoi) {
         const extent = roiFeatureRef.current?.getGeometry()?.getExtent()
         if (!extent || !containsCoordinate(extent, event.coordinate)) {
@@ -605,6 +874,10 @@ function MapNode() {
         feature.set('colour', cellCountColour)
         feature.set('dotSize', dotSize)
         cellCountDotsSourceRef.current.addFeature(feature)
+        if (sharedRef.current.stage === 'counting') {
+          feature.setId(newId())
+          sharedRef.current.addSharedDot(sharedDotOf(feature))
+        }
       }
 
       cellCountHistoryRef.current.push(feature)
@@ -630,6 +903,7 @@ function MapNode() {
     const feature = cellCountHistoryRef.current.pop()
     if (feature === undefined) return
     if (feature) cellCountDotsSourceRef.current.removeFeature(feature)
+    if (feature && sharedRef.current.stage === 'counting') sharedRef.current.removeSharedDot(String(feature.getId()))
     cellCountRedoRef.current.push(feature)
     setDotHistory(dotsFromHistory(cellCountHistoryRef.current))
     decrementCount()
@@ -640,6 +914,8 @@ function MapNode() {
     const feature = cellCountRedoRef.current.pop()
     if (feature === undefined) return
     if (feature) cellCountDotsSourceRef.current.addFeature(feature)
+    // Same id as before, so it goes back as the same dot.
+    if (feature && sharedRef.current.stage === 'counting') sharedRef.current.addSharedDot(sharedDotOf(feature))
     cellCountHistoryRef.current.push(feature)
     setDotHistory(dotsFromHistory(cellCountHistoryRef.current))
     incrementCount()
@@ -715,7 +991,8 @@ function MapNode() {
     wasCountingRef.current = counting
     if (!map || !justStopped) return
 
-    if (withRoi && !roiConfirmed) {
+    // Also thrown away: leaving a comparison or shared count part way.
+    if (cancelling || (withRoi && !roiConfirmed)) {
       cellCountDotsSourceRef.current.clear()
       roiSourceRef.current.clear()
       roiFeatureRef.current = null
@@ -732,10 +1009,23 @@ function MapNode() {
     // that can change live mid-session - there's no single colour to
     // snapshot, only each dot's own. Clicks with no dot (withAnnotation was
     // off) don't contribute one.
-    const dots = dotsFromHistory(cellCountHistoryRef.current)
+    // A finished shared count saves everyone's dots, not just yours - so
+    // they all go on the map for the save form too.
+    const dots = finishedDots ?? dotsFromHistory(cellCountHistoryRef.current)
+    if (finishedDots) {
+      cellCountDotsSourceRef.current.clear()
+      cellCountDotsSourceRef.current.addFeatures(
+        dots.map(({ x, y, colour }) => {
+          const feature = new Feature({ geometry: new Point([x, y]) })
+          feature.set('colour', colour)
+          feature.set('dotSize', dotSize)
+          return feature
+        })
+      )
+    }
 
     setCellCountPending({
-      count: cellCount,
+      count: finishedDots ? dots.length : cellCount,
       withAnnotation,
       withRoi,
       dots,
@@ -814,6 +1104,32 @@ function MapNode() {
     }
   }, [pending])
 
+  // Others see the drawn shape while it waits to be named, following it as
+  // it's dragged or recoloured. Cleared once it's saved or thrown away -
+  // saving sends the create first, so there's no gap in between.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !pending) return
+
+    const feature = pending.feature
+    const send = () =>
+      sendSketch(
+        sketchOf(map, feature, {
+          shape: pending.shape,
+          colour: feature.get('colour'),
+          lineThickness: feature.get('lineThickness'),
+          lineStyle: feature.get('lineStyle'),
+        })
+      )
+    send()
+    feature.on(['change', 'propertychange'], send)
+
+    return () => {
+      feature.un(['change', 'propertychange'], send)
+      sendSketch(null)
+    }
+  }, [pending, sendSketch])
+
   // Wire an OpenLayers Draw interaction to whichever shape tool is selected -
   // only while the annotations panel is open, so a tool left selected can't
   // keep drawing on the map after it's closed. Also paused while a drawn
@@ -832,7 +1148,27 @@ function MapNode() {
       style: sketchStyle(activeTool, colour, lineThickness, lineStyle),
     })
 
+    // Others watch the shape grow as it's drawn.
+    const look: SketchLook = { shape: activeTool, colour, lineThickness, lineStyle }
+    let sketching: Feature<Geometry> | null = null
+    const sendSketching = () => {
+      if (sketching) sendSketch(sketchOf(map, sketching, look))
+    }
+    const stopSketching = () => {
+      sketching?.un('change', sendSketching)
+      sketching = null
+    }
+    draw.on('drawstart', (event: DrawEvent) => {
+      sketching = event.feature as Feature<Geometry>
+      sketching.on('change', sendSketching)
+    })
+    draw.on('drawabort', () => {
+      stopSketching()
+      sendSketch(null)
+    })
+
     draw.on('drawend', (event: DrawEvent) => {
+      stopSketching()
       const feature = event.feature as Feature<Geometry>
       feature.set('colour', colour)
       feature.set('lineThickness', lineThickness)
@@ -845,7 +1181,7 @@ function MapNode() {
       const quick = quickDrawRef.current
       if (quick.enabled && quick.label.trim()) {
         addAnnotationRef.current({
-          id: crypto.randomUUID(),
+          id: newId(),
           label: quick.label.trim(),
           notes: quick.notes.trim(),
           colour,
@@ -858,6 +1194,7 @@ function MapNode() {
         drawSourceRef.current.once('addfeature', (e) => {
           if (e.feature) drawSourceRef.current.removeFeature(e.feature)
         })
+        sendSketch(null)
         return
       }
 
@@ -869,9 +1206,12 @@ function MapNode() {
     map.addInteraction(draw)
 
     return () => {
+      // Switching tool or closing the panel mid-shape throws it away.
+      if (sketching) sendSketch(null)
+      stopSketching()
       map.removeInteraction(draw)
     }
-  }, [activeTool, annotationsVisible, pending, colour, lineThickness, lineStyle, setPending])
+  }, [activeTool, annotationsVisible, pending, colour, lineThickness, lineStyle, setPending, sendSketch])
 
   if (error) {
     return (

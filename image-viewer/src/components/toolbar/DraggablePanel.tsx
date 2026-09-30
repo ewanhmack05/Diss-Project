@@ -23,11 +23,11 @@ interface DraggablePanelProps {
   // controls) - like an OS window, pressing down on it at all is enough to
   // bring it to front, not just grabbing the title bar.
   onActivate?: () => void
-  // True only while dragging a panel that started out docked - see
-  // App.tsx's DragOverlay/activeDragId for why. Keeps this panel fully
-  // mounted (its own state, dnd-kit's tracking on it) but invisible, since
-  // a ghost stands in for it visually until the drag ends.
-  dragging?: boolean
+  // Keeps this panel fully mounted (its own state, dnd-kit's tracking on
+  // it) but invisible. Used while dragging a panel that started out docked
+  // (a ghost stands in for it - see App.tsx's DragOverlay/activeDragId), and
+  // for the one frame a newly opened panel is measured before it's placed.
+  hidden?: boolean
   onClose: () => void
   children: ReactNode
 }
@@ -41,7 +41,7 @@ function DraggablePanel({
   zIndex,
   panelRef,
   onActivate,
-  dragging = false,
+  hidden = false,
   onClose,
   children,
 }: DraggablePanelProps) {
@@ -60,7 +60,7 @@ function DraggablePanel({
     left: dockedSide ? undefined : x,
     top: dockedSide ? undefined : y,
     zIndex,
-    visibility: dragging ? 'hidden' : undefined,
+    visibility: hidden ? 'hidden' : undefined,
     transform: transform ? CSS.Translate.toString(transform) : undefined,
   }
 

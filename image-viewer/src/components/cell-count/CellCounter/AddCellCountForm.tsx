@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { useCellCountStoreContext } from '../../../context/CellCountStoreContext'
 import { useCellCountDrawContext } from '../../../context/CellCountDrawContext'
 import DockedCard from '../../toolbar/DockedCard'
+import CountedBy from '../CountedBy'
 import './CellCountForm.css'
+import { newId } from '../../../newId'
 
 // Mirrors AddAnnotationForm: only rendered once a counting session has been
 // stopped (pending non-null). Unlike AddAnnotationForm, colour/count/dot
@@ -20,7 +22,7 @@ function AddCellCountForm() {
   const handleSave = () => {
     if (!label.trim()) return
     addCellCount({
-      id: crypto.randomUUID(),
+      id: newId(),
       label: label.trim(),
       notes: notes.trim(),
       dots: JSON.stringify(pending.dots),
@@ -31,7 +33,7 @@ function AddCellCountForm() {
       locationX: pending.location?.x ?? null,
       locationY: pending.location?.y ?? null,
       regionOfInterest: pending.roiGeoJson
-        ? { id: crypto.randomUUID(), geoJson: pending.roiGeoJson, created: new Date().toISOString() }
+        ? { id: newId(), geoJson: pending.roiGeoJson, created: new Date().toISOString() }
         : null,
       created: new Date().toISOString(),
     })
@@ -74,6 +76,8 @@ function AddCellCountForm() {
       </DockedCard>
 
       <DockedCard title="Details" className="cell-count-form-details-card">
+        <CountedBy dots={pending.dots} />
+
         <div className="cell-count-form-row">
           <div className="cell-count-form-field">
             Count

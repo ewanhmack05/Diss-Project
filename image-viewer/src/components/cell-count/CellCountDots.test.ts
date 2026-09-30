@@ -6,6 +6,7 @@ import {
   colourBreakdownFromDots,
   colourBreakdownBackground,
   dotsFromHistory,
+  placedByBreakdown,
 } from './CellCountDots'
 
 function dotFeature(x: number, y: number, colour: string): Feature<Point> {
@@ -91,5 +92,25 @@ describe('dotsFromHistory', () => {
     const history = [dotFeature(1, 1, '#fff614'), dotFeature(2, 2, '#00ff00')]
     history.pop()
     expect(dotsFromHistory(history)).toEqual([{ x: 1, y: 1, colour: '#fff614' }])
+  })
+})
+
+describe('placedByBreakdown', () => {
+  it('counts dots per person, in the order they first show up', () => {
+    const a = { userId: 'a', name: 'Guest a' }
+    const b = { userId: 'b', name: 'Guest b' }
+    const dots = [
+      { x: 0, y: 0, colour: '#fff', placedBy: b },
+      { x: 1, y: 1, colour: '#fff', placedBy: a },
+      { x: 2, y: 2, colour: '#fff', placedBy: b },
+    ]
+    expect(placedByBreakdown(dots)).toEqual([
+      { ...b, count: 2 },
+      { ...a, count: 1 },
+    ])
+  })
+
+  it('is empty for a count nobody was recorded on', () => {
+    expect(placedByBreakdown([{ x: 0, y: 0, colour: '#fff' }])).toEqual([])
   })
 })

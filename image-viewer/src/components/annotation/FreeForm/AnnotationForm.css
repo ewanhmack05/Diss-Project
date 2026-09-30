@@ -165,3 +165,9 @@
   padding-top: 0.4em;
   padding-bottom: 0.4em;
 }
+
+.annotation-form-hint {
+  margin: 0.4em 0 0;
+  font-size: 0.8em;
+  color: var(--chrome-text-secondary);
+}
