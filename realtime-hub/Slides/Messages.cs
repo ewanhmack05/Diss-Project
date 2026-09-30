@@ -86,7 +86,41 @@ public record Comparison(
         Revealed ? this : this with { Counters = Counters.Select(c => c with { Dots = null }).ToList() };
 }
 
-public record JoinResult(Participant Me, IReadOnlyList<Participant> Others, long Seq, Comparison? Comparison = null);
+// Shared count - several people add to one count at once, usually each in
+// their own part of the slide. Everyone sees every dot as it lands. Left
+// is someone who joined and then went - kept so their dots still have a name.
+public enum ContributorState { Invited, Joined, Left }
+
+// UserId as well as the connection, so a saved count can say who placed
+// each dot once the connection is long gone.
+public record Contributor(string ConnectionId, string UserId, string DisplayName, string Colour, ContributorState State);
+
+// Id is made by the client, so it can undo the dot later. ConnectionId is
+// whoever placed it - the hub fills it in, whatever the client sends.
+public record SharedDot(Guid Id, double X, double Y, string Colour, string ConnectionId = "");
+
+// No ROI means the whole slide. MatchRadius is in map units, for spotting
+// two people counting the same cell.
+public record SharedCountSettings(string? RoiGeoJson, int DotSize, double MatchRadius);
+
+public record SharedCount(
+    Guid Id,
+    string HostConnectionId,
+    SharedCountSettings Settings,
+    DateTimeOffset Started,
+    IReadOnlyList<Contributor> Contributors,
+    IReadOnlyList<SharedDot> Dots);
+
+public record SharedDotAdded(Guid SharedCountId, SharedDot Dot);
+
+public record SharedDotRemoved(Guid SharedCountId, Guid DotId);
+
+public record JoinResult(
+    Participant Me,
+    IReadOnlyList<Participant> Others,
+    long Seq,
+    Comparison? Comparison = null,
+    SharedCount? SharedCount = null);
 
 public static class HubJson
 {

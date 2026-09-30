@@ -16,18 +16,24 @@ public interface ISlideClient
     Task DocEditorsChanged(DocEditors editors);
     // Null once it's been dropped.
     Task ComparisonChanged(Comparison? comparison);
+    // Null once it's been finished or dropped.
+    Task SharedCountChanged(SharedCount? sharedCount);
+    Task SharedDotAdded(SharedDotAdded added);
+    Task SharedDotRemoved(SharedDotRemoved removed);
 }
 
 // One SignalR group per slide. A connection is in at most one slide at a
 // time - joining another just moves it. No auth yet, so userId/displayName
 // are whatever the client says (fake users for now, sessions come later).
-// Each open shared doc gets its own group inside the slide.
-public class SlideHub(SlideRooms rooms, ILogger<SlideHub> logger) : Hub<ISlideClient>
+// Each open shared doc gets its own group inside the slide. Shared count
+// methods are in SlideHub.SharedCount.cs.
+public partial class SlideHub(SlideRooms rooms, ILogger<SlideHub> logger) : Hub<ISlideClient>
 {
     public const int MaxDocIdLength = 128;
     public const int MaxDocUpdateBytes = 64 * 1024;
     public const int MaxRoiGeoJsonLength = 16 * 1024;
     public const int MaxComparisonDots = 10_000;
+    public const int MaxSharedDots = 10_000;
 
     public static string GroupName(string slideId) => $"slide:{slideId}";
     public static string DocGroupName(string slideId, string docId) => $"doc:{slideId}:{docId}";
@@ -46,6 +52,8 @@ public class SlideHub(SlideRooms rooms, ILogger<SlideHub> logger) : Hub<ISlideCl
         // They've just been added to it as invited, so everyone else's list is out of date.
         if (result.Comparison is { Revealed: false })
             await Clients.OthersInGroup(GroupName(slideId)).ComparisonChanged(result.Comparison);
+        if (result.SharedCount is not null)
+            await Clients.OthersInGroup(GroupName(slideId)).SharedCountChanged(result.SharedCount);
 
         logger.LogInformation("{UserId} joined slide {SlideId} ({Count} others)",
             userId, slideId, result.Others.Count);
@@ -104,14 +112,14 @@ public class SlideHub(SlideRooms rooms, ILogger<SlideHub> logger) : Hub<ISlideCl
         if (!double.IsFinite(settings.MatchRadius) || settings.MatchRadius <= 0)
             throw new HubException("settings.matchRadius must be above 0");
 
-        var change = Comparisons(() => rooms.StartComparison(Context.ConnectionId, settings)) ?? throw NotJoined();
+        var change = Counting(() => rooms.StartComparison(Context.ConnectionId, settings)) ?? throw NotJoined();
         await Broadcast(change);
         return change.Comparison!.Blind();
     }
 
     public async Task JoinComparison(Guid comparisonId)
     {
-        var change = Comparisons(() => rooms.JoinComparison(Context.ConnectionId, comparisonId)) ?? throw NotJoined();
+        var change = Counting(() => rooms.JoinComparison(Context.ConnectionId, comparisonId)) ?? throw NotJoined();
         await Broadcast(change);
     }
 
@@ -129,7 +137,7 @@ public class SlideHub(SlideRooms rooms, ILogger<SlideHub> logger) : Hub<ISlideCl
         if (dots.Any(d => d is null || !double.IsFinite(d.X) || !double.IsFinite(d.Y)))
             throw new HubException("Every dot needs a finite x and y");
 
-        var change = Comparisons(() => rooms.SubmitComparison(Context.ConnectionId, comparisonId, dots)) ?? throw NotJoined();
+        var change = Counting(() => rooms.SubmitComparison(Context.ConnectionId, comparisonId, dots)) ?? throw NotJoined();
         await Broadcast(change);
     }
 
@@ -189,6 +197,7 @@ public class SlideHub(SlideRooms rooms, ILogger<SlideHub> logger) : Hub<ISlideCl
             await Clients.Group(GroupName(me.SlideId)).UserLeft(me.ConnectionId);
             foreach (var doc in left.Docs) await AfterDocClosed(doc);
             if (left.Comparison is not null) await Broadcast(left.Comparison);
+            if (left.SharedCount is not null) await Broadcast(left.SharedCount);
             logger.LogInformation("{UserId} dropped from slide {SlideId}", me.UserId, me.SlideId);
         }
         await base.OnDisconnectedAsync(exception);
@@ -207,6 +216,7 @@ public class SlideHub(SlideRooms rooms, ILogger<SlideHub> logger) : Hub<ISlideCl
         }
         await Clients.Group(GroupName(me.SlideId)).UserLeft(me.ConnectionId);
         if (left.Comparison is not null) await Broadcast(left.Comparison);
+        if (left.SharedCount is not null) await Broadcast(left.SharedCount);
     }
 
     // Everyone in the slide gets it, sender included, so there's one path
@@ -214,13 +224,15 @@ public class SlideHub(SlideRooms rooms, ILogger<SlideHub> logger) : Hub<ISlideCl
     private Task Broadcast(ComparisonChange change) =>
         Clients.Group(GroupName(change.SlideId)).ComparisonChanged(change.Comparison?.Blind());
 
-    private static ComparisonChange? Comparisons(Func<ComparisonChange?> call)
+    // Turns the rooms' CountException into a HubException, so the reason
+    // gets back to the caller.
+    private static T Counting<T>(Func<T> call)
     {
         try
         {
             return call();
         }
-        catch (ComparisonException e)
+        catch (CountException e)
         {
             throw new HubException(e.Message);
         }

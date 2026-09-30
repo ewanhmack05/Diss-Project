@@ -231,6 +231,16 @@ const cellCountDotFlatStyle: FlatStyle = {
 	"circle-stroke-width": 1,
 };
 
+// A dot in a shared count - same as a normal dot, but the outline is the
+// presence colour of whoever placed it, so the chosen colour can still mean
+// a category.
+const sharedDotFlatStyle: FlatStyle = {
+	"circle-radius": ["get", "dotSize"],
+	"circle-fill-color": ["get", "colour"],
+	"circle-stroke-color": ["get", "ownerColour"],
+	"circle-stroke-width": 2.5,
+};
+
 // One placed cell-count dot - colour/dotSize carried as feature properties,
 // same convention as annotationStyle.
 function cellCountDotStyle(feature: FeatureLike): Style {
@@ -433,6 +443,7 @@ export {
 	remoteViewportOverviewStyle,
 	remoteSketchStyle,
 	comparisonResultStyle,
+	sharedDotFlatStyle,
 	penPosition,
 	arrowHeadRadius,
 	dashPattern,

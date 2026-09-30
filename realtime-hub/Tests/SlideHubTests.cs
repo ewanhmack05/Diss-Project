@@ -607,6 +607,157 @@ public class SlideHubTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.Null(await gone);
     }
 
+    private static readonly SharedCountSettings SharedSettings = new(null, 6, 20);
+
+    private static Task<SharedCount> StartShared(HubConnection c) =>
+        c.InvokeAsync<SharedCount>("StartSharedCount", SharedSettings);
+
+    private static SharedDot Dot(double x) => new(Guid.NewGuid(), x, x, "#fff614");
+
+    private static Task<SharedCount?> NextShared(HubConnection c, Func<SharedCount?, bool> match)
+    {
+        var tcs = new TaskCompletionSource<SharedCount?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        c.On<SharedCount?>(nameof(ISlideClient.SharedCountChanged), value =>
+        {
+            if (match(value)) tcs.TrySetResult(value);
+        });
+        return tcs.Task.WaitAsync(Timeout);
+    }
+
+    [Fact]
+    public async Task SharedCount_DotsGoToEveryoneElse_AndLateJoinersCatchUp()
+    {
+        var slide = NewSlide();
+        await using var a = await ConnectAsync();
+        await using var b = await ConnectAsync();
+        var aId = (await Join(a, slide, "a")).Me.ConnectionId;
+        var bId = (await Join(b, slide, "b")).Me.ConnectionId;
+
+        var started = await StartShared(a);
+        Assert.Equal(ContributorState.Joined, started.Contributors.Single(c => c.ConnectionId == aId).State);
+        Assert.Equal(ContributorState.Invited, started.Contributors.Single(c => c.ConnectionId == bId).State);
+        Assert.Equal("b", started.Contributors.Single(c => c.ConnectionId == bId).UserId);
+        await b.InvokeAsync("JoinSharedCount", started.Id);
+
+        var toB = Listen<SharedDotAdded>(b, nameof(ISlideClient.SharedDotAdded));
+        var toA = Listen<SharedDotAdded>(a, nameof(ISlideClient.SharedDotAdded));
+        // Whatever connection id the client claims, the hub uses the real one.
+        var dot = Dot(5) with { ConnectionId = "someone-else" };
+        await a.InvokeAsync("AddSharedDot", started.Id, dot);
+        var got = await toB.Task.WaitAsync(Timeout);
+        Assert.Equal(dot.Id, got.Dot.Id);
+        Assert.Equal(aId, got.Dot.ConnectionId);
+        await AssertNothing(toA);
+
+        await b.InvokeAsync("AddSharedDot", started.Id, Dot(9));
+
+        await using var c = await ConnectAsync();
+        var cJoin = await Join(c, slide, "c");
+        Assert.Equal(2, cJoin.SharedCount!.Dots.Count);
+        Assert.Equal(ContributorState.Invited,
+            cJoin.SharedCount.Contributors.Single(x => x.ConnectionId == cJoin.Me.ConnectionId).State);
+    }
+
+    [Fact]
+    public async Task SharedCount_OnlyYourOwnDotsCanBeRemoved()
+    {
+        var slide = NewSlide();
+        await using var a = await ConnectAsync();
+        await using var b = await ConnectAsync();
+        await Join(a, slide, "a");
+        await Join(b, slide, "b");
+        var started = await StartShared(a);
+        await b.InvokeAsync("JoinSharedCount", started.Id);
+
+        var dot = Dot(1);
+        await a.InvokeAsync("AddSharedDot", started.Id, dot);
+        var notYours = await Assert.ThrowsAsync<HubException>(() => b.InvokeAsync("RemoveSharedDot", started.Id, dot.Id));
+        Assert.Contains("only remove your own", notYours.Message);
+
+        var removed = Listen<SharedDotRemoved>(b, nameof(ISlideClient.SharedDotRemoved));
+        await a.InvokeAsync("RemoveSharedDot", started.Id, dot.Id);
+        Assert.Equal(dot.Id, (await removed.Task.WaitAsync(Timeout)).DotId);
+
+        // Redo puts the same id back.
+        await a.InvokeAsync("AddSharedDot", started.Id, dot);
+        var twice = await Assert.ThrowsAsync<HubException>(() => a.InvokeAsync("AddSharedDot", started.Id, dot));
+        Assert.Contains("already there", twice.Message);
+    }
+
+    [Fact]
+    public async Task SharedCount_LeaversKeepTheirDots_AndHostingPassesOn()
+    {
+        var slide = NewSlide();
+        await using var a = await ConnectAsync();
+        await using var b = await ConnectAsync();
+        await using var c = await ConnectAsync();
+        var aId = (await Join(a, slide, "a")).Me.ConnectionId;
+        var bId = (await Join(b, slide, "b")).Me.ConnectionId;
+        var cId = (await Join(c, slide, "c")).Me.ConnectionId;
+        var started = await StartShared(a);
+        await b.InvokeAsync("JoinSharedCount", started.Id);
+        await a.InvokeAsync("AddSharedDot", started.Id, Dot(1));
+
+        // c only had an invite, so they just go.
+        var cGone = NextShared(b, x => x is not null && x.Contributors.All(p => p.ConnectionId != cId));
+        await c.InvokeAsync("LeaveSharedCount", started.Id);
+        await cGone;
+
+        var aLeft = NextShared(b, x => x?.HostConnectionId == bId);
+        await a.InvokeAsync("LeaveSharedCount", started.Id);
+        var after = (await aLeft)!;
+        Assert.Equal(ContributorState.Left, after.Contributors.Single(p => p.ConnectionId == aId).State);
+        Assert.Single(after.Dots);
+
+        var notHost = await Assert.ThrowsAsync<HubException>(() => a.InvokeAsync("AddSharedDot", started.Id, Dot(2)));
+        Assert.Contains("Join the shared count first", notHost.Message);
+
+        // Last one out drops it.
+        var dropped = NextShared(a, x => x is null);
+        await b.InvokeAsync("LeaveSharedCount", started.Id);
+        Assert.Null(await dropped);
+    }
+
+    [Fact]
+    public async Task SharedCount_OnlyTheHostCanFinish_AndItEndsForEveryone()
+    {
+        var slide = NewSlide();
+        await using var a = await ConnectAsync();
+        await using var b = await ConnectAsync();
+        await Join(a, slide, "a");
+        await Join(b, slide, "b");
+        var started = await StartShared(a);
+        await b.InvokeAsync("JoinSharedCount", started.Id);
+
+        var ex = await Assert.ThrowsAsync<HubException>(() => b.InvokeAsync("FinishSharedCount", started.Id));
+        Assert.Contains("Only the host", ex.Message);
+        var again = await Assert.ThrowsAsync<HubException>(() => StartShared(b));
+        Assert.Contains("already running", again.Message);
+
+        var ended = NextShared(b, x => x is null);
+        await a.InvokeAsync("FinishSharedCount", started.Id);
+        Assert.Null(await ended);
+
+        var endpoint = await _factory.CreateClient().GetAsync($"/rooms/{slide}/sharedcount");
+        Assert.Equal(System.Net.HttpStatusCode.NoContent, endpoint.StatusCode);
+    }
+
+    [Fact]
+    public async Task SharedCount_HostDropping_PassesItOn()
+    {
+        var slide = NewSlide();
+        var a = await ConnectAsync();
+        await using var b = await ConnectAsync();
+        await Join(a, slide, "a");
+        var bId = (await Join(b, slide, "b")).Me.ConnectionId;
+        var started = await StartShared(a);
+        await b.InvokeAsync("JoinSharedCount", started.Id);
+
+        var handedOver = NextShared(b, x => x?.HostConnectionId == bId);
+        await a.DisposeAsync();
+        await handedOver;
+    }
+
     [Fact]
     public async Task Comparison_BadCallsAreRejected()
     {

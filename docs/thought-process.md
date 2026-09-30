@@ -47,7 +47,7 @@ real-time channel, throttled to ~10 updates/sec.
 - **Shared Count** - multiple users working on the same count, can work in different areas of the slide, all tallying to the same count
 - **Comparison Count** - multiple users work on the same area, and then their final counts are compared to eachother (e.g. overlapping dots or areas without dots)
 
-Comparison count is built - see [breakdown/realtime-hub.md](breakdown/realtime-hub.md#8-comparison-count). Shared count is next.
+Both are built - see [comparison count](breakdown/realtime-hub.md#8-comparison-count) and [shared count](breakdown/realtime-hub.md#9-shared-count).
 
 ### Shared vs personal
 

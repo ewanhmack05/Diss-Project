@@ -101,6 +101,23 @@ public class AnnotationsTests : IClassFixture<CellCountApiFactory>
     }
 
     [Fact]
+    public async Task Get_ReturnsNewestFirst()
+    {
+        var client = _factory.CreateClient();
+        var collectionId = await CreateCollectionAsync(client, Guid.NewGuid().ToString());
+        foreach (var label in new[] { "first", "second", "third" })
+        {
+            var payload = NewAnnotation(collectionId);
+            payload.Label = label;
+            (await client.PostAsJsonAsync("/annotations", payload)).EnsureSuccessStatusCode();
+        }
+
+        var annotations = await client.GetFromJsonAsync<List<Annotation>>($"/annotations?collectionId={collectionId}");
+
+        Assert.Equal(["third", "second", "first"], annotations!.Select(a => a.Label));
+    }
+
+    [Fact]
     public async Task Put_UpdatesLabelNotesAndColour_LeavesEverythingElseFixed()
     {
         var client = _factory.CreateClient();

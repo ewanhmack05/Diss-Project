@@ -57,6 +57,7 @@ function ComparisonContextProvider({ children }: { children: ReactNode }) {
     dotSize,
     dotHistory,
     setCounting,
+    cancelCounting,
     setWithAnnotation,
     setWithRoi,
     setDotSize,
@@ -178,10 +179,7 @@ function ComparisonContextProvider({ children }: { children: ReactNode }) {
     if (comparison && myCounter) leaveComparison(comparison.id).catch(() => {})
     setHosting(false)
     if (counting) {
-      // MapNode treats a stop with the ROI unconfirmed as throwing it away.
-      resetCount()
-      setRoiConfirmed(false)
-      setCounting(false)
+      cancelCounting()
     } else {
       setPending(null)
     }

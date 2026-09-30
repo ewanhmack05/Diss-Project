@@ -68,6 +68,8 @@ app.MapGet("/rooms/{slideId}/docs", (string slideId, SlideRooms rooms) => Result
 // Blind like it is over the hub - no dots until it's revealed.
 app.MapGet("/rooms/{slideId}/comparison", (string slideId, SlideRooms rooms) =>
     rooms.ComparisonInSlide(slideId) is { } comparison ? Results.Ok(comparison) : Results.NoContent());
+app.MapGet("/rooms/{slideId}/sharedcount", (string slideId, SlideRooms rooms) =>
+    rooms.SharedCountInSlide(slideId) is { } sharedCount ? Results.Ok(sharedCount) : Results.NoContent());
 
 app.Run();
 

@@ -1,7 +1,8 @@
 import { useRealtimeContext } from '../../context/RealtimeContext'
 import DockedCard from '../toolbar/DockedCard'
-import ComparisonInvite from '../cell-count/comparison/ComparisonInvite'
+import CountInvites from '../cell-count/CountInvites'
 import { useComparisonContext } from '../../context/ComparisonContext'
+import { useSharedCountContext } from '../../context/SharedCountContext'
 import './RealTimePanel.css'
 
 const STATUS_TEXT = {
@@ -16,6 +17,8 @@ function RealTimePanel() {
     const { status, me, others } = useRealtimeContext()
     const { comparison, myCounter } = useComparisonContext()
     const handedIn = comparison?.counters.filter((c) => c.state === 'submitted').length ?? 0
+    const { sharedCount, myContributor } = useSharedCountContext()
+    const sharedJoined = sharedCount?.contributors.filter((c) => c.state === 'joined').length ?? 0
 
     return (
         <div className="realtime-panel">
@@ -36,12 +39,17 @@ function RealTimePanel() {
                     ))}
                 </ul>
             </DockedCard>
-            <ComparisonInvite />
+            <CountInvites />
             {comparison && myCounter?.state !== 'invited' && (
                 <p className="realtime-status">
                     {comparison.revealed
                         ? 'Comparison count finished'
                         : `Comparison count running - ${handedIn} of ${comparison.counters.length} handed in`}
+                </p>
+            )}
+            {sharedCount && myContributor?.state !== 'invited' && (
+                <p className="realtime-status">
+                    {`Shared count running - ${sharedCount.dots.length} cells, ${sharedJoined} counting`}
                 </p>
             )}
         </div>

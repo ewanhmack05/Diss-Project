@@ -16,15 +16,16 @@ how it all fits together.
 1. [Where it sits](#1-where-it-sits)
 2. [Files](#2-files)
 3. [One room per slide](#3-one-room-per-slide)
-4. [Six kinds of traffic](#4-six-kinds-of-traffic)
+4. [Seven kinds of traffic](#4-seven-kinds-of-traffic)
 5. [Joining a slide](#5-joining-a-slide)
 6. [Drawing an annotation](#6-drawing-an-annotation)
 7. [Two people typing in the same box](#7-two-people-typing-in-the-same-box)
 8. [Comparison count](#8-comparison-count)
-9. [Viewer side](#9-viewer-side)
-10. [Limits and validation](#10-limits-and-validation)
-11. [Known gaps](#11-known-gaps)
-12. [Glossary](#12-glossary)
+9. [Shared count](#9-shared-count)
+10. [Viewer side](#10-viewer-side)
+11. [Limits and validation](#11-limits-and-validation)
+12. [Known gaps](#12-known-gaps)
+13. [Glossary](#13-glossary)
 
 ## 1. Where it sits
 
@@ -64,11 +65,11 @@ annotation-store's data model changes.
 
 | File                                                              | What it does                                                                                                                                                                                                                  |
 | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Program.cs](../../realtime-hub/Program.cs)                       | Startup. Registers SignalR at `/hubs/slides`, raises the max message size to 1MB, allows any origin (CORS) so other devices on the LAN can connect, wires up OpenTelemetry, and adds four read-only HTTP endpoints for debugging. |
-| [Slides/SlideHub.cs](../../realtime-hub/Slides/SlideHub.cs)       | The hub. Every method a browser can call lives here (`JoinSlide`, `UpdateViewport`, `OpenDoc` ...). Validates input, updates the room state, then broadcasts to the right group.                                               |
-| [Slides/SlideRooms.cs](../../realtime-hub/Slides/SlideRooms.cs)   | The in-memory state: which connections are in which slide, their viewports and sketches, the op counter, the shared text docs and the comparison count. Everything goes through one lock, so it's thread safe.                                      |
+| [Program.cs](../../realtime-hub/Program.cs)                       | Startup. Registers SignalR at `/hubs/slides`, raises the max message size to 1MB, allows any origin (CORS) for when it's called directly rather than through the viewer's proxy, wires up OpenTelemetry, and adds five read-only HTTP endpoints for debugging. |
+| [Slides/SlideHub.cs](../../realtime-hub/Slides/SlideHub.cs), [SlideHub.SharedCount.cs](../../realtime-hub/Slides/SlideHub.SharedCount.cs) | The hub. Every method a browser can call lives here (`JoinSlide`, `UpdateViewport`, `OpenDoc` ...). Validates input, updates the room state, then broadcasts to the right group.                                               |
+| [Slides/SlideRooms.cs](../../realtime-hub/Slides/SlideRooms.cs), [SharedCounts.cs](../../realtime-hub/Slides/SharedCounts.cs) | The in-memory state: which connections are in which slide, their viewports and sketches, the op counter, the shared text docs, the comparison count and the shared count. Everything goes through one lock, so it's thread safe.                                      |
 | [Slides/Messages.cs](../../realtime-hub/Slides/Messages.cs)       | The wire format. A C# record for every message shape, plus a JSON setting so enums go over the wire as `"create"` rather than `0`.                                                                                            |
-| [Tests/SlideHubTests.cs](../../realtime-hub/Tests/SlideHubTests.cs) | 24 integration tests. They boot the real app in memory and connect real SignalR clients to it.                                                                                                                              |
+| [Tests/SlideHubTests.cs](../../realtime-hub/Tests/SlideHubTests.cs) | 29 integration tests. They boot the real app in memory and connect real SignalR clients to it.                                                                                                                              |
 
 On the viewer side the matching code is
 [RealtimeContext.tsx](../../image-viewer/src/context/RealtimeContext.tsx)
@@ -90,7 +91,8 @@ Room
  ├─ Participants   connectionId → Participant (name, colour, viewport, sketch)
  ├─ Docs           docId → SharedDoc (list of Yjs updates, list of editors)
  ├─ Seq            counter, goes up by 1 for every annotation op
- └─ Comparison     the comparison count running on this slide, if any
+ ├─ Comparison     the comparison count running on this slide, if any
+ └─ SharedCount    the shared count running on this slide, if any
 ```
 
 Rules that fall out of this:
@@ -106,10 +108,11 @@ Rules that fall out of this:
   `doc:{slideId}:{docId}`, so typing in one annotation's notes only goes to
   the people who have that annotation open.
 - **Nothing is echoed back.** Every broadcast uses `OthersInGroup`, so the
-  sender never gets its own message. The one exception is
-  `ComparisonChanged` (see [section 8](#8-comparison-count)).
+  sender never gets its own message. The exceptions are
+  `ComparisonChanged` and `SharedCountChanged` (see sections
+  [8](#8-comparison-count) and [9](#9-shared-count)).
 
-## 4. Six kinds of traffic
+## 4. Seven kinds of traffic
 
 Not all live data is the same. Some of it is throwaway (where your screen is
 looking), some of it is an actual change to saved data. Each kind is handled
@@ -123,6 +126,7 @@ differently on purpose.
 | **Annotation op** | Create, update or delete an annotation or cell count | `SendAnnotationOp`                       | No, just stamped with a number   | Last write wins, ordered by `seq`             |
 | **Shared doc**    | Two people typing in the same label or notes box     | `OpenDoc`, `SendDocUpdate`, `CloseDoc`   | Yes, while anyone has it open    | Merged character by character with Yjs       |
 | **Comparison**    | Everyone counting the same region, then comparing    | `StartComparison`, `JoinComparison`, `SubmitComparison`, `LeaveComparison` | Yes, until everyone's left it | Hub owns the state, one at a time per slide |
+| **Shared count**  | Everyone adding to one count at once                 | `StartSharedCount`, `AddSharedDot`, `RemoveSharedDot`, `FinishSharedCount` ... | Yes, until it's finished | Each dot has one owner, so nothing to merge |
 
 Why two conflict strategies? Two people dragging the same polygon at the
 same moment is rare, so last write wins is enough for shapes and colours.
@@ -143,6 +147,8 @@ Events the hub sends to browsers:
 | `DocUpdated`        | Another editor types in a text doc you have open                      |
 | `DocEditorsChanged` | Someone opens or closes a doc you have open (the "also editing" list) |
 | `ComparisonChanged` | Anything about the slide's comparison count changes                   |
+| `SharedCountChanged` | Someone starts, joins or leaves the shared count, or it ends         |
+| `SharedDotAdded` / `SharedDotRemoved` | Someone else adds or takes back a shared count dot  |
 
 ## 5. Joining a slide
 
@@ -341,7 +347,65 @@ On the map, everyone's dots are shown in their presence colour, and each
 cell not everyone found gets a dashed red ring. Afterwards each person can
 save their own count as a normal cell count, or throw it away.
 
-## 9. Viewer side
+## 9. Shared count
+
+The other way round from a comparison: several people add to one count at
+the same time, usually each taking their own part of the slide, and
+everyone sees every dot as it lands.
+
+```mermaid
+sequenceDiagram
+  participant A as Viewer A (host)
+  participant H as realtime-hub
+  participant B as Viewer B
+  A->>H: StartSharedCount({ roiGeoJson?, dotSize, matchRadius })
+  H-->>A: SharedCountChanged (A joined, B invited)
+  H-->>B: SharedCountChanged (A joined, B invited)
+  B->>H: JoinSharedCount(id)
+  H-->>A: SharedCountChanged (both joined)
+  H-->>B: SharedCountChanged (both joined)
+  loop every click
+    A->>H: AddSharedDot(id, { id, x, y, colour })
+    H-->>B: SharedDotAdded
+  end
+  A->>H: FinishSharedCount(id)
+  H-->>A: SharedCountChanged(null)
+  H-->>B: SharedCountChanged(null)
+  Note over A: save form with everyone's dots
+```
+
+- **Dots are the only traffic that matters.** Each click sends one small
+  `AddSharedDot`, and it goes to everyone but the sender, who has already
+  drawn it. Joining, leaving and finishing send the whole count. A late
+  joiner gets the whole thing too, in `JoinResult`.
+- **No conflicts to merge.** Every dot belongs to whoever placed it, and you
+  can only take back your own (that's what undo does). The dot id is made
+  by the client, so redo puts back the same dot. That's why this doesn't
+  need a CRDT.
+- **The ROI is optional.** The host's own region of interest setting
+  decides it. With one, everyone counts inside the host's box. Without,
+  it's the whole slide.
+- **Colours still mean what you pick.** Each dot keeps the colour its
+  person chose, so colours can still be categories. Who placed it shows as
+  a ring in their presence colour.
+- **Double counts.** Where two people's dots are closer than the match
+  radius, that's probably one cell counted from both sides of where they
+  split the work, so both get a red ring and the panel says how many.
+  `findDoubleCounts` in
+  [sharedCount.ts](../../image-viewer/src/components/cell-count/shared/sharedCount.ts)
+  buckets dots into a grid the size of the radius, so each dot only checks
+  its neighbours.
+- **Leaving keeps your dots.** You stay listed as `left` so they keep a
+  name. If the host leaves, hosting passes to whoever joined first.
+- **Finishing** is host only and ends it for everyone. The host's save form
+  gets every dot, and it's saved as one normal cell count - everyone else
+  sees it arrive in their Saved list like any other. Each dot is saved
+  with `placedBy` (user id and name) so the saved count still shows who
+  counted what. That's why contributors carry a `userId` - a connection id
+  means nothing once everyone's gone. It lives inside the dots JSON, which
+  annotation-store never reads, so it needed no migration.
+
+## 10. Viewer side
 
 [RealtimeContext.tsx](../../image-viewer/src/context/RealtimeContext.tsx)
 owns the one SignalR connection and hands everything to the rest of the
@@ -360,7 +424,7 @@ viewer through React context.
 - **Colour changes** on an annotation go out every 200ms while you drag the
   picker, so others see it change live.
 
-## 10. Limits and validation
+## 11. Limits and validation
 
 | Limit                   | Value                                                          | Why                                                                         |
 | ----------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------- |
@@ -372,18 +436,20 @@ viewer through React context.
 | Must open doc first     | `SendDocUpdate`                                                | "Open the doc first"                                                        |
 | Comparison ROI          | 16K chars                                                      | Only ever a box                                                             |
 | Comparison dots         | 10,000, finite x and y                                         | Far more than anyone clicks by hand                                         |
+| Shared count dots       | 10,000, finite x and y, a colour and a unique id               | Same reason                                                                 |
 | Comparison state        | Join from invited, submit from counting, one running per slide | The reason comes back as a `HubException`                                   |
+| Shared count state      | Add/remove once joined, remove only your own, finish host only | Same                                                                        |
 
 **Debug endpoints:** `GET /rooms` (slide → number of people),
 `GET /rooms/{slideId}` (who's in it), `GET /rooms/{slideId}/docs` (open text
 docs), `GET /rooms/{slideId}/comparison` (the running comparison, blind like
-over the hub). In Development there's also Scalar at `/scalar`.
+over the hub), `GET /rooms/{slideId}/sharedcount` (the running shared count). In Development there's also Scalar at `/scalar`.
 
 **Telemetry:** traces, metrics and logs go to the same Grafana dashboard as
 the other services, including each hub method call and the number of open
 connections. If Grafana isn't running nothing breaks.
 
-## 11. Known gaps
+## 12. Known gaps
 
 - **No auth.** The hub trusts whatever user id the browser sends. Users are
   "Guest xxxx" for now. Sessions, invite links and host / editor / viewer
@@ -392,21 +458,25 @@ connections. If Grafana isn't running nothing breaks.
 - **One copy only.** State is in memory, so two copies of the hub would
   split users between them. Scaling out needs a Redis backplane or Azure
   SignalR Service.
-- **CORS allows any origin.** On purpose for LAN testing. Needs a real
+- **CORS allows any origin.** Left over from LAN testing - the viewer now
+  goes through its dev server's proxy, so it isn't needed there. Needs a real
   origin list before deploying.
 - **Ops are relay only.** The hub doesn't replay missed ops - a client that
   misses one catches up on the next load. `seq` also resets when a room
   empties.
 - **No doc compaction.** A doc's update list grows until the last editor
   leaves. Fine for short fields that live for one editing session.
-- **Shared count.** Comparison counts are in. The other mode - several
-  people adding to one count, each in a different part of the slide - isn't
-  yet.
+- **Double counts aren't saved.** Each dot does keep who placed it (see
+  [section 9](#9-shared-count)), but the double-count flags are only worked
+  out live.
+- **Shared counts aren't split up.** Nothing stops two people counting the
+  same patch. The double-count rings catch it after the fact, and people's
+  viewport boxes show who's where, but the hub doesn't hand out areas.
 - **Comparisons aren't saved.** The results only live on the hub until
   everyone closes them. Each person can save their own count, but not the
   comparison itself.
 
-## 12. Glossary
+## 13. Glossary
 
 | Term              | Meaning                                                                                                              |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------- |
@@ -421,3 +491,5 @@ connections. If Grafana isn't running nothing breaks.
 | Yjs               | A JavaScript CRDT library, used here for shared text fields                                                          |
 | Comparison count  | Several people count the same ROI on their own, then their dots are matched up to see where they agree               |
 | Match radius      | How close two people's dots have to be to count as the same cell                                                     |
+| Shared count      | Several people add to one count at once, each seeing everyone's dots live                                            |
+| Double count      | Two people's dots on what looks like the same cell in a shared count                                                 |

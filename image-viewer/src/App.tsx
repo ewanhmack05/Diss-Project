@@ -21,6 +21,7 @@ import { RulerContextProvider } from './context/RulerContext'
 import { AdjustmentsContextProvider } from './context/AdjustmentsContext'
 import { ToastContextProvider } from './context/ToastContext'
 import { ComparisonContextProvider } from './context/ComparisonContext'
+import { SharedCountContextProvider } from './context/SharedCountContext'
 import { EventContextProvider } from './context/EventContext'
 import MapNode from './components/MapNode'
 import AnnotationsPanel from './components/annotation/AnnotationsPanel'
@@ -122,7 +123,9 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, opti
                           <AdjustmentsContextProvider baseUrl={annotationStoreUrl}>
                             <ToolbarContextProvider>
                               <ComparisonContextProvider>
-                                <ViewerShell fontSize={options?.fontSize} tools={options?.tools} />
+                                <SharedCountContextProvider>
+                                  <ViewerShell fontSize={options?.fontSize} tools={options?.tools} />
+                                </SharedCountContextProvider>
                               </ComparisonContextProvider>
                             </ToolbarContextProvider>
                           </AdjustmentsContextProvider>

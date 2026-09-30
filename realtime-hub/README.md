@@ -3,7 +3,7 @@
 .NET SignalR service for real-time collaboration. Everyone viewing the same
 slide shares a room, and the hub relays annotation changes, viewports,
 in-progress drawing and shared text edits between them, and runs comparison
-cell counts. Kept separate from annotation-store so it can be ported and
+and shared cell counts. Kept separate from annotation-store so it can be ported and
 reused (see [docs/libraries.md](../docs/libraries.md)).
 
 This is step 1 of the plan - no auth or sessions yet, so users are whatever
@@ -13,7 +13,7 @@ id the client sends.
 
 ```bash
 cd realtime-hub/
-dotnet build && dotnet run --urls http://0.0.0.0:5180
+dotnet build && dotnet run --urls http://localhost:5180
 ```
 
 Scalar is at http://localhost:5180/scalar in Development. Tests:
@@ -44,6 +44,12 @@ Connect to `/hubs/slides`. Enums go over the wire as camelCase strings
 | `JoinComparison`   | `comparisonId`                      | -            | Only from `invited`, before the reveal                   |
 | `SubmitComparison` | `comparisonId`, `ComparisonDot[]`   | -            | Only while `counting`. Max 10,000 dots                   |
 | `LeaveComparison`  | `comparisonId`                      | -            | Decline, give up, or close the results. No-op if not in it |
+| `StartSharedCount` | `SharedCountSettings`               | `SharedCount` | Invites everyone else. Fails if one is already running  |
+| `JoinSharedCount`  | `sharedCountId`                     | -            | From an invite, or back in after leaving                 |
+| `AddSharedDot`     | `sharedCountId`, `SharedDot`        | -            | Joined only. Client picks the id. Max 10,000 dots        |
+| `RemoveSharedDot`  | `sharedCountId`, `dotId`            | -            | Your own dots only (undo)                                |
+| `LeaveSharedCount` | `sharedCountId`                     | -            | Decline or stop counting. Your dots stay                 |
+| `FinishSharedCount`| `sharedCountId`                     | -            | Host only. Ends it for everyone                          |
 
 ### Hub → client
 
@@ -57,9 +63,14 @@ Connect to `/hubs/slides`. Enums go over the wire as camelCase strings
 | `DocUpdated`        | `DocUpdate`      | Another editor of a doc you have open changes it      |
 | `DocEditorsChanged` | `DocEditors`     | Someone opens, closes, leaves or drops a doc you have |
 | `ComparisonChanged` | `Comparison \| null` | Anything about the slide's comparison changes, `null` once it's dropped |
+| `SharedCountChanged` | `SharedCount \| null` | Someone starts, joins or leaves the shared count, or the host hands over. `null` once it's finished or dropped |
+| `SharedDotAdded`    | `SharedDotAdded`   | Someone else adds a dot to the shared count           |
+| `SharedDotRemoved`  | `SharedDotRemoved` | Someone else takes one of their dots back             |
 
-Nothing is echoed back to the sender, apart from `ComparisonChanged`, which
-goes to the whole slide so clients have one place to keep their copy.
+Nothing is echoed back to the sender, apart from `ComparisonChanged` and
+`SharedCountChanged`, which go to the whole slide so clients have one place
+to keep their copy. Shared dots aren't echoed - the sender has already drawn
+theirs.
 
 ### Shapes
 
@@ -88,6 +99,17 @@ type Comparison = {
   id: string; hostConnectionId: string; settings: ComparisonSettings;
   started: string; revealed: boolean; counters: Counter[];
 };
+// roiGeoJson null means the whole slide.
+type SharedCountSettings = { roiGeoJson: string | null; dotSize: number; matchRadius: number };
+// connectionId is filled in by the hub, whatever the client sends.
+type SharedDot = { id: string; x: number; y: number; colour: string; connectionId: string };
+type Contributor = { connectionId: string; userId: string; displayName: string; colour: string; state: 'invited' | 'joined' | 'left' };
+type SharedCount = {
+  id: string; hostConnectionId: string; settings: SharedCountSettings;
+  started: string; contributors: Contributor[]; dots: SharedDot[];
+};
+type SharedDotAdded = { sharedCountId: string; dot: SharedDot };
+type SharedDotRemoved = { sharedCountId: string; dotId: string };
 // Byte arrays (seed, update, updates) are base64 strings both ways.
 // editors are connection ids, in the order they opened the doc.
 type DocState = { docId: string; instanceId: string; seeded: boolean; updates: string[]; editors: string[] };
@@ -126,6 +148,15 @@ type DocEditors = { docId: string; editors: string[] };
     invited), or once everyone has left a revealed one. A revealed one is
     also replaced if someone starts a new one.
   - Disconnecting or switching slide counts as leaving it.
+- **Shared counts** - one per slide. Everyone adds to one count, usually
+  each in their own part of the slide, and sees every dot as it lands.
+  - Starting invites everyone in the slide, and anyone who joins it later.
+  - Leaving keeps your dots. You stay in `contributors` as `left` if you'd
+    placed any, so they still have a name.
+  - If the host leaves, hosting passes to whoever joined first. Once nobody
+    is `joined` it's dropped.
+  - `FinishSharedCount` ends it for everyone - the host saves it to
+    annotation-store as a normal cell count from their own copy.
 - **Message size** - the hub accepts messages up to 1MB (SignalR's default
   of 32KB dropped long freehand annotations).
 
@@ -137,6 +168,7 @@ type DocEditors = { docId: string; editors: string[] };
 | `GET /rooms/{slideId}`     | participants in that slide                                       |
 | `GET /rooms/{slideId}/docs`| open docs: `docId`, `instanceId`, `editors`, `updates`, `bytes`  |
 | `GET /rooms/{slideId}/comparison` | the running comparison (no dots until revealed), 204 if none |
+| `GET /rooms/{slideId}/sharedcount` | the running shared count, dots included, 204 if none |
 
 ## Notes
 

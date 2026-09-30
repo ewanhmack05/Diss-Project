@@ -7,19 +7,28 @@ public record ClosedDoc(string SlideId, string DocId, IReadOnlyList<string> Edit
 // Comparison is null once it's been dropped.
 public record ComparisonChange(string SlideId, Comparison? Comparison);
 
-// Comparison is only set if they were part of one.
-public record LeaveResult(Participant Participant, IReadOnlyList<ClosedDoc> Docs, ComparisonChange? Comparison);
+// SharedCount is null once it's been dropped or finished.
+public record SharedCountChange(string SlideId, SharedCount? SharedCount);
 
-// Thrown for comparison calls that don't fit its current state, e.g.
-// joining one that's already revealed. The message goes back to the client.
-public class ComparisonException(string message) : Exception(message);
+// Comparison and SharedCount are only set if they were part of one.
+public record LeaveResult(
+    Participant Participant,
+    IReadOnlyList<ClosedDoc> Docs,
+    ComparisonChange? Comparison,
+    SharedCountChange? SharedCount);
+
+// Thrown for comparison or shared count calls that don't fit its current
+// state, e.g. joining one that's already revealed. The message goes back
+// to the client.
+public class CountException(string message) : Exception(message);
 
 public record DocSummary(string DocId, Guid InstanceId, int Editors, int Updates, long Bytes);
 
 // Who's in which slide room. In memory only - fine while there's one copy
 // of the hub (see docs/libraries.md), and nothing here needs to survive a
 // restart since clients just rejoin.
-public class SlideRooms
+// Shared counts are in SharedCounts.cs.
+public partial class SlideRooms
 {
     private static readonly string[] Palette =
     [
@@ -36,8 +45,9 @@ public class SlideRooms
         public Dictionary<string, Participant> Participants { get; } = new();
         public Dictionary<string, SharedDoc> Docs { get; } = new();
         public long Seq;
-        // One at a time per slide.
+        // One of each at a time per slide.
         public Comparison? Comparison;
+        public SharedCountState? SharedCount;
     }
 
     private class SharedDoc
@@ -72,7 +82,8 @@ public class SlideRooms
                     Counters = [.. running.Counters, new Counter(connectionId, me.DisplayName, me.Colour, CounterState.Invited)],
                 };
             }
-            return new JoinResult(me, others, room.Seq, room.Comparison?.Blind());
+            room.SharedCount?.Contributors.Add(new Contributor(connectionId, me.UserId, me.DisplayName, me.Colour, ContributorState.Invited));
+            return new JoinResult(me, others, room.Seq, room.Comparison?.Blind(), room.SharedCount?.Snapshot());
         }
     }
 
@@ -90,9 +101,12 @@ public class SlideRooms
                 .ToList();
             var docs = openDocs.Select(docId => CloseDoc(room, slideId, docId, connectionId)).ToList();
             var comparison = RemoveCounter(room, connectionId) ? new ComparisonChange(slideId, room.Comparison) : null;
+            var sharedCount = RemoveContributor(room, connectionId)
+                ? new SharedCountChange(slideId, room.SharedCount?.Snapshot())
+                : null;
 
             if (room.Participants.Count == 0) _rooms.Remove(slideId);
-            return new LeaveResult(participant!, docs, comparison);
+            return new LeaveResult(participant!, docs, comparison, sharedCount);
         }
     }
 
@@ -197,7 +211,7 @@ public class SlideRooms
         {
             if (!_slideByConnection.TryGetValue(connectionId, out var slideId)) return null;
             var room = _rooms[slideId];
-            if (room.Comparison is { Revealed: false }) throw new ComparisonException("A comparison is already running");
+            if (room.Comparison is { Revealed: false }) throw new CountException("A comparison is already running");
 
             var counters = room.Participants.Values
                 .OrderBy(p => p.ConnectionId == connectionId ? 0 : 1)
@@ -216,9 +230,9 @@ public class SlideRooms
             if (!_slideByConnection.TryGetValue(connectionId, out var slideId)) return null;
             var room = _rooms[slideId];
             var comparison = Current(room, comparisonId);
-            if (comparison.Revealed) throw new ComparisonException("That comparison has finished");
+            if (comparison.Revealed) throw new CountException("That comparison has finished");
             var me = comparison.Counters.FirstOrDefault(c => c.ConnectionId == connectionId);
-            if (me?.State != CounterState.Invited) throw new ComparisonException("You're not invited to that comparison");
+            if (me?.State != CounterState.Invited) throw new CountException("You're not invited to that comparison");
 
             room.Comparison = WithCounter(comparison, me with { State = CounterState.Counting });
             return new ComparisonChange(slideId, room.Comparison);
@@ -246,7 +260,7 @@ public class SlideRooms
             var room = _rooms[slideId];
             var comparison = Current(room, comparisonId);
             var me = comparison.Counters.FirstOrDefault(c => c.ConnectionId == connectionId);
-            if (me?.State != CounterState.Counting) throw new ComparisonException("You're not counting in that comparison");
+            if (me?.State != CounterState.Counting) throw new CountException("You're not counting in that comparison");
 
             room.Comparison = Settle(WithCounter(comparison, me with { State = CounterState.Submitted, Dots = dots.ToList() }));
             return new ComparisonChange(slideId, room.Comparison);
@@ -303,7 +317,7 @@ public class SlideRooms
     private static Comparison Current(Room room, Guid comparisonId) =>
         room.Comparison?.Id == comparisonId
             ? room.Comparison
-            : throw new ComparisonException("That comparison isn't running any more");
+            : throw new CountException("That comparison isn't running any more");
 
     private static Comparison WithCounter(Comparison comparison, Counter counter) =>
         comparison with

@@ -1,7 +1,14 @@
+// Who placed a dot - only set on dots from a shared count.
+interface DotPlacer {
+	userId: string;
+	name: string;
+}
+
 interface CellCountDot {
 	x: number;
 	y: number;
 	colour: string;
+	placedBy?: DotPlacer;
 }
 
 interface CellCountColourCount {
@@ -37,4 +44,4 @@ interface CellCount {
 	created: string;
 }
 
-export type { CellCount, CellCountDot, CellCountColourCount, RegionOfInterest };
+export type { CellCount, CellCountDot, CellCountColourCount, RegionOfInterest, DotPlacer };

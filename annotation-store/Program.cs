@@ -156,8 +156,11 @@ app.MapDelete("/collections/{id:guid}", async (Guid id, AnnotationDbContext db) 
 
 // Annotation endpoints
 
+// Newest first. Sorted after loading rather than in SQL - the tests run on
+// SQLite, which can't order by DateTimeOffset, and one collection's list is small.
 app.MapGet("/annotations", async (Guid collectionId, AnnotationDbContext db) =>
-    Results.Ok(await db.Annotations.Where(a => a.CollectionId == collectionId).ToListAsync()));
+    Results.Ok((await db.Annotations.Where(a => a.CollectionId == collectionId).ToListAsync())
+        .OrderByDescending(a => a.Created)));
 
 app.MapPost("/annotations", async (Annotation annotation, AnnotationDbContext db) =>
 {
@@ -196,11 +199,13 @@ app.MapDelete("/annotations/{id:guid}", async (Guid id, AnnotationDbContext db) 
 
 // Cell count endpoints
 
+// Newest first, same as annotations.
 app.MapGet("/cellcounts", async (Guid collectionId, AnnotationDbContext db) =>
-    Results.Ok(await db.CellCounts
+    Results.Ok((await db.CellCounts
         .Where(c => c.CollectionId == collectionId)
         .Include(c => c.RegionOfInterest)
-        .ToListAsync()));
+        .ToListAsync())
+        .OrderByDescending(c => c.Created)));
 
 app.MapPost("/cellcounts", async (CellCount cellCount, AnnotationDbContext db) =>
 {

@@ -41,6 +41,11 @@ const TOAST_MESSAGES: Record<string, { message: string; variant: 'success' | 'er
   'comparison:start-error': { message: "Couldn't start the comparison", variant: 'error' },
   'comparison:join-error': { message: "Couldn't join the comparison", variant: 'error' },
   'comparison:submit-error': { message: "Couldn't hand in your count", variant: 'error' },
+  'sharedcount:invited': { message: "You've been invited to a shared count", variant: 'success' },
+  'sharedcount:ended': { message: 'The shared count has ended', variant: 'success' },
+  'sharedcount:start-error': { message: "Couldn't start the shared count", variant: 'error' },
+  'sharedcount:join-error': { message: "Couldn't join the shared count", variant: 'error' },
+  'sharedcount:finish-error': { message: "Couldn't finish the shared count", variant: 'error' },
 }
 
 interface EventContextProviderProps {

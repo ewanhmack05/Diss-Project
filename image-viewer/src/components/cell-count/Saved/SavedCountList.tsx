@@ -1,22 +1,158 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useCellCountStoreContext } from "../../../context/CellCountStoreContext";
-import { parseCellCountDots, colourBreakdownFromDots } from "../CellCountDots";
+import type { CellCount } from "../../../interfaces/CellCount";
+import {
+  parseCellCountDots,
+  colourBreakdownFromDots,
+  placedByBreakdown,
+} from "../CellCountDots";
 import { toggleViewedCellCountId } from "../CellCountView";
 import CellCountColourSwatch from "../CellCountColourSwatch";
 import SavedCountEdit from "./SavedCountEdit";
+import SavedRow, { SavedDetails } from "../../saved/SavedRow";
+import { formatLongDate, formatShortDate, newestFirst } from "../../saved/savedDates";
 import "./SavedCountList.css";
 
+function RoiIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 11 11" aria-hidden="true">
+      <rect x="1" y="1" width="9" height="9" fill="none" stroke="#00e0ff" strokeWidth="1.3" strokeDasharray="2 1.5" />
+    </svg>
+  );
+}
+
+function PeopleIcon() {
+  return (
+    <svg width="13" height="11" viewBox="0 0 14 12" aria-hidden="true">
+      <g fill="none" stroke="currentColor" strokeWidth="1.2">
+        <circle cx="5" cy="3.5" r="2.2" />
+        <path d="M1 11 C1 8, 9 8, 9 11" />
+        <circle cx="10" cy="4" r="1.8" />
+        <path d="M10 7.8 C12 7.8, 13 9, 13 11" />
+      </g>
+    </svg>
+  );
+}
+
+interface SavedCountRowProps {
+  cellCount: CellCount;
+  open: boolean;
+  onToggle: () => void;
+}
+
+function SavedCountRow({ cellCount, open, onToggle }: SavedCountRowProps) {
+  const { viewedCellCountId, setSelectedCellCountId, setViewedCellCountId } =
+    useCellCountStoreContext();
+  const dots = parseCellCountDots(cellCount.dots);
+  const colours = colourBreakdownFromDots(dots);
+  const people = placedByBreakdown(dots);
+  const isViewing = viewedCellCountId === cellCount.id;
+  // Same rules as the old View button - nothing to draw without dots or
+  // a location.
+  const canView =
+    cellCount.withAnnotation &&
+    cellCount.locationX !== null &&
+    cellCount.locationY !== null;
+
+  const colourChips =
+    colours.length > 0 ? (
+      colours.map(({ colour, count }) => (
+        <span key={colour} className="saved-row-tag">
+          <span className="saved-row-dot" style={{ background: colour }} />
+          {count}
+        </span>
+      ))
+    ) : (
+      <span>Tally only</span>
+    );
+
+  const details: [string, ReactNode][] = [
+    ["Colours", colours.length > 0 ? <span key="colours" className="saved-row-chips">{colourChips}</span> : "Tally only, no dots"],
+    ["Region", cellCount.withRoi ? "Region of interest box" : "None"],
+  ];
+  if (people.length > 0) {
+    details.push([
+      "Counted by",
+      <span key="people" className="saved-row-people">
+        {people.map((person) => (
+          <span key={person.userId} className="saved-row-person" title={person.userId}>
+            <span>{person.name}</span>
+            <span>{person.count}</span>
+          </span>
+        ))}
+      </span>,
+    ]);
+  }
+  if (cellCount.notes) details.push(["Notes", cellCount.notes]);
+  details.push(["Saved", formatLongDate(cellCount.created)]);
+
+  return (
+    <SavedRow
+      open={open}
+      onToggle={onToggle}
+      leading={
+        <CellCountColourSwatch breakdown={colours} className="saved-cell-count-list-swatch" />
+      }
+      label={cellCount.label}
+      trailing={<span className="saved-cell-count-list-count">{cellCount.count}</span>}
+      meta={
+        <>
+          {colourChips}
+          {cellCount.withRoi && (
+            <span className="saved-row-tag saved-row-tag--roi">
+              <RoiIcon />
+              ROI
+            </span>
+          )}
+          {people.length > 0 && (
+            <span className="saved-row-tag" title={people.map((p) => p.name).join(", ")}>
+              <PeopleIcon />
+              {people.length}
+            </span>
+          )}
+          {isViewing && <span className="saved-row-tag saved-row-tag--active">On map</span>}
+          <span className="saved-row-spacer" />
+          <span>{formatShortDate(cellCount.created)}</span>
+        </>
+      }
+      notes={cellCount.notes}
+    >
+      <SavedDetails
+        items={details}
+        actions={
+          <>
+            <button
+              type="button"
+              className="saved-row-button"
+              disabled={!canView}
+              title={canView ? undefined : "Nothing to show - no dots or location were recorded"}
+              onClick={() =>
+                setViewedCellCountId(toggleViewedCellCountId(viewedCellCountId, cellCount.id))
+              }
+            >
+              {isViewing ? "Hide from map" : "View on map"}
+            </button>
+            <button
+              type="button"
+              className="saved-row-button saved-row-button--primary"
+              onClick={() => setSelectedCellCountId(cellCount.id)}
+            >
+              Edit
+            </button>
+          </>
+        }
+      />
+    </SavedRow>
+  );
+}
+
 function SavedCountList() {
-  const {
-    cellCounts,
-    status,
-    selectedCellCountId,
-    viewedCellCountId,
-    setSelectedCellCountId,
-    setViewedCellCountId,
-  } = useCellCountStoreContext();
+  const { cellCounts, status, selectedCellCountId, setSelectedCellCountId } =
+    useCellCountStoreContext();
   // Kept here rather than reset on edit, so Back returns to the same results.
   const [search, setSearch] = useState("");
+  // One open at a time. Kept through an edit too, so Back lands on it.
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const editing = cellCounts.find((c) => c.id === selectedCellCountId);
   if (editing) {
@@ -46,13 +182,15 @@ function SavedCountList() {
   }
 
   const query = search.trim().toLowerCase();
-  const filtered = query
-    ? cellCounts.filter(
-        (c) =>
-          c.label.toLowerCase().includes(query) ||
-          c.notes.toLowerCase().includes(query),
-      )
-    : cellCounts;
+  const filtered = newestFirst(
+    query
+      ? cellCounts.filter(
+          (c) =>
+            c.label.toLowerCase().includes(query) ||
+            c.notes.toLowerCase().includes(query),
+        )
+      : cellCounts,
+  );
 
   return (
     <>
@@ -67,55 +205,14 @@ function SavedCountList() {
         <p className="saved-cell-count-list-empty">No matches.</p>
       ) : (
         <ul className="saved-cell-count-list themed-scroll">
-          {filtered.map((cellCount) => {
-            const isViewing = viewedCellCountId === cellCount.id;
-            return (
-              <li key={cellCount.id} className="saved-cell-count-list-row">
-                <button
-                  type="button"
-                  className="saved-cell-count-list-item"
-                  onClick={() => setSelectedCellCountId(cellCount.id)}
-                >
-                  <CellCountColourSwatch
-                    breakdown={colourBreakdownFromDots(
-                      parseCellCountDots(cellCount.dots),
-                    )}
-                    className={`saved-cell-count-list-swatch${cellCount.withAnnotation ? "" : " saved-cell-count-list-swatch--hidden"}`}
-                  />
-                  <span className="saved-cell-count-list-label">
-                    {cellCount.label}
-                  </span>
-                  <span className="saved-cell-count-list-count">
-                    {cellCount.count}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className={`saved-cell-count-list-view${isViewing ? " saved-cell-count-list-view--active" : ""}${cellCount.withAnnotation ? "" : " saved-cell-count-list-view--hidden"}`}
-                  disabled={
-                    !cellCount.withAnnotation ||
-                    cellCount.locationX === null ||
-                    cellCount.locationY === null
-                  }
-                  tabIndex={cellCount.withAnnotation ? 0 : -1}
-                  title={
-                    cellCount.locationX === null
-                      ? "No location recorded for this count"
-                      : isViewing
-                        ? "Hide this count"
-                        : "Show this count on the map"
-                  }
-                  onClick={() =>
-                    setViewedCellCountId(
-                      toggleViewedCellCountId(viewedCellCountId, cellCount.id),
-                    )
-                  }
-                >
-                  {isViewing ? "Hide" : "View"}
-                </button>
-              </li>
-            );
-          })}
+          {filtered.map((cellCount) => (
+            <SavedCountRow
+              key={cellCount.id}
+              cellCount={cellCount}
+              open={openId === cellCount.id}
+              onToggle={() => setOpenId((current) => (current === cellCount.id ? null : cellCount.id))}
+            />
+          ))}
         </ul>
       )}
     </>

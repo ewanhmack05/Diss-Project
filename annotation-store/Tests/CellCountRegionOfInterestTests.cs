@@ -123,6 +123,23 @@ public class CellCountRegionOfInterestTests : IClassFixture<CellCountApiFactory>
     }
 
     [Fact]
+    public async Task Get_ReturnsNewestFirst()
+    {
+        var client = _factory.CreateClient();
+        var collectionId = await CreateCollectionAsync(client, Guid.NewGuid().ToString());
+        foreach (var label in new[] { "first", "second", "third" })
+        {
+            var payload = NewCellCount(collectionId);
+            payload.Label = label;
+            (await client.PostAsJsonAsync("/cellcounts", payload)).EnsureSuccessStatusCode();
+        }
+
+        var cellCounts = await client.GetFromJsonAsync<List<CellCount>>($"/cellcounts?collectionId={collectionId}");
+
+        Assert.Equal(["third", "second", "first"], cellCounts!.Select(c => c.Label));
+    }
+
+    [Fact]
     public async Task Get_DoesNotReturnCellCountsFromAnotherCollection()
     {
         var client = _factory.CreateClient();

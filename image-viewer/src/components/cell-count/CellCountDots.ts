@@ -1,6 +1,6 @@
 import type Feature from 'ol/Feature'
 import type Point from 'ol/geom/Point'
-import type { CellCountDot, CellCountColourCount } from '../../interfaces/CellCount'
+import type { CellCountDot, CellCountColourCount, DotPlacer } from '../../interfaces/CellCount'
 
 const NO_COLOUR = 'var(--chrome-text-secondary)'
 
@@ -59,4 +59,17 @@ function colourBreakdownBackground(breakdown: CellCountColourCount[]): string {
   return `conic-gradient(${stops.join(', ')})`
 }
 
-export { parseCellCountDots, colourBreakdownFromDots, colourBreakdownBackground, dotsFromHistory }
+// How many dots each person placed, in the order they first appear. Empty
+// for a count with nobody recorded (anything but a shared count).
+function placedByBreakdown(dots: CellCountDot[]): (DotPlacer & { count: number })[] {
+  const byUser = new Map<string, DotPlacer & { count: number }>()
+  for (const { placedBy } of dots) {
+    if (!placedBy) continue
+    const entry = byUser.get(placedBy.userId)
+    if (entry) entry.count++
+    else byUser.set(placedBy.userId, { ...placedBy, count: 1 })
+  }
+  return Array.from(byUser.values())
+}
+
+export { parseCellCountDots, colourBreakdownFromDots, colourBreakdownBackground, dotsFromHistory, placedByBreakdown }

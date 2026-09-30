@@ -129,11 +129,59 @@ interface Comparison {
   counters: Counter[]
 }
 
+// Shared count - see realtime-hub/README.md. left is someone who joined and
+// went, kept so their dots still have a name.
+type ContributorState = 'invited' | 'joined' | 'left'
+
+interface Contributor {
+  connectionId: string
+  userId: string
+  displayName: string
+  colour: string
+  state: ContributorState
+}
+
+// connectionId is whoever placed it - the hub fills it in.
+interface SharedDot {
+  id: string
+  x: number
+  y: number
+  colour: string
+  connectionId: string
+}
+
+interface SharedCountSettings {
+  // Null for the whole slide.
+  roiGeoJson: string | null
+  dotSize: number
+  matchRadius: number
+}
+
+interface SharedCount {
+  id: string
+  hostConnectionId: string
+  settings: SharedCountSettings
+  started: string
+  contributors: Contributor[]
+  dots: SharedDot[]
+}
+
+interface SharedDotAdded {
+  sharedCountId: string
+  dot: SharedDot
+}
+
+interface SharedDotRemoved {
+  sharedCountId: string
+  dotId: string
+}
+
 interface JoinResult {
   me: Participant
   others: Participant[]
   seq: number
   comparison: Comparison | null
+  sharedCount: SharedCount | null
 }
 
 // Applies someone else's op to a local list. A create for an id we already
@@ -314,4 +362,11 @@ export type {
   Counter,
   ComparisonSettings,
   Comparison,
+  ContributorState,
+  Contributor,
+  SharedDot,
+  SharedCountSettings,
+  SharedCount,
+  SharedDotAdded,
+  SharedDotRemoved,
 }

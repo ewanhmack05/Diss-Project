@@ -7,8 +7,9 @@ import { mostRecentCellCount } from "../CellCountView";
 import ColourPicker from "../../colour-picker/ColourPicker";
 import CellCountColourSwatch from "../CellCountColourSwatch";
 import DockedCard from "../../toolbar/DockedCard";
-import ComparisonInvite from "../comparison/ComparisonInvite";
+import CountInvites from "../CountInvites";
 import { useComparisonContext } from "../../../context/ComparisonContext";
+import { useSharedCountContext } from "../../../context/SharedCountContext";
 import { useRealtimeContext } from "../../../context/RealtimeContext";
 import "../comparison/Comparison.css";
 import "./CellCounterToolPicker.css";
@@ -39,7 +40,8 @@ function CellCounterToolPicker() {
   const { cellCounts } = useCellCountStoreContext();
   const recentCellCount = mostRecentCellCount(cellCounts);
   const { status } = useRealtimeContext();
-  const { canHost, host } = useComparisonContext();
+  const comparison = useComparisonContext();
+  const shared = useSharedCountContext();
 
   const handleStart = () => {
     resetCount();
@@ -49,7 +51,7 @@ function CellCounterToolPicker() {
 
   return (
     <div className="cell-counter-tool-picker">
-      <ComparisonInvite />
+      <CountInvites />
 
       <DockedCard className="cell-counter-tool-picker-field-card">
         <label className="cell-counter-tool-picker-field">
@@ -142,32 +144,46 @@ function CellCounterToolPicker() {
         )}
       </DockedCard>
 
-      {/* Comparison needs the hub, so it's not offered at all without one. */}
-      <div className="comparison-buttons">
-        <button
-          type="button"
-          className="cell-counter-tool-picker-button cell-counter-tool-picker-button--primary"
-          disabled={activeTool !== null}
-          onClick={handleStart}
-        >
-          Start counting
-        </button>
-        {status !== "off" && (
+      <button
+        type="button"
+        className="cell-counter-tool-picker-button cell-counter-tool-picker-button--primary"
+        disabled={activeTool !== null}
+        onClick={handleStart}
+      >
+        Start counting
+      </button>
+
+      {/* Both need the hub, so they're not offered at all without one. */}
+      {status !== "off" && (
+        <div className="comparison-buttons">
           <button
             type="button"
             className="cell-counter-tool-picker-button"
-            disabled={activeTool !== null || !canHost}
+            disabled={activeTool !== null || !comparison.canHost}
             title={
-              canHost
-                ? "Everyone on this slide counts the same region, then the counts are compared"
+              comparison.canHost
+                ? "Everyone on this slide counts the same region on their own, then the counts are compared"
                 : "Needs someone else on the slide, and no comparison already running"
             }
-            onClick={host}
+            onClick={comparison.host}
           >
-            Start comparison
+            Comparison
           </button>
-        )}
-      </div>
+          <button
+            type="button"
+            className="cell-counter-tool-picker-button"
+            disabled={activeTool !== null || !shared.canHost}
+            title={
+              shared.canHost
+                ? "Everyone on this slide adds to one count, each in their own part of the slide. Uses the region of interest setting above"
+                : "Needs someone else on the slide, and no shared count already running"
+            }
+            onClick={shared.host}
+          >
+            Shared count
+          </button>
+        </div>
+      )}
 
       {activeTool ? (
         <p className="cell-counter-tool-picker-hint">

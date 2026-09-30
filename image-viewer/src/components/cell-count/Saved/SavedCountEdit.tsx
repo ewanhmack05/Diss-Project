@@ -6,6 +6,7 @@ import { useSharedFields } from '../../realtime/useSharedFields'
 import { LABEL_MAX, NOTES_MAX, nextSave } from '../../realtime/autosave'
 import EditingWith from '../../realtime/EditingWith'
 import { parseCellCountDots, colourBreakdownFromDots } from '../CellCountDots'
+import CountedBy from '../CountedBy'
 import CellCountColourSwatch from '../CellCountColourSwatch'
 import DockedCard from '../../toolbar/DockedCard'
 import '../CellCounter/CellCountForm.css'
@@ -66,7 +67,8 @@ function SavedCountEdit({ cellCount, onBack }: SavedCountEditProps) {
   // Closing the form, however it happens, saves whatever's still waiting.
   useEffect(() => () => saveText.flush(), [saveText])
 
-  const colourBreakdown = colourBreakdownFromDots(parseCellCountDots(cellCount.dots))
+  const dots = parseCellCountDots(cellCount.dots)
+  const colourBreakdown = colourBreakdownFromDots(dots)
 
   const handleDelete = () => {
     saveText.cancel()
@@ -122,6 +124,8 @@ function SavedCountEdit({ cellCount, onBack }: SavedCountEditProps) {
             )}
           </div>
         </div>
+
+        <CountedBy dots={dots} />
 
         <div className="cell-count-form-row">
           <div className="cell-count-form-field">

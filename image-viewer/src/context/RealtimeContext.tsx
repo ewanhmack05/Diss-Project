@@ -9,6 +9,11 @@ import {
   type Comparison,
   type ComparisonDot,
   type ComparisonSettings,
+  type SharedCount,
+  type SharedCountSettings,
+  type SharedDot,
+  type SharedDotAdded,
+  type SharedDotRemoved,
   type DocEditors,
   type DocState,
   type DocStateWire,
@@ -23,6 +28,7 @@ import {
 } from '../components/realtime/realtime'
 import { useImageViewerContext } from './ImageViewerContext'
 import { useEmitEvent } from './EventContext'
+import { newId } from '../newId'
 
 // off - no hub URL given, so realtime is switched off entirely.
 // offline - couldn't connect, still retrying in the background.
@@ -57,6 +63,16 @@ interface RealtimeContextValue {
   joinComparison: (id: string) => Promise<void>
   leaveComparison: (id: string) => Promise<void>
   submitComparison: (id: string, dots: ComparisonDot[]) => Promise<void>
+  // The shared count running on this slide, if any (see SharedCountContext).
+  // Your own dots are added and removed here straight away, rather than
+  // waiting on the hub, which doesn't echo them back.
+  sharedCount: SharedCount | null
+  startSharedCount: (settings: SharedCountSettings) => Promise<SharedCount>
+  joinSharedCount: (id: string) => Promise<void>
+  leaveSharedCount: (id: string) => Promise<void>
+  finishSharedCount: (id: string) => Promise<void>
+  addSharedDot: (dot: Omit<SharedDot, 'connectionId'>) => void
+  removeSharedDot: (dotId: string) => void
 }
 
 const RealtimeContext = createContext<RealtimeContextValue | null>(null)
@@ -73,11 +89,11 @@ function guestIdentity(): { userId: string; displayName: string } {
   try {
     userId = sessionStorage.getItem('realtime-user-id')
     if (!userId) {
-      userId = crypto.randomUUID()
+      userId = newId()
       sessionStorage.setItem('realtime-user-id', userId)
     }
   } catch {
-    userId = crypto.randomUUID()
+    userId = newId()
   }
   return { userId, displayName: `Guest ${userId.slice(0, 4)}` }
 }
@@ -97,6 +113,14 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
   const [me, setMe] = useState<Participant | null>(null)
   const [others, setOthers] = useState<Participant[]>([])
   const [comparison, setComparison] = useState<Comparison | null>(null)
+  const [sharedCount, setSharedCount] = useState<SharedCount | null>(null)
+  // Read by the dot sends, which don't want to rebuild on every dot.
+  const sharedCountRef = useRef<SharedCount | null>(null)
+  const meRef = useRef<Participant | null>(null)
+  useEffect(() => {
+    sharedCountRef.current = sharedCount
+    meRef.current = me
+  })
 
   const identityRef = useRef(guestIdentity())
   const connectionRef = useRef<HubConnection | null>(null)
@@ -141,6 +165,7 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
       setMe(null)
       setOthers([])
       setComparison(null)
+      setSharedCount(null)
     }
 
     // Also used after a reconnect - that's a new connection id as far as
@@ -153,6 +178,7 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
       setMe(result.me)
       setOthers(result.others)
       setComparison(result.comparison)
+      setSharedCount(result.sharedCount)
       setStatus('connected')
       retryMs = RETRY_MIN_MS
       if (lastViewportRef.current) connection.send('UpdateViewport', lastViewportRef.current).catch(() => {})
@@ -198,6 +224,20 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
     )
     // Comes to the sender too, so this is the only place it's set.
     connection.on('ComparisonChanged', (next: Comparison | null) => setComparison(next))
+    connection.on('SharedCountChanged', (next: SharedCount | null) => setSharedCount(next))
+    // Ignored if it's for a count we've already moved on from.
+    connection.on('SharedDotAdded', ({ sharedCountId, dot }: SharedDotAdded) =>
+      setSharedCount((current) =>
+        current?.id === sharedCountId && !current.dots.some((d) => d.id === dot.id)
+          ? { ...current, dots: [...current.dots, dot] }
+          : current
+      )
+    )
+    connection.on('SharedDotRemoved', ({ sharedCountId, dotId }: SharedDotRemoved) =>
+      setSharedCount((current) =>
+        current?.id === sharedCountId ? { ...current, dots: current.dots.filter((d) => d.id !== dotId) } : current
+      )
+    )
     connection.on('AnnotationOp', (op: StampedOp) => {
       opHandlersRef.current.forEach((handler) => handler(op))
       emit('realtime:op', op)
@@ -320,6 +360,40 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
     [invokeJoined]
   )
 
+  const startSharedCount = useCallback(
+    (settings: SharedCountSettings) => invokeJoined<SharedCount>('StartSharedCount', settings),
+    [invokeJoined]
+  )
+  const joinSharedCount = useCallback((id: string) => invokeJoined<void>('JoinSharedCount', id), [invokeJoined])
+  const leaveSharedCount = useCallback((id: string) => invokeJoined<void>('LeaveSharedCount', id), [invokeJoined])
+  const finishSharedCount = useCallback((id: string) => invokeJoined<void>('FinishSharedCount', id), [invokeJoined])
+
+  // Fire and forget like ops - a dot the hub turns down (the count just
+  // ended, say) only matters to whoever placed it.
+  const addSharedDot = useCallback(
+    (dot: Omit<SharedDot, 'connectionId'>) => {
+      const current = sharedCountRef.current
+      const connectionId = meRef.current?.connectionId
+      if (!current || !connectionId) return
+      setSharedCount((count) =>
+        count?.id === current.id ? { ...count, dots: [...count.dots, { ...dot, connectionId }] } : count
+      )
+      invokeJoined('AddSharedDot', current.id, dot).catch(() => {})
+    },
+    [invokeJoined]
+  )
+  const removeSharedDot = useCallback(
+    (dotId: string) => {
+      const current = sharedCountRef.current
+      if (!current) return
+      setSharedCount((count) =>
+        count?.id === current.id ? { ...count, dots: count.dots.filter((d) => d.id !== dotId) } : count
+      )
+      invokeJoined('RemoveSharedDot', current.id, dotId).catch(() => {})
+    },
+    [invokeJoined]
+  )
+
   return (
     <RealtimeContext.Provider
       value={{
@@ -340,6 +414,13 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
         joinComparison,
         leaveComparison,
         submitComparison,
+        sharedCount,
+        startSharedCount,
+        joinSharedCount,
+        leaveSharedCount,
+        finishSharedCount,
+        addSharedDot,
+        removeSharedDot,
       }}
     >
       {children}

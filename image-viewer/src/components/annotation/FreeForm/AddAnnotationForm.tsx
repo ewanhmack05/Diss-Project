@@ -5,6 +5,7 @@ import { featureToGeoJson } from '../../open-layers/GeoJSON'
 import ColourPicker from '../../colour-picker/ColourPicker'
 import DockedCard from '../../toolbar/DockedCard'
 import './AnnotationForm.css'
+import { newId } from '../../../newId'
 
 function AddAnnotationForm() {
   const { pending, colour, lineThickness, lineStyle, setColour, setPending } = useDrawContext()
@@ -17,7 +18,7 @@ function AddAnnotationForm() {
   const handleSave = () => {
     if (!label.trim()) return
     addAnnotation({
-      id: crypto.randomUUID(),
+      id: newId(),
       label: label.trim(),
       notes: notes.trim(),
       colour,

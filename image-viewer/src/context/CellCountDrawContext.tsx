@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { CellCountDot } from '../interfaces/CellCount'
 
 interface CellCountLocation {
@@ -42,6 +42,11 @@ interface CellCountDrawContextValue {
   // withAnnotation is on, same as cellCountHistoryRef itself.
   dotHistory: CellCountDot[]
   setCounting: (counting: boolean) => void
+  // Stops counting and throws the session away rather than going to the
+  // save form - leaving a comparison or shared count, say. MapNode reads
+  // `cancelling` at the moment counting stops.
+  cancelling: boolean
+  cancelCounting: () => void
   setColour: (colour: string) => void
   setDotSize: (size: number) => void
   setWithAnnotation: (withAnnotation: boolean) => void
@@ -94,12 +99,23 @@ function CellCountDrawContextProvider({ children }: { children: ReactNode }) {
   const [dotHistory, setDotHistory] = useState<CellCountDot[]>([])
   const [undoSignal, setUndoSignal] = useState(0)
   const [redoSignal, setRedoSignal] = useState(0)
+  const [cancelling, setCancelling] = useState(false)
+
+  // Any new session starts out as one to keep.
+  useEffect(() => {
+    if (counting) setCancelling(false)
+  }, [counting])
 
   const incrementCount = () => setCount((current) => current + 1)
   const decrementCount = () => setCount((current) => Math.max(0, current - 1))
   const resetCount = () => setCount(0)
   const requestUndo = () => setUndoSignal((current) => current + 1)
   const requestRedo = () => setRedoSignal((current) => current + 1)
+  const cancelCounting = () => {
+    setCount(0)
+    setCancelling(true)
+    setCounting(false)
+  }
 
   return (
     <CellCountDrawContext.Provider
@@ -115,6 +131,8 @@ function CellCountDrawContextProvider({ children }: { children: ReactNode }) {
         pending,
         dotHistory,
         setCounting,
+        cancelling,
+        cancelCounting,
         setColour,
         setDotSize,
         setWithAnnotation,
