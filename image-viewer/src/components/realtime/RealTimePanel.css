@@ -1,0 +1,18 @@
+.realtime-users {
+  margin: 0;
+  padding-left: 1em;
+  list-style: none;
+}
+
+.realtime-user {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+}
+
+.realtime-user-dot {
+  flex-shrink: 0;
+  width: 0.6em;
+  height: 0.6em;
+  border-radius: 50%;
+}

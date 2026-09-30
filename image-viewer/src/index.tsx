@@ -31,6 +31,7 @@ createRoot(document.getElementById('root')!).render(
           'rotate',
           'ruler',
           'adjustments',
+          'realtime'
         ]
       }}
       on={(event, payload) => {

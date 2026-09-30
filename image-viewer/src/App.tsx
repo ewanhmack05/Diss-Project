@@ -27,6 +27,7 @@ import CellCountPanel from './components/cell-count/CellCountPanel'
 import RotationPanel from './components/rotation/RotationPanel'
 import RulerPanel from './components/ruler/RulerPanel'
 import AdjustmentsPanel from './components/adjustments/AdjustmentsPanel'
+import RealTimePanel from './components/realtime/RealTimePanel'
 import Toolbar, { type ToolName } from './components/toolbar/Toolbar'
 import DraggablePanel from './components/toolbar/DraggablePanel'
 import DockZones from './components/toolbar/DockZone'
@@ -153,6 +154,7 @@ const INITIAL_POSITIONS: Record<string, Position> = {
   'rotation-panel': { x: 256, y: 520 },
   'ruler-panel': { x: 256, y: 750 },
   'adjustments-panel': { x: 256, y: 980 },
+  'realtime': { x: 256, y: 32 },
 }
 
 interface ViewerShellProps {
@@ -173,6 +175,7 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
     'rotation-panel': createRef<HTMLDivElement>(),
     'ruler-panel': createRef<HTMLDivElement>(),
     'adjustments-panel': createRef<HTMLDivElement>(),
+    'realtime': createRef<HTMLDivElement>(),
   }).current
   // One hidden, always-mounted probe per edge, sized/positioned exactly
   // like a real DockEdge (see .dock-edge--probe in DockEdge.css) purely so
@@ -190,6 +193,7 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
     { id: 'rotation-panel', title: 'Rotate', tool: 'rotate', content: <RotationPanel /> },
     { id: 'ruler-panel', title: 'Ruler', tool: 'ruler', content: <RulerPanel /> },
     { id: 'adjustments-panel', title: 'Adjustments', tool: 'adjustments', content: <AdjustmentsPanel /> },
+    { id: 'realtime', title: 'RealTime', tool: 'realtime', content: <RealTimePanel /> },
   ]
 
   // Only set while dragging a panel that started out docked - see
