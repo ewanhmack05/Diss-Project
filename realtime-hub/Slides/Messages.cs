@@ -35,10 +35,14 @@ public record SketchUpdate(string ConnectionId, Sketch? Sketch);
 
 public enum OpKind { Create, Update, Delete }
 
-// Image adjustments stay personal, so they aren't here.
-public enum OpEntity { Annotation, CellCount }
+// Image adjustments stay personal, so they aren't here. Collection is a
+// nudge that someone's membership changed, so others fetch their list again.
+public enum OpEntity { Annotation, CellCount, Collection }
 
-public record AnnotationOp(OpKind Kind, OpEntity Entity, Guid Id, JsonElement? Data = null);
+// CollectionId is which collection the change was made in - people on the
+// same slide can be working in different ones, so they only apply changes
+// to the one they have open. The hub doesn't read it.
+public record AnnotationOp(OpKind Kind, OpEntity Entity, Guid Id, JsonElement? Data = null, Guid? CollectionId = null);
 
 // Seq is per room and only ever goes up, so clients can spot a gap or
 // order two edits to the same thing. Resets when the room empties.

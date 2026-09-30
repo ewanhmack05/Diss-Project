@@ -1,3 +1,9 @@
+.realtime-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+}
+
 .realtime-users {
   margin: 0;
   padding-left: 1em;
@@ -8,6 +14,7 @@
   display: flex;
   align-items: center;
   gap: 0.35em;
+  min-height: 1.8em;
 }
 
 .realtime-user-dot {
@@ -15,4 +22,124 @@
   width: 0.6em;
   height: 0.6em;
   border-radius: 50%;
+}
+
+.realtime-user-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.realtime-user-add,
+.realtime-button,
+.realtime-member-remove {
+  flex-shrink: 0;
+  font-family: var(--sans);
+  font-weight: 600;
+  color: var(--chrome-text);
+  background: var(--white-08);
+  border: none;
+  border-radius: 0.3125rem;
+  cursor: pointer;
+  transition: color 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.realtime-user-add:hover,
+.realtime-button:hover,
+.realtime-member-remove:hover {
+  color: var(--accent);
+}
+
+.realtime-user-add {
+  padding: 0.2em 0.6em;
+  font-size: 0.8em;
+  color: var(--accent);
+}
+
+.realtime-button {
+  padding: 0.4em 0.7em;
+  font-size: 0.85em;
+}
+
+.realtime-signed-in {
+  margin: 0.6em 0 0;
+  font-size: 0.85em;
+  color: var(--chrome-text-secondary);
+}
+
+.realtime-signed-in strong {
+  color: var(--chrome-text);
+  font-weight: 600;
+}
+
+.realtime-account-actions {
+  display: flex;
+  gap: 0.4em;
+  margin-top: 0.4em;
+}
+
+.realtime-account-actions .realtime-button {
+  flex: 1;
+}
+
+.realtime-collection-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+  font-size: 0.9em;
+  color: var(--chrome-text-secondary);
+}
+
+.realtime-collection-field select {
+  padding: 0.35em;
+  font-family: var(--sans);
+  font-size: 1em;
+  color: var(--chrome-text);
+  background: var(--white-06);
+  border: 1px solid transparent;
+  border-radius: 0.3125rem;
+}
+
+.realtime-collection-field select option {
+  color: var(--chrome-bg-solid);
+  background: var(--white);
+}
+
+.realtime-members {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+  margin: 0.5em 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9em;
+}
+
+.realtime-member {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.realtime-member-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.realtime-member-role {
+  flex-shrink: 0;
+  font-size: 0.85em;
+  color: var(--chrome-text-secondary);
+}
+
+.realtime-member-remove {
+  width: 1.5em;
+  height: 1.5em;
+  padding: 0;
+  line-height: 1;
 }

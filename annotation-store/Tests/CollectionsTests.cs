@@ -3,7 +3,6 @@ using System.Net.Http.Json;
 using AnnotationStore.Annotations;
 using AnnotationStore.CellCounts;
 using AnnotationStore.Collections;
-using AnnotationStore.ImageAdjustments;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -11,6 +10,8 @@ namespace AnnotationStore.Tests;
 
 public class CollectionsTests : IClassFixture<CellCountApiFactory>
 {
+    private static readonly System.Text.Json.JsonSerializerOptions Json = TestJson.Options;
+
     private readonly CellCountApiFactory _factory;
 
     public CollectionsTests(CellCountApiFactory factory)
@@ -18,180 +19,220 @@ public class CollectionsTests : IClassFixture<CellCountApiFactory>
         _factory = factory;
     }
 
-    private static Collections.Collections NewCollection(string slideId, string userId = "001") => new()
+    private HttpClient As(string userId, string? name = null) => TestAuthHandler.As(_factory.CreateClient(), userId, name);
+
+    private static string NewSlide() => Guid.NewGuid().ToString();
+
+    private static async Task<CollectionView> EnsureAsync(HttpClient client, string slideId)
     {
-        SlideId = slideId,
-        UserId = userId,
-        CollectionName = "test collection",
-    };
+        var response = await client.PostAsJsonAsync("/collections/ensure", new EnsureRequest(slideId));
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<CollectionView>(Json))!;
+    }
+
+    private static async Task<List<CollectionView>> ListAsync(HttpClient client, string slideId) =>
+        (await client.GetFromJsonAsync<List<CollectionView>>($"/collections?slideId={slideId}", Json))!;
+
+    private static Task<HttpResponseMessage> AddMemberAsync(
+        HttpClient owner, Guid collectionId, string userId, CollectionRole role = CollectionRole.Editor) =>
+        owner.PutAsJsonAsync($"/collections/{collectionId}/members/{userId}", new MemberRequest($"User {userId}", role), Json);
 
     [Fact]
-    public async Task Post_PersistsAndReturnsGeneratedIdAndCreated()
+    public async Task Ensure_CreatesTheCallersOwn_WithThemAsOwner()
     {
-        var client = _factory.CreateClient();
-        var slideId = Guid.NewGuid().ToString();
+        var alice = As("alice", "Alice Moore");
+        var slideId = NewSlide();
 
-        var response = await client.PostAsJsonAsync("/collections", NewCollection(slideId));
-        response.EnsureSuccessStatusCode();
+        var response = await alice.PostAsJsonAsync("/collections/ensure", new EnsureRequest(slideId));
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var created = (await response.Content.ReadFromJsonAsync<CollectionView>(Json))!;
 
-        var created = await response.Content.ReadFromJsonAsync<Collections.Collections>();
-        Assert.NotNull(created);
-        Assert.NotEqual(Guid.Empty, created!.CollectionId);
-        Assert.NotEqual(default, created.Created);
         Assert.Equal(slideId, created.SlideId);
-        Assert.Equal("001", created.UserId);
+        Assert.Equal("alice", created.OwnerId);
+        Assert.Equal(CollectionRole.Owner, created.MyRole);
+        Assert.Equal("Alice Moore's collection", created.CollectionName);
+        var member = Assert.Single(created.Members);
+        Assert.Equal(new MemberView("alice", "Alice Moore", CollectionRole.Owner), member);
     }
 
     [Fact]
-    public async Task Post_Twice_ForSameSlideAndUser_ReturnsConflict()
+    public async Task Ensure_CalledTwice_ReturnsTheSameCollection()
     {
-        var client = _factory.CreateClient();
-        var slideId = Guid.NewGuid().ToString();
-        await client.PostAsJsonAsync("/collections", NewCollection(slideId));
+        var alice = As("alice");
+        var slideId = NewSlide();
 
-        var response = await client.PostAsJsonAsync("/collections", NewCollection(slideId));
+        var first = await EnsureAsync(alice, slideId);
+        var second = await alice.PostAsJsonAsync("/collections/ensure", new EnsureRequest(slideId));
+
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        Assert.Equal(first.CollectionId, (await second.Content.ReadFromJsonAsync<CollectionView>(Json))!.CollectionId);
+    }
+
+    [Fact]
+    public async Task Ensure_IgnoresAnyUserInTheBody()
+    {
+        var alice = As("alice");
+        var response = await alice.PostAsJsonAsync("/collections/ensure", new { slideId = NewSlide(), userId = "someone-else" });
+
+        var created = (await response.Content.ReadFromJsonAsync<CollectionView>(Json))!;
+        Assert.Equal("alice", created.OwnerId);
+    }
+
+    [Fact]
+    public async Task Ensure_KeepsTheOwnersNameUpToDate()
+    {
+        var slideId = NewSlide();
+        await EnsureAsync(As("alice", "Alice"), slideId);
+
+        var renamed = await EnsureAsync(As("alice", "Alice Moore"), slideId);
+
+        Assert.Equal("Alice Moore", Assert.Single(renamed.Members).DisplayName);
+    }
+
+    [Fact]
+    public async Task Post_Twice_ForTheSameSlide_ReturnsConflict()
+    {
+        var alice = As("alice");
+        var slideId = NewSlide();
+        (await alice.PostAsJsonAsync("/collections", new EnsureRequest(slideId))).EnsureSuccessStatusCode();
+
+        var response = await alice.PostAsJsonAsync("/collections", new EnsureRequest(slideId));
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
 
     [Fact]
-    public async Task Post_ForSameSlide_DifferentUser_Succeeds()
+    public async Task EachUser_GetsTheirOwn_OnTheSameSlide()
     {
-        var client = _factory.CreateClient();
-        var slideId = Guid.NewGuid().ToString();
-        await client.PostAsJsonAsync("/collections", NewCollection(slideId, "001"));
+        var slideId = NewSlide();
+        var alices = await EnsureAsync(As("alice"), slideId);
+        var bobs = await EnsureAsync(As("bob"), slideId);
 
-        var response = await client.PostAsJsonAsync("/collections", NewCollection(slideId, "002"));
-
-        response.EnsureSuccessStatusCode();
+        Assert.NotEqual(alices.CollectionId, bobs.CollectionId);
+        Assert.Equal(alices.CollectionId, Assert.Single(await ListAsync(As("alice"), slideId)).CollectionId);
     }
 
     [Fact]
-    public async Task Ensure_WhenNoneExists_CreatesOne()
+    public async Task Get_ListsWhatYoureIn_YourOwnFirst()
     {
-        var client = _factory.CreateClient();
-        var slideId = Guid.NewGuid().ToString();
+        var slideId = NewSlide();
+        var alice = As("alice");
+        var bob = As("bob");
+        var alices = await EnsureAsync(alice, slideId);
+        var bobs = await EnsureAsync(bob, slideId);
+        (await AddMemberAsync(alice, alices.CollectionId, "bob")).EnsureSuccessStatusCode();
 
-        var response = await client.PostAsJsonAsync("/collections/ensure", NewCollection(slideId));
+        var bobSees = await ListAsync(bob, slideId);
 
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        var created = await response.Content.ReadFromJsonAsync<Collections.Collections>();
-        Assert.Equal(slideId, created!.SlideId);
-        Assert.Equal("001", created.UserId);
+        Assert.Equal([bobs.CollectionId, alices.CollectionId], bobSees.Select(c => c.CollectionId));
+        Assert.Equal(CollectionRole.Owner, bobSees[0].MyRole);
+        Assert.Equal(CollectionRole.Editor, bobSees[1].MyRole);
+        Assert.Equal(["alice", "bob"], bobSees[1].Members.Select(m => m.UserId));
     }
 
     [Fact]
-    public async Task Ensure_CalledTwice_ReturnsTheSameCollectionBothTimes()
+    public async Task AddingAMember_LetsThemReadAndWrite_ByRole()
     {
-        var client = _factory.CreateClient();
-        var slideId = Guid.NewGuid().ToString();
+        var slideId = NewSlide();
+        var alice = As("alice");
+        var bob = As("bob");
+        var carol = As("carol");
+        var collection = await EnsureAsync(alice, slideId);
+        var annotations = $"/annotations?collectionId={collection.CollectionId}";
 
-        var first = await client.PostAsJsonAsync("/collections/ensure", NewCollection(slideId));
-        var firstCreated = await first.Content.ReadFromJsonAsync<Collections.Collections>();
+        // Not in it yet - it may as well not exist.
+        Assert.Equal(HttpStatusCode.NotFound, (await bob.GetAsync(annotations)).StatusCode);
 
-        var second = await client.PostAsJsonAsync("/collections/ensure", NewCollection(slideId));
-        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
-        var secondReturned = await second.Content.ReadFromJsonAsync<Collections.Collections>();
+        (await AddMemberAsync(alice, collection.CollectionId, "bob", CollectionRole.Editor)).EnsureSuccessStatusCode();
+        (await AddMemberAsync(alice, collection.CollectionId, "carol", CollectionRole.Viewer)).EnsureSuccessStatusCode();
 
-        Assert.Equal(firstCreated!.CollectionId, secondReturned!.CollectionId);
+        var post = await bob.PostAsJsonAsync("/annotations", new Annotation { CollectionId = collection.CollectionId, Label = "from bob" });
+        Assert.Equal(HttpStatusCode.Created, post.StatusCode);
+        var created = (await post.Content.ReadFromJsonAsync<Annotation>())!;
+
+        Assert.Equal(HttpStatusCode.OK, (await carol.GetAsync(annotations)).StatusCode);
+        var carolPost = await carol.PostAsJsonAsync("/annotations", new Annotation { CollectionId = collection.CollectionId, Label = "x" });
+        Assert.Equal(HttpStatusCode.Forbidden, carolPost.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await carol.DeleteAsync($"/annotations/{created.Id}")).StatusCode);
     }
 
     [Fact]
-    public async Task Ensure_WithNoNameGiven_FallsBackToAGeneratedName()
+    public async Task OnlyTheOwner_ManagesMembers()
     {
-        var client = _factory.CreateClient();
-        var slideId = Guid.NewGuid().ToString();
+        var slideId = NewSlide();
+        var alice = As("alice");
+        var bob = As("bob");
+        var collection = await EnsureAsync(alice, slideId);
+        (await AddMemberAsync(alice, collection.CollectionId, "bob")).EnsureSuccessStatusCode();
 
-        var response = await client.PostAsJsonAsync(
-            "/collections/ensure",
-            new Collections.Collections { SlideId = slideId, UserId = "001" });
-
-        var created = await response.Content.ReadFromJsonAsync<Collections.Collections>();
-        Assert.False(string.IsNullOrWhiteSpace(created!.CollectionName));
+        Assert.Equal(HttpStatusCode.Forbidden, (await AddMemberAsync(bob, collection.CollectionId, "carol")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await AddMemberAsync(alice, collection.CollectionId, "carol", CollectionRole.Owner)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await alice.DeleteAsync($"/collections/{collection.CollectionId}/members/alice")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await bob.PutAsJsonAsync($"/collections/{collection.CollectionId}", new RenameRequest("mine now"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await bob.DeleteAsync($"/collections/{collection.CollectionId}")).StatusCode);
     }
 
     [Fact]
-    public async Task Get_ReturnsAnnotationsCellCountsAndImageAdjustmentsNested()
+    public async Task AMember_CanLeave_AndIsThenLockedOut()
     {
-        var client = _factory.CreateClient();
-        var postResponse = await client.PostAsJsonAsync("/collections", NewCollection(Guid.NewGuid().ToString()));
-        var collection = await postResponse.Content.ReadFromJsonAsync<Collections.Collections>();
-        var collectionId = collection!.CollectionId;
+        var slideId = NewSlide();
+        var alice = As("alice");
+        var bob = As("bob");
+        var collection = await EnsureAsync(alice, slideId);
+        (await AddMemberAsync(alice, collection.CollectionId, "bob")).EnsureSuccessStatusCode();
 
-        await client.PostAsJsonAsync("/annotations", new Annotation { CollectionId = collectionId, Label = "a" });
-        await client.PostAsJsonAsync("/annotations", new Annotation { CollectionId = collectionId, Label = "b" });
-        await client.PostAsJsonAsync(
+        var leave = await bob.DeleteAsync($"/collections/{collection.CollectionId}/members/bob");
+
+        Assert.Equal(HttpStatusCode.NoContent, leave.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound,
+            (await bob.GetAsync($"/annotations?collectionId={collection.CollectionId}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task GetById_ReturnsEverythingInIt_ToMembers()
+    {
+        var alice = As("alice");
+        var collection = await EnsureAsync(alice, NewSlide());
+        var id = collection.CollectionId;
+        await alice.PostAsJsonAsync("/annotations", new Annotation { CollectionId = id, Label = "a" });
+        await alice.PostAsJsonAsync("/annotations", new Annotation { CollectionId = id, Label = "b" });
+        await alice.PostAsJsonAsync(
             "/cellcounts",
-            new CellCount { CollectionId = collectionId, Label = "c", Dots = "[]", RegionOfInterest = new RegionOfInterest { GeoJson = "{}" } });
-        await client.PostAsJsonAsync(
+            new CellCount { CollectionId = id, Label = "c", Dots = "[]", RegionOfInterest = new RegionOfInterest { GeoJson = "{}" } });
+        await alice.PostAsJsonAsync(
             "/imageadjustments",
-            new ImageAdjustments.ImageAdjustments { CollectionId = collectionId, AdjustmentName = "p", Adjustments = "{}" });
+            new ImageAdjustments.ImageAdjustments { CollectionId = id, AdjustmentName = "p", Adjustments = "{}" });
 
-        var response = await client.GetAsync($"/collections?slideId={collection.SlideId}&userId={collection.UserId}");
-        response.EnsureSuccessStatusCode();
+        var hydrated = (await alice.GetFromJsonAsync<Collections.Collections>($"/collections/{id}", Json))!;
 
-        var collections = await response.Content.ReadFromJsonAsync<List<Collections.Collections>>();
-        var hydrated = Assert.Single(collections!);
         Assert.Equal(2, hydrated.Annotations.Count);
         Assert.Single(hydrated.CellCounts);
         Assert.NotNull(hydrated.CellCounts[0].RegionOfInterest);
         Assert.Single(hydrated.ImageAdjustments);
-    }
-
-    [Fact]
-    public async Task Post_AndEnsure_DoNotEagerLoadChildren()
-    {
-        var client = _factory.CreateClient();
-        var slideId = Guid.NewGuid().ToString();
-        var postResponse = await client.PostAsJsonAsync("/collections", NewCollection(slideId));
-        var collection = await postResponse.Content.ReadFromJsonAsync<Collections.Collections>();
-        await client.PostAsJsonAsync("/annotations", new Annotation { CollectionId = collection!.CollectionId, Label = "a" });
-
-        var ensureResponse = await client.PostAsJsonAsync("/collections/ensure", NewCollection(slideId));
-        var ensured = await ensureResponse.Content.ReadFromJsonAsync<Collections.Collections>();
-
-        Assert.Empty(ensured!.Annotations);
-    }
-
-    [Fact]
-    public async Task Get_FiltersBySlideIdAndUserId()
-    {
-        var client = _factory.CreateClient();
-        var slideId = Guid.NewGuid().ToString();
-        await client.PostAsJsonAsync("/collections", NewCollection(slideId, "001"));
-        await client.PostAsJsonAsync("/collections", NewCollection(slideId, "002"));
-
-        var response = await client.GetAsync($"/collections?slideId={slideId}&userId=001");
-        response.EnsureSuccessStatusCode();
-
-        var collections = await response.Content.ReadFromJsonAsync<List<Collections.Collections>>();
-        var onlyResult = Assert.Single(collections!);
-        Assert.Equal("001", onlyResult.UserId);
+        Assert.Equal(HttpStatusCode.NotFound, (await As("bob").GetAsync($"/collections/{id}")).StatusCode);
     }
 
     [Fact]
     public async Task Put_RenamesIt()
     {
-        var client = _factory.CreateClient();
-        var postResponse = await client.PostAsJsonAsync("/collections", NewCollection(Guid.NewGuid().ToString()));
-        var created = await postResponse.Content.ReadFromJsonAsync<Collections.Collections>();
+        var alice = As("alice");
+        var created = await EnsureAsync(alice, NewSlide());
 
-        var update = NewCollection(Guid.NewGuid().ToString());
-        update.CollectionName = "renamed";
-        var putResponse = await client.PutAsJsonAsync($"/collections/{created!.CollectionId}", update);
-        putResponse.EnsureSuccessStatusCode();
+        var response = await alice.PutAsJsonAsync($"/collections/{created.CollectionId}", new RenameRequest("renamed"));
+        response.EnsureSuccessStatusCode();
 
-        var updated = await putResponse.Content.ReadFromJsonAsync<Collections.Collections>();
-        Assert.Equal("renamed", updated!.CollectionName);
+        var updated = (await response.Content.ReadFromJsonAsync<CollectionView>(Json))!;
+        Assert.Equal("renamed", updated.CollectionName);
         Assert.Equal(created.SlideId, updated.SlideId);
     }
 
     [Fact]
     public async Task Put_OnNonexistentId_ReturnsNotFound()
     {
-        var client = _factory.CreateClient();
-
-        var response = await client.PutAsJsonAsync($"/collections/{Guid.NewGuid()}", NewCollection("x"));
+        var response = await As("alice").PutAsJsonAsync($"/collections/{Guid.NewGuid()}", new RenameRequest("x"));
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -199,39 +240,34 @@ public class CollectionsTests : IClassFixture<CellCountApiFactory>
     [Fact]
     public async Task Delete_OnNonexistentId_ReturnsNotFound()
     {
-        var client = _factory.CreateClient();
-
-        var response = await client.DeleteAsync($"/collections/{Guid.NewGuid()}");
+        var response = await As("alice").DeleteAsync($"/collections/{Guid.NewGuid()}");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
-    public async Task Delete_CascadesToItsAnnotationsCellCountsAndImageAdjustments()
+    public async Task Delete_CascadesToEverythingInIt()
     {
-        var client = _factory.CreateClient();
-        var postResponse = await client.PostAsJsonAsync("/collections", NewCollection(Guid.NewGuid().ToString()));
-        var collection = await postResponse.Content.ReadFromJsonAsync<Collections.Collections>();
-        var collectionId = collection!.CollectionId;
+        var alice = As("alice");
+        var collection = await EnsureAsync(alice, NewSlide());
+        var id = collection.CollectionId;
+        (await AddMemberAsync(alice, id, "bob")).EnsureSuccessStatusCode();
 
-        var annotationResponse = await client.PostAsJsonAsync("/annotations", new Annotation { CollectionId = collectionId, Label = "a" });
-        var annotation = await annotationResponse.Content.ReadFromJsonAsync<Annotation>();
+        var annotation = await (await alice.PostAsJsonAsync("/annotations", new Annotation { CollectionId = id, Label = "a" }))
+            .Content.ReadFromJsonAsync<Annotation>();
+        var cellCount = await (await alice.PostAsJsonAsync("/cellcounts", new CellCount { CollectionId = id, Label = "c", Dots = "[]" }))
+            .Content.ReadFromJsonAsync<CellCount>();
+        var adjustment = await (await alice.PostAsJsonAsync(
+                "/imageadjustments", new ImageAdjustments.ImageAdjustments { CollectionId = id, AdjustmentName = "p", Adjustments = "{}" }))
+            .Content.ReadFromJsonAsync<ImageAdjustments.ImageAdjustments>();
 
-        var cellCountResponse = await client.PostAsJsonAsync(
-            "/cellcounts", new CellCount { CollectionId = collectionId, Label = "c", Dots = "[]" });
-        var cellCount = await cellCountResponse.Content.ReadFromJsonAsync<CellCount>();
-
-        var adjustmentResponse = await client.PostAsJsonAsync(
-            "/imageadjustments", new ImageAdjustments.ImageAdjustments { CollectionId = collectionId, AdjustmentName = "p", Adjustments = "{}" });
-        var adjustment = await adjustmentResponse.Content.ReadFromJsonAsync<ImageAdjustments.ImageAdjustments>();
-
-        var deleteResponse = await client.DeleteAsync($"/collections/{collectionId}");
-        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await alice.DeleteAsync($"/collections/{id}")).StatusCode);
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AnnotationDbContext>();
         Assert.False(await db.Annotations.AnyAsync(a => a.Id == annotation!.Id));
         Assert.False(await db.CellCounts.AnyAsync(c => c.Id == cellCount!.Id));
         Assert.False(await db.ImageAdjustments.AnyAsync(a => a.ImageAdjustmentId == adjustment!.ImageAdjustmentId));
+        Assert.False(await db.CollectionMembers.AnyAsync(m => m.CollectionId == id));
     }
 }

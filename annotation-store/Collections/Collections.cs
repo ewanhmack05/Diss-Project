@@ -10,15 +10,18 @@ namespace AnnotationStore.Collections;
 // here - those would just be a second, driftable copy of what those tables
 // already own). Auto-created per (SlideId, UserId) the first time a user
 // opens a slide - see POST /collections/ensure - not something set up by
-// hand first. This could still grow into public/private collections, or
-// archiving instead of deleting, later.
+// hand first. Who else can see or change it is in Members - see
+// CollectionMember.
 public class Collections
 {
     public Guid CollectionId { get; set; }
     public string SlideId { get; set; } = "";
     public string CollectionName { get; set; } = "";
     public DateTimeOffset Created { get; set; }
+    // The owner's Keycloak id. They're also in Members, as Owner.
     public string UserId { get; set; } = "";
+
+    public List<CollectionMember> Members { get; set; } = [];
 
     // Only populated where the query actually asks for it (GET /collections
     // eager-loads these; POST /collections, /collections/ensure, and PUT

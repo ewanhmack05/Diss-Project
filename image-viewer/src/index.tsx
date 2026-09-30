@@ -21,6 +21,7 @@ createRoot(document.getElementById('root')!).render(
       tilerServiceUrl={`${backend}/tiler`}
       annotationStoreUrl={`${backend}/store`}
       realtimeHubUrl={`${backend}/hub`}
+      auth={{ authority: `${backend}/auth/realms/diss`, clientId: 'image-viewer' }}
       options={{
         fontSize: '11px',
         tools: [

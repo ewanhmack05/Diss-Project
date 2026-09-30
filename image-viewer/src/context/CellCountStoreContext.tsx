@@ -4,7 +4,8 @@ import { useImageViewerContext } from './ImageViewerContext'
 import { useEmitEvent } from './EventContext'
 import { useCollectionContext } from './CollectionContext'
 import { useRealtimeContext } from './RealtimeContext'
-import { applyOp } from '../components/realtime/realtime'
+import { useAuthContext } from './AuthContext'
+import { applyOp, isForCollection, type AnnotationOp } from '../components/realtime/realtime'
 
 type Status = 'loading' | 'ready' | 'error'
 
@@ -39,8 +40,11 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
   const { source } = useImageViewerContext()
   const { slideId } = source
   const emit = useEmitEvent()
-  const { collectionId, status: collectionStatus } = useCollectionContext()
+  const { collectionId, status: collectionStatus, canEdit } = useCollectionContext()
   const { sendOp, onOp } = useRealtimeContext()
+  const { authFetch, user } = useAuthContext()
+  // Every op says which collection it's for - see isForCollection.
+  const send = (op: AnnotationOp) => sendOp({ ...op, collectionId: collectionId ?? undefined })
 
   const [cellCounts, setCellCounts] = useState<CellCount[]>([])
   const [status, setStatus] = useState<Status>('loading')
@@ -61,7 +65,7 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
 
     setStatus('loading')
 
-    fetch(`${baseUrl}/cellcounts?collectionId=${encodeURIComponent(collectionId)}`)
+    authFetch(`${baseUrl}/cellcounts?collectionId=${encodeURIComponent(collectionId)}`)
       .then((response) => {
         if (!response.ok) throw new Error(String(response.status))
         return response.json() as Promise<CellCount[]>
@@ -81,13 +85,13 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
     return () => {
       cancelled = true
     }
-  }, [baseUrl, slideId, collectionId, collectionStatus, emit])
+  }, [baseUrl, slideId, collectionId, collectionStatus, emit, authFetch])
 
   // Same as AnnotationStoreContext - mirror someone else's saved change.
   useEffect(
     () =>
       onOp(({ op }) => {
-        if (op.entity !== 'cellCount') return
+        if (op.entity !== 'cellCount' || !isForCollection(op, collectionId)) return
         if (op.kind === 'delete') deletedIdsRef.current.add(op.id)
         setCellCounts((current) => applyOp(current, op))
         if (op.kind === 'delete') {
@@ -95,10 +99,18 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
           setViewedCellCountId((current) => (current === op.id ? null : current))
         }
       }),
-    [onOp]
+    [onOp, collectionId]
   )
 
-  const addCellCount = (cellCount: CellCount) => {
+  const addCellCount = (unstamped: CellCount) => {
+    // Shows who saved it straight away - annotation-store sets the same from the token.
+    const cellCount = { ...unstamped, createdById: user.id, createdByName: user.name }
+    // Only a viewer in the collection you're working in - annotation-store would
+    // turn it down anyway.
+    if (!canEdit) {
+      emit('collection:read-only')
+      return
+    }
     // Same reasoning as AnnotationStoreContext.addAnnotation - counting can
     // start and finish before collectionId resolves, and posting null would
     // 400 against the backend's non-nullable CollectionId.
@@ -108,8 +120,8 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
     }
     setCellCounts((current) => [...current, cellCount])
     emit('cellcount:created', cellCount)
-    sendOp({ kind: 'create', entity: 'cellCount', id: cellCount.id, data: cellCount })
-    fetch(`${baseUrl}/cellcounts`, {
+    send({ kind: 'create', entity: 'cellCount', id: cellCount.id, data: cellCount })
+    authFetch(`${baseUrl}/cellcounts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...cellCount, collectionId }),
@@ -128,8 +140,8 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
     if (deletedIdsRef.current.has(id)) return
     setCellCounts((current) => current.map((c) => (c.id === id ? { ...c, ...patch } : c)))
     emit('cellcount:updated', { id, patch })
-    sendOp({ kind: 'update', entity: 'cellCount', id, data: patch })
-    fetch(`${baseUrl}/cellcounts/${id}`, {
+    send({ kind: 'update', entity: 'cellCount', id, data: patch })
+    authFetch(`${baseUrl}/cellcounts/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...patch, slideId }),
@@ -147,8 +159,8 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
     deletedIdsRef.current.add(id)
     setCellCounts((current) => current.filter((c) => c.id !== id))
     emit('cellcount:deleted', { id })
-    sendOp({ kind: 'delete', entity: 'cellCount', id })
-    fetch(`${baseUrl}/cellcounts/${id}`, { method: 'DELETE' })
+    send({ kind: 'delete', entity: 'cellCount', id })
+    authFetch(`${baseUrl}/cellcounts/${id}`, { method: 'DELETE' })
       .then((response) => {
         if (!response.ok) throw new Error(String(response.status))
       })

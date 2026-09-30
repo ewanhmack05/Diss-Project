@@ -5,6 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "vite --host",
+		"dev:http": "vite --port 5174 --strictPort --mode http",
 		"build": "tsc -b && vite build",
 		"lint": "oxlint",
 		"preview": "vite preview",
@@ -16,6 +17,7 @@
 		"@dnd-kit/modifiers": "^9.0.0",
 		"@dnd-kit/utilities": "^3.2.2",
 		"@microsoft/signalr": "^10.0.11",
+		"oidc-client-ts": "^3.5.0",
 		"ol": "^10.10.0",
 		"react": "^19.2.8",
 		"react-colour-palette": "file:vendor/react-colour-palette-0.0.1.tgz",
@@ -26,6 +28,7 @@
 		"@types/node": "^24.13.3",
 		"@types/react": "^19.2.18",
 		"@types/react-dom": "^19.2.4",
+		"@vitejs/plugin-basic-ssl": "^2.3.0",
 		"@vitejs/plugin-react": "^6.1.0",
 		"oxlint": "^1.79.0",
 		"typescript": "~6.0.2",

@@ -12,6 +12,7 @@ public class AnnotationDbContext(DbContextOptions<AnnotationDbContext> options) 
     public DbSet<RegionOfInterest> RegionsOfInterest => Set<RegionOfInterest>();
     public DbSet<ImageAdjustments.ImageAdjustments> ImageAdjustments => Set<ImageAdjustments.ImageAdjustments>();
     public DbSet<Collections.Collections> Collections => Set<Collections.Collections>();
+    public DbSet<CollectionMember> CollectionMembers => Set<CollectionMember>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -21,6 +22,17 @@ public class AnnotationDbContext(DbContextOptions<AnnotationDbContext> options) 
         // At most one collection per user per slide - POST /collections/ensure
         // relies on this to make "get or create" race-safe at the DB level.
         modelBuilder.Entity<Collections.Collections>().HasIndex(c => new { c.SlideId, c.UserId }).IsUnique();
+
+        // One row per person per collection. Role as text so the table
+        // reads plainly in pgAdmin.
+        modelBuilder.Entity<CollectionMember>().HasKey(m => new { m.CollectionId, m.UserId });
+        modelBuilder.Entity<CollectionMember>().HasIndex(m => m.UserId);
+        modelBuilder.Entity<CollectionMember>().Property(m => m.Role).HasConversion<string>();
+        modelBuilder.Entity<Collections.Collections>()
+            .HasMany(c => c.Members)
+            .WithOne()
+            .HasForeignKey(m => m.CollectionId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<Annotation>().HasIndex(a => a.SlideId);
         modelBuilder.Entity<Annotation>().HasIndex(a => a.CollectionId);

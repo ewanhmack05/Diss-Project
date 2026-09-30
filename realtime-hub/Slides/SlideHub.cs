@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.SignalR;
+using RealtimeHub.Auth;
 
 namespace RealtimeHub.Slides;
 
@@ -23,8 +24,8 @@ public interface ISlideClient
 }
 
 // One SignalR group per slide. A connection is in at most one slide at a
-// time - joining another just moves it. No auth yet, so userId/displayName
-// are whatever the client says (fake users for now, sessions come later).
+// time - joining another just moves it. Everyone is signed in (see
+// Program.cs), and who they are comes from their Keycloak token.
 // Each open shared doc gets its own group inside the slide. Shared count
 // methods are in SlideHub.SharedCount.cs.
 public partial class SlideHub(SlideRooms rooms, ILogger<SlideHub> logger) : Hub<ISlideClient>
@@ -38,15 +39,15 @@ public partial class SlideHub(SlideRooms rooms, ILogger<SlideHub> logger) : Hub<
     public static string GroupName(string slideId) => $"slide:{slideId}";
     public static string DocGroupName(string slideId, string docId) => $"doc:{slideId}:{docId}";
 
-    public async Task<JoinResult> JoinSlide(string slideId, string userId, string displayName)
+    public async Task<JoinResult> JoinSlide(string slideId)
     {
         if (string.IsNullOrWhiteSpace(slideId)) throw new HubException("slideId is required");
-        if (string.IsNullOrWhiteSpace(userId)) throw new HubException("userId is required");
+        var user = Context.User ?? throw new HubException("Sign in first");
+        var userId = user.UserId();
 
         await LeaveCurrentSlide();
 
-        var result = rooms.Join(slideId, Context.ConnectionId, userId,
-            string.IsNullOrWhiteSpace(displayName) ? userId : displayName);
+        var result = rooms.Join(slideId, Context.ConnectionId, userId, user.DisplayName());
         await Groups.AddToGroupAsync(Context.ConnectionId, GroupName(slideId));
         await Clients.OthersInGroup(GroupName(slideId)).UserJoined(result.Me);
         // They've just been added to it as invited, so everyone else's list is out of date.

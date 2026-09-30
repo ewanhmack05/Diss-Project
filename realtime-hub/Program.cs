@@ -2,6 +2,7 @@ using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using RealtimeHub.Auth;
 using RealtimeHub.Slides;
 using Scalar.AspNetCore;
 
@@ -25,6 +26,10 @@ builder.Services.AddCors(options =>
 builder.Services.ConfigureHttpJsonOptions(options => HubJson.Configure(options.SerializerOptions));
 
 builder.Services.AddOpenApi();
+
+// Sign-in via Keycloak - see Auth/KeycloakAuth.cs. Nobody joins a slide
+// without a token, and who they are comes from it.
+builder.AddKeycloakAuth();
 
 // Same setup as annotation-store - goes to Grafana if it's running, nothing
 // breaks if it isn't. The SignalR source/meter add hub method calls and
@@ -52,24 +57,30 @@ builder.Services.AddOpenTelemetry()
 
 var app = builder.Build();
 app.UseCors();
+app.UseAuthentication();
+app.UseAuthorization();
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
-    app.MapScalarApiReference();
+    app.MapOpenApi().AllowAnonymous();
+    app.MapScalarApiReference().AllowAnonymous();
 }
 
 app.MapHub<SlideHub>("/hubs/slides");
 
 // Read-only look at who's connected - handy from Scalar/curl while testing.
-app.MapGet("/rooms", (SlideRooms rooms) => Results.Ok(rooms.Summary()));
-app.MapGet("/rooms/{slideId}", (string slideId, SlideRooms rooms) => Results.Ok(rooms.InSlide(slideId)));
-app.MapGet("/rooms/{slideId}/docs", (string slideId, SlideRooms rooms) => Results.Ok(rooms.DocsInSlide(slideId)));
-// Blind like it is over the hub - no dots until it's revealed.
-app.MapGet("/rooms/{slideId}/comparison", (string slideId, SlideRooms rooms) =>
-    rooms.ComparisonInSlide(slideId) is { } comparison ? Results.Ok(comparison) : Results.NoContent());
-app.MapGet("/rooms/{slideId}/sharedcount", (string slideId, SlideRooms rooms) =>
-    rooms.SharedCountInSlide(slideId) is { } sharedCount ? Results.Ok(sharedCount) : Results.NoContent());
+// Development only, and open, since they're just for poking at.
+if (app.Environment.IsDevelopment())
+{
+    app.MapGet("/rooms", (SlideRooms rooms) => Results.Ok(rooms.Summary())).AllowAnonymous();
+    app.MapGet("/rooms/{slideId}", (string slideId, SlideRooms rooms) => Results.Ok(rooms.InSlide(slideId))).AllowAnonymous();
+    app.MapGet("/rooms/{slideId}/docs", (string slideId, SlideRooms rooms) => Results.Ok(rooms.DocsInSlide(slideId))).AllowAnonymous();
+    // Blind like it is over the hub - no dots until it's revealed.
+    app.MapGet("/rooms/{slideId}/comparison", (string slideId, SlideRooms rooms) =>
+        rooms.ComparisonInSlide(slideId) is { } comparison ? Results.Ok(comparison) : Results.NoContent()).AllowAnonymous();
+    app.MapGet("/rooms/{slideId}/sharedcount", (string slideId, SlideRooms rooms) =>
+        rooms.SharedCountInSlide(slideId) is { } sharedCount ? Results.Ok(sharedCount) : Results.NoContent()).AllowAnonymous();
+}
 
 app.Run();
 

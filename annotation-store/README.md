@@ -17,6 +17,29 @@ In `Development`, the app runs any pending EF Core migrations against the
 configured database automatically on startup - no manual
 `dotnet ef database update` needed for a normal day-to-day pull.
 
+## Sign-in and collections
+
+Every endpoint needs a Keycloak access token (see [auth/](../auth)), checked
+in `Auth/KeycloakAuth.cs` - settings under `Auth` in `appsettings.json`. The
+user always comes from the token's `sub`, never from the request.
+
+Each user gets their own collection per slide (`POST /collections/ensure`),
+and the owner can let other people in:
+
+| Endpoint | Who | What |
+| --- | --- | --- |
+| `GET /collections?slideId=` | anyone | Collections on the slide you're in, your own first, with your role and the members |
+| `GET /collections/{id}` | members | Everything in it - annotations, cell counts, presets |
+| `POST /collections/ensure` | anyone | Get or create your own for `{ slideId }` |
+| `PUT /collections/{id}` | owner | Rename |
+| `DELETE /collections/{id}` | owner | Delete, with everything in it |
+| `PUT /collections/{id}/members/{userId}` | owner | Add someone, or change their role - `{ displayName, role: "editor" \| "viewer" }` |
+| `DELETE /collections/{id}/members/{userId}` | owner, or that member | Take someone out, or leave |
+
+Annotations, cell counts and image adjustments check the same membership:
+any member can read, `editor` and `owner` can add, change and delete. Not
+being a member gets a 404, so it doesn't give away whether it exists.
+
 ## Pointing it at your database
 
 Copy `.env.example` to `.env` and fill in your real connection string:

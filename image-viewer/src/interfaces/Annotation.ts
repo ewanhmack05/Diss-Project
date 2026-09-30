@@ -10,6 +10,10 @@ interface Annotation {
 	lineThickness: number;
 	geoJson: string;
 	created: string;
+	// Who saved it - set by annotation-store from their token. Missing on
+	// anything saved before sign-in.
+	createdById?: string;
+	createdByName?: string;
 }
 
 export type { Annotation };

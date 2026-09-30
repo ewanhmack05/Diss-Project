@@ -158,7 +158,7 @@ sequenceDiagram
   participant H as realtime-hub
   participant A as Viewer A (already there)
   B->>H: connect WebSocket /hubs/slides
-  B->>H: JoinSlide(slideId, userId, "Guest 3f2a")
+  B->>H: JoinSlide(slideId) - who B is comes from their token
   Note over H: leave any old slide first<br/>create room if needed<br/>pick a free colour
   H-->>A: UserJoined(B)
   H-->>B: JoinResult { me, others, seq }
@@ -169,9 +169,9 @@ sequenceDiagram
 
 1. The viewer opens a SignalR connection to `/hubs/slides`. SignalR uses
    WebSockets and falls back to other transports if it has to.
-2. It calls `JoinSlide`. There's no login yet, so each tab makes up a guest
-   id and keeps it in `sessionStorage` - a reload is the same person, a
-   second tab is a new one.
+2. It calls `JoinSlide`. The connection already carries the user's
+   Keycloak token (as `?access_token=`), and the hub takes their id and name
+   from it rather than from anything the browser says.
 3. The hub adds the connection to the room and the SignalR group, tells
    everyone else `UserJoined`, and returns a `JoinResult`: you, everyone
    already there (with their last viewport and sketch), and the room's
@@ -431,7 +431,7 @@ viewer through React context.
 | Max SignalR message     | 1MB                                                            | The 32KB default silently dropped long freehand annotations                 |
 | Max doc update or seed  | 64KB                                                           | Label and notes are short. Stops one client filling the hub's memory       |
 | Max doc id length       | 128 chars                                                      | Same reason                                                                 |
-| Required fields         | slideId, userId, op id, op data (not delete), sketch tool/data | A bad call throws a `HubException` back to the caller only, never to others |
+| Required fields         | slideId, op id, op data (not delete), sketch tool/data         | A bad call throws a `HubException` back to the caller only, never to others |
 | Must join first         | Every method except `JoinSlide`                                | "Join a slide first"                                                        |
 | Must open doc first     | `SendDocUpdate`                                                | "Open the doc first"                                                        |
 | Comparison ROI          | 16K chars                                                      | Only ever a box                                                             |
@@ -451,10 +451,9 @@ connections. If Grafana isn't running nothing breaks.
 
 ## 12. Known gaps
 
-- **No auth.** The hub trusts whatever user id the browser sends. Users are
-  "Guest xxxx" for now. Sessions, invite links and host / editor / viewer
-  roles are next (likely Keycloak, see [auth.md](../auth.md) and
-  [thought-process.md](../thought-process.md)).
+- **No guest links yet.** Everyone signs in with Keycloak. Invite links
+  for people without an account, and host / editor / viewer roles for a
+  session, are next (see [thought-process.md](../thought-process.md)).
 - **One copy only.** State is in memory, so two copies of the hub would
   split users between them. Scaling out needs a Redis backplane or Azure
   SignalR Service.

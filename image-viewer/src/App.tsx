@@ -23,6 +23,7 @@ import { ToastContextProvider } from './context/ToastContext'
 import { ComparisonContextProvider } from './context/ComparisonContext'
 import { SharedCountContextProvider } from './context/SharedCountContext'
 import { EventContextProvider } from './context/EventContext'
+import { AuthContextProvider, type AuthOptions } from './context/AuthContext'
 import MapNode from './components/MapNode'
 import AnnotationsPanel from './components/annotation/AnnotationsPanel'
 import CellCountPanel from './components/cell-count/CellCountPanel'
@@ -101,19 +102,24 @@ interface AppProps {
   annotationStoreUrl: string
   // Optional - without it the viewer works on its own, just not live.
   realtimeHubUrl?: string
+  // Keycloak - everything needs a signed-in user (see AuthContext).
+  auth: AuthOptions
   options?: AppOptions
   on?: (event: string, payload: unknown) => void
 }
 
-function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, options, on }: AppProps) {
+function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, auth, options, on }: AppProps) {
   const imageSource: ImageSource = { tilerUrl: tilerServiceUrl, slideId: source }
 
   return (
     <ToastContextProvider>
       <EventContextProvider on={on}>
+        <AuthContextProvider auth={auth}>
         <ImageViewerContextProvider source={imageSource}>
-          <CollectionContextProvider baseUrl={annotationStoreUrl}>
-            <RealtimeContextProvider hubUrl={realtimeHubUrl}>
+          {/* Realtime sits above collections, which use it to tell others
+              when someone's added. */}
+          <RealtimeContextProvider hubUrl={realtimeHubUrl}>
+            <CollectionContextProvider baseUrl={annotationStoreUrl}>
               <AnnotationStoreContextProvider baseUrl={annotationStoreUrl}>
                 <CellCountStoreContextProvider baseUrl={annotationStoreUrl}>
                   <CellCountDrawContextProvider>
@@ -135,9 +141,10 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, opti
                   </CellCountDrawContextProvider>
                 </CellCountStoreContextProvider>
               </AnnotationStoreContextProvider>
-            </RealtimeContextProvider>
-          </CollectionContextProvider>
+            </CollectionContextProvider>
+          </RealtimeContextProvider>
         </ImageViewerContextProvider>
+        </AuthContextProvider>
       </EventContextProvider>
     </ToastContextProvider>
   )

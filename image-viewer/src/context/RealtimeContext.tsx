@@ -28,7 +28,7 @@ import {
 } from '../components/realtime/realtime'
 import { useImageViewerContext } from './ImageViewerContext'
 import { useEmitEvent } from './EventContext'
-import { newId } from '../newId'
+import { useAuthContext } from './AuthContext'
 
 // off - no hub URL given, so realtime is switched off entirely.
 // offline - couldn't connect, still retrying in the background.
@@ -82,22 +82,6 @@ const VIEWPORT_THROTTLE_MS = 100
 const RETRY_MIN_MS = 2000
 const RETRY_MAX_MS = 30000
 
-// No auth yet, so each tab makes up a guest. Kept per tab (sessionStorage)
-// so a reload is the same person but two tabs are two people.
-function guestIdentity(): { userId: string; displayName: string } {
-  let userId: string | null = null
-  try {
-    userId = sessionStorage.getItem('realtime-user-id')
-    if (!userId) {
-      userId = newId()
-      sessionStorage.setItem('realtime-user-id', userId)
-    }
-  } catch {
-    userId = newId()
-  }
-  return { userId, displayName: `Guest ${userId.slice(0, 4)}` }
-}
-
 interface RealtimeContextProviderProps {
   // Leave out to run the viewer without the hub.
   hubUrl?: string
@@ -108,6 +92,7 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
   const { source } = useImageViewerContext()
   const { slideId } = source
   const emit = useEmitEvent()
+  const { getAccessToken } = useAuthContext()
 
   const [status, setStatus] = useState<Exclude<RealtimeStatus, 'off'>>('connecting')
   const [me, setMe] = useState<Participant | null>(null)
@@ -122,7 +107,6 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
     meRef.current = me
   })
 
-  const identityRef = useRef(guestIdentity())
   const connectionRef = useRef<HubConnection | null>(null)
   const joinedRef = useRef(false)
   const lastViewportRef = useRef<Viewport | null>(null)
@@ -138,7 +122,8 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
     if (!hubUrl) return
 
     const connection = new HubConnectionBuilder()
-      .withUrl(`${hubUrl}/hubs/slides`)
+      // Who you are comes from the token - the hub checks it on connect.
+      .withUrl(`${hubUrl}/hubs/slides`, { accessTokenFactory: getAccessToken })
       .withAutomaticReconnect()
       .configureLogging(LogLevel.None)
       .build()
@@ -171,8 +156,7 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
     // Also used after a reconnect - that's a new connection id as far as
     // the hub is concerned, so it has to join again.
     const join = async () => {
-      const { userId, displayName } = identityRef.current
-      const result = await connection.invoke<JoinResult>('JoinSlide', slideId, userId, displayName)
+      const result = await connection.invoke<JoinResult>('JoinSlide', slideId)
       if (stopped) return
       joinedRef.current = true
       setMe(result.me)
@@ -272,7 +256,7 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
       connectionRef.current = null
       connection.stop()
     }
-  }, [hubUrl, slideId, emit])
+  }, [hubUrl, slideId, emit, getAccessToken])
 
   const sendOp = useCallback((op: AnnotationOp) => {
     const connection = connectionRef.current

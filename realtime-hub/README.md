@@ -6,8 +6,10 @@ in-progress drawing and shared text edits between them, and runs comparison
 and shared cell counts. Kept separate from annotation-store so it can be ported and
 reused (see [docs/libraries.md](../docs/libraries.md)).
 
-This is step 1 of the plan - no auth or sessions yet, so users are whatever
-id the client sends.
+Everyone signs in with Keycloak (see [auth/](../auth)). The hub checks the
+access token when a connection opens - browsers send it as
+`?access_token=`, since a WebSocket can't carry the usual header - and who
+someone is (`userId`, `displayName`) comes from the token.
 
 ## Running
 
@@ -32,7 +34,7 @@ Connect to `/hubs/slides`. Enums go over the wire as camelCase strings
 
 | Method             | Args                                | Returns      | Notes                                                    |
 | ------------------ | ----------------------------------- | ------------ | -------------------------------------------------------- |
-| `JoinSlide`        | `slideId`, `userId`, `displayName`  | `JoinResult` | Leaves any slide you were already in, closing its docs   |
+| `JoinSlide`        | `slideId`                           | `JoinResult` | Leaves any slide you were already in, closing its docs. You're whoever the token says |
 | `LeaveSlide`       | -                                   | -            | Closes any docs you had open                             |
 | `UpdateViewport`   | `Viewport`                          | -            | Throttle to ~10/sec on the client                        |
 | `UpdateSketch`     | `Sketch \| null`                    | -            | `null` clears it. `tool` and `data` are required         |
@@ -85,7 +87,9 @@ type Viewport = { center: [number, number]; resolution: number; rotation: number
 type ViewportUpdate = { connectionId: string; viewport: Viewport };
 type Sketch = { tool: string; data: unknown };  // tool: 'annotation' for now, later 'ruler', 'cellCount'
 type SketchUpdate = { connectionId: string; sketch: Sketch | null };
-type AnnotationOp = { kind: 'create' | 'update' | 'delete'; entity: 'annotation' | 'cellCount'; id: string; data?: unknown };
+// collectionId says which collection it was made in - people on a slide can be
+// in different ones. entity 'collection' is a nudge that membership changed.
+type AnnotationOp = { kind: 'create' | 'update' | 'delete'; entity: 'annotation' | 'cellCount' | 'collection'; id: string; data?: unknown; collectionId?: string };
 type StampedOp = { seq: number; serverTime: string; connectionId: string; userId: string; op: AnnotationOp };
 type JoinResult = { me: Participant; others: Participant[]; seq: number; comparison: Comparison | null };
 // matchRadius is in map units - dots closer than this are the same cell.

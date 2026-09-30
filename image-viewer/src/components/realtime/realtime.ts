@@ -78,7 +78,8 @@ interface ViewportUpdate {
 }
 
 type OpKind = 'create' | 'update' | 'delete'
-type OpEntity = 'annotation' | 'cellCount'
+// collection is a nudge that someone's membership changed - see CollectionContext.
+type OpEntity = 'annotation' | 'cellCount' | 'collection'
 
 interface AnnotationOp {
   kind: OpKind
@@ -86,6 +87,16 @@ interface AnnotationOp {
   id: string
   // Whole item for create, just the changed fields for update.
   data?: unknown
+  // Which collection it was made in - people on a slide can be in
+  // different ones, so each only applies changes to the one they have open.
+  collectionId?: string
+}
+
+// Whether someone else's op is for the collection this viewer has open.
+// One without a collection is from before collections were sent, so it
+// counts as everyone's.
+function isForCollection(op: AnnotationOp, collectionId: string | null): boolean {
+  return !op.collectionId || op.collectionId === collectionId
 }
 
 interface StampedOp {
@@ -332,6 +343,7 @@ function debounce<A extends unknown[]>(fn: (...args: A) => void, ms: number) {
 
 export {
   applyOp,
+  isForCollection,
   viewportRing,
   viewportFrom,
   watchView,
