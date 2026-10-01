@@ -72,13 +72,15 @@ function AuthContextProvider({ auth, children }: { auth: AuthOptions; children: 
       if (params.has('code') && params.has('state')) {
         callbackInFlight ??= manager.signinRedirectCallback()
         const user = await callbackInFlight
-        // Tidy the code out of the address bar.
-        window.history.replaceState(window.history.state, '', window.location.pathname + window.location.hash)
+        // Swap the code for whatever the address had before signing in - an
+        // invite link's ?invite= has to survive the trip to Keycloak.
+        const returnTo = typeof user.state === 'string' ? user.state : ''
+        window.history.replaceState(window.history.state, '', window.location.pathname + returnTo + window.location.hash)
         return user
       }
       const user = await manager.getUser()
       if (user && !user.expired) return user
-      await manager.signinRedirect()
+      await manager.signinRedirect({ state: window.location.search })
       return null
     }
 
@@ -97,7 +99,7 @@ function AuthContextProvider({ auth, children }: { auth: AuthOptions; children: 
       setStatus({ kind: 'signed-in', user })
     }
     // Renewing failed (signed out elsewhere, session ended) - sign in again.
-    const onExpired = () => manager.signinRedirect().catch(() => {})
+    const onExpired = () => manager.signinRedirect({ state: window.location.search }).catch(() => {})
     manager.events.addUserLoaded(onLoaded)
     manager.events.addAccessTokenExpired(onExpired)
     manager.events.addUserSignedOut(onExpired)
@@ -123,7 +125,10 @@ function AuthContextProvider({ auth, children }: { auth: AuthOptions; children: 
   }, [manager])
 
   const switchUser = useCallback(() => {
-    manager.removeUser().then(() => manager.signinRedirect({ prompt: 'login' })).catch(() => {})
+    manager
+      .removeUser()
+      .then(() => manager.signinRedirect({ prompt: 'login', state: window.location.search }))
+      .catch(() => {})
   }, [manager])
 
   const user = useMemo(() => (status.kind === 'signed-in' ? userFrom(status.user) : null), [status])

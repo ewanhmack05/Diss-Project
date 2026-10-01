@@ -6,7 +6,7 @@ import { useEmitEvent } from './EventContext'
 import { useCollectionContext } from './CollectionContext'
 import { useRealtimeContext } from './RealtimeContext'
 import { useAuthContext } from './AuthContext'
-import { applyOp, isForCollection, type AnnotationOp } from '../components/realtime/realtime'
+import { applyOp } from '../components/realtime/realtime'
 
 type Status = 'loading' | 'ready' | 'error'
 
@@ -39,8 +39,6 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
   const { collectionId, status: collectionStatus, canEdit } = useCollectionContext()
   const { sendOp, onOp } = useRealtimeContext()
   const { authFetch, user } = useAuthContext()
-  // Every op says which collection it's for - see isForCollection.
-  const send = (op: AnnotationOp) => sendOp({ ...op, collectionId: collectionId ?? undefined })
 
   const [annotations, setAnnotations] = useState<Annotation[]>([])
   const [status, setStatus] = useState<Status>('loading')
@@ -91,12 +89,12 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
   useEffect(
     () =>
       onOp(({ op }) => {
-        if (op.entity !== 'annotation' || !isForCollection(op, collectionId)) return
+        if (op.entity !== 'annotation') return
         if (op.kind === 'delete') deletedIdsRef.current.add(op.id)
         setAnnotations((current) => applyOp(current, op))
         if (op.kind === 'delete') setSelectedAnnotationId((current) => (current === op.id ? null : current))
       }),
-    [onOp, collectionId]
+    [onOp]
   )
 
   // Writes are optimistic - update local state immediately for a responsive
@@ -126,7 +124,7 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
     emit('annotation:created', annotation)
     // Sent straight away rather than after the save, to keep the delay down.
     // A save that then fails isn't rolled back for anyone, same as locally.
-    send({ kind: 'create', entity: 'annotation', id: annotation.id, data: annotation })
+    sendOp({ kind: 'create', entity: 'annotation', id: annotation.id, data: annotation })
     authFetch(`${baseUrl}/annotations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -147,7 +145,7 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
     if (deletedIdsRef.current.has(id)) return
     setAnnotations((current) => current.map((a) => (a.id === id ? { ...a, ...patch } : a)))
     emit('annotation:updated', { id, patch })
-    send({ kind: 'update', entity: 'annotation', id, data: patch })
+    sendOp({ kind: 'update', entity: 'annotation', id, data: patch })
     authFetch(`${baseUrl}/annotations/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -166,7 +164,7 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
     deletedIdsRef.current.add(id)
     setAnnotations((current) => current.filter((a) => a.id !== id))
     emit('annotation:deleted', { id })
-    send({ kind: 'delete', entity: 'annotation', id })
+    sendOp({ kind: 'delete', entity: 'annotation', id })
     authFetch(`${baseUrl}/annotations/${id}`, { method: 'DELETE' })
       .then((response) => {
         if (!response.ok) throw new Error(String(response.status))

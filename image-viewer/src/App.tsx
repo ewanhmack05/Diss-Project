@@ -31,6 +31,7 @@ import RotationPanel from './components/rotation/RotationPanel'
 import RulerPanel from './components/ruler/RulerPanel'
 import AdjustmentsPanel from './components/adjustments/AdjustmentsPanel'
 import RealTimePanel from './components/realtime/RealTimePanel'
+import InviteGate from './components/realtime/InviteGate'
 import Toolbar, { type ToolName } from './components/toolbar/Toolbar'
 import DraggablePanel from './components/toolbar/DraggablePanel'
 import DockZones from './components/toolbar/DockZone'
@@ -116,10 +117,12 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, auth
       <EventContextProvider on={on}>
         <AuthContextProvider auth={auth}>
         <ImageViewerContextProvider source={imageSource}>
-          {/* Realtime sits above collections, which use it to tell others
-              when someone's added. */}
-          <RealtimeContextProvider hubUrl={realtimeHubUrl}>
-            <CollectionContextProvider baseUrl={annotationStoreUrl}>
+          {/* Collections decide which session you're in, and so which
+              realtime room - working alone there's no room at all. An
+              invite link is dealt with before the viewer opens. */}
+          <CollectionContextProvider baseUrl={annotationStoreUrl}>
+            <InviteGate>
+            <RealtimeContextProvider hubUrl={realtimeHubUrl}>
               <AnnotationStoreContextProvider baseUrl={annotationStoreUrl}>
                 <CellCountStoreContextProvider baseUrl={annotationStoreUrl}>
                   <CellCountDrawContextProvider>
@@ -141,8 +144,9 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, auth
                   </CellCountDrawContextProvider>
                 </CellCountStoreContextProvider>
               </AnnotationStoreContextProvider>
-            </CollectionContextProvider>
-          </RealtimeContextProvider>
+            </RealtimeContextProvider>
+            </InviteGate>
+          </CollectionContextProvider>
         </ImageViewerContextProvider>
         </AuthContextProvider>
       </EventContextProvider>

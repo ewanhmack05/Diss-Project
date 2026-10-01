@@ -26,13 +26,14 @@ import {
   type Viewport,
   type ViewportUpdate,
 } from '../components/realtime/realtime'
-import { useImageViewerContext } from './ImageViewerContext'
 import { useEmitEvent } from './EventContext'
 import { useAuthContext } from './AuthContext'
+import { useCollectionContext } from './CollectionContext'
 
 // off - no hub URL given, so realtime is switched off entirely.
+// alone - not in a session, so there's no room to be in.
 // offline - couldn't connect, still retrying in the background.
-type RealtimeStatus = 'off' | 'connecting' | 'connected' | 'reconnecting' | 'offline'
+type RealtimeStatus = 'off' | 'alone' | 'connecting' | 'connected' | 'reconnecting' | 'offline'
 
 type OpHandler = (op: StampedOp) => void
 type DocUpdateHandler = (docId: string, update: Uint8Array) => void
@@ -55,7 +56,7 @@ interface RealtimeContextValue {
   closeDoc: (docId: string) => void
   onDocUpdate: (handler: DocUpdateHandler) => () => void
   onDocEditors: (handler: DocEditorsHandler) => () => void
-  // The comparison count running on this slide, if any (see
+  // The comparison count running in the session, if any (see
   // ComparisonContext). These reject with the hub's message if the call
   // doesn't fit its current state, or if not connected.
   comparison: Comparison | null
@@ -63,7 +64,7 @@ interface RealtimeContextValue {
   joinComparison: (id: string) => Promise<void>
   leaveComparison: (id: string) => Promise<void>
   submitComparison: (id: string, dots: ComparisonDot[]) => Promise<void>
-  // The shared count running on this slide, if any (see SharedCountContext).
+  // The shared count running in the session, if any (see SharedCountContext).
   // Your own dots are added and removed here straight away, rather than
   // waiting on the hub, which doesn't echo them back.
   sharedCount: SharedCount | null
@@ -88,13 +89,19 @@ interface RealtimeContextProviderProps {
   children: ReactNode
 }
 
+// The room is the session you're in (see CollectionContext) - working
+// alone there's no connection at all.
 function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderProps) {
-  const { source } = useImageViewerContext()
-  const { slideId } = source
   const emit = useEmitEvent()
   const { getAccessToken } = useAuthContext()
+  const { roomId, refresh: refreshCollections } = useCollectionContext()
+  // Read from the connection's handlers, which shouldn't reconnect when it changes.
+  const refreshRef = useRef(refreshCollections)
+  useEffect(() => {
+    refreshRef.current = refreshCollections
+  })
 
-  const [status, setStatus] = useState<Exclude<RealtimeStatus, 'off'>>('connecting')
+  const [status, setStatus] = useState<Exclude<RealtimeStatus, 'off' | 'alone'>>('connecting')
   const [me, setMe] = useState<Participant | null>(null)
   const [others, setOthers] = useState<Participant[]>([])
   const [comparison, setComparison] = useState<Comparison | null>(null)
@@ -119,7 +126,7 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
   const throttledSketchRef = useRef<ReturnType<typeof throttle<[Sketch]>> | null>(null)
 
   useEffect(() => {
-    if (!hubUrl) return
+    if (!hubUrl || !roomId) return
 
     const connection = new HubConnectionBuilder()
       // Who you are comes from the token - the hub checks it on connect.
@@ -156,7 +163,7 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
     // Also used after a reconnect - that's a new connection id as far as
     // the hub is concerned, so it has to join again.
     const join = async () => {
-      const result = await connection.invoke<JoinResult>('JoinSlide', slideId)
+      const result = await connection.invoke<JoinResult>('JoinSession', roomId)
       if (stopped) return
       joinedRef.current = true
       setMe(result.me)
@@ -187,9 +194,12 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
       }
     }
 
-    connection.on('UserJoined', (participant: Participant) =>
+    // Someone new may have just joined the session through a link, so the
+    // people list needs fetching again.
+    connection.on('UserJoined', (participant: Participant) => {
       setOthers((current) => [...current.filter((p) => p.connectionId !== participant.connectionId), participant])
-    )
+      refreshRef.current()
+    })
     connection.on('UserLeft', (connectionId: string) =>
       setOthers((current) => current.filter((p) => p.connectionId !== connectionId))
     )
@@ -223,6 +233,8 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
       )
     )
     connection.on('AnnotationOp', (op: StampedOp) => {
+      // Someone's role changed, they were taken out, or the session ended.
+      if (op.op.entity === 'collection') refreshRef.current()
       opHandlersRef.current.forEach((handler) => handler(op))
       emit('realtime:op', op)
     })
@@ -256,7 +268,7 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
       connectionRef.current = null
       connection.stop()
     }
-  }, [hubUrl, slideId, emit, getAccessToken])
+  }, [hubUrl, roomId, emit, getAccessToken])
 
   const sendOp = useCallback((op: AnnotationOp) => {
     const connection = connectionRef.current
@@ -381,7 +393,7 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
   return (
     <RealtimeContext.Provider
       value={{
-        status: hubUrl ? status : 'off',
+        status: !hubUrl ? 'off' : !roomId ? 'alone' : status,
         me,
         others,
         sendOp,

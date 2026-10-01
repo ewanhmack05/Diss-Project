@@ -18,10 +18,16 @@ public class Collections
     public string SlideId { get; set; } = "";
     public string CollectionName { get; set; } = "";
     public DateTimeOffset Created { get; set; }
-    // The owner's Keycloak id. They're also in Members, as Owner.
+    // The owner's Keycloak id. They're also in Members, as Owner - for a
+    // session, that's the host.
     public string UserId { get; set; } = "";
+    public CollectionKind Kind { get; set; }
+    // Sessions only - once ended it's read-only for everyone and its links
+    // stop working, but it's kept so people can look back at it.
+    public DateTimeOffset? Ended { get; set; }
 
     public List<CollectionMember> Members { get; set; } = [];
+    public List<CollectionInvite> Invites { get; set; } = [];
 
     // Only populated where the query actually asks for it (GET /collections
     // eager-loads these; POST /collections, /collections/ensure, and PUT

@@ -9,6 +9,9 @@ using Scalar.AspNetCore;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton<SlideRooms>();
+// Who's in which session lives in annotation-store - see Slides/SessionAccess.cs.
+builder.Services.AddHttpClient<ISessionAccess, AnnotationStoreSessionAccess>(client =>
+    client.BaseAddress = new Uri(builder.Configuration["AnnotationStore:BaseUrl"] ?? "http://localhost:5252/"));
 // The 32KB default silently dropped long freehand annotations.
 builder.Services.AddSignalR(options => options.MaximumReceiveMessageSize = 1024 * 1024)
     .AddJsonProtocol(options => HubJson.Configure(options.PayloadSerializerOptions));
@@ -27,7 +30,7 @@ builder.Services.ConfigureHttpJsonOptions(options => HubJson.Configure(options.S
 
 builder.Services.AddOpenApi();
 
-// Sign-in via Keycloak - see Auth/KeycloakAuth.cs. Nobody joins a slide
+// Sign-in via Keycloak - see Auth/KeycloakAuth.cs. Nobody joins a session
 // without a token, and who they are comes from it.
 builder.AddKeycloakAuth();
 
@@ -73,13 +76,13 @@ app.MapHub<SlideHub>("/hubs/slides");
 if (app.Environment.IsDevelopment())
 {
     app.MapGet("/rooms", (SlideRooms rooms) => Results.Ok(rooms.Summary())).AllowAnonymous();
-    app.MapGet("/rooms/{slideId}", (string slideId, SlideRooms rooms) => Results.Ok(rooms.InSlide(slideId))).AllowAnonymous();
-    app.MapGet("/rooms/{slideId}/docs", (string slideId, SlideRooms rooms) => Results.Ok(rooms.DocsInSlide(slideId))).AllowAnonymous();
+    app.MapGet("/rooms/{roomId}", (string roomId, SlideRooms rooms) => Results.Ok(rooms.InRoom(roomId))).AllowAnonymous();
+    app.MapGet("/rooms/{roomId}/docs", (string roomId, SlideRooms rooms) => Results.Ok(rooms.DocsInRoom(roomId))).AllowAnonymous();
     // Blind like it is over the hub - no dots until it's revealed.
-    app.MapGet("/rooms/{slideId}/comparison", (string slideId, SlideRooms rooms) =>
-        rooms.ComparisonInSlide(slideId) is { } comparison ? Results.Ok(comparison) : Results.NoContent()).AllowAnonymous();
-    app.MapGet("/rooms/{slideId}/sharedcount", (string slideId, SlideRooms rooms) =>
-        rooms.SharedCountInSlide(slideId) is { } sharedCount ? Results.Ok(sharedCount) : Results.NoContent()).AllowAnonymous();
+    app.MapGet("/rooms/{roomId}/comparison", (string roomId, SlideRooms rooms) =>
+        rooms.ComparisonInRoom(roomId) is { } comparison ? Results.Ok(comparison) : Results.NoContent()).AllowAnonymous();
+    app.MapGet("/rooms/{roomId}/sharedcount", (string roomId, SlideRooms rooms) =>
+        rooms.SharedCountInRoom(roomId) is { } sharedCount ? Results.Ok(sharedCount) : Results.NoContent()).AllowAnonymous();
 }
 
 app.Run();

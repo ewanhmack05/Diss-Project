@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using RealtimeHub.Slides;
 
 namespace RealtimeHub.Tests;
 
@@ -31,7 +32,18 @@ public class HubFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.ConfigureServices(services =>
+        {
             services.AddAuthentication(TestAuthHandler.Scheme)
-                .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.Scheme, _ => { }));
+                .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.Scheme, _ => { });
+            services.AddSingleton<ISessionAccess, TestSessionAccess>();
+        });
     }
+}
+
+// Stands in for annotation-store: every session is open to everyone, apart
+// from ids starting "locked", which nobody can join.
+public class TestSessionAccess : ISessionAccess
+{
+    public Task<bool> CanJoinAsync(string sessionId, string accessToken, CancellationToken cancellationToken) =>
+        Task.FromResult(!sessionId.StartsWith("locked", StringComparison.Ordinal));
 }

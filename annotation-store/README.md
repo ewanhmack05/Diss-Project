@@ -23,22 +23,36 @@ Every endpoint needs a Keycloak access token (see [auth/](../auth)), checked
 in `Auth/KeycloakAuth.cs` - settings under `Auth` in `appsettings.json`. The
 user always comes from the token's `sub`, never from the request.
 
-Each user gets their own collection per slide (`POST /collections/ensure`),
-and the owner can let other people in:
+There are two kinds of collection:
+
+- **Personal** - made automatically, one per person per slide
+  (`POST /collections/ensure`). Only ever theirs.
+- **Session** - started by someone (the host) to work with others, who join
+  through an invite link. Ending one makes it read-only and stops its links,
+  but keeps it so people can look back at it.
 
 | Endpoint | Who | What |
 | --- | --- | --- |
-| `GET /collections?slideId=` | anyone | Collections on the slide you're in, your own first, with your role and the members |
+| `GET /collections?slideId=` | anyone | Collections on the slide you're in - your own, then sessions still going, then ended ones - with your role and the members |
 | `GET /collections/{id}` | members | Everything in it - annotations, cell counts, presets |
+| `GET /collections/{id}/membership` | members | Your role, its kind and whether it's ended - what the realtime hub checks before letting you into a session's room |
 | `POST /collections/ensure` | anyone | Get or create your own for `{ slideId }` |
+| `POST /sessions` | anyone | Start a session on `{ slideId, collectionName? }`, hosted by you |
 | `PUT /collections/{id}` | owner | Rename |
 | `DELETE /collections/{id}` | owner | Delete, with everything in it |
-| `PUT /collections/{id}/members/{userId}` | owner | Add someone, or change their role - `{ displayName, role: "editor" \| "viewer" }` |
-| `DELETE /collections/{id}/members/{userId}` | owner, or that member | Take someone out, or leave |
+| `POST /collections/{id}/end` | host | End a session |
+| `PUT /collections/{id}/members/{userId}` | host | Change someone's role - `{ displayName, role: "editor" \| "viewer" }` |
+| `DELETE /collections/{id}/members/{userId}` | host, or that member | Take someone out, or leave |
+| `POST /collections/{id}/invites` | host | New invite link - `{ role, hours }` (up to a week). Any earlier link stops |
+| `GET /collections/{id}/invites` | host | The session's working link |
+| `DELETE /collections/{id}/invites/{code}` | host | Stop a link |
+| `GET /invites/{code}` | anyone with the code | What it's for - session, host, role, who's in it, and whether it's `open`, `expired`, `stopped` or `ended` |
+| `POST /invites/{code}/accept` | anyone with the code | Join with the link's role. 410 if it's run out |
 
 Annotations, cell counts and image adjustments check the same membership:
 any member can read, `editor` and `owner` can add, change and delete. Not
-being a member gets a 404, so it doesn't give away whether it exists.
+being a member gets a 404, so it doesn't give away whether it exists. Nothing
+in an ended session can change (409).
 
 ## Pointing it at your database
 

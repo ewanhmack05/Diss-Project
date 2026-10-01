@@ -7,11 +7,11 @@ namespace RealtimeHub.Slides;
 // models on purpose - the hub just relays, so op data is an opaque blob and
 // this service doesn't break when that schema changes.
 
-// One connection in a slide room. Keyed by connection, not user, so the same
+// One connection in a session's room. Keyed by connection, not user, so the same
 // user in two tabs shows as two participants.
 public record Participant(
     string ConnectionId,
-    string SlideId,
+    string RoomId,
     string UserId,
     string DisplayName,
     string Colour,
@@ -36,13 +36,11 @@ public record SketchUpdate(string ConnectionId, Sketch? Sketch);
 public enum OpKind { Create, Update, Delete }
 
 // Image adjustments stay personal, so they aren't here. Collection is a
-// nudge that someone's membership changed, so others fetch their list again.
+// nudge that the session changed - someone's role, someone taken out, or it
+// ended - so everyone fetches it again.
 public enum OpEntity { Annotation, CellCount, Collection }
 
-// CollectionId is which collection the change was made in - people on the
-// same slide can be working in different ones, so they only apply changes
-// to the one they have open. The hub doesn't read it.
-public record AnnotationOp(OpKind Kind, OpEntity Entity, Guid Id, JsonElement? Data = null, Guid? CollectionId = null);
+public record AnnotationOp(OpKind Kind, OpEntity Entity, Guid Id, JsonElement? Data = null);
 
 // Seq is per room and only ever goes up, so clients can spot a gap or
 // order two edits to the same thing. Resets when the room empties.

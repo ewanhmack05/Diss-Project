@@ -33,10 +33,6 @@ public class CollectionsTests : IClassFixture<CellCountApiFactory>
     private static async Task<List<CollectionView>> ListAsync(HttpClient client, string slideId) =>
         (await client.GetFromJsonAsync<List<CollectionView>>($"/collections?slideId={slideId}", Json))!;
 
-    private static Task<HttpResponseMessage> AddMemberAsync(
-        HttpClient owner, Guid collectionId, string userId, CollectionRole role = CollectionRole.Editor) =>
-        owner.PutAsJsonAsync($"/collections/{collectionId}/members/{userId}", new MemberRequest($"User {userId}", role), Json);
-
     [Fact]
     public async Task Ensure_CreatesTheCallersOwn_WithThemAsOwner()
     {
@@ -50,6 +46,7 @@ public class CollectionsTests : IClassFixture<CellCountApiFactory>
         Assert.Equal(slideId, created.SlideId);
         Assert.Equal("alice", created.OwnerId);
         Assert.Equal(CollectionRole.Owner, created.MyRole);
+        Assert.Equal(CollectionKind.Personal, created.Kind);
         Assert.Equal("Alice Moore's collection", created.CollectionName);
         var member = Assert.Single(created.Members);
         Assert.Equal(new MemberView("alice", "Alice Moore", CollectionRole.Owner), member);
@@ -113,85 +110,6 @@ public class CollectionsTests : IClassFixture<CellCountApiFactory>
     }
 
     [Fact]
-    public async Task Get_ListsWhatYoureIn_YourOwnFirst()
-    {
-        var slideId = NewSlide();
-        var alice = As("alice");
-        var bob = As("bob");
-        var alices = await EnsureAsync(alice, slideId);
-        var bobs = await EnsureAsync(bob, slideId);
-        (await AddMemberAsync(alice, alices.CollectionId, "bob")).EnsureSuccessStatusCode();
-
-        var bobSees = await ListAsync(bob, slideId);
-
-        Assert.Equal([bobs.CollectionId, alices.CollectionId], bobSees.Select(c => c.CollectionId));
-        Assert.Equal(CollectionRole.Owner, bobSees[0].MyRole);
-        Assert.Equal(CollectionRole.Editor, bobSees[1].MyRole);
-        Assert.Equal(["alice", "bob"], bobSees[1].Members.Select(m => m.UserId));
-    }
-
-    [Fact]
-    public async Task AddingAMember_LetsThemReadAndWrite_ByRole()
-    {
-        var slideId = NewSlide();
-        var alice = As("alice");
-        var bob = As("bob");
-        var carol = As("carol");
-        var collection = await EnsureAsync(alice, slideId);
-        var annotations = $"/annotations?collectionId={collection.CollectionId}";
-
-        // Not in it yet - it may as well not exist.
-        Assert.Equal(HttpStatusCode.NotFound, (await bob.GetAsync(annotations)).StatusCode);
-
-        (await AddMemberAsync(alice, collection.CollectionId, "bob", CollectionRole.Editor)).EnsureSuccessStatusCode();
-        (await AddMemberAsync(alice, collection.CollectionId, "carol", CollectionRole.Viewer)).EnsureSuccessStatusCode();
-
-        var post = await bob.PostAsJsonAsync("/annotations", new Annotation { CollectionId = collection.CollectionId, Label = "from bob" });
-        Assert.Equal(HttpStatusCode.Created, post.StatusCode);
-        var created = (await post.Content.ReadFromJsonAsync<Annotation>())!;
-
-        Assert.Equal(HttpStatusCode.OK, (await carol.GetAsync(annotations)).StatusCode);
-        var carolPost = await carol.PostAsJsonAsync("/annotations", new Annotation { CollectionId = collection.CollectionId, Label = "x" });
-        Assert.Equal(HttpStatusCode.Forbidden, carolPost.StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await carol.DeleteAsync($"/annotations/{created.Id}")).StatusCode);
-    }
-
-    [Fact]
-    public async Task OnlyTheOwner_ManagesMembers()
-    {
-        var slideId = NewSlide();
-        var alice = As("alice");
-        var bob = As("bob");
-        var collection = await EnsureAsync(alice, slideId);
-        (await AddMemberAsync(alice, collection.CollectionId, "bob")).EnsureSuccessStatusCode();
-
-        Assert.Equal(HttpStatusCode.Forbidden, (await AddMemberAsync(bob, collection.CollectionId, "carol")).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest,
-            (await AddMemberAsync(alice, collection.CollectionId, "carol", CollectionRole.Owner)).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest,
-            (await alice.DeleteAsync($"/collections/{collection.CollectionId}/members/alice")).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden,
-            (await bob.PutAsJsonAsync($"/collections/{collection.CollectionId}", new RenameRequest("mine now"))).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await bob.DeleteAsync($"/collections/{collection.CollectionId}")).StatusCode);
-    }
-
-    [Fact]
-    public async Task AMember_CanLeave_AndIsThenLockedOut()
-    {
-        var slideId = NewSlide();
-        var alice = As("alice");
-        var bob = As("bob");
-        var collection = await EnsureAsync(alice, slideId);
-        (await AddMemberAsync(alice, collection.CollectionId, "bob")).EnsureSuccessStatusCode();
-
-        var leave = await bob.DeleteAsync($"/collections/{collection.CollectionId}/members/bob");
-
-        Assert.Equal(HttpStatusCode.NoContent, leave.StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound,
-            (await bob.GetAsync($"/annotations?collectionId={collection.CollectionId}")).StatusCode);
-    }
-
-    [Fact]
     public async Task GetById_ReturnsEverythingInIt_ToMembers()
     {
         var alice = As("alice");
@@ -213,6 +131,21 @@ public class CollectionsTests : IClassFixture<CellCountApiFactory>
         Assert.NotNull(hydrated.CellCounts[0].RegionOfInterest);
         Assert.Single(hydrated.ImageAdjustments);
         Assert.Equal(HttpStatusCode.NotFound, (await As("bob").GetAsync($"/collections/{id}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task PersonalCollections_CantBeShared()
+    {
+        var alice = As("alice");
+        var collection = await EnsureAsync(alice, NewSlide());
+
+        var invite = await alice.PostAsJsonAsync($"/collections/{collection.CollectionId}/invites",
+            new InviteRequest(CollectionRole.Editor, 24), Json);
+        var member = await alice.PutAsJsonAsync($"/collections/{collection.CollectionId}/members/bob",
+            new MemberRequest("Bob", CollectionRole.Editor), Json);
+
+        Assert.Equal(HttpStatusCode.BadRequest, invite.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, member.StatusCode);
     }
 
     [Fact]
@@ -251,7 +184,6 @@ public class CollectionsTests : IClassFixture<CellCountApiFactory>
         var alice = As("alice");
         var collection = await EnsureAsync(alice, NewSlide());
         var id = collection.CollectionId;
-        (await AddMemberAsync(alice, id, "bob")).EnsureSuccessStatusCode();
 
         var annotation = await (await alice.PostAsJsonAsync("/annotations", new Annotation { CollectionId = id, Label = "a" }))
             .Content.ReadFromJsonAsync<Annotation>();

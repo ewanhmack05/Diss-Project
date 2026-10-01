@@ -3,6 +3,10 @@ namespace AnnotationStore.Collections;
 // In order, so a role can be compared with "at least editor".
 public enum CollectionRole { Viewer, Editor, Owner }
 
+// Personal: made automatically, one per person per slide, only ever theirs.
+// Session: started by someone to work with others, joined through invite links.
+public enum CollectionKind { Personal, Session }
+
 // Who can see or change a collection. The person a collection was made for
 // is its Owner (and its Collections.UserId); anyone else is added by them.
 // DisplayName is kept here so a collection can list its people without

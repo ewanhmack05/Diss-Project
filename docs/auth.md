@@ -65,16 +65,16 @@ Keycloak is in, locally, and everything needs signing in.
   in at the same time, since everyone having been `'001'` was the only
   reason collaborators saw each other's work after a reload: a
   `CollectionMembers` table (collection, user, role - owner / editor /
-  viewer). Everyone has their own collection per slide; the owner adds
-  people who are in the room from the RealTime panel, and they can switch
-  to it. Live changes carry their collection, so each viewer only applies
-  the ones for the collection it has open.
+  viewer). Everyone has their own collection per slide, and people work
+  together in sessions joined through invite links - see
+  [thought-process.md](thought-process.md#collections).
 
 ### Still to do
 
-- Guest invite links (hub-signed tokens), for people without an account.
-- Adding people who aren't in the room - needs a user list, from Keycloak's
-  admin API with a service account.
+- Invite links for people without an account (guests) - links need a
+  signed-in user for now.
+- Inviting a named person directly rather than sending a link - needs a
+  user list, from Keycloak's admin API with a service account.
 - Old data under the placeholder `'001'` user still belongs to `'001'`.
   Moving it to a real account is one UPDATE on `Collections.UserId` and
   `CollectionMembers.UserId`.

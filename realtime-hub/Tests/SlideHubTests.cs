@@ -40,10 +40,10 @@ public class SlideHubTests : IClassFixture<HubFactory>
     }
 
     // Each test gets its own slide so rooms don't leak between tests.
-    private static string NewSlide() => $"test-{Guid.NewGuid():N}";
+    private static string NewRoom() => $"test-{Guid.NewGuid():N}";
 
-    private static Task<JoinResult> Join(HubConnection c, string slideId) =>
-        c.InvokeAsync<JoinResult>("JoinSlide", slideId);
+    private static Task<JoinResult> Join(HubConnection c, string roomId) =>
+        c.InvokeAsync<JoinResult>("JoinSession", roomId);
 
     private static TaskCompletionSource<T> Listen<T>(HubConnection c, string method)
     {
@@ -72,7 +72,7 @@ public class SlideHubTests : IClassFixture<HubFactory>
     [Fact]
     public async Task Join_ReturnsWhoIsAlreadyThere_AndTellsThem()
     {
-        var slide = NewSlide();
+        var slide = NewRoom();
         await using var a = await ConnectAsync("a");
         await using var b = await ConnectAsync("b");
 
@@ -84,7 +84,7 @@ public class SlideHubTests : IClassFixture<HubFactory>
 
         var seen = await joined.Task.WaitAsync(Timeout);
         Assert.Equal("b", seen.UserId);
-        Assert.Equal(slide, seen.SlideId);
+        Assert.Equal(slide, seen.RoomId);
         Assert.Single(bJoin.Others, p => p.UserId == "a");
         Assert.NotEqual(aJoin.Me.Colour, bJoin.Me.Colour);
     }
@@ -94,10 +94,20 @@ public class SlideHubTests : IClassFixture<HubFactory>
     {
         await using var alice = await ConnectAsync("alice");
 
-        var joined = await Join(alice, NewSlide());
+        var joined = await Join(alice, NewRoom());
 
         Assert.Equal("alice", joined.Me.UserId);
         Assert.Equal("User alice", joined.Me.DisplayName);
+    }
+
+    [Fact]
+    public async Task Join_OnlyLetsInPeopleInTheSession()
+    {
+        await using var alice = await ConnectAsync("alice");
+
+        var ex = await Assert.ThrowsAsync<HubException>(() => Join(alice, "locked-session"));
+
+        Assert.Contains("not in that session", ex.Message);
     }
 
     [Fact]
@@ -109,7 +119,7 @@ public class SlideHubTests : IClassFixture<HubFactory>
     [Fact]
     public async Task AnnotationOp_GoesToOthers_WithIncreasingSeq()
     {
-        var slide = NewSlide();
+        var slide = NewRoom();
         await using var a = await ConnectAsync("a");
         await using var b = await ConnectAsync("b");
         await Join(a, slide);
@@ -141,8 +151,8 @@ public class SlideHubTests : IClassFixture<HubFactory>
     {
         await using var a = await ConnectAsync("a");
         await using var b = await ConnectAsync("b");
-        await Join(a, NewSlide());
-        await Join(b, NewSlide());
+        await Join(a, NewRoom());
+        await Join(b, NewRoom());
 
         var received = Listen<StampedOp>(b, nameof(ISlideClient.AnnotationOp));
         await a.InvokeAsync<StampedOp>("SendAnnotationOp", CreateOp());
@@ -154,7 +164,7 @@ public class SlideHubTests : IClassFixture<HubFactory>
     [Fact]
     public async Task Viewport_IsRelayed_AndGivenToLateJoiners()
     {
-        var slide = NewSlide();
+        var slide = NewRoom();
         await using var a = await ConnectAsync("a");
         await using var b = await ConnectAsync("b");
         await using var c = await ConnectAsync("c");
@@ -177,7 +187,7 @@ public class SlideHubTests : IClassFixture<HubFactory>
     [Fact]
     public async Task Disconnect_TellsTheRoom()
     {
-        var slide = NewSlide();
+        var slide = NewRoom();
         await using var a = await ConnectAsync("a");
         var b = await ConnectAsync("b");
         await Join(a, slide);
@@ -192,14 +202,14 @@ public class SlideHubTests : IClassFixture<HubFactory>
     [Fact]
     public async Task JoiningAnotherSlide_LeavesTheFirst()
     {
-        var first = NewSlide();
+        var first = NewRoom();
         await using var a = await ConnectAsync("a");
         await using var b = await ConnectAsync("b");
         await Join(a, first);
         var bId = (await Join(b, first)).Me.ConnectionId;
 
         var left = Listen<string>(a, nameof(ISlideClient.UserLeft));
-        await Join(b, NewSlide());
+        await Join(b, NewRoom());
 
         Assert.Equal(bId, await left.Task.WaitAsync(Timeout));
     }
@@ -210,13 +220,13 @@ public class SlideHubTests : IClassFixture<HubFactory>
         await using var a = await ConnectAsync("a");
         var ex = await Assert.ThrowsAsync<HubException>(() =>
             a.InvokeAsync<StampedOp>("SendAnnotationOp", CreateOp()));
-        Assert.Contains("Join a slide first", ex.Message);
+        Assert.Contains("Join a session first", ex.Message);
     }
 
     [Fact]
     public async Task Sketch_IsRelayed_KeptForLateJoiners_AndCleared()
     {
-        var slide = NewSlide();
+        var slide = NewRoom();
         await using var a = await ConnectAsync("a");
         await using var b = await ConnectAsync("b");
         var aJoin = await Join(a, slide);
@@ -250,9 +260,9 @@ public class SlideHubTests : IClassFixture<HubFactory>
     {
         await using var a = await ConnectAsync("a");
         var notJoined = await Assert.ThrowsAsync<HubException>(() => a.InvokeAsync("UpdateSketch", LineSketch(1)));
-        Assert.Contains("Join a slide first", notJoined.Message);
+        Assert.Contains("Join a session first", notJoined.Message);
 
-        await Join(a, NewSlide());
+        await Join(a, NewRoom());
         var noTool = await Assert.ThrowsAsync<HubException>(() =>
             a.InvokeAsync("UpdateSketch", LineSketch(1) with { Tool = "" }));
         Assert.Contains("sketch.tool is required", noTool.Message);
@@ -265,7 +275,7 @@ public class SlideHubTests : IClassFixture<HubFactory>
     [Fact]
     public async Task OpenDoc_FirstOpenerSeeds_LaterSeedsAreIgnored()
     {
-        var slide = NewSlide();
+        var slide = NewRoom();
         await using var a = await ConnectAsync("a");
         await using var b = await ConnectAsync("b");
         var aId = (await Join(a, slide)).Me.ConnectionId;
@@ -296,7 +306,7 @@ public class SlideHubTests : IClassFixture<HubFactory>
     [Fact]
     public async Task DocUpdate_OnlyGoesToOtherEditorsOfThatDoc()
     {
-        var slide = NewSlide();
+        var slide = NewRoom();
         await using var a = await ConnectAsync("a");
         await using var b = await ConnectAsync("b");
         await using var c = await ConnectAsync("c");
@@ -304,7 +314,7 @@ public class SlideHubTests : IClassFixture<HubFactory>
         var aId = (await Join(a, slide)).Me.ConnectionId;
         await Join(b, slide);
         await Join(c, slide);
-        await Join(d, NewSlide());
+        await Join(d, NewRoom());
 
         await OpenDoc(a, "ann-1", [1]);
         await OpenDoc(b, "ann-1", [2]);
@@ -331,7 +341,7 @@ public class SlideHubTests : IClassFixture<HubFactory>
     [Fact]
     public async Task DocUpdate_WithoutOpeningTheDoc_Fails()
     {
-        var slide = NewSlide();
+        var slide = NewRoom();
         await using var a = await ConnectAsync("a");
         await using var b = await ConnectAsync("b");
         await Join(a, slide);
@@ -346,7 +356,7 @@ public class SlideHubTests : IClassFixture<HubFactory>
     [Fact]
     public async Task ClosingTheLastEditor_DropsTheDoc()
     {
-        var slide = NewSlide();
+        var slide = NewRoom();
         await using var a = await ConnectAsync("a");
         await using var b = await ConnectAsync("b");
         var aId = (await Join(a, slide)).Me.ConnectionId;
@@ -372,7 +382,7 @@ public class SlideHubTests : IClassFixture<HubFactory>
     [Fact]
     public async Task Disconnecting_ClosesTheEditorsDocs()
     {
-        var slide = NewSlide();
+        var slide = NewRoom();
         await using var a = await ConnectAsync("a");
         var b = await ConnectAsync("b");
         var aId = (await Join(a, slide)).Me.ConnectionId;
@@ -391,7 +401,7 @@ public class SlideHubTests : IClassFixture<HubFactory>
     [Fact]
     public async Task SwitchingSlide_ClosesTheEditorsDocs()
     {
-        var slide = NewSlide();
+        var slide = NewRoom();
         await using var a = await ConnectAsync("a");
         await using var b = await ConnectAsync("b");
         var aId = (await Join(a, slide)).Me.ConnectionId;
@@ -403,7 +413,7 @@ public class SlideHubTests : IClassFixture<HubFactory>
         await bOpened.Task.WaitAsync(Timeout);
 
         var bGone = Listen<DocEditors>(a, nameof(ISlideClient.DocEditorsChanged));
-        await Join(b, NewSlide());
+        await Join(b, NewRoom());
         Assert.Equal([aId], (await bGone.Task.WaitAsync(Timeout)).Editors);
 
         var toB = Listen<DocUpdate>(b, nameof(ISlideClient.DocUpdated));
@@ -415,7 +425,7 @@ public class SlideHubTests : IClassFixture<HubFactory>
     public async Task BadDocIdsAndUpdates_AreRejected()
     {
         await using var a = await ConnectAsync("a");
-        await Join(a, NewSlide());
+        await Join(a, NewRoom());
 
         async Task Rejected(string method, object?[] args, string message)
         {
@@ -439,7 +449,7 @@ public class SlideHubTests : IClassFixture<HubFactory>
     [Fact]
     public async Task MessagesOver32KB_GetThrough()
     {
-        var slide = NewSlide();
+        var slide = NewRoom();
         await using var a = await ConnectAsync("a");
         await using var b = await ConnectAsync("b");
         await Join(a, slide);
@@ -458,7 +468,7 @@ public class SlideHubTests : IClassFixture<HubFactory>
     [Fact]
     public async Task DocsEndpoint_ReportsSizes()
     {
-        var slide = NewSlide();
+        var slide = NewRoom();
         await using var a = await ConnectAsync("a");
         await using var b = await ConnectAsync("b");
         await Join(a, slide);
@@ -498,7 +508,7 @@ public class SlideHubTests : IClassFixture<HubFactory>
     [Fact]
     public async Task Comparison_InvitesEveryone_AndHidesDotsUntilTheReveal()
     {
-        var slide = NewSlide();
+        var slide = NewRoom();
         await using var a = await ConnectAsync("a");
         await using var b = await ConnectAsync("b");
         await using var c = await ConnectAsync("c");
@@ -535,7 +545,7 @@ public class SlideHubTests : IClassFixture<HubFactory>
     [Fact]
     public async Task Comparison_OneAtATime_AndLateJoinersAreInvited()
     {
-        var slide = NewSlide();
+        var slide = NewRoom();
         await using var a = await ConnectAsync("a");
         await using var b = await ConnectAsync("b");
         await using var c = await ConnectAsync("c");
@@ -556,7 +566,7 @@ public class SlideHubTests : IClassFixture<HubFactory>
     [Fact]
     public async Task Comparison_IsDropped_OnceItCantGetToTwo()
     {
-        var slide = NewSlide();
+        var slide = NewRoom();
         await using var a = await ConnectAsync("a");
         await using var b = await ConnectAsync("b");
         await Join(a, slide);
@@ -578,7 +588,7 @@ public class SlideHubTests : IClassFixture<HubFactory>
     [Fact]
     public async Task Comparison_CounterDropping_CanTriggerTheReveal()
     {
-        var slide = NewSlide();
+        var slide = NewRoom();
         await using var a = await ConnectAsync("a");
         await using var b = await ConnectAsync("b");
         var c = await ConnectAsync("c");
@@ -599,7 +609,7 @@ public class SlideHubTests : IClassFixture<HubFactory>
     [Fact]
     public async Task Comparison_RevealedOne_GoesOnceEveryoneLeaves_OrANewOneStarts()
     {
-        var slide = NewSlide();
+        var slide = NewRoom();
         await using var a = await ConnectAsync("a");
         await using var b = await ConnectAsync("b");
         await Join(a, slide);
@@ -645,7 +655,7 @@ public class SlideHubTests : IClassFixture<HubFactory>
     [Fact]
     public async Task SharedCount_DotsGoToEveryoneElse_AndLateJoinersCatchUp()
     {
-        var slide = NewSlide();
+        var slide = NewRoom();
         await using var a = await ConnectAsync("a");
         await using var b = await ConnectAsync("b");
         var aId = (await Join(a, slide)).Me.ConnectionId;
@@ -679,7 +689,7 @@ public class SlideHubTests : IClassFixture<HubFactory>
     [Fact]
     public async Task SharedCount_OnlyYourOwnDotsCanBeRemoved()
     {
-        var slide = NewSlide();
+        var slide = NewRoom();
         await using var a = await ConnectAsync("a");
         await using var b = await ConnectAsync("b");
         await Join(a, slide);
@@ -705,7 +715,7 @@ public class SlideHubTests : IClassFixture<HubFactory>
     [Fact]
     public async Task SharedCount_LeaversKeepTheirDots_AndHostingPassesOn()
     {
-        var slide = NewSlide();
+        var slide = NewRoom();
         await using var a = await ConnectAsync("a");
         await using var b = await ConnectAsync("b");
         await using var c = await ConnectAsync("c");
@@ -739,7 +749,7 @@ public class SlideHubTests : IClassFixture<HubFactory>
     [Fact]
     public async Task SharedCount_OnlyTheHostCanFinish_AndItEndsForEveryone()
     {
-        var slide = NewSlide();
+        var slide = NewRoom();
         await using var a = await ConnectAsync("a");
         await using var b = await ConnectAsync("b");
         await Join(a, slide);
@@ -763,7 +773,7 @@ public class SlideHubTests : IClassFixture<HubFactory>
     [Fact]
     public async Task SharedCount_HostDropping_PassesItOn()
     {
-        var slide = NewSlide();
+        var slide = NewRoom();
         var a = await ConnectAsync("a");
         await using var b = await ConnectAsync("b");
         await Join(a, slide);
@@ -779,7 +789,7 @@ public class SlideHubTests : IClassFixture<HubFactory>
     [Fact]
     public async Task Comparison_BadCallsAreRejected()
     {
-        var slide = NewSlide();
+        var slide = NewRoom();
         await using var a = await ConnectAsync("a");
         await using var b = await ConnectAsync("b");
         await Join(a, slide);

@@ -69,27 +69,26 @@ Image adjustments always stay in the personal collection.
 
 #### Where it's at
 
-The backend is already what joint collections need: a `CollectionMembers`
-table (owner / editor / viewer), every read and write checked against it,
-and the user taken from the Keycloak token. Accepting an invite is just
-adding a member row.
+Built - the RealTime tab holds it:
 
-Stand-ins until invite links exist, so collaboration can be tried now:
+- **Working alone** - your personal collection, no room, no connection to
+  the hub. The tab offers "Start a session" and lists your sessions on the
+  slide to rejoin.
+- **Hosting** - one invite link at a time: copy it, choose whether people
+  who join can edit or only view, and how long it lasts (1 hour, a day, a
+  week). Making a new link stops the old one, and it can be stopped any
+  time. The host can change people's roles or take them out, and end the
+  session - it's then read-only for everyone but kept to look back at.
+- **Joining** - opening a link signs you in (keeping the link through the
+  trip to Keycloak), shows who invited you and to what, then joins.
+- **The room is the session** - the hub asks annotation-store before
+  letting anyone in, so there's no per-slide room any more, and the "Add"
+  button, "Working in" picker and per-change collection check are gone.
+- Invite codes are kept by annotation-store rather than minted by the hub,
+  since that's where memberships already live.
+- "Session controls" (who can draw, who can start counts, and the
+  Free / Follow me / Present navigation from above) are in the tab, greyed
+  out, for later.
 
-- The hub's rooms are per slide, so everyone on a slide lands in one room.
-- The RealTime panel has an "Add" button next to people in the room and a
-  "Working in" picker to switch to a collection shared with you.
-- Every live change carries its collection, and viewers skip ones that
-  aren't for the collection they have open.
-
-#### With invite links
-
-1. The hub mints the invite (a short-lived signed token, see above).
-2. Accepting it makes the joint collection, or joins it.
-3. The room key moves from slide to collection, and the viewer only
-   connects to the hub when it's in a session.
-4. The "Add" button, the "Working in" picker and the per-change collection
-   check come out.
-
-Still to decide then: whether a joint collection is one slide or several
-(a case) - the invite is for a session, not a slide, so it could be either.
+Sessions are one slide each for now - whether one should span several (a
+case) is still open.

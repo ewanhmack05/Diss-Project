@@ -6,6 +6,10 @@ in-progress drawing and shared text edits between them, and runs comparison
 and shared cell counts. Kept separate from annotation-store so it can be ported and
 reused (see [docs/libraries.md](../docs/libraries.md)).
 
+A room is one **session** - a collection people work in together, joined
+through invite links (see annotation-store's README). Working alone, the
+viewer doesn't connect at all.
+
 Everyone signs in with Keycloak (see [auth/](../auth)). The hub checks the
 access token when a connection opens - browsers send it as
 `?access_token=`, since a WebSocket can't carry the usual header - and who
@@ -34,8 +38,8 @@ Connect to `/hubs/slides`. Enums go over the wire as camelCase strings
 
 | Method             | Args                                | Returns      | Notes                                                    |
 | ------------------ | ----------------------------------- | ------------ | -------------------------------------------------------- |
-| `JoinSlide`        | `slideId`                           | `JoinResult` | Leaves any slide you were already in, closing its docs. You're whoever the token says |
-| `LeaveSlide`       | -                                   | -            | Closes any docs you had open                             |
+| `JoinSession`      | `roomId` (the session's collection id) | `JoinResult` | Only if annotation-store says you're in the session and it hasn't ended. Leaves any room you were already in, closing its docs. You're whoever the token says |
+| `LeaveSession`     | -                                   | -            | Closes any docs you had open                             |
 | `UpdateViewport`   | `Viewport`                          | -            | Throttle to ~10/sec on the client                        |
 | `UpdateSketch`     | `Sketch \| null`                    | -            | `null` clears it. `tool` and `data` are required         |
 | `SendAnnotationOp` | `AnnotationOp`                      | `StampedOp`  | Relay only - still save to annotation-store as normal    |
@@ -78,7 +82,7 @@ theirs.
 
 ```ts
 type Participant = {
-  connectionId: string; slideId: string; userId: string; displayName: string;
+  connectionId: string; roomId: string; userId: string; displayName: string;
   colour: string; joined: string; viewport: Viewport | null; sketch: Sketch | null;
 };
 // extent is the view box before rotation (centre ± half the screen size, in
@@ -87,9 +91,9 @@ type Viewport = { center: [number, number]; resolution: number; rotation: number
 type ViewportUpdate = { connectionId: string; viewport: Viewport };
 type Sketch = { tool: string; data: unknown };  // tool: 'annotation' for now, later 'ruler', 'cellCount'
 type SketchUpdate = { connectionId: string; sketch: Sketch | null };
-// collectionId says which collection it was made in - people on a slide can be
-// in different ones. entity 'collection' is a nudge that membership changed.
-type AnnotationOp = { kind: 'create' | 'update' | 'delete'; entity: 'annotation' | 'cellCount' | 'collection'; id: string; data?: unknown; collectionId?: string };
+// entity 'collection' is a nudge that the session changed (someone's role,
+// someone taken out, it ended), so everyone fetches it again.
+type AnnotationOp = { kind: 'create' | 'update' | 'delete'; entity: 'annotation' | 'cellCount' | 'collection'; id: string; data?: unknown };
 type StampedOp = { seq: number; serverTime: string; connectionId: string; userId: string; op: AnnotationOp };
 type JoinResult = { me: Participant; others: Participant[]; seq: number; comparison: Comparison | null };
 // matchRadius is in map units - dots closer than this are the same cell.
@@ -121,6 +125,10 @@ type DocUpdate = { docId: string; connectionId: string; update: string };
 type DocEditors = { docId: string; editors: string[] };
 ```
 
+- **Who can join** - `JoinSession` asks annotation-store
+  (`GET /collections/{id}/membership`, with the user's own token) whether
+  they're in the session and it's still going. Its address is
+  `AnnotationStore:BaseUrl` in `appsettings.json`.
 - **Participants are per connection** - one user in two tabs is two
   participants.
 - **Colour** - each participant gets one from a fixed palette, unique in the
@@ -133,7 +141,7 @@ type DocEditors = { docId: string; editors: string[] };
   viewport so a late joiner sees what people are part way through drawing.
 - **Docs** - for co-editing an annotation's name and notes with Yjs. The hub
   keeps each doc's raw Yjs updates in memory without reading them, so a late
-  opener can catch up from `updates`. Docs are per slide, keyed by `docId`.
+  opener can catch up from `updates`. Docs are per room, keyed by `docId`.
 - **Seeding** - the first opener's `seed` becomes the doc's first update and
   they get `seeded: true`; later openers' seeds are ignored. `instanceId`
   changes every time a doc is recreated, so a client can tell whether its
@@ -141,7 +149,7 @@ type DocEditors = { docId: string; editors: string[] };
 - **Dropping** - once the last editor closes, leaves the slide or drops, the
   doc is gone and the next opener seeds it again. No compaction, since a doc
   only lives for one editing session and the fields are short.
-- **Comparison counts** - one per slide. Everyone counts the host's ROI on
+- **Comparison counts** - one per room. Everyone counts the host's ROI on
   their own, then the dots are compared. `dots` is `null` on everyone until
   it's revealed, so nobody can copy.
   - Starting invites everyone in the slide, and anyone who joins the slide
@@ -152,7 +160,7 @@ type DocEditors = { docId: string; editors: string[] };
     invited), or once everyone has left a revealed one. A revealed one is
     also replaced if someone starts a new one.
   - Disconnecting or switching slide counts as leaving it.
-- **Shared counts** - one per slide. Everyone adds to one count, usually
+- **Shared counts** - one per room. Everyone adds to one count, usually
   each in their own part of the slide, and sees every dot as it lands.
   - Starting invites everyone in the slide, and anyone who joins it later.
   - Leaving keeps your dots. You stay in `contributors` as `left` if you'd
@@ -169,10 +177,10 @@ type DocEditors = { docId: string; editors: string[] };
 | Endpoint                   | Returns                                                          |
 | -------------------------- | ---------------------------------------------------------------- |
 | `GET /rooms`               | slide id → number of people connected                            |
-| `GET /rooms/{slideId}`     | participants in that slide                                       |
-| `GET /rooms/{slideId}/docs`| open docs: `docId`, `instanceId`, `editors`, `updates`, `bytes`  |
-| `GET /rooms/{slideId}/comparison` | the running comparison (no dots until revealed), 204 if none |
-| `GET /rooms/{slideId}/sharedcount` | the running shared count, dots included, 204 if none |
+| `GET /rooms/{roomId}`     | participants in that room                                        |
+| `GET /rooms/{roomId}/docs`| open docs: `docId`, `instanceId`, `editors`, `updates`, `bytes`  |
+| `GET /rooms/{roomId}/comparison` | the running comparison (no dots until revealed), 204 if none |
+| `GET /rooms/{roomId}/sharedcount` | the running shared count, dots included, 204 if none |
 
 ## Notes
 
