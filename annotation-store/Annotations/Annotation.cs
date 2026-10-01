@@ -16,4 +16,8 @@ public class Annotation
     public int LineThickness { get; set; }
     public string GeoJson { get; set; } = "";
     public DateTimeOffset Created { get; set; }
+    // Who saved it - their Keycloak id and name, set server-side on POST from
+    // the token, like SlideId. Empty for rows from before sign-in.
+    public string CreatedById { get; set; } = "";
+    public string CreatedByName { get; set; } = "";
 }

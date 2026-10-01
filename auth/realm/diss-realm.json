@@ -1,0 +1,71 @@
+{
+  "realm": "diss",
+  "displayName": "Diss Project",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "resetPasswordAllowed": false,
+  "accessTokenLifespan": 900,
+  "ssoSessionIdleTimeout": 28800,
+  "clients": [
+    {
+      "clientId": "image-viewer",
+      "name": "Image viewer",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "redirectUris": ["/*"],
+      "webOrigins": ["+"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "diss-api audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "diss-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "email": "alice@example.test",
+      "emailVerified": true,
+      "firstName": "Alice",
+      "lastName": "Moore",
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "password", "temporary": false }]
+    },
+    {
+      "username": "bob",
+      "email": "bob@example.test",
+      "emailVerified": true,
+      "firstName": "Bob",
+      "lastName": "Hughes",
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "password", "temporary": false }]
+    },
+    {
+      "username": "carol",
+      "email": "carol@example.test",
+      "emailVerified": true,
+      "firstName": "Carol",
+      "lastName": "Singh",
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "password", "temporary": false }]
+    }
+  ]
+}

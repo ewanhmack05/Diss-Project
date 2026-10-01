@@ -23,6 +23,7 @@ import { ToastContextProvider } from './context/ToastContext'
 import { ComparisonContextProvider } from './context/ComparisonContext'
 import { SharedCountContextProvider } from './context/SharedCountContext'
 import { EventContextProvider } from './context/EventContext'
+import { AuthContextProvider, type AuthOptions } from './context/AuthContext'
 import MapNode from './components/MapNode'
 import AnnotationsPanel from './components/annotation/AnnotationsPanel'
 import CellCountPanel from './components/cell-count/CellCountPanel'
@@ -30,6 +31,7 @@ import RotationPanel from './components/rotation/RotationPanel'
 import RulerPanel from './components/ruler/RulerPanel'
 import AdjustmentsPanel from './components/adjustments/AdjustmentsPanel'
 import RealTimePanel from './components/realtime/RealTimePanel'
+import InviteGate from './components/realtime/InviteGate'
 import Toolbar, { type ToolName } from './components/toolbar/Toolbar'
 import DraggablePanel from './components/toolbar/DraggablePanel'
 import DockZones from './components/toolbar/DockZone'
@@ -101,18 +103,25 @@ interface AppProps {
   annotationStoreUrl: string
   // Optional - without it the viewer works on its own, just not live.
   realtimeHubUrl?: string
+  // Keycloak - everything needs a signed-in user (see AuthContext).
+  auth: AuthOptions
   options?: AppOptions
   on?: (event: string, payload: unknown) => void
 }
 
-function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, options, on }: AppProps) {
+function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, auth, options, on }: AppProps) {
   const imageSource: ImageSource = { tilerUrl: tilerServiceUrl, slideId: source }
 
   return (
     <ToastContextProvider>
       <EventContextProvider on={on}>
+        <AuthContextProvider auth={auth}>
         <ImageViewerContextProvider source={imageSource}>
+          {/* Collections decide which session you're in, and so which
+              realtime room - working alone there's no room at all. An
+              invite link is dealt with before the viewer opens. */}
           <CollectionContextProvider baseUrl={annotationStoreUrl}>
+            <InviteGate>
             <RealtimeContextProvider hubUrl={realtimeHubUrl}>
               <AnnotationStoreContextProvider baseUrl={annotationStoreUrl}>
                 <CellCountStoreContextProvider baseUrl={annotationStoreUrl}>
@@ -136,8 +145,10 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, opti
                 </CellCountStoreContextProvider>
               </AnnotationStoreContextProvider>
             </RealtimeContextProvider>
+            </InviteGate>
           </CollectionContextProvider>
         </ImageViewerContextProvider>
+        </AuthContextProvider>
       </EventContextProvider>
     </ToastContextProvider>
   )

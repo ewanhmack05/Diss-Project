@@ -2,12 +2,16 @@ using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using RealtimeHub.Auth;
 using RealtimeHub.Slides;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton<SlideRooms>();
+// Who's in which session lives in annotation-store - see Slides/SessionAccess.cs.
+builder.Services.AddHttpClient<ISessionAccess, AnnotationStoreSessionAccess>(client =>
+    client.BaseAddress = new Uri(builder.Configuration["AnnotationStore:BaseUrl"] ?? "http://localhost:5252/"));
 // The 32KB default silently dropped long freehand annotations.
 builder.Services.AddSignalR(options => options.MaximumReceiveMessageSize = 1024 * 1024)
     .AddJsonProtocol(options => HubJson.Configure(options.PayloadSerializerOptions));
@@ -25,6 +29,10 @@ builder.Services.AddCors(options =>
 builder.Services.ConfigureHttpJsonOptions(options => HubJson.Configure(options.SerializerOptions));
 
 builder.Services.AddOpenApi();
+
+// Sign-in via Keycloak - see Auth/KeycloakAuth.cs. Nobody joins a session
+// without a token, and who they are comes from it.
+builder.AddKeycloakAuth();
 
 // Same setup as annotation-store - goes to Grafana if it's running, nothing
 // breaks if it isn't. The SignalR source/meter add hub method calls and
@@ -52,24 +60,30 @@ builder.Services.AddOpenTelemetry()
 
 var app = builder.Build();
 app.UseCors();
+app.UseAuthentication();
+app.UseAuthorization();
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
-    app.MapScalarApiReference();
+    app.MapOpenApi().AllowAnonymous();
+    app.MapScalarApiReference().AllowAnonymous();
 }
 
 app.MapHub<SlideHub>("/hubs/slides");
 
 // Read-only look at who's connected - handy from Scalar/curl while testing.
-app.MapGet("/rooms", (SlideRooms rooms) => Results.Ok(rooms.Summary()));
-app.MapGet("/rooms/{slideId}", (string slideId, SlideRooms rooms) => Results.Ok(rooms.InSlide(slideId)));
-app.MapGet("/rooms/{slideId}/docs", (string slideId, SlideRooms rooms) => Results.Ok(rooms.DocsInSlide(slideId)));
-// Blind like it is over the hub - no dots until it's revealed.
-app.MapGet("/rooms/{slideId}/comparison", (string slideId, SlideRooms rooms) =>
-    rooms.ComparisonInSlide(slideId) is { } comparison ? Results.Ok(comparison) : Results.NoContent());
-app.MapGet("/rooms/{slideId}/sharedcount", (string slideId, SlideRooms rooms) =>
-    rooms.SharedCountInSlide(slideId) is { } sharedCount ? Results.Ok(sharedCount) : Results.NoContent());
+// Development only, and open, since they're just for poking at.
+if (app.Environment.IsDevelopment())
+{
+    app.MapGet("/rooms", (SlideRooms rooms) => Results.Ok(rooms.Summary())).AllowAnonymous();
+    app.MapGet("/rooms/{roomId}", (string roomId, SlideRooms rooms) => Results.Ok(rooms.InRoom(roomId))).AllowAnonymous();
+    app.MapGet("/rooms/{roomId}/docs", (string roomId, SlideRooms rooms) => Results.Ok(rooms.DocsInRoom(roomId))).AllowAnonymous();
+    // Blind like it is over the hub - no dots until it's revealed.
+    app.MapGet("/rooms/{roomId}/comparison", (string roomId, SlideRooms rooms) =>
+        rooms.ComparisonInRoom(roomId) is { } comparison ? Results.Ok(comparison) : Results.NoContent()).AllowAnonymous();
+    app.MapGet("/rooms/{roomId}/sharedcount", (string roomId, SlideRooms rooms) =>
+        rooms.SharedCountInRoom(roomId) is { } sharedCount ? Results.Ok(sharedCount) : Results.NoContent()).AllowAnonymous();
+}
 
 app.Run();
 

@@ -38,6 +38,14 @@ namespace AnnotationStore.Migrations
                     b.Property<DateTimeOffset>("Created")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("CreatedById")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("CreatedByName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<string>("GeoJson")
                         .IsRequired()
                         .HasColumnType("text");
@@ -71,7 +79,7 @@ namespace AnnotationStore.Migrations
 
                     b.HasIndex("SlideId");
 
-                    b.ToTable("Annotations", (string)null);
+                    b.ToTable("Annotations");
                 });
 
             modelBuilder.Entity("AnnotationStore.CellCounts.CellCount", b =>
@@ -88,6 +96,14 @@ namespace AnnotationStore.Migrations
 
                     b.Property<DateTimeOffset>("Created")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedById")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("CreatedByName")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<int>("DotSize")
                         .HasColumnType("integer");
@@ -126,7 +142,7 @@ namespace AnnotationStore.Migrations
 
                     b.HasIndex("SlideId");
 
-                    b.ToTable("CellCounts", (string)null);
+                    b.ToTable("CellCounts");
                 });
 
             modelBuilder.Entity("AnnotationStore.CellCounts.RegionOfInterest", b =>
@@ -150,7 +166,65 @@ namespace AnnotationStore.Migrations
                     b.HasIndex("CellCountId")
                         .IsUnique();
 
-                    b.ToTable("RegionsOfInterest", (string)null);
+                    b.ToTable("RegionsOfInterest");
+                });
+
+            modelBuilder.Entity("AnnotationStore.Collections.CollectionInvite", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("CollectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("Created")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedById")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("Expires")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("Stopped")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Code");
+
+                    b.HasIndex("CollectionId");
+
+                    b.ToTable("CollectionInvites");
+                });
+
+            modelBuilder.Entity("AnnotationStore.Collections.CollectionMember", b =>
+                {
+                    b.Property<Guid>("CollectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("Added")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("CollectionId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("CollectionMembers");
                 });
 
             modelBuilder.Entity("AnnotationStore.Collections.Collections", b =>
@@ -166,6 +240,13 @@ namespace AnnotationStore.Migrations
                     b.Property<DateTimeOffset>("Created")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTimeOffset?>("Ended")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<string>("SlideId")
                         .IsRequired()
                         .HasColumnType("text");
@@ -177,9 +258,10 @@ namespace AnnotationStore.Migrations
                     b.HasKey("CollectionId");
 
                     b.HasIndex("SlideId", "UserId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"Kind\" = 'Personal'");
 
-                    b.ToTable("Collections", (string)null);
+                    b.ToTable("Collections");
                 });
 
             modelBuilder.Entity("AnnotationStore.ImageAdjustments.ImageAdjustments", b =>
@@ -216,13 +298,13 @@ namespace AnnotationStore.Migrations
 
                     b.HasIndex("SlideId");
 
-                    b.ToTable("ImageAdjustments", (string)null);
+                    b.ToTable("ImageAdjustments");
                 });
 
             modelBuilder.Entity("AnnotationStore.Annotations.Annotation", b =>
                 {
                     b.HasOne("AnnotationStore.Collections.Collections", null)
-                        .WithMany()
+                        .WithMany("Annotations")
                         .HasForeignKey("CollectionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -231,7 +313,7 @@ namespace AnnotationStore.Migrations
             modelBuilder.Entity("AnnotationStore.CellCounts.CellCount", b =>
                 {
                     b.HasOne("AnnotationStore.Collections.Collections", null)
-                        .WithMany()
+                        .WithMany("CellCounts")
                         .HasForeignKey("CollectionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -246,10 +328,28 @@ namespace AnnotationStore.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("AnnotationStore.Collections.CollectionInvite", b =>
+                {
+                    b.HasOne("AnnotationStore.Collections.Collections", null)
+                        .WithMany("Invites")
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AnnotationStore.Collections.CollectionMember", b =>
+                {
+                    b.HasOne("AnnotationStore.Collections.Collections", null)
+                        .WithMany("Members")
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AnnotationStore.ImageAdjustments.ImageAdjustments", b =>
                 {
                     b.HasOne("AnnotationStore.Collections.Collections", null)
-                        .WithMany()
+                        .WithMany("ImageAdjustments")
                         .HasForeignKey("CollectionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -258,6 +358,19 @@ namespace AnnotationStore.Migrations
             modelBuilder.Entity("AnnotationStore.CellCounts.CellCount", b =>
                 {
                     b.Navigation("RegionOfInterest");
+                });
+
+            modelBuilder.Entity("AnnotationStore.Collections.Collections", b =>
+                {
+                    b.Navigation("Annotations");
+
+                    b.Navigation("CellCounts");
+
+                    b.Navigation("ImageAdjustments");
+
+                    b.Navigation("Invites");
+
+                    b.Navigation("Members");
                 });
 #pragma warning restore 612, 618
         }

@@ -54,3 +54,41 @@ Both are built - see [comparison count](breakdown/realtime-hub.md#8-comparison-c
 Collections hold annotations, cell counts and image adjustments - decide
 which are shared in a session. Likely: annotations shared, image
 adjustments personal, cell counts either way.
+
+### Collections
+
+The viewer has to work on its own and together, so there are two kinds:
+
+- **Personal** - made automatically, one per person per slide. Working
+  alone you're always in this, with no room and nothing to pick.
+- **Joint** - made when a session starts from an invite link. Everyone who
+  opens the link and signs in is added as a member, and the realtime room
+  *is* that collection, so everyone in the room works in the same one.
+
+Image adjustments always stay in the personal collection.
+
+#### Where it's at
+
+Built - the RealTime tab holds it:
+
+- **Working alone** - your personal collection, no room, no connection to
+  the hub. The tab offers "Start a session" and lists your sessions on the
+  slide to rejoin.
+- **Hosting** - one invite link at a time: copy it, choose whether people
+  who join can edit or only view, and how long it lasts (1 hour, a day, a
+  week). Making a new link stops the old one, and it can be stopped any
+  time. The host can change people's roles or take them out, and end the
+  session - it's then read-only for everyone but kept to look back at.
+- **Joining** - opening a link signs you in (keeping the link through the
+  trip to Keycloak), shows who invited you and to what, then joins.
+- **The room is the session** - the hub asks annotation-store before
+  letting anyone in, so there's no per-slide room any more, and the "Add"
+  button, "Working in" picker and per-change collection check are gone.
+- Invite codes are kept by annotation-store rather than minted by the hub,
+  since that's where memberships already live.
+- "Session controls" (who can draw, who can start counts, and the
+  Free / Follow me / Present navigation from above) are in the tab, greyed
+  out, for later.
+
+Sessions are one slide each for now - whether one should span several (a
+case) is still open.

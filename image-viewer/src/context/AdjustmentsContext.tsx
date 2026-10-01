@@ -10,6 +10,7 @@ import {
 import { useImageViewerContext } from './ImageViewerContext'
 import { useEmitEvent } from './EventContext'
 import { useCollectionContext } from './CollectionContext'
+import { useAuthContext } from './AuthContext'
 import { newId } from '../newId'
 
 type Status = 'loading' | 'ready' | 'error'
@@ -37,7 +38,9 @@ function AdjustmentsContextProvider({ baseUrl, children }: AdjustmentsContextPro
   const { source } = useImageViewerContext()
   const { slideId } = source
   const emit = useEmitEvent()
-  const { collectionId, status: collectionStatus } = useCollectionContext()
+  // Presets are personal, so always your own collection, whichever you're working in.
+  const { personalCollectionId: collectionId, status: collectionStatus } = useCollectionContext()
+  const { authFetch } = useAuthContext()
 
   const [values, setValues] = useState<ImageAdjustmentValues>({ ...DEFAULT_ADJUSTMENTS })
   const [presets, setPresets] = useState<ImageAdjustmentPreset[]>([])
@@ -58,7 +61,7 @@ function AdjustmentsContextProvider({ baseUrl, children }: AdjustmentsContextPro
 
     setStatus('loading')
 
-    fetch(`${baseUrl}/imageadjustments?collectionId=${encodeURIComponent(collectionId)}`)
+    authFetch(`${baseUrl}/imageadjustments?collectionId=${encodeURIComponent(collectionId)}`)
       .then((response) => {
         if (!response.ok) throw new Error(String(response.status))
         return response.json() as Promise<ImageAdjustmentPreset[]>
@@ -78,7 +81,7 @@ function AdjustmentsContextProvider({ baseUrl, children }: AdjustmentsContextPro
     return () => {
       cancelled = true
     }
-  }, [baseUrl, slideId, collectionId, collectionStatus, emit])
+  }, [baseUrl, slideId, collectionId, collectionStatus, emit, authFetch])
 
   // Writes are optimistic, same pattern as AnnotationStoreContext - update
   // local state immediately, fire the request, and emit a separate :error
@@ -99,7 +102,7 @@ function AdjustmentsContextProvider({ baseUrl, children }: AdjustmentsContextPro
     }
     setPresets((current) => [...current, preset])
     emit('imageadjustment:created', preset)
-    fetch(`${baseUrl}/imageadjustments`, {
+    authFetch(`${baseUrl}/imageadjustments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(preset),
@@ -128,7 +131,7 @@ function AdjustmentsContextProvider({ baseUrl, children }: AdjustmentsContextPro
     const updated = withUpdatedAdjustments(preset, values)
     setPresets((current) => current.map((p) => (p.imageAdjustmentId === id ? updated : p)))
     emit('imageadjustment:updated', updated)
-    fetch(`${baseUrl}/imageadjustments/${id}`, {
+    authFetch(`${baseUrl}/imageadjustments/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updated),
@@ -145,7 +148,7 @@ function AdjustmentsContextProvider({ baseUrl, children }: AdjustmentsContextPro
   const deletePreset = (id: string) => {
     setPresets((current) => current.filter((p) => p.imageAdjustmentId !== id))
     emit('imageadjustment:deleted', { id })
-    fetch(`${baseUrl}/imageadjustments/${id}`, { method: 'DELETE' })
+    authFetch(`${baseUrl}/imageadjustments/${id}`, { method: 'DELETE' })
       .then((response) => {
         if (!response.ok) throw new Error(String(response.status))
       })

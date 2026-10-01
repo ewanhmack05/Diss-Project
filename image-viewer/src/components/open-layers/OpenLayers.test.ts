@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
+import Projection from 'ol/proj/Projection'
+import View from 'ol/View'
 import {
   capResolutionsAtNativeScale,
   clampOverviewBoxSize,
+  followMainView,
+  OVERVIEW_CONTEXT,
+  overviewView,
+  getExtent,
   computeResolutionLadder,
   niceScaleValue,
   chooseScaleBarLength,
@@ -152,5 +158,79 @@ describe('formatScaleLength', () => {
   it('formats a larger nice micron value as an exact mm value', () => {
     expect(formatScaleLength(2000, 'micron')).toBe('2 mm')
     expect(formatScaleLength(5000, 'micron')).toBe('5 mm')
+  })
+})
+
+describe('overview following the main view', () => {
+  // Slide 003 in a 1600x900 main map and a 10em (160px) overview.
+  const size = { width: 101832, height: 219976 }
+  const extent = getExtent(size)
+  const projection = new Projection({ code: 'test', units: 'pixels', extent })
+  const mainSize = [1600, 900]
+  const wholeSlideRes = 219976 / 160
+
+  function views(center: number[], resolution: number) {
+    const main = new View({ projection, resolutions: computeResolutionLadder(size, 256), center, resolution })
+    const overview = overviewView(projection, extent)
+    overview.setViewportSize([160, 160])
+    return { main, overview }
+  }
+
+  it("uses OverviewMap's own ratio, so its per-render check leaves the frame alone", () => {
+    expect(OVERVIEW_CONTEXT).toBeCloseTo(3.6515, 4)
+    // OverviewMap re-frames when the box is outside 10%-75% of the overview.
+    expect(1 / OVERVIEW_CONTEXT).toBeGreaterThan(0.1)
+    expect(1 / OVERVIEW_CONTEXT).toBeLessThan(0.75)
+  })
+
+  it('zooms in around the viewport when the main view is zoomed in', () => {
+    const { main, overview } = views([50000, -110000], 4)
+    followMainView(overview, main, mainSize)
+    expect(overview.getResolution()).toBeCloseTo((1600 * 4 * OVERVIEW_CONTEXT) / 160)
+    expect(overview.getCenter()).toEqual([50000, -110000])
+  })
+
+  it('keeps the same zoom and pans along while you drag', () => {
+    const { main, overview } = views([50000, -110000], 4)
+    followMainView(overview, main, mainSize)
+    const zoom = overview.getResolution()
+    for (const step of [1000, 2000, 3000]) {
+      main.setCenter([50000 + step, -110000 + step])
+      followMainView(overview, main, mainSize)
+      expect(overview.getResolution()).toBeCloseTo(zoom!)
+      expect(overview.getCenter()).toEqual([50000 + step, -110000 + step])
+    }
+  })
+
+  it('shows the whole slide, centred, once zoomed out past it', () => {
+    const { main, overview } = views([30000, -60000], 1024)
+    followMainView(overview, main, mainSize)
+    expect(overview.getResolution()).toBeCloseTo(wholeSlideRes)
+    expect(overview.getCenter()).toEqual([101832 / 2, -219976 / 2])
+  })
+
+  it("doesn't show past the slide's edge when you're near it", () => {
+    const { main, overview } = views([500, -500], 4)
+    followMainView(overview, main, mainSize)
+    const res = overview.getResolution()!
+    const half = 80 * res
+    expect(overview.getCenter()).toEqual([half, -half])
+  })
+
+  it('shows the same area in more detail when the overview is expanded', () => {
+    const { main, overview } = views([50000, -110000], 4)
+    followMainView(overview, main, mainSize)
+    const smallRes = overview.getResolution()!
+    overview.setViewportSize([384, 384])
+    followMainView(overview, main, mainSize)
+    expect(overview.getResolution()).toBeCloseTo((smallRes * 160) / 384)
+    expect(overview.getCenter()).toEqual([50000, -110000])
+  })
+
+  it('does nothing before the main map has a size', () => {
+    const { main, overview } = views([50000, -110000], 4)
+    const before = overview.getCenter()
+    followMainView(overview, main, undefined)
+    expect(overview.getCenter()).toEqual(before)
   })
 })

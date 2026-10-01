@@ -88,9 +88,16 @@
   color: var(--chrome-text-secondary);
 }
 
-/* Pushes whatever comes after it (the date) to the right. */
+/* Pushes whatever comes after it (who saved it, the date) to the right. */
 .saved-row-spacer {
   flex: 1;
+}
+
+.saved-row-by {
+  max-width: 9em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .saved-row-notes {

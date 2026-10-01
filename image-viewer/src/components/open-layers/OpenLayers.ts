@@ -4,6 +4,7 @@ import Zoomify from 'ol/source/Zoomify'
 import Projection from 'ol/proj/Projection'
 import OverviewMap from 'ol/control/OverviewMap'
 import Control from 'ol/control/Control'
+import { getCenter, getHeight, getWidth, scaleFromCenter } from 'ol/extent'
 import type BaseLayer from 'ol/layer/Base'
 import { DEFAULT_ADJUSTMENTS, type ImageAdjustmentValues } from '../adjustments/adjustments'
 
@@ -181,6 +182,41 @@ function olView(projection: Projection, resolutions: number[]): View {
     projection,
     resolutions,
   })
+}
+
+// How much more than the main viewport the overview shows. The same ratio
+// OverviewMap's own resetExtent_ uses (1 / (sqrt(MAX_RATIO / MIN_RATIO) *
+// MIN_RATIO) with its 0.75 and 0.1), so its per-render check agrees with
+// the frame followMainView sets and leaves it alone.
+const OVERVIEW_CONTEXT = 1 / (Math.sqrt(0.75 / 0.1) * 0.1)
+
+// Never zooms out past the whole slide or shows past its edges. The default
+// max resolution would be the slide fitting 256px, which is less than the
+// overview needs, so it's set well above and the showFullExtent cap (the
+// whole-slide fit for the overview's size) is what actually limits it.
+// Smooth clamping is off because fit() counts as moving, and the smooth
+// version lets it overshoot the cap.
+function overviewView(projection: Projection, extent: number[]): View {
+  const aboveAnyFit = Math.max(getWidth(extent), getHeight(extent))
+  return new View({
+    projection,
+    extent,
+    showFullExtent: true,
+    smoothResolutionConstraint: false,
+    smoothExtentConstraint: false,
+    center: getCenter(extent),
+    resolution: aboveAnyFit,
+    maxResolution: aboveAnyFit,
+  })
+}
+
+// Frames the overview on the main viewport at OVERVIEW_CONTEXT times its
+// size, so it stays at the same zoom and pans with you while you drag.
+function followMainView(overview: View, main: View, mainSize: number[] | undefined): void {
+  if (!mainSize) return
+  const frame = main.calculateExtent(mainSize)
+  scaleFromCenter(frame, OVERVIEW_CONTEXT)
+  overview.fit(frame)
 }
 
 interface BaseLayerSpec {
@@ -370,22 +406,14 @@ export function OpenLayerMap(
     view: olView(projection, viewResolutions),
   })
 
-  // Overview panel: whole-slide thumbnail with a box showing the current
-  // viewport, which shrinks/grows as you zoom - draggable/clickable to
-  // reposition the main view. Needs its own explicit view - left to its
-  // default, OverviewMap assumes a standard web-mercator-ish projection,
-  // which silently fails to render anything in our custom pixel one.
-  // resolutions[0] (the coarsest tier) frames the whole slide directly, no
-  // fit()-after-attach timing to worry about. No `resolutions` constraint
-  // here (see the re-fit listener below) - letting it pick an exact
-  // continuous resolution avoids snapping to a ladder step that doesn't
-  // quite match the overview container's aspect ratio.
+  // Overview panel: a close-up around the current viewport (the whole slide
+  // once you're zoomed out far enough), with a box showing the viewport -
+  // draggable/clickable to reposition the main view. Needs its own explicit
+  // view - left to its default, OverviewMap assumes a standard
+  // web-mercator-ish projection, which silently fails to render anything in
+  // our custom pixel one.
   const overview = new OverviewMap({
-    view: new View({
-      projection,
-      center: [size.width / 2, -size.height / 2],
-      resolution: resolutions[0],
-    }),
+    view: overviewView(projection, extent),
     layers: [buildBaseLayer(spec, projection, extent, size)],
     collapsed: false,
     collapsible: true,
@@ -393,17 +421,21 @@ export function OpenLayerMap(
   map.addControl(overview)
   map.addControl(buildScaleBarControl(map.getView(), mppX))
 
-  // OL's OverviewMap automatically rescales/recenters its *own* view to keep
-  // the tracked box within a comfortable size ratio (see ol/control/
-  // OverviewMap's MIN_RATIO/MAX_RATIO) - sensible for an open-ended map, but
-  // wrong here: the overview should always frame the whole slide, unchanged,
-  // with only the box reflecting the current viewport. Re-fit it back to the
-  // full extent after every main-view change, undoing whatever automatic
-  // rescale/recenter OL's own logic just applied - without this, zooming
-  // back out left the overview's own frame stuck more zoomed-in than it
-  // started, so the box (and visible thumbnail) no longer matched reality.
-  const overviewView = overview.getOverviewMap().getView()
-  map.getView().on('change', () => overviewView.fit(extent))
+  // Runs on 'change', before the render where OverviewMap checks its own
+  // frame, so that check finds nothing to fix. Left to OverviewMap alone it
+  // only re-frames when the box gets too small or leaves the overview, so it
+  // jumped between zoom levels and lagged behind a drag.
+  const overviewMapView = overview.getOverviewMap().getView()
+  const follow = () => followMainView(overviewMapView, map.getView(), map.getSize())
+  map.getView().on('change', follow)
+  map.on('change:size', follow)
+  // Grows when hovered (see MapNode.css). OL resizes its canvas itself, but
+  // the frame needs refitting to the new size and the viewport box is only
+  // redrawn on a main map render.
+  overview.getOverviewMap().on('change:size', () => {
+    follow()
+    map.render()
+  })
 
   const overviewContainer = target.querySelector<HTMLElement>('.ol-overviewmap')
   if (overviewContainer) {
@@ -433,6 +465,9 @@ export function OpenLayerMap(
 
 export {
   getExtent,
+  overviewView,
+  followMainView,
+  OVERVIEW_CONTEXT,
   computeResolutionLadder,
   capResolutionsAtNativeScale,
   clampOverviewBoxSize,

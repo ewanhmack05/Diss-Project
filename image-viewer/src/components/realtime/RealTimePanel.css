@@ -1,18 +1,414 @@
-.realtime-users {
+/* The panel body clips (see DraggablePanel.css), so this scrolls itself
+   like the Annotations and Cell Count content does. */
+.realtime-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.8em;
+  gap: 1.1em;
+}
+
+.realtime-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.realtime-section--tight {
+  gap: 0.25em;
+}
+
+.realtime-heading {
   margin: 0;
-  padding-left: 1em;
+  font-size: 0.72em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--chrome-text-secondary);
+}
+
+.realtime-note {
+  margin: 0;
+  font-size: 0.82em;
+  line-height: 1.45;
+  color: var(--chrome-text-secondary);
+}
+
+/* Session name, and the pencil to rename it (host only). */
+.realtime-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.realtime-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 1.15em;
+  font-weight: 700;
+}
+
+.realtime-title-input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.3em 0.4em;
+  font-family: var(--sans);
+  font-size: 1.05em;
+  font-weight: 700;
+  color: var(--chrome-text);
+  background: var(--white-06);
+  border: 1px solid var(--accent);
+  border-radius: 0.3125rem;
+}
+
+.realtime-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  margin: 0;
+  font-size: 0.82em;
+  color: var(--chrome-text-secondary);
+}
+
+.realtime-badge {
+  align-self: flex-start;
+  margin-top: 0.35em;
+  padding: 0.15em 0.6em;
+  font-size: 0.78em;
+  font-weight: 600;
+  color: #9fd4d4;
+  background: rgba(var(--accent-rgb), 0.16);
+  border-radius: 999px;
+}
+
+/* Filled dot - here now. Hollow - in the session, but not connected. */
+.realtime-presence {
+  flex-shrink: 0;
+  box-sizing: border-box;
+  width: 0.55em;
+  height: 0.55em;
+  border: 1.5px solid #8a8787;
+  border-radius: 50%;
+}
+
+.realtime-presence--here {
+  background: #4cc38a;
+  border-color: #4cc38a;
+}
+
+.realtime-people,
+.realtime-sessions {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
   list-style: none;
 }
 
-.realtime-user {
+.realtime-person {
   display: flex;
   align-items: center;
+  gap: 0.45em;
+  min-height: 2em;
+}
+
+.realtime-person-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.92em;
+}
+
+.realtime-person-name--away {
+  color: var(--chrome-text-secondary);
+}
+
+.realtime-person-away {
+  font-size: 0.85em;
+}
+
+.realtime-person-role {
+  flex-shrink: 0;
+  font-size: 0.8em;
+  color: var(--chrome-text-secondary);
+}
+
+.realtime-person select,
+.realtime-field select {
+  padding: 0.25em;
+  font-family: var(--sans);
+  font-size: 0.8em;
+  color: var(--chrome-text);
+  background: var(--white-06);
+  border: 1px solid transparent;
+  border-radius: 0.3125rem;
+}
+
+.realtime-field select {
+  padding: 0.35em;
+  font-size: 1em;
+}
+
+.realtime-person select option,
+.realtime-field select option {
+  color: var(--chrome-bg-solid);
+  background: var(--white);
+}
+
+.realtime-session {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.45em 0;
+  border-bottom: 1px solid var(--white-06);
+}
+
+.realtime-session-about {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1em;
+}
+
+.realtime-session-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.realtime-session-meta {
+  font-size: 0.78em;
+  color: var(--chrome-text-secondary);
+}
+
+/* Invite link - the link and its copy button, then what it's for. */
+.realtime-invite-link {
+  display: flex;
   gap: 0.35em;
 }
 
-.realtime-user-dot {
+.realtime-invite-link input {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0.45em 0.5em;
+  font-family: var(--sans);
+  font-size: 0.82em;
+  color: var(--chrome-text);
+  background: var(--white-06);
+  border: 1px solid transparent;
+  border-radius: 0.3125rem;
+}
+
+.realtime-invite-link input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.realtime-invite-about {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5em;
+  font-size: 0.78em;
+  color: var(--chrome-text-secondary);
+}
+
+.realtime-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+}
+
+.realtime-field--row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+}
+
+.realtime-field-label {
+  font-size: 0.82em;
+  color: var(--chrome-text-secondary);
+}
+
+.realtime-segmented {
+  display: flex;
+  padding: 0.15em;
+  background: var(--white-06);
+  border-radius: 0.4em;
+}
+
+.realtime-segment {
+  flex: 1;
+  padding: 0.4em;
+  font-family: var(--sans);
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--chrome-text-secondary);
+  background: none;
+  border: none;
+  border-radius: 0.3125rem;
+  cursor: pointer;
+}
+
+.realtime-segment--active {
+  color: var(--white);
+  background: var(--accent-active);
+}
+
+.realtime-segment:disabled {
+  cursor: not-allowed;
+}
+
+/* Planned controls, shown so the shape of the tab is clear - nothing works yet. */
+.realtime-section--soon {
+  padding: 0.7em;
+  border: 1px dashed var(--white-22);
+  border-radius: 0.4em;
+}
+
+.realtime-section--soon .realtime-segment--active {
+  color: var(--chrome-text-secondary);
+  background: var(--white-08);
+}
+
+.realtime-soon-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.realtime-soon-tag {
+  padding: 0.05em 0.5em;
+  font-size: 0.7em;
+  font-weight: 600;
+  color: var(--chrome-text-secondary);
+  background: var(--white-08);
+  border-radius: 999px;
+}
+
+.realtime-soon-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.85em;
+  color: var(--disabled);
+}
+
+.realtime-button,
+.realtime-icon-button {
   flex-shrink: 0;
-  width: 0.6em;
-  height: 0.6em;
-  border-radius: 50%;
+  font-family: var(--sans);
+  font-weight: 600;
+  color: var(--chrome-text);
+  background: var(--white-08);
+  border: none;
+  border-radius: 0.3125rem;
+  cursor: pointer;
+  transition: color 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.realtime-button {
+  padding: 0.4em 0.7em;
+  font-size: 0.85em;
+}
+
+.realtime-button:hover:not(:disabled),
+.realtime-icon-button:hover {
+  color: var(--accent);
+}
+
+.realtime-button:disabled {
+  color: var(--disabled);
+  cursor: not-allowed;
+}
+
+.realtime-button--wide {
+  padding: 0.6em;
+  font-size: 0.9em;
+}
+
+.realtime-button--accent {
+  color: var(--accent);
+}
+
+.realtime-button--danger,
+.realtime-button--danger:hover:not(:disabled) {
+  color: #e87c7c;
+}
+
+.realtime-icon-button {
+  width: 1.6em;
+  height: 1.6em;
+  padding: 0;
+  line-height: 1;
+}
+
+.realtime-icon-button--plain {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--chrome-text-secondary);
+  background: none;
+}
+
+.realtime-text-button {
+  flex-shrink: 0;
+  padding: 0;
+  font-family: var(--sans);
+  font-size: 1em;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.realtime-text-button--danger {
+  color: #e87c7c;
+}
+
+.realtime-button-row {
+  display: flex;
+  gap: 0.4em;
+}
+
+.realtime-button-row .realtime-button {
+  flex: 1;
+}
+
+.realtime-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.realtime-account {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45em;
+  padding-top: 0.8em;
+  border-top: 1px solid var(--white-08);
+}
+
+.realtime-signed-in {
+  margin: 0;
+  font-size: 0.85em;
+  color: var(--chrome-text-secondary);
+}
+
+.realtime-signed-in strong {
+  color: var(--chrome-text);
+  font-weight: 600;
 }

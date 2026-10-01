@@ -11,6 +11,8 @@ import CellCountColourSwatch from "../CellCountColourSwatch";
 import SavedCountEdit from "./SavedCountEdit";
 import SavedRow, { SavedDetails } from "../../saved/SavedRow";
 import { formatLongDate, formatShortDate, newestFirst } from "../../saved/savedDates";
+import { savedBy } from "../../saved/savedBy";
+import { useAuthContext } from "../../../context/AuthContext";
 import "./SavedCountList.css";
 
 function RoiIcon() {
@@ -43,6 +45,8 @@ interface SavedCountRowProps {
 function SavedCountRow({ cellCount, open, onToggle }: SavedCountRowProps) {
   const { viewedCellCountId, setSelectedCellCountId, setViewedCellCountId } =
     useCellCountStoreContext();
+  const { user } = useAuthContext();
+  const by = savedBy(cellCount, user.id);
   const dots = parseCellCountDots(cellCount.dots);
   const colours = colourBreakdownFromDots(dots);
   const people = placedByBreakdown(dots);
@@ -84,6 +88,7 @@ function SavedCountRow({ cellCount, open, onToggle }: SavedCountRowProps) {
     ]);
   }
   if (cellCount.notes) details.push(["Notes", cellCount.notes]);
+  if (by) details.push(["Saved by", by]);
   details.push(["Saved", formatLongDate(cellCount.created)]);
 
   return (
@@ -112,6 +117,7 @@ function SavedCountRow({ cellCount, open, onToggle }: SavedCountRowProps) {
           )}
           {isViewing && <span className="saved-row-tag saved-row-tag--active">On map</span>}
           <span className="saved-row-spacer" />
+          {by && <span className="saved-row-by">{by}</span>}
           <span>{formatShortDate(cellCount.created)}</span>
         </>
       }

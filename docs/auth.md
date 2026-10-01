@@ -40,8 +40,41 @@ Leaning **Keycloak** over Entra External ID.
 - Behind a proxy it needs `KC_PROXY_HEADERS=xforwarded`, `KC_HOSTNAME`, and plain HTTP enabled.
 - Run `kc.sh build` in the image so it starts faster.
 
-### Next steps (all local)
+### What's built
 
-1. Keycloak in a local compose file (dev mode), with a realm file and 2-3 test users - ~2-3 hours
-2. Viewer login + replace the placeholder user id - ~half a day
-3. Token checks in annotation-store, scoped to the logged-in user - ~half a day
+Keycloak is in, locally, and everything needs signing in.
+
+- **Keycloak** runs in Docker from [auth/](../auth) - `docker compose up -d`.
+  It has its own Postgres container rather than a second database on the
+  machine's Postgres, so it needs no setup there. Realm `diss`, client
+  `image-viewer`, test users alice / bob / carol.
+- **One address for everything.** The viewer's dev server proxies `/auth`
+  to Keycloak like it does the other services, and serves https (a
+  self-signed certificate). Sign-in uses the browser's crypto, which only
+  works on https or localhost, so without it nobody on the VPN could sign
+  in. Keycloak follows the address the browser used, so the token's issuer
+  is `https://<that address>:5173/auth/realms/diss` - the services accept
+  any address as long as it's the `diss` realm and the signature checks out.
+- **Viewer** - `oidc-client-ts`, sign-in with PKCE, tokens per tab so two
+  tabs can be two people ("Switch user" in the RealTime panel).
+- **annotation-store** checks the token on every request (`AddJwtBearer`),
+  with the audience `diss-api`.
+- **Real-time hub** checks the same token, sent in the query string.
+  Participants' names are their Keycloak names now, not "Guest xxxx".
+- **Collections** - `UserId` is the Keycloak `sub`. Shared collections came
+  in at the same time, since everyone having been `'001'` was the only
+  reason collaborators saw each other's work after a reload: a
+  `CollectionMembers` table (collection, user, role - owner / editor /
+  viewer). Everyone has their own collection per slide, and people work
+  together in sessions joined through invite links - see
+  [thought-process.md](thought-process.md#collections).
+
+### Still to do
+
+- Invite links for people without an account (guests) - links need a
+  signed-in user for now.
+- Inviting a named person directly rather than sending a link - needs a
+  user list, from Keycloak's admin API with a service account.
+- Old data under the placeholder `'001'` user still belongs to `'001'`.
+  Moving it to a real account is one UPDATE on `Collections.UserId` and
+  `CollectionMembers.UserId`.

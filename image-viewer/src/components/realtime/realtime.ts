@@ -18,7 +18,8 @@ interface Viewport {
 
 interface Participant {
   connectionId: string
-  slideId: string
+  // The session's collection id - see CollectionContext.
+  roomId: string
   userId: string
   displayName: string
   colour: string
@@ -78,7 +79,8 @@ interface ViewportUpdate {
 }
 
 type OpKind = 'create' | 'update' | 'delete'
-type OpEntity = 'annotation' | 'cellCount'
+// collection is a nudge that someone's membership changed - see CollectionContext.
+type OpEntity = 'annotation' | 'cellCount' | 'collection'
 
 interface AnnotationOp {
   kind: OpKind

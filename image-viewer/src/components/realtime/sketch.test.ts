@@ -12,7 +12,7 @@ const look: SketchLook = { shape: 'freehand', colour: '#FB0909', lineThickness: 
 function participant(overrides: Partial<Participant>): Participant {
   return {
     connectionId: 'c1',
-    slideId: 's',
+    roomId: 's',
     userId: 'u1',
     displayName: 'Guest ab12',
     colour: '#e6194b',
