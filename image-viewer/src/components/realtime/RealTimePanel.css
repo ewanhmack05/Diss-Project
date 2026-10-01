@@ -1,6 +1,11 @@
+/* The panel body clips (see DraggablePanel.css), so this scrolls itself
+   like the Annotations and Cell Count content does. */
 .realtime-panel {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   padding: 0.8em;
   gap: 1.1em;
 }

@@ -335,10 +335,14 @@ function rulerSketchStyle(mppX: number | null, mppY: number | null) {
 // which would sit right over the centre of your own view if you're both
 // looking at the same place.
 function remoteViewportStyle(feature: FeatureLike): Style[] {
+	return labelledViewportStyle(feature, 2, 12);
+}
+
+function labelledViewportStyle(feature: FeatureLike, outlineWidth: number, fontSize: number): Style[] {
 	const colour = feature.get("colour") as string;
 	const label = feature.get("label") as string | undefined;
 	const geometry = feature.getGeometry();
-	const outline = new Style({ stroke: new Stroke({ color: colour, width: 2 }) });
+	const outline = new Style({ stroke: new Stroke({ color: colour, width: outlineWidth }) });
 	if (!label || !(geometry instanceof Polygon)) return [outline];
 	const corner = geometry.getCoordinates()[0][0];
 	return [
@@ -347,7 +351,7 @@ function remoteViewportStyle(feature: FeatureLike): Style[] {
 			geometry: new Point(corner),
 			text: new Text({
 				text: label,
-				font: "600 12px 'Source Sans Pro', Arial, sans-serif",
+				font: `600 ${fontSize}px 'Source Sans Pro', Arial, sans-serif`,
 				fill: new Fill({ color: "#fff" }),
 				backgroundFill: new Fill({ color: colour }),
 				padding: [1, 4, 1, 4],
@@ -422,9 +426,17 @@ function comparisonResultStyle(feature: FeatureLike, resolution: number): Style 
 	}
 }
 
-// Same outline on the overview map, just thinner and no name - it's tiny.
-function remoteViewportOverviewStyle(feature: FeatureLike): Style {
-	return new Style({ stroke: new Stroke({ color: feature.get("colour") as string, width: 1.5 }) });
+// Narrowest the overview gets before names fit on it - it's 10em (160px)
+// normally and grows when hovered.
+const OVERVIEW_LABEL_MIN_PX = 240;
+
+// Same outline on the overview map, thinner. Names only once it's been
+// expanded, they'd cover most of it otherwise.
+function remoteViewportOverviewStyle(feature: FeatureLike, overviewWidth: number): Style[] {
+	if (overviewWidth < OVERVIEW_LABEL_MIN_PX) {
+		return [new Style({ stroke: new Stroke({ color: feature.get("colour") as string, width: 1.5 }) })];
+	}
+	return labelledViewportStyle(feature, 1.5, 11);
 }
 
 export {
@@ -441,6 +453,7 @@ export {
 	rulerSketchStyle,
 	remoteViewportStyle,
 	remoteViewportOverviewStyle,
+	OVERVIEW_LABEL_MIN_PX,
 	remoteSketchStyle,
 	comparisonResultStyle,
 	sharedDotFlatStyle,

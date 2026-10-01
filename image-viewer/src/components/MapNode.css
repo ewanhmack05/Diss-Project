@@ -64,6 +64,18 @@
   width: 10em;
   height: 10em;
   border: 1px solid var(--chrome-text-secondary);
+  transition:
+    width 180ms cubic-bezier(0.4, 0, 0.2, 1),
+    height 180ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Bigger on hover, so other people's views (and their names, see
+   remoteViewportOverviewStyle) are readable. The delay stops it opening
+   when the pointer just passes over on the way somewhere else. */
+.map-node .ol-overviewmap:hover .ol-overviewmap-map {
+  width: min(24em, 45vw, 45vh);
+  height: min(24em, 45vw, 45vh);
+  transition-delay: 150ms;
 }
 
 .map-node .ol-overviewmap-box {

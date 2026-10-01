@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { arrowHeadRadius, dashPattern } from './Styles'
+import Feature from 'ol/Feature'
+import { fromExtent } from 'ol/geom/Polygon'
+import { arrowHeadRadius, dashPattern, OVERVIEW_LABEL_MIN_PX, remoteViewportOverviewStyle } from './Styles'
 
 // segmentLength here is already in screen pixels at the current zoom (see
 // Styles.ts's arrowHeadStyle) - not raw map units.
@@ -48,5 +50,29 @@ describe('dashPattern', () => {
 
   it('scales the full-size pattern with line thickness, same as before', () => {
     expect(dashPattern(6, 1000)).toEqual([18, 12])
+  })
+})
+
+describe('remoteViewportOverviewStyle', () => {
+  const viewport = new Feature({ geometry: fromExtent([0, -100, 200, 0]), colour: '#4c8bf5', label: 'Bob Hughes' })
+
+  it('is just a thin outline on the normal size overview', () => {
+    const styles = remoteViewportOverviewStyle(viewport, 160)
+    expect(styles).toHaveLength(1)
+    expect(styles[0].getStroke()?.getWidth()).toBe(1.5)
+    expect(styles[0].getText()).toBeNull()
+  })
+
+  it("shows the person's name once the overview is expanded", () => {
+    const styles = remoteViewportOverviewStyle(viewport, OVERVIEW_LABEL_MIN_PX)
+    expect(styles).toHaveLength(2)
+    expect(styles[0].getStroke()?.getWidth()).toBe(1.5)
+    expect(styles[1].getText()?.getText()).toBe('Bob Hughes')
+    expect(styles[1].getText()?.getFont()).toContain('11px')
+  })
+
+  it('stays an outline when expanded but there is no name to show', () => {
+    const unnamed = new Feature({ geometry: fromExtent([0, -100, 200, 0]), colour: '#4c8bf5' })
+    expect(remoteViewportOverviewStyle(unnamed, 384)).toHaveLength(1)
   })
 })

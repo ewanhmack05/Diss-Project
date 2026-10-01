@@ -345,7 +345,10 @@ function MapNode() {
           [annotationsLayer, annotationArrowsLayer, drawLayer, cellCountDotsLayer, roiLayer, viewedDotsLayer, viewedRoiLayer, comparisonLayer, doubleCountLayer, sharedDotsLayer, rulerLayer, remoteSketchesLayer, remoteViewportsLayer]
         )
         overviewMap.addLayer(
-          new VectorLayer({ source: remoteViewportsSourceRef.current, style: remoteViewportOverviewStyle })
+          new VectorLayer({
+            source: remoteViewportsSourceRef.current,
+            style: (feature) => remoteViewportOverviewStyle(feature, overviewMap.getSize()?.[0] ?? 0),
+          })
         )
         mapRef.current = map
         baseLayerRef.current = baseLayer
