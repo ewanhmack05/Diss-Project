@@ -32,6 +32,7 @@ import {
   type ViewportUpdate,
 } from '../components/realtime/realtime'
 import { useEmitEvent } from './EventContext'
+import type { ImageAdjustmentValues } from '../components/adjustments/adjustments'
 import { useAuthContext } from './AuthContext'
 import { useCollectionContext } from './CollectionContext'
 
@@ -64,6 +65,8 @@ interface RealtimeContextValue {
   // where you are now.
   askToLook: (to: string[] | null) => Promise<void>
   askToOpen: (to: string[] | null, panel: string) => Promise<void>
+  // Offer your image adjustments - they can apply them or not.
+  askToAdjust: (to: string[] | null, adjustments: ImageAdjustmentValues) => Promise<void>
   // Returns an unsubscribe, like onOp.
   onRequest: (handler: RequestHandler) => () => void
   // Returns an unsubscribe, so it drops straight into a useEffect.
@@ -402,6 +405,11 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
 
   const askToOpen = useCallback((to: string[] | null, panel: string) => sendRequest(to, 'openPanel', { panel }), [sendRequest])
 
+  const askToAdjust = useCallback(
+    (to: string[] | null, adjustments: ImageAdjustmentValues) => sendRequest(to, 'adjustments', adjustments),
+    [sendRequest]
+  )
+
   const onRequest = useCallback((handler: RequestHandler) => {
     requestHandlersRef.current.add(handler)
     return () => {
@@ -517,6 +525,7 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
         setNavigation,
         askToLook,
         askToOpen,
+        askToAdjust,
         onRequest,
         onOp,
         openDoc,

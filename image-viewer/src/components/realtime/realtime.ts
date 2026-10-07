@@ -56,6 +56,7 @@ type NavigationMode = 'free' | 'follow' | 'present'
 type HostRequest = { fromConnectionId: string; fromName: string } & (
   | { kind: 'look'; data: Viewport }
   | { kind: 'openPanel'; data: { panel: string } }
+  | { kind: 'adjustments'; data: ImageAdjustmentValues }
 )
 
 interface ScreenUpdate {

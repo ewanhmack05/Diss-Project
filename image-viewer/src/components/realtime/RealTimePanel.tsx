@@ -4,6 +4,7 @@ import { useCollectionContext, type Collection, type CollectionRole } from '../.
 import { useAuthContext } from '../../context/AuthContext'
 import { useEmitEvent } from '../../context/EventContext'
 import { TOOL_NAMES, type ToolId } from '../../context/ToolbarContext'
+import { useAdjustmentsContext } from '../../context/AdjustmentsContext'
 import CountInvites from '../cell-count/CountInvites'
 import SessionInvite from './SessionInvite'
 import { useComparisonContext } from '../../context/ComparisonContext'
@@ -249,8 +250,16 @@ function LiveLine({ text }: { text: string }) {
 
 const NAVIGATION_OPTIONS: { mode: NavigationMode; label: string; about: string }[] = [
   { mode: 'free', label: 'Free', about: 'Everyone moves round on their own.' },
-  { mode: 'follow', label: 'Follow me', about: 'Everyone sees what you see. They can move away and come back.' },
-  { mode: 'present', label: 'Present', about: "Everyone sees what you see and can't move away. Panels you open, open for them too." },
+  {
+    mode: 'follow',
+    label: 'Follow me',
+    about: 'Everyone sees what you see, image adjustments too. They can move away and come back.',
+  },
+  {
+    mode: 'present',
+    label: 'Present',
+    about: "Everyone sees what you see, image adjustments too, and can't move away. Panels you open, open for them too.",
+  },
 ]
 
 function NavigationControls() {
@@ -287,9 +296,10 @@ const ASKABLE_PANELS: ToolId[] = ['annotations', 'cellcount', 'rotate', 'ruler',
 // The host asking everyone, or one person, to look where they are or open a
 // panel. It's only asked - it comes up for them to say yes or no to.
 function AskPeople() {
-  const { status, others, askToLook, askToOpen } = useRealtimeContext()
+  const { status, others, askToLook, askToOpen, askToAdjust } = useRealtimeContext()
   const emit = useEmitEvent()
   const [to, setTo] = useState('')
+  const { values: adjustments } = useAdjustmentsContext()
   if (others.length === 0) return null
 
   const live = status === 'connected'
@@ -314,6 +324,15 @@ function AskPeople() {
       <div className="realtime-button-row">
         <button type="button" className="realtime-button" disabled={!live} onClick={() => send(askToLook(target))}>
           Look here
+        </button>
+        <button
+          type="button"
+          className="realtime-button"
+          disabled={!live}
+          title="Offer them your image adjustments"
+          onClick={() => send(askToAdjust(target, adjustments))}
+        >
+          Use my image
         </button>
         <select
           className="realtime-ask-open"
@@ -344,7 +363,7 @@ function NavigationNote() {
     <p className="realtime-note">
       {navigation === 'present'
         ? "The host is presenting - you'll see what they see."
-        : "The host has everyone following them - move the map to look round on your own, and Follow to go back."}
+        : "The host has everyone following them, image adjustments too - move the map or a slider to go your own way, and Follow to go back."}
     </p>
   )
 }

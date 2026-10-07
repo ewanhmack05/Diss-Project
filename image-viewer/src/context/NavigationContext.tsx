@@ -16,7 +16,7 @@ import {
   type Screen,
   type Viewport,
 } from '../components/realtime/realtime'
-import type { ImageAdjustmentValues } from '../components/adjustments/adjustments'
+import { sameAdjustments, type ImageAdjustmentValues } from '../components/adjustments/adjustments'
 
 interface NavigationContextValue {
   mode: NavigationMode
@@ -38,8 +38,9 @@ interface NavigationContextValue {
 const NavigationContext = createContext<NavigationContextValue | null>(null)
 
 // Follow me and Present (see RealTimePanel). The map does the moving (see
-// MapNode) - this works out whether to, and in Present copies the rest of
-// the host's screen: panels, the tab each is on, and image adjustments.
+// MapNode) - this works out whether to. While following, either way, you
+// get the host's image adjustments too. Present copies the rest of their
+// screen as well: panels and the tab each is on.
 function NavigationContextProvider({ children }: { children: ReactNode }) {
   const { me, others, navigation: mode, sendScreen, onRequest } = useRealtimeContext()
   const { addToast } = useToastContext()
@@ -142,24 +143,41 @@ function NavigationContextProvider({ children }: { children: ReactNode }) {
     setViewedCellCountId(hostViewedCount)
   }, [presenting, hostViewedCount, setViewedCellCountId])
 
-  // And the host's image adjustments, like their rotation. Yours come back
-  // once Present ends.
-  const hostAdjustmentsKey = hostScreen?.adjustments ? JSON.stringify(hostScreen.adjustments) : ''
+  // And the host's image adjustments, like their rotation - while you're
+  // following them, in Follow me or Present. Yours come back once you stop.
+  const hostAdjustments = following ? (leader?.screen?.adjustments ?? null) : null
+  const hostAdjustmentsKey = hostAdjustments ? JSON.stringify(hostAdjustments) : ''
+  // What you had before following, and what was last put on from the host.
   const ownAdjustmentsRef = useRef<ImageAdjustmentValues | null>(null)
+  const appliedAdjustmentsRef = useRef<ImageAdjustmentValues | null>(null)
   const adjustmentsRef = useRef(adjustments)
   useEffect(() => {
     adjustmentsRef.current = adjustments
   })
   useEffect(() => {
     if (!hostAdjustmentsKey) return
+    const host = JSON.parse(hostAdjustmentsKey) as ImageAdjustmentValues
     if (!ownAdjustmentsRef.current) ownAdjustmentsRef.current = adjustmentsRef.current
-    setAdjustments(JSON.parse(hostAdjustmentsKey) as ImageAdjustmentValues)
+    appliedAdjustmentsRef.current = host
+    setAdjustments(host)
   }, [hostAdjustmentsKey, setAdjustments])
   useEffect(() => {
-    if (presenting || !ownAdjustmentsRef.current) return
+    if (following) return
+    appliedAdjustmentsRef.current = null
+    if (!ownAdjustmentsRef.current) return
     setAdjustments(ownAdjustmentsRef.current)
     ownAdjustmentsRef.current = null
-  }, [presenting, setAdjustments])
+  }, [following, setAdjustments])
+  // Moving a slider yourself in Follow me is moving away, like panning - and
+  // you keep what you just set rather than going back to your own. In
+  // Present the host's next change just puts theirs back.
+  useEffect(() => {
+    const applied = appliedAdjustmentsRef.current
+    if (!applied || mode !== 'follow' || sameAdjustments(adjustments, applied)) return
+    ownAdjustmentsRef.current = null
+    appliedAdjustmentsRef.current = null
+    setBrokeAway(true)
+  }, [adjustments, mode])
 
   // The host asking you to look somewhere or open a panel - a toast you can
   // say yes or no to. Nobody's asked to look while they're following, since
@@ -179,6 +197,13 @@ function NavigationContextProvider({ children }: { children: ReactNode }) {
               { label: 'Not now' },
             ],
           })
+        } else if (request.kind === 'adjustments') {
+          // Following already gets you theirs.
+          if (followingRef.current) return
+          const offered = request.data
+          addToast(`${request.fromName} wants to share their image settings`, 'info', {
+            actions: [{ label: 'Apply', primary: true, onClick: () => setAdjustments(offered) }, { label: 'Not now' }],
+          })
         } else if (request.kind === 'openPanel') {
           const panel = request.data.panel as ToolId
           const name = TOOL_NAMES[panel]
@@ -188,7 +213,7 @@ function NavigationContextProvider({ children }: { children: ReactNode }) {
           })
         }
       }),
-    [onRequest, addToast, openTool]
+    [onRequest, addToast, openTool, setAdjustments]
   )
 
   const breakAway = useCallback(() => {

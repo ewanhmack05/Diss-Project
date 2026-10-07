@@ -1,5 +1,7 @@
 import { useState, type ChangeEvent } from 'react'
 import { useAdjustmentsContext } from '../../context/AdjustmentsContext'
+import { useRealtimeContext } from '../../context/RealtimeContext'
+import { useEmitEvent } from '../../context/EventContext'
 import DockedCard from '../toolbar/DockedCard'
 import type { ImageAdjustmentValues } from './adjustments'
 import './AdjustmentsPanel.css'
@@ -19,6 +21,31 @@ const SLIDER_FIELDS: SliderField[] = [
   { key: 'green', label: 'Green', min: 0, max: 2 },
   { key: 'blue', label: 'Blue', min: 0, max: 2 },
 ]
+
+// The host offering everyone their adjustments - each person can apply
+// them or not. Not in Present, where everyone already has them.
+function ShareButton() {
+  const { values } = useAdjustmentsContext()
+  const { status, me, others, navigation, askToAdjust } = useRealtimeContext()
+  const emit = useEmitEvent()
+  if (!me?.host || others.length === 0 || navigation === 'present') return null
+
+  return (
+    <button
+      type="button"
+      className="adjustments-panel-reset adjustments-panel-share"
+      disabled={status !== 'connected'}
+      title="Offer everyone in the session these adjustments"
+      onClick={() =>
+        askToAdjust(null, values)
+          .then(() => emit('request:sent'))
+          .catch(() => emit('request:error'))
+      }
+    >
+      Share with everyone
+    </button>
+  )
+}
 
 function AdjustmentsPanel() {
   const { values, setValues, resetValues, presets, status, savePreset, applyPreset, updatePreset, deletePreset } =
@@ -58,9 +85,12 @@ function AdjustmentsPanel() {
             />
           </label>
         ))}
-        <button type="button" className="adjustments-panel-reset" onClick={resetValues}>
-          Reset
-        </button>
+        <div className="adjustments-panel-buttons">
+          <button type="button" className="adjustments-panel-reset" onClick={resetValues}>
+            Reset
+          </button>
+          <ShareButton />
+        </div>
       </DockedCard>
 
       <DockedCard title="Presets" className="adjustments-panel-presets-card">

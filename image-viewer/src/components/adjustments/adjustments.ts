@@ -69,7 +69,14 @@ function withUpdatedAdjustments<T extends { adjustments: string }>(
   return { ...preset, adjustments: serializeAdjustments(values) }
 }
 
+// Same values on every slider - not the same object, and not caring about
+// key order, since one side may have come over the wire.
+function sameAdjustments(a: ImageAdjustmentValues, b: ImageAdjustmentValues): boolean {
+  return (Object.keys(DEFAULT_ADJUSTMENTS) as (keyof ImageAdjustmentValues)[]).every((key) => a[key] === b[key])
+}
+
 export {
+  sameAdjustments,
   DEFAULT_ADJUSTMENTS,
   clampAdjustmentValues,
   parseAdjustments,

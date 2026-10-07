@@ -3,6 +3,7 @@ import {
   DEFAULT_ADJUSTMENTS,
   clampAdjustmentValues,
   parseAdjustments,
+  sameAdjustments,
   serializeAdjustments,
   withUpdatedAdjustments,
   type ImageAdjustmentValues,
@@ -109,5 +110,13 @@ describe('withUpdatedAdjustments', () => {
     expect(updated.slideId).toBe('slide-1')
     expect(updated.created).toBe('2026-01-01T00:00:00.000Z')
     expect(parseAdjustments(updated.adjustments)).toEqual(values)
+  })
+})
+
+describe('sameAdjustments', () => {
+  it('compares the values, not the object or key order', () => {
+    const over = JSON.parse('{"blue":1,"red":1,"green":1,"gamma":1,"contrast":0,"brightness":0}')
+    expect(sameAdjustments({ ...DEFAULT_ADJUSTMENTS }, over)).toBe(true)
+    expect(sameAdjustments(DEFAULT_ADJUSTMENTS, { ...DEFAULT_ADJUSTMENTS, contrast: 0.2 })).toBe(false)
   })
 })

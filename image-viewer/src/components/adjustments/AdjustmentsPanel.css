@@ -108,6 +108,21 @@
   color: var(--accent-active);
 }
 
+.adjustments-panel-buttons {
+  display: flex;
+  gap: 0.4em;
+}
+
+.adjustments-panel-share {
+  color: var(--accent);
+}
+
+.adjustments-panel-reset:disabled {
+  color: var(--disabled);
+  border-color: transparent;
+  cursor: not-allowed;
+}
+
 .adjustments-panel-presets-card {
   display: flex;
   flex-direction: column;
