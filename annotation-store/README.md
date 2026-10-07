@@ -16,6 +16,20 @@ the viewer's dev server proxies to it (see the root README).
 In `Development`, the app runs any pending EF Core migrations against the
 configured database automatically on startup - no manual
 `dotnet ef database update` needed for a normal day-to-day pull.
+`Database__MigrateOnStartup=true` does the same in any environment - the
+Docker image sets it.
+
+### In Docker
+
+```bash
+docker build -t diss-annotation-store annotation-store
+```
+
+It needs a Postgres and Keycloak, so it's easiest through the root
+`docker-compose.yml`, which sets everything it takes:
+`ConnectionStrings__AnnotationStore`, `Auth__MetadataAddress` (Keycloak's
+address inside Docker) and `OTEL_EXPORTER_OTLP_ENDPOINT`. Listens on 8080
+in the container.
 
 ## Sign-in and collections
 

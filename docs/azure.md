@@ -61,17 +61,18 @@ auto-shutdown. Dropping Grafana for Application Insights could fit a B2s
 
 ## Decisions so far
 
+- Container Apps rather than a Windows App Service plan - the tiler runs on Linux now
 - Tiler scales to zero - slow first start is fine to save cost
 - Only slide 003 goes into the tiler image
 - Keycloak for auth, not Entra
 
 ## To handle either way
 
-1. **Tiler only runs on Windows today** - `OpenSlideSharp.runtime.win` bundles Windows OpenSlide only. Try it in a Linux container with `apt install libopenslide0` first (~half a day). This decides a lot.
-2. Dockerfiles for tiler and annotation-store, plus one local compose file - ~1 day
+1. ~~**Tiler only runs on Windows today**~~ - done. `tiler/Dockerfile` builds a Linux image with slide 003 in it (~3.1 GB), using Ubuntu's OpenSlide 3.4. Tiles match the Windows tiler byte for byte, same speed (see `tiler/README.md`)
+2. ~~Dockerfiles for tiler and annotation-store, plus one local compose file~~ - done. The realtime hub has one too, and the root `docker-compose.yml` runs all of them with Keycloak (see the root README). annotation-store creates its tables on start up in the container (`Database__MigrateOnStartup`)
 3. Configurable service URLs in the viewer, instead of "same host, fixed port" - ~2 hours
 4. "Tile server is starting" state in the viewer instead of the connection error, for the cold start - ~1 hour
-5. Container Apps ephemeral storage limit - check a ~3.2 GB image fits. Fallback: mount the slide from Azure Files.
+5. Container Apps ephemeral storage limit - check the ~3.1 GB image fits. Fallback: mount the slide from Azure Files and point `Slides__DataPath` at it.
 
 ## Before anything is public
 

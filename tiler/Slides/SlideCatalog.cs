@@ -20,9 +20,11 @@ public sealed class SlideCatalog : IDisposable
     private readonly ConcurrentDictionary<string, Lazy<SlideHandlePool>> _pools = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, SlideInfo> _infos = new(StringComparer.OrdinalIgnoreCase);
 
-    public SlideCatalog(IWebHostEnvironment env)
+    // Slides:DataPath picks the folder - data/ next to the app if it isn't
+    // set. A relative path is from the app's folder.
+    public SlideCatalog(IWebHostEnvironment env, IConfiguration configuration)
     {
-        var dataDirectory = Path.Combine(env.ContentRootPath, "data");
+        var dataDirectory = Path.Combine(env.ContentRootPath, configuration["Slides:DataPath"] ?? "data");
         _pathsById = Directory.Exists(dataDirectory)
             ? Directory.GetFiles(dataDirectory, "*.mrxs")
                 .ToDictionary(path => Path.GetFileNameWithoutExtension(path)!, path => path, StringComparer.OrdinalIgnoreCase)

@@ -22,6 +22,14 @@ cd realtime-hub/
 dotnet build && dotnet run --urls http://localhost:5180
 ```
 
+In Docker - easiest through the root `docker-compose.yml`, which points it
+at annotation-store and Keycloak (`AnnotationStore__BaseUrl`,
+`Auth__MetadataAddress`). Only ever run one copy - rooms live in memory.
+
+```bash
+docker build -t diss-realtime-hub realtime-hub
+```
+
 Scalar is at http://localhost:5180/scalar in Development. Tests:
 
 ```bash

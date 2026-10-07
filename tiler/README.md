@@ -2,8 +2,7 @@
 
 ASP.NET Core (.NET 10) tile server for whole-slide images. Opens `.mrxs`
 (MIRAX) files via [OpenSlideSharp](https://github.com/IOL0ol1/OpenSlideSharp)
-(.NET bindings for [OpenSlide](https://openslide.org/), native Windows
-binaries bundled via `OpenSlideSharp.runtime.win`) and serves tiles in a
+(.NET bindings for [OpenSlide](https://openslide.org/)) and serves tiles in a
 [Zoomify](https://en.wikipedia.org/wiki/Zoomify)-compatible URL scheme, which
 the `image-viewer` frontend consumes via OpenLayers' `ol/source/Zoomify`
 (see `image-viewer/src/components/open-layers/OpenLayers.ts`).
@@ -17,6 +16,36 @@ dotnet run --project tiler --urls http://localhost:5095
 Localhost is enough even when sharing the viewer with other machines -
 the viewer's dev server proxies to it (see the root README).
 
+### On Linux (Docker)
+
+The same tiler as a Linux container, with slide 003 built in - what gets
+deployed to Azure (see `docs/azure.md`). From the repo root:
+
+```bash
+docker build -t diss-tiler tiler
+docker run --rm -p 5095:8080 diss-tiler
+```
+
+The image is about 3.1 GB, nearly all of it the slide. The first build
+takes a few minutes sending the slide to Docker; after that a code change
+only rebuilds the small app layer.
+
+### Windows vs Linux
+
+OpenSlide is a native library, so it comes from a different place on each:
+
+- **Windows** - `OpenSlideSharp.runtime.win` bundles the DLLs. It's only
+  referenced when building on Windows (see `Tiler.csproj`).
+- **Linux** - the distro's package, `libopenslide0` (OpenSlide 3.4) on the
+  Ubuntu 24.04 .NET image. OpenSlideSharp asks for the Windows DLL's name,
+  `libopenslide-0`, which Linux doesn't have, so `Slides/OpenSlideNative.cs`
+  points it at `libopenslide.so.0` instead (or `.so.1`, OpenSlide 4, if
+  that's what's installed).
+
+SkiaSharp needs its own Linux native library too -
+`SkiaSharp.NativeAssets.Linux.NoDependencies`. Tiles come out byte for
+byte the same on both.
+
 ## Data
 
 Slides live in `tiler/data/` as `<id>.mrxs` + a same-named companion folder
@@ -24,6 +53,9 @@ Slides live in `tiler/data/` as `<id>.mrxs` + a same-named companion folder
 every `.mrxs` under `data/` at startup and uses the filename (minus
 extension) as the slide's id, so dropping in another slide is enough to
 make it available - no config needed.
+
+`Slides:DataPath` (or the `Slides__DataPath` environment variable) points it
+at a different folder - relative to the app's folder unless it's absolute.
 
 Included samples, all from [OpenSlide's public test data](https://openslide.org/):
 
