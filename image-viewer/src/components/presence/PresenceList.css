@@ -41,3 +41,43 @@
   height: 0.6em;
   border-radius: 50%;
 }
+
+.presence-chip--leading {
+  border: 1px solid var(--accent);
+  font-weight: 600;
+}
+
+.presence-chip-button {
+  margin-left: 0.2em;
+  padding: 0.15em 0.5em;
+  font-family: var(--sans);
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--white-08);
+  border: none;
+  border-radius: 0.25em;
+  cursor: pointer;
+}
+
+.presence-chip-button:hover,
+.presence-chip-button:focus-visible {
+  background: var(--white-10);
+}
+
+.presence-look {
+  font-weight: 600;
+  color: var(--accent);
+  border: none;
+  cursor: pointer;
+}
+
+.presence-look:hover:not(:disabled),
+.presence-look:focus-visible {
+  background: var(--chrome-bg-solid);
+}
+
+.presence-look:disabled {
+  color: var(--disabled);
+  cursor: not-allowed;
+}

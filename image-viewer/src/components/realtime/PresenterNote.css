@@ -1,0 +1,11 @@
+.presenter-note {
+  margin: 0 0 0.75em;
+  padding: 0.55em 0.7em;
+  font-family: var(--sans);
+  font-size: 0.85em;
+  line-height: 1.4;
+  color: var(--chrome-text);
+  background: var(--white-06);
+  border-left: 3px solid var(--accent);
+  border-radius: 0.3125rem;
+}

@@ -42,6 +42,10 @@ interface CellCount {
 	locationY: number | null;
 	regionOfInterest: RegionOfInterest | null;
 	created: string;
+	// Who saved it (the host, for a shared count - dots say who placed them).
+	// Set by annotation-store from their token; missing from before sign-in.
+	createdById?: string;
+	createdByName?: string;
 }
 
 export type { CellCount, CellCountDot, CellCountColourCount, RegionOfInterest, DotPlacer };

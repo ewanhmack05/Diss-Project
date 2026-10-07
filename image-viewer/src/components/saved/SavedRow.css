@@ -88,9 +88,16 @@
   color: var(--chrome-text-secondary);
 }
 
-/* Pushes whatever comes after it (the date) to the right. */
+/* Pushes whatever comes after it (who saved it, the date) to the right. */
 .saved-row-spacer {
   flex: 1;
+}
+
+.saved-row-by {
+  max-width: 9em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .saved-row-notes {
@@ -197,7 +204,7 @@
   transition: color 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.saved-row-button:hover:not(:disabled) {
+.saved-row-button:hover:not(:disabled, .saved-row-button--disabled) {
   color: var(--accent);
 }
 
@@ -205,7 +212,11 @@
   color: var(--accent);
 }
 
-.saved-row-button:disabled {
+/* The class is for when it needs to look off but still be clickable,
+   e.g. to say why it's off. */
+.saved-row-button:disabled,
+.saved-row-button--disabled {
   color: var(--disabled);
+  background: var(--white-03);
   cursor: not-allowed;
 }

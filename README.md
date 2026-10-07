@@ -8,6 +8,7 @@ image-viewer/      React + TypeScript + OpenLayers frontend. See image-viewer/RE
 tiler/              .NET tile server for .mrxs whole-slide images. See tiler/README.md
 annotation-store/   .NET + Postgres backend for persisted annotations. See annotation-store/README.md
 realtime-hub/       .NET SignalR hub - rooms per slide, live annotation ops and viewports. See realtime-hub/README.md
+auth/               Keycloak (Docker) - sign-in, with a realm and test users. See auth/README.md
 dashboard/          Grafana (Docker) - load, timing and error stats for the services. See dashboard/README.md
 scripts/            Dev scripts - stress-test data, SQL. See scripts/README.md
 docs/               Planning notes - auth, Azure, real-time libraries, sessions, rendering
@@ -21,8 +22,11 @@ PostgreSQL, Git LFS, and recommended VS Code extensions.
 ## Running everything - 3 terminals required
 
 ```bash
+cd auth/             # once - Keycloak keeps running in Docker after this
+docker compose up -d
+
 cd image-viewer/
-npm run dev          # http://localhost:5173 - also reachable from other machines, see below
+npm run dev          # https://localhost:5173 - also reachable from other machines, see below
 
 cd tiler/
 dotnet build && dotnet run --urls http://localhost:5095
@@ -42,9 +46,14 @@ Each service has its own README with more detail. `image-viewer` is wired
 up to both `tiler` (loads a real slide by default) and `annotation-store`
 (annotations persist to Postgres, scoped per slide).
 
+Sign in with one of the test users in [auth/README.md](auth/README.md)
+(`alice`, `bob` or `carol`, password `password`). The viewer uses a
+self-signed certificate, so the browser warns once - sign-in needs https
+anywhere but localhost.
+
 To share it with another machine (LAN or VPN), they open
-`http://<this machine's IP>:5173`. Only port 5173 needs to be reachable -
-the Vite server proxies `/tiler`, `/store` and `/hub` through to the three
+`https://<this machine's IP>:5173`. Only port 5173 needs to be reachable -
+the Vite server proxies `/tiler`, `/store`, `/hub` and `/auth` through to the
 services on localhost (see `image-viewer/vite.config.ts`), so they stay off
 the network and no firewall rules are needed for them. `npm run dev` passes
 `--host`, so Vite already listens on every interface. `vite preview` uses

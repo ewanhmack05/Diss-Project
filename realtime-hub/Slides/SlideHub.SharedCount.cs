@@ -41,14 +41,14 @@ public partial class SlideHub
         if (!double.IsFinite(dot.X) || !double.IsFinite(dot.Y)) throw new HubException("dot needs a finite x and y");
         if (string.IsNullOrWhiteSpace(dot.Colour)) throw new HubException("dot.colour is required");
 
-        var (slideId, stored) = Counting(() => rooms.AddSharedDot(Context.ConnectionId, sharedCountId, dot)) ?? throw NotJoined();
-        await Clients.OthersInGroup(GroupName(slideId)).SharedDotAdded(new SharedDotAdded(sharedCountId, stored));
+        var (roomId, stored) = Counting(() => rooms.AddSharedDot(Context.ConnectionId, sharedCountId, dot)) ?? throw NotJoined();
+        await Clients.OthersInGroup(GroupName(roomId)).SharedDotAdded(new SharedDotAdded(sharedCountId, stored));
     }
 
     public async Task RemoveSharedDot(Guid sharedCountId, Guid dotId)
     {
-        var slideId = Counting(() => rooms.RemoveSharedDot(Context.ConnectionId, sharedCountId, dotId)) ?? throw NotJoined();
-        await Clients.OthersInGroup(GroupName(slideId)).SharedDotRemoved(new SharedDotRemoved(sharedCountId, dotId));
+        var roomId = Counting(() => rooms.RemoveSharedDot(Context.ConnectionId, sharedCountId, dotId)) ?? throw NotJoined();
+        await Clients.OthersInGroup(GroupName(roomId)).SharedDotRemoved(new SharedDotRemoved(sharedCountId, dotId));
     }
 
     // Host only - ends it for everyone.
@@ -59,5 +59,5 @@ public partial class SlideHub
     }
 
     private Task Broadcast(SharedCountChange change) =>
-        Clients.Group(GroupName(change.SlideId)).SharedCountChanged(change.SharedCount);
+        Clients.Group(GroupName(change.RoomId)).SharedCountChanged(change.SharedCount);
 }

@@ -12,15 +12,42 @@ public class AnnotationDbContext(DbContextOptions<AnnotationDbContext> options) 
     public DbSet<RegionOfInterest> RegionsOfInterest => Set<RegionOfInterest>();
     public DbSet<ImageAdjustments.ImageAdjustments> ImageAdjustments => Set<ImageAdjustments.ImageAdjustments>();
     public DbSet<Collections.Collections> Collections => Set<Collections.Collections>();
+    public DbSet<CollectionMember> CollectionMembers => Set<CollectionMember>();
+    public DbSet<CollectionInvite> CollectionInvites => Set<CollectionInvite>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Class name is plural ("Collections"), same EF key-discovery gap as
         // ImageAdjustments below - needs the key spelled out explicitly.
         modelBuilder.Entity<Collections.Collections>().HasKey(c => c.CollectionId);
-        // At most one collection per user per slide - POST /collections/ensure
-        // relies on this to make "get or create" race-safe at the DB level.
-        modelBuilder.Entity<Collections.Collections>().HasIndex(c => new { c.SlideId, c.UserId }).IsUnique();
+        // At most one personal collection per user per slide - POST
+        // /collections/ensure relies on this to make "get or create" race-safe
+        // at the DB level. Sessions aren't limited - you can host as many as
+        // you like. The filter is plain SQL that Postgres and SQLite both take.
+        modelBuilder.Entity<Collections.Collections>().Property(c => c.Kind).HasConversion<string>();
+        modelBuilder.Entity<Collections.Collections>()
+            .HasIndex(c => new { c.SlideId, c.UserId })
+            .IsUnique()
+            .HasFilter("\"Kind\" = 'Personal'");
+
+        modelBuilder.Entity<CollectionInvite>().HasKey(i => i.Code);
+        modelBuilder.Entity<CollectionInvite>().Property(i => i.Role).HasConversion<string>();
+        modelBuilder.Entity<Collections.Collections>()
+            .HasMany(c => c.Invites)
+            .WithOne()
+            .HasForeignKey(i => i.CollectionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // One row per person per collection. Role as text so the table
+        // reads plainly in pgAdmin.
+        modelBuilder.Entity<CollectionMember>().HasKey(m => new { m.CollectionId, m.UserId });
+        modelBuilder.Entity<CollectionMember>().HasIndex(m => m.UserId);
+        modelBuilder.Entity<CollectionMember>().Property(m => m.Role).HasConversion<string>();
+        modelBuilder.Entity<Collections.Collections>()
+            .HasMany(c => c.Members)
+            .WithOne()
+            .HasForeignKey(m => m.CollectionId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<Annotation>().HasIndex(a => a.SlideId);
         modelBuilder.Entity<Annotation>().HasIndex(a => a.CollectionId);

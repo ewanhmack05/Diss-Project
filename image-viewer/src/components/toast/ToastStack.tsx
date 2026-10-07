@@ -11,6 +11,23 @@ function ToastStack() {
       {toasts.map((toast) => (
         <div key={toast.id} className={`toast toast--${toast.variant}`} role="status">
           <span className="toast-message">{toast.message}</span>
+          {toast.actions.length > 0 && (
+            <div className="toast-actions">
+              {toast.actions.map((action) => (
+                <button
+                  key={action.label}
+                  type="button"
+                  className={`toast-action${action.primary ? ' toast-action--primary' : ''}`}
+                  onClick={() => {
+                    removeToast(toast.id)
+                    action.onClick?.()
+                  }}
+                >
+                  {action.label}
+                </button>
+              ))}
+            </div>
+          )}
           <button
             type="button"
             className="toast-dismiss"

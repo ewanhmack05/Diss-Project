@@ -4,6 +4,11 @@ import type OlMap from 'ol/Map'
 import View from 'ol/View'
 import {
   applyOp,
+  followView,
+  leaderOf,
+  panelChanges,
+  tabChanges,
+  sameView,
   debounce,
   docStateFromWire,
   fromBase64,
@@ -12,6 +17,7 @@ import {
   viewportFrom,
   viewportRing,
   watchView,
+  type Participant,
 } from './realtime'
 
 describe('applyOp', () => {
@@ -241,5 +247,65 @@ describe('throttle flush', () => {
     expect(fn.mock.calls).toEqual([['a'], ['b']])
     vi.advanceTimersByTime(200)
     expect(fn).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('following the host', () => {
+  const someone = (overrides: Partial<Participant>): Participant => ({
+    connectionId: 'c',
+    roomId: 'r',
+    userId: 'u',
+    displayName: 'Someone',
+    colour: '#000',
+    joined: '2026-10-07T00:00:00Z',
+    host: false,
+    canEdit: true,
+    viewport: null,
+    sketches: null,
+    screen: null,
+    ...overrides,
+  })
+  const hostView = { center: [500, 500] as [number, number], resolution: 2, rotation: 0.5, extent: [0, 100, 1000, 900] as [number, number, number, number] }
+
+  it('follows the host once they have said where they are', () => {
+    const host = someone({ connectionId: 'h', host: true, viewport: hostView })
+    expect(leaderOf([someone({}), someone({ host: true })])).toBeNull()
+    expect(leaderOf([someone({}), host])).toBe(host)
+  })
+
+  it('fits the host view onto a different screen', () => {
+    // Host sees 1000 x 800 map units. A 500 x 800 screen needs 2 per pixel
+    // to fit the width, a 2000 x 400 one needs 2 to fit the height.
+    expect(followView(hostView, [500, 800])).toEqual({ center: [500, 500], resolution: 2, rotation: 0.5 })
+    expect(followView(hostView, [2000, 400]).resolution).toBe(2)
+    expect(followView(hostView, [2000, 1600]).resolution).toBe(0.5)
+  })
+
+  it('treats the same place as not having moved', () => {
+    const at = { center: [100, 100] as [number, number], resolution: 4, rotation: -0.5 }
+    expect(sameView({ ...at, rotation: -0.5 + 2 * Math.PI }, at)).toBe(true)
+    expect(sameView({ ...at, center: [101, 100] }, at)).toBe(true)
+    expect(sameView({ ...at, center: [110, 100] }, at)).toBe(false)
+    expect(sameView({ ...at, resolution: 5 }, at)).toBe(false)
+    expect(sameView({ ...at, rotation: 0 }, at)).toBe(false)
+  })
+
+  it('copies panel changes, but never the RealTime panel', () => {
+    expect(panelChanges([], ['ruler', 'realtime'])).toEqual({ open: ['ruler'], close: [] })
+    expect(panelChanges(['ruler', 'annotations'], ['annotations', 'cellcount'])).toEqual({
+      open: ['cellcount'],
+      close: ['ruler'],
+    })
+    expect(panelChanges(['realtime'], [])).toEqual({ open: [], close: [] })
+  })
+})
+
+describe('tabChanges', () => {
+  it('gives the tabs the host has moved to, but never the RealTime panel', () => {
+    expect(tabChanges({}, { annotations: 'saved' })).toEqual([['annotations', 'saved']])
+    expect(tabChanges({ annotations: 'saved', cellcount: 'new' }, { annotations: 'saved', cellcount: 'saved' })).toEqual([
+      ['cellcount', 'saved'],
+    ])
+    expect(tabChanges({}, { realtime: 'x' })).toEqual([])
   })
 })

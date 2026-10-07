@@ -1,4 +1,5 @@
 using AnnotationStore.Annotations;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
@@ -43,6 +44,10 @@ public class CellCountApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
             services.RemoveAll<DbContextOptions<AnnotationDbContext>>();
             services.RemoveAll<IDbContextOptionsConfiguration<AnnotationDbContext>>();
             services.AddDbContext<AnnotationDbContext>(options => options.UseSqlite(_connection));
+
+            // No Keycloak in tests - see TestAuthHandler.
+            services.AddAuthentication(TestAuthHandler.Scheme)
+                .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.Scheme, _ => { });
 
             using var scope = services.BuildServiceProvider().CreateScope();
             scope.ServiceProvider.GetRequiredService<AnnotationDbContext>().Database.EnsureCreated();

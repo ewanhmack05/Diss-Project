@@ -21,15 +21,8 @@ public class CellCountRegionOfInterestTests : IClassFixture<CellCountApiFactory>
         _factory = factory;
     }
 
-    private static async Task<Guid> CreateCollectionAsync(HttpClient client, string slideId)
-    {
-        var response = await client.PostAsJsonAsync(
-            "/collections/ensure",
-            new Collections.Collections { SlideId = slideId, UserId = "001" });
-        response.EnsureSuccessStatusCode();
-        var created = await response.Content.ReadFromJsonAsync<Collections.Collections>();
-        return created!.CollectionId;
-    }
+    private static Task<Guid> CreateCollectionAsync(HttpClient client, string slideId) =>
+        TestJson.EnsureCollectionAsync(client, slideId);
 
     private static CellCount NewCellCount(Guid collectionId, RegionOfInterest? roi = null) => new()
     {
@@ -120,6 +113,20 @@ public class CellCountRegionOfInterestTests : IClassFixture<CellCountApiFactory>
         Assert.Equal(2, cellCounts!.Count);
         Assert.Single(cellCounts, c => c.RegionOfInterest is not null);
         Assert.Single(cellCounts, c => c.RegionOfInterest is null);
+    }
+
+    [Fact]
+    public async Task Post_RecordsWhoSavedIt_FromTheToken()
+    {
+        var client = TestAuthHandler.As(_factory.CreateClient(), "bob", "Bob Hughes");
+        var collectionId = await CreateCollectionAsync(client, Guid.NewGuid().ToString());
+        var payload = NewCellCount(collectionId);
+        payload.CreatedById = "someone-else";
+
+        var created = await (await client.PostAsJsonAsync("/cellcounts", payload)).Content.ReadFromJsonAsync<CellCount>();
+
+        Assert.Equal("bob", created!.CreatedById);
+        Assert.Equal("Bob Hughes", created.CreatedByName);
     }
 
     [Fact]

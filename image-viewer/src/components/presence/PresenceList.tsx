@@ -1,4 +1,7 @@
 import { useRealtimeContext } from '../../context/RealtimeContext'
+import { useNavigationContext } from '../../context/NavigationContext'
+import { useEmitEvent } from '../../context/EventContext'
+import { sketchFor } from '../realtime/realtime'
 import './PresenceList.css'
 
 const STATUS_TEXT = {
@@ -7,15 +10,71 @@ const STATUS_TEXT = {
   offline: 'Offline',
 } as const
 
-// Who else is on this slide - a chip each, in the same colour as their
-// viewport outline on the map. Hidden when realtime is switched off.
+// The host asking everyone to look where they are. Not in Present, where
+// everyone already is.
+function LookHereButton() {
+  const { status, me, others, navigation, askToLook } = useRealtimeContext()
+  const emit = useEmitEvent()
+  if (!me?.host || others.length === 0 || navigation === 'present') return null
+
+  return (
+    <button
+      type="button"
+      className="presence-chip presence-look"
+      disabled={status !== 'connected'}
+      title="Ask everyone to look where you are"
+      onClick={() =>
+        askToLook(null)
+          .then(() => emit('request:sent'))
+          .catch(() => emit('request:error'))
+      }
+    >
+      Look here
+    </button>
+  )
+}
+
+// Whether you're following the host, or they're following you.
+function NavigationChip() {
+  const { me } = useRealtimeContext()
+  const { mode, leader, following, breakAway, followAgain } = useNavigationContext()
+
+  if (mode === 'free') return null
+  if (me?.host) {
+    return (
+      <span className="presence-chip presence-chip--leading">
+        {mode === 'present' ? "You're presenting" : 'Everyone is following you'}
+      </span>
+    )
+  }
+  if (!leader) return null
+  if (mode === 'present') {
+    return (
+      <span className="presence-chip presence-chip--leading" style={{ borderColor: leader.colour }}>
+        {leader.displayName} is presenting
+        {sketchFor(leader, 'cellCount') && ` · counting ${sketchFor(leader, 'cellCount')!.data.count}`}
+      </span>
+    )
+  }
+  return (
+    <span className="presence-chip presence-chip--leading" style={{ borderColor: leader.colour }}>
+      {following ? `Following ${leader.displayName}` : `${leader.displayName} is leading`}
+      <button type="button" className="presence-chip-button" onClick={following ? breakAway : followAgain}>
+        {following ? 'Stop' : 'Follow'}
+      </button>
+    </span>
+  )
+}
+
+// Who else is in the session - a chip each, in the same colour as their
+// viewport outline on the map. Hidden working alone, or with realtime off.
 function PresenceList() {
   const { status, me, others } = useRealtimeContext()
 
-  if (status === 'off') return null
+  if (status === 'off' || status === 'alone') return null
 
   return (
-    <div className="presence-list" aria-label="People on this slide">
+    <div className="presence-list" aria-label="People in this session">
       {status !== 'connected' && <span className="presence-status">{STATUS_TEXT[status]}</span>}
       {me && (
         <span className="presence-chip presence-chip--me" title="You">
@@ -29,6 +88,8 @@ function PresenceList() {
           {participant.displayName}
         </span>
       ))}
+      <NavigationChip />
+      <LookHereButton />
     </div>
   )
 }

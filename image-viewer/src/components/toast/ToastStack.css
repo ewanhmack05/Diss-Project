@@ -37,6 +37,37 @@
   font-size: 0.9em;
 }
 
+.toast--info {
+  border-left-color: var(--chrome-text-secondary);
+}
+
+.toast-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.35em;
+}
+
+.toast-action {
+  padding: 0.3em 0.6em;
+  font-family: var(--sans);
+  font-size: 0.8em;
+  font-weight: 600;
+  color: var(--chrome-text);
+  background: var(--white-08);
+  border: none;
+  border-radius: 0.3125rem;
+  cursor: pointer;
+}
+
+.toast-action:hover,
+.toast-action:focus-visible {
+  background: var(--white-10);
+}
+
+.toast-action--primary {
+  color: var(--accent);
+}
+
 .toast-dismiss {
   flex-shrink: 0;
   padding: 0 0.25em;

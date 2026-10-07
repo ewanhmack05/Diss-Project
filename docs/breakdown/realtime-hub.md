@@ -15,9 +15,9 @@ how it all fits together.
 
 1. [Where it sits](#1-where-it-sits)
 2. [Files](#2-files)
-3. [One room per slide](#3-one-room-per-slide)
+3. [One room per session](#3-one-room-per-session)
 4. [Seven kinds of traffic](#4-seven-kinds-of-traffic)
-5. [Joining a slide](#5-joining-a-slide)
+5. [Joining a session](#5-joining-a-session)
 6. [Drawing an annotation](#6-drawing-an-annotation)
 7. [Two people typing in the same box](#7-two-people-typing-in-the-same-box)
 8. [Comparison count](#8-comparison-count)
@@ -66,7 +66,7 @@ annotation-store's data model changes.
 | File                                                              | What it does                                                                                                                                                                                                                  |
 | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [Program.cs](../../realtime-hub/Program.cs)                       | Startup. Registers SignalR at `/hubs/slides`, raises the max message size to 1MB, allows any origin (CORS) for when it's called directly rather than through the viewer's proxy, wires up OpenTelemetry, and adds five read-only HTTP endpoints for debugging. |
-| [Slides/SlideHub.cs](../../realtime-hub/Slides/SlideHub.cs), [SlideHub.SharedCount.cs](../../realtime-hub/Slides/SlideHub.SharedCount.cs) | The hub. Every method a browser can call lives here (`JoinSlide`, `UpdateViewport`, `OpenDoc` ...). Validates input, updates the room state, then broadcasts to the right group.                                               |
+| [Slides/SlideHub.cs](../../realtime-hub/Slides/SlideHub.cs), [SlideHub.SharedCount.cs](../../realtime-hub/Slides/SlideHub.SharedCount.cs) | The hub. Every method a browser can call lives here (`JoinSession`, `UpdateViewport`, `OpenDoc` ...). Validates input, updates the room state, then broadcasts to the right group.                                               |
 | [Slides/SlideRooms.cs](../../realtime-hub/Slides/SlideRooms.cs), [SharedCounts.cs](../../realtime-hub/Slides/SharedCounts.cs) | The in-memory state: which connections are in which slide, their viewports and sketches, the op counter, the shared text docs, the comparison count and the shared count. Everything goes through one lock, so it's thread safe.                                      |
 | [Slides/Messages.cs](../../realtime-hub/Slides/Messages.cs)       | The wire format. A C# record for every message shape, plus a JSON setting so enums go over the wire as `"create"` rather than `0`.                                                                                            |
 | [Tests/SlideHubTests.cs](../../realtime-hub/Tests/SlideHubTests.cs) | 29 integration tests. They boot the real app in memory and connect real SignalR clients to it.                                                                                                                              |
@@ -77,10 +77,14 @@ On the viewer side the matching code is
 [components/realtime/](../../image-viewer/src/components/realtime) (message
 types, sketches and shared text fields).
 
-## 3. One room per slide
+## 3. One room per session
 
-Everyone looking at the same slide is in the same **room**. A room is made
-when the first person joins and thrown away when the last person leaves.
+A **room** is one session - a collection people work in together, started
+by a host and joined through invite links (see
+[thought-process.md](../thought-process.md#collections)). The room's id is
+the session's collection id. Working alone, the viewer doesn't connect at
+all. A room is made when the first person joins and thrown away when the
+last person leaves.
 Nothing survives a restart, which is fine because clients reconnect and
 rejoin on their own.
 
@@ -91,21 +95,21 @@ Room
  ├─ Participants   connectionId → Participant (name, colour, viewport, sketch)
  ├─ Docs           docId → SharedDoc (list of Yjs updates, list of editors)
  ├─ Seq            counter, goes up by 1 for every annotation op
- ├─ Comparison     the comparison count running on this slide, if any
- └─ SharedCount    the shared count running on this slide, if any
+ ├─ Comparison     the comparison count running in this room, if any
+ └─ SharedCount    the shared count running in this room, if any
 ```
 
 Rules that fall out of this:
 
 - **A participant is a connection, not a user.** The same person in two
-  tabs shows up twice. A connection can only be in one slide at a time -
-  joining another slide moves it.
+  tabs shows up twice. A connection can only be in one room at a time -
+  joining another moves it.
 - **Each participant gets a colour** from a fixed palette of 10. The hub
   picks the first one nobody in the room has, and wraps round past 10
   people.
-- **SignalR groups do the broadcasting.** Each slide is a group called
-  `slide:{slideId}`, and each open text doc is its own smaller group
-  `doc:{slideId}:{docId}`, so typing in one annotation's notes only goes to
+- **SignalR groups do the broadcasting.** Each room is a group called
+  `room:{roomId}`, and each open text doc is its own smaller group
+  `doc:{roomId}:{docId}`, so typing in one annotation's notes only goes to
   the people who have that annotation open.
 - **Nothing is echoed back.** Every broadcast uses `OthersInGroup`, so the
   sender never gets its own message. The exceptions are
@@ -120,12 +124,12 @@ differently on purpose.
 
 | Kind              | Example                                              | Hub method                               | Kept on hub?                     | Conflicts                                     |
 | ----------------- | ---------------------------------------------------- | ---------------------------------------- | -------------------------------- | --------------------------------------------- |
-| **Presence**      | "Guest 3f2a joined"                                  | `JoinSlide`, `LeaveSlide`                | Yes, while connected             | None needed                                   |
+| **Presence**      | "Alice Moore joined"                                 | `JoinSession`, `LeaveSession`            | Yes, while connected             | None needed                                   |
 | **Viewport**      | The box on the map showing where someone is looking  | `UpdateViewport`                         | Latest only                      | Latest wins. Max 10 a second                  |
 | **Sketch**        | A shape someone is part way through drawing          | `UpdateSketch`                           | Latest only, cleared on finish   | Latest wins. Never saved                      |
 | **Annotation op** | Create, update or delete an annotation or cell count | `SendAnnotationOp`                       | No, just stamped with a number   | Last write wins, ordered by `seq`             |
 | **Shared doc**    | Two people typing in the same label or notes box     | `OpenDoc`, `SendDocUpdate`, `CloseDoc`   | Yes, while anyone has it open    | Merged character by character with Yjs       |
-| **Comparison**    | Everyone counting the same region, then comparing    | `StartComparison`, `JoinComparison`, `SubmitComparison`, `LeaveComparison` | Yes, until everyone's left it | Hub owns the state, one at a time per slide |
+| **Comparison**    | Everyone counting the same region, then comparing    | `StartComparison`, `JoinComparison`, `SubmitComparison`, `LeaveComparison` | Yes, until everyone's left it | Hub owns the state, one at a time per room |
 | **Shared count**  | Everyone adding to one count at once                 | `StartSharedCount`, `AddSharedDot`, `RemoveSharedDot`, `FinishSharedCount` ... | Yes, until it's finished | Each dot has one owner, so nothing to merge |
 
 Why two conflict strategies? Two people dragging the same polygon at the
@@ -139,27 +143,29 @@ Events the hub sends to browsers:
 
 | Event               | Sent when                                                             |
 | ------------------- | --------------------------------------------------------------------- |
-| `UserJoined`        | Someone joins your slide                                              |
-| `UserLeft`          | Someone leaves, switches slide or drops                               |
+| `UserJoined`        | Someone joins your session's room                                     |
+| `UserLeft`          | Someone leaves, switches session or drops                             |
 | `ViewportUpdated`   | Someone else pans, zooms or rotates                                   |
 | `SketchUpdated`     | Someone else draws, or finishes (`sketch: null`)                      |
 | `AnnotationOp`      | Someone else creates, changes or deletes an annotation or cell count  |
 | `DocUpdated`        | Another editor types in a text doc you have open                      |
 | `DocEditorsChanged` | Someone opens or closes a doc you have open (the "also editing" list) |
-| `ComparisonChanged` | Anything about the slide's comparison count changes                   |
+| `ComparisonChanged` | Anything about the room's comparison count changes                    |
 | `SharedCountChanged` | Someone starts, joins or leaves the shared count, or it ends         |
 | `SharedDotAdded` / `SharedDotRemoved` | Someone else adds or takes back a shared count dot  |
 
-## 5. Joining a slide
+## 5. Joining a session
 
 ```mermaid
 sequenceDiagram
   participant B as Viewer B (new)
   participant H as realtime-hub
   participant A as Viewer A (already there)
+  participant S as annotation-store
   B->>H: connect WebSocket /hubs/slides
-  B->>H: JoinSlide(slideId, userId, "Guest 3f2a")
-  Note over H: leave any old slide first<br/>create room if needed<br/>pick a free colour
+  B->>H: JoinSession(roomId) - who B is comes from their token
+  H->>S: GET /collections/{roomId}/membership (B's token)
+  Note over H: in it and still going?<br/>leave any old room first<br/>create room if needed<br/>pick a free colour
   H-->>A: UserJoined(B)
   H-->>B: JoinResult { me, others, seq }
   Note over B: others has A's current viewport<br/>and sketch, so B sees them straight away
@@ -169,9 +175,12 @@ sequenceDiagram
 
 1. The viewer opens a SignalR connection to `/hubs/slides`. SignalR uses
    WebSockets and falls back to other transports if it has to.
-2. It calls `JoinSlide`. There's no login yet, so each tab makes up a guest
-   id and keeps it in `sessionStorage` - a reload is the same person, a
-   second tab is a new one.
+2. It calls `JoinSession` with the session's collection id. The connection
+   already carries the user's Keycloak token (as `?access_token=`), and the
+   hub takes their id and name from it rather than from anything the browser
+   says. It asks annotation-store, with that same token, whether they're in
+   the session and it's still going - annotation-store owns who's in what,
+   so the hub keeps no list of its own (`Slides/SessionAccess.cs`).
 3. The hub adds the connection to the room and the SignalR group, tells
    everyone else `UserJoined`, and returns a `JoinResult`: you, everyone
    already there (with their last viewport and sketch), and the room's
@@ -280,7 +289,7 @@ byte arrays and relays new ones. The doc id looks like
   500ms after typing stops. Remote changes trigger a save too, so whoever
   saves last always writes the fully merged text.
 
-`GET /rooms/{slideId}/docs` shows each open doc's editor count, number of
+`GET /rooms/{roomId}/docs` shows each open doc's editor count, number of
 updates and total bytes, for measuring doc growth during evaluation.
 
 ## 8. Comparison count
@@ -415,7 +424,7 @@ viewer through React context.
   realtime.
 - **Reconnect.** SignalR's automatic reconnect handles short drops. A
   reconnect is a new connection id to the hub, so the viewer calls
-  `JoinSlide` again and re-sends its last viewport and sketch. If automatic
+  `JoinSession` again and re-sends its last viewport and sketch. If automatic
   reconnect gives up, a retry loop takes over, starting at 2s and doubling up
   to 30s. Only the first failure shows a toast.
 - **Rate limits.** Viewport and sketch sends are throttled to one per 100ms.
@@ -431,19 +440,19 @@ viewer through React context.
 | Max SignalR message     | 1MB                                                            | The 32KB default silently dropped long freehand annotations                 |
 | Max doc update or seed  | 64KB                                                           | Label and notes are short. Stops one client filling the hub's memory       |
 | Max doc id length       | 128 chars                                                      | Same reason                                                                 |
-| Required fields         | slideId, userId, op id, op data (not delete), sketch tool/data | A bad call throws a `HubException` back to the caller only, never to others |
-| Must join first         | Every method except `JoinSlide`                                | "Join a slide first"                                                        |
+| Required fields         | roomId, op id, op data (not delete), sketch tool/data          | A bad call throws a `HubException` back to the caller only, never to others |
+| Must join first         | Every method except `JoinSession`                              | "Join a session first"                                                      |
 | Must open doc first     | `SendDocUpdate`                                                | "Open the doc first"                                                        |
 | Comparison ROI          | 16K chars                                                      | Only ever a box                                                             |
 | Comparison dots         | 10,000, finite x and y                                         | Far more than anyone clicks by hand                                         |
 | Shared count dots       | 10,000, finite x and y, a colour and a unique id               | Same reason                                                                 |
-| Comparison state        | Join from invited, submit from counting, one running per slide | The reason comes back as a `HubException`                                   |
+| Comparison state        | Join from invited, submit from counting, one running per room  | The reason comes back as a `HubException`                                   |
 | Shared count state      | Add/remove once joined, remove only your own, finish host only | Same                                                                        |
 
 **Debug endpoints:** `GET /rooms` (slide → number of people),
-`GET /rooms/{slideId}` (who's in it), `GET /rooms/{slideId}/docs` (open text
-docs), `GET /rooms/{slideId}/comparison` (the running comparison, blind like
-over the hub), `GET /rooms/{slideId}/sharedcount` (the running shared count). In Development there's also Scalar at `/scalar`.
+`GET /rooms/{roomId}` (who's in it), `GET /rooms/{roomId}/docs` (open text
+docs), `GET /rooms/{roomId}/comparison` (the running comparison, blind like
+over the hub), `GET /rooms/{roomId}/sharedcount` (the running shared count). In Development there's also Scalar at `/scalar`.
 
 **Telemetry:** traces, metrics and logs go to the same Grafana dashboard as
 the other services, including each hub method call and the number of open
@@ -451,10 +460,9 @@ connections. If Grafana isn't running nothing breaks.
 
 ## 12. Known gaps
 
-- **No auth.** The hub trusts whatever user id the browser sends. Users are
-  "Guest xxxx" for now. Sessions, invite links and host / editor / viewer
-  roles are next (likely Keycloak, see [auth.md](../auth.md) and
-  [thought-process.md](../thought-process.md)).
+- **No guest links yet.** Everyone signs in with Keycloak. Invite links
+  for people without an account, and host / editor / viewer roles for a
+  session, are next (see [thought-process.md](../thought-process.md)).
 - **One copy only.** State is in memory, so two copies of the hub would
   split users between them. Scaling out needs a Redis backplane or Azure
   SignalR Service.

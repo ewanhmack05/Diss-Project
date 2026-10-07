@@ -22,22 +22,24 @@ public partial class SlideRooms
             Contributors[Contributors.FindIndex(c => c.ConnectionId == contributor.ConnectionId)] = contributor;
     }
 
-    // Everyone else in the slide is invited. Null if the connection isn't in a slide.
+    // Everyone else in the room who can edit is invited. Null if the connection isn't in a room.
     public SharedCountChange? StartSharedCount(string connectionId, SharedCountSettings settings)
     {
         lock (_lock)
         {
-            if (!_slideByConnection.TryGetValue(connectionId, out var slideId)) return null;
-            var room = _rooms[slideId];
+            if (!_roomByConnection.TryGetValue(connectionId, out var roomId)) return null;
+            var room = _rooms[roomId];
             if (room.SharedCount is not null) throw new CountException("A shared count is already running");
+            if (!room.Participants[connectionId].CanEdit) throw new CountException(ViewOnly);
 
             var state = new SharedCountState(Guid.NewGuid(), connectionId, settings);
             state.Contributors.AddRange(room.Participants.Values
+                .Where(p => p.CanEdit)
                 .OrderBy(p => p.ConnectionId == connectionId ? 0 : 1)
                 .Select(p => new Contributor(p.ConnectionId, p.UserId, p.DisplayName, p.Colour,
                     p.ConnectionId == connectionId ? ContributorState.Joined : ContributorState.Invited)));
             room.SharedCount = state;
-            return new SharedCountChange(slideId, state.Snapshot());
+            return new SharedCountChange(roomId, state.Snapshot());
         }
     }
 
@@ -46,13 +48,13 @@ public partial class SlideRooms
     {
         lock (_lock)
         {
-            if (!_slideByConnection.TryGetValue(connectionId, out var slideId)) return null;
-            var state = CurrentShared(_rooms[slideId], sharedCountId);
+            if (!_roomByConnection.TryGetValue(connectionId, out var roomId)) return null;
+            var state = CurrentShared(_rooms[roomId], sharedCountId);
             var me = state.Find(connectionId) ?? throw new CountException("You're not invited to that shared count");
             if (me.State == ContributorState.Joined) throw new CountException("You're already in that shared count");
 
             state.Set(me with { State = ContributorState.Joined });
-            return new SharedCountChange(slideId, state.Snapshot());
+            return new SharedCountChange(roomId, state.Snapshot());
         }
     }
 
@@ -61,26 +63,26 @@ public partial class SlideRooms
     {
         lock (_lock)
         {
-            if (!_slideByConnection.TryGetValue(connectionId, out var slideId)) return null;
-            var room = _rooms[slideId];
+            if (!_roomByConnection.TryGetValue(connectionId, out var roomId)) return null;
+            var room = _rooms[roomId];
             if (room.SharedCount?.Id != sharedCountId) return null;
-            return RemoveContributor(room, connectionId) ? new SharedCountChange(slideId, room.SharedCount?.Snapshot()) : null;
+            return RemoveContributor(room, connectionId) ? new SharedCountChange(roomId, room.SharedCount?.Snapshot()) : null;
         }
     }
 
     // Returns the dot as stored, with who placed it. Null if not in a slide.
-    public (string SlideId, SharedDot Dot)? AddSharedDot(string connectionId, Guid sharedCountId, SharedDot dot)
+    public (string RoomId, SharedDot Dot)? AddSharedDot(string connectionId, Guid sharedCountId, SharedDot dot)
     {
         lock (_lock)
         {
-            if (!_slideByConnection.TryGetValue(connectionId, out var slideId)) return null;
-            var state = JoinedShared(_rooms[slideId], sharedCountId, connectionId);
+            if (!_roomByConnection.TryGetValue(connectionId, out var roomId)) return null;
+            var state = JoinedShared(_rooms[roomId], sharedCountId, connectionId);
             if (state.Dots.Count >= SlideHub.MaxSharedDots) throw new CountException($"The shared count is full ({SlideHub.MaxSharedDots} dots)");
             if (state.Dots.Any(d => d.Id == dot.Id)) throw new CountException("That dot is already there");
 
             var stored = dot with { ConnectionId = connectionId };
             state.Dots.Add(stored);
-            return (slideId, stored);
+            return (roomId, stored);
         }
     }
 
@@ -89,14 +91,14 @@ public partial class SlideRooms
     {
         lock (_lock)
         {
-            if (!_slideByConnection.TryGetValue(connectionId, out var slideId)) return null;
-            var state = JoinedShared(_rooms[slideId], sharedCountId, connectionId);
+            if (!_roomByConnection.TryGetValue(connectionId, out var roomId)) return null;
+            var state = JoinedShared(_rooms[roomId], sharedCountId, connectionId);
             var index = state.Dots.FindIndex(d => d.Id == dotId);
             if (index < 0) throw new CountException("That dot isn't there");
             if (state.Dots[index].ConnectionId != connectionId) throw new CountException("You can only remove your own dots");
 
             state.Dots.RemoveAt(index);
-            return slideId;
+            return roomId;
         }
     }
 
@@ -105,21 +107,21 @@ public partial class SlideRooms
     {
         lock (_lock)
         {
-            if (!_slideByConnection.TryGetValue(connectionId, out var slideId)) return null;
-            var room = _rooms[slideId];
+            if (!_roomByConnection.TryGetValue(connectionId, out var roomId)) return null;
+            var room = _rooms[roomId];
             var state = CurrentShared(room, sharedCountId);
             if (state.Host != connectionId) throw new CountException("Only the host can finish the shared count");
 
             room.SharedCount = null;
-            return new SharedCountChange(slideId, null);
+            return new SharedCountChange(roomId, null);
         }
     }
 
-    public SharedCount? SharedCountInSlide(string slideId)
+    public SharedCount? SharedCountInRoom(string roomId)
     {
         lock (_lock)
         {
-            return _rooms.TryGetValue(slideId, out var room) ? room.SharedCount?.Snapshot() : null;
+            return _rooms.TryGetValue(roomId, out var room) ? room.SharedCount?.Snapshot() : null;
         }
     }
 

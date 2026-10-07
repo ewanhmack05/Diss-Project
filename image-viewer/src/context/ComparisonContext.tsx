@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Comparison, Counter } from '../components/realtime/realtime'
 import { useRealtimeContext } from './RealtimeContext'
+import { useCollectionContext } from './CollectionContext'
 import { useCellCountDrawContext } from './CellCountDrawContext'
 import { useToolbarContext } from './ToolbarContext'
 import { useEmitEvent } from './EventContext'
@@ -121,7 +122,10 @@ function ComparisonContextProvider({ children }: { children: ReactNode }) {
   }, [counting])
 
   const busy = counting || pending !== null
-  const canHost = status === 'connected' && others.length > 0 && (!comparison || comparison.revealed) && !busy
+  // View only can't count, so they can't start one or be asked into one.
+  const { canEdit } = useCollectionContext()
+  const canHost =
+    status === 'connected' && canEdit && others.some((p) => p.canEdit) && (!comparison || comparison.revealed) && !busy
 
   // Same set up for host and joiner - comparing needs the dots, and
   // everyone needs to be in the same box.
