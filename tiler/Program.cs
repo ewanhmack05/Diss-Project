@@ -6,6 +6,9 @@ using Scalar.AspNetCore;
 using SkiaSharp;
 using Tiler.Slides;
 
+// Before anything opens a slide - see the class for why.
+OpenSlideNative.Register();
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton<SlideCatalog>();

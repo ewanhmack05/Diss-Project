@@ -9,13 +9,21 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
     <PackageReference Include="OpenSlideSharp" Version="1.1.2" />
-    <PackageReference Include="OpenSlideSharp.runtime.win" Version="1.1.2" />
     <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.18.0" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.18.0" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.18.0" />
     <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.18.0" />
     <PackageReference Include="Scalar.AspNetCore" Version="2.17.3" />
     <PackageReference Include="SkiaSharp" Version="4.152.0" />
+    <!-- Skia's Linux native library, for the container. The NoDependencies
+         one skips fontconfig, which only text drawing needs. -->
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.152.0" />
+  </ItemGroup>
+
+  <!-- OpenSlide's Windows DLLs. Linux uses the distro's OpenSlide instead
+       (see Dockerfile and Slides/OpenSlideNative.cs). -->
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <PackageReference Include="OpenSlideSharp.runtime.win" Version="1.1.2" />
   </ItemGroup>
 
 </Project>

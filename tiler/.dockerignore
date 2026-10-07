@@ -1,0 +1,9 @@
+bin/
+obj/
+*.log
+Properties/
+appsettings.Development.json
+# Only slide 003 goes in the image.
+data/*
+!data/003.mrxs
+!data/003/
