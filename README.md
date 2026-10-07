@@ -94,6 +94,8 @@ Todos and notes, split by area, in [docs/](docs):
 | [Rendering](docs/rendering.md)             | WebGPU question, what's on WebGL now, what the panning delay turned out to be     |
 | [Breakdowns](docs/breakdown)               | per-service walkthroughs of how each one works - [realtime-hub](docs/breakdown/realtime-hub.md) so far |
 
+### Data
+All example slide data has been sourced from https://openslide.cs.cmu.edu/download/openslide-testdata/Mirax/
 ## Playback videos
 
 Per tab videos:
