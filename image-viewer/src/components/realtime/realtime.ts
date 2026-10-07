@@ -4,6 +4,7 @@
 import type OlMap from 'ol/Map'
 import type View from 'ol/View'
 import type { LineStyleName, ShapeTool } from '../annotation/Tools'
+import type { ImageAdjustmentValues } from '../adjustments/adjustments'
 
 type Coord = [number, number]
 
@@ -18,18 +19,75 @@ interface Viewport {
 
 interface Participant {
   connectionId: string
-  slideId: string
+  // The session's collection id - see CollectionContext.
+  roomId: string
   userId: string
   displayName: string
   colour: string
   joined: string
+  // Whether they own the session, and whether they're more than view only -
+  // only they get asked into counts.
+  host: boolean
+  canEdit: boolean
   viewport: Viewport | null
-  sketch: Sketch | null
+  // What they're part way through, one per tool - see sketchFor.
+  sketches: Partial<Record<SketchTool, Sketch>> | null
+  screen: Screen | null
+}
+
+// What's on someone's screen besides the map, for Present. tabs is which
+// tab each panel is on, by panel id. viewedCellCountId is a saved count
+// shown on the map. The two being edited are only for telling view-only
+// watchers what the host is up to - nobody else gets put into editing.
+// The hub never looks inside.
+interface Screen {
+  panels: string[]
+  tabs: Record<string, string>
+  adjustments: ImageAdjustmentValues | null
+  viewedCellCountId: string | null
+  editingAnnotationId: string | null
+  editingCellCountId: string | null
+}
+
+// How everyone moves round the slide - see the hub's NavigationMode.
+type NavigationMode = 'free' | 'follow' | 'present'
+
+// The host asking you to do something - you can always say no.
+type HostRequest = { fromConnectionId: string; fromName: string } & (
+  | { kind: 'look'; data: Viewport }
+  | { kind: 'openPanel'; data: { panel: string } }
+)
+
+interface ScreenUpdate {
+  connectionId: string
+  screen: Screen
 }
 
 // Something someone is part way through drawing. The hub never looks
 // inside data, it just passes it on and keeps the latest for late joiners.
-type Sketch = { tool: 'annotation'; data: AnnotationSketch }
+type Sketch =
+  | { tool: 'annotation'; data: AnnotationSketch }
+  | { tool: 'ruler'; data: RulerSketch }
+  | { tool: 'cellCount'; data: CellCountSketch }
+
+// The host's count as it goes, for everyone watching them present. count
+// is the tally - it can be more than the dots, since a count can be taken
+// without placing any.
+interface CellCountSketch {
+  dots: { x: number; y: number; colour: string }[]
+  dotSize: number
+  count: number
+  roiGeoJson: string | null
+}
+
+// A measuring line, end to end in map units. Done once they let go - it
+// stays up for everyone until they clear it or start another. The distance
+// isn't sent, everyone works it out from the same slide.
+interface RulerSketch {
+  from: Coord
+  to: Coord
+  done: boolean
+}
 
 interface AnnotationSketch {
   shape: ShapeTool
@@ -39,9 +97,19 @@ interface AnnotationSketch {
   geoJson: string
 }
 
+type SketchTool = Sketch['tool']
+
+// Null once they finish or give up with that tool.
 interface SketchUpdate {
   connectionId: string
+  tool: SketchTool
   sketch: Sketch | null
+}
+
+// Someone's sketch for one tool, typed for that tool.
+function sketchFor<T extends SketchTool>(participant: Participant, tool: T): Extract<Sketch, { tool: T }> | null {
+  const sketch = participant.sketches?.[tool]
+  return sketch?.tool === tool ? (sketch as Extract<Sketch, { tool: T }>) : null
 }
 
 // Shared docs carry raw Yjs updates, base64 on the wire.
@@ -78,7 +146,8 @@ interface ViewportUpdate {
 }
 
 type OpKind = 'create' | 'update' | 'delete'
-type OpEntity = 'annotation' | 'cellCount'
+// collection is a nudge that someone's membership changed - see CollectionContext.
+type OpEntity = 'annotation' | 'cellCount' | 'collection'
 
 interface AnnotationOp {
   kind: OpKind
@@ -182,6 +251,7 @@ interface JoinResult {
   seq: number
   comparison: Comparison | null
   sharedCount: SharedCount | null
+  navigation: NavigationMode
 }
 
 // Applies someone else's op to a local list. A create for an id we already
@@ -262,6 +332,53 @@ function watchView(view: View, map: OlMap, onMove: () => void): () => void {
   }
 }
 
+// The host everyone follows - the first of their connections that has
+// said where it is.
+function leaderOf(others: Participant[]): Participant | null {
+  return others.find((p) => p.host && p.viewport) ?? null
+}
+
+// Where to put your view to see roughly what the host sees. Screens differ,
+// so it's fitted rather than copied - the host's whole view fits on yours,
+// at their rotation.
+function followView(host: Viewport, size: [number, number]): Pick<Viewport, 'center' | 'resolution' | 'rotation'> {
+  const [minX, minY, maxX, maxY] = host.extent
+  const resolution = Math.max((maxX - minX) / size[0], (maxY - minY) / size[1])
+  return { center: host.center, resolution: Number.isFinite(resolution) && resolution > 0 ? resolution : host.resolution, rotation: host.rotation }
+}
+
+type ViewState = Pick<Viewport, 'center' | 'resolution' | 'rotation'>
+
+// Whether the view is still where following put it - so something else
+// nudging it to the same place (a rotation round-tripped through degrees,
+// say) doesn't count as moving away. Rotation is compared round the circle.
+function sameView(a: ViewState, b: ViewState): boolean {
+  const near = (x: number, y: number) => Math.abs(x - y) <= b.resolution / 2
+  const turn = Math.abs(a.rotation - b.rotation) % (2 * Math.PI)
+  return (
+    near(a.center[0], b.center[0]) &&
+    near(a.center[1], b.center[1]) &&
+    Math.abs(a.resolution / b.resolution - 1) < 1e-6 &&
+    Math.min(turn, 2 * Math.PI - turn) < 1e-6
+  )
+}
+
+// Panels that never follow the host - the RealTime panel is everyone's own.
+const UNSHARED_PANELS = ['realtime']
+
+// What changed between two lists of the host's open panels.
+function panelChanges(before: string[], after: string[]): { open: string[]; close: string[] } {
+  const shared = (panels: string[]) => panels.filter((p) => !UNSHARED_PANELS.includes(p))
+  const was = shared(before)
+  const now = shared(after)
+  return { open: now.filter((p) => !was.includes(p)), close: was.filter((p) => !now.includes(p)) }
+}
+
+// Tabs the host has moved to since last time, by panel.
+function tabChanges(before: Record<string, string>, after: Record<string, string>): [string, string][] {
+  return Object.entries(after).filter(([panel, tab]) => !UNSHARED_PANELS.includes(panel) && before[panel] !== tab)
+}
+
 // Calls fn at most once per `ms`, always with the latest args - the last
 // call in a burst is never dropped, so others end up where you stopped.
 function throttle<A extends unknown[]>(fn: (...args: A) => void, ms: number) {
@@ -331,6 +448,12 @@ function debounce<A extends unknown[]>(fn: (...args: A) => void, ms: number) {
 }
 
 export {
+  sketchFor,
+  leaderOf,
+  followView,
+  sameView,
+  panelChanges,
+  tabChanges,
   applyOp,
   viewportRing,
   viewportFrom,
@@ -343,10 +466,18 @@ export {
 }
 export type {
   Viewport,
+  ViewState,
   Participant,
+  NavigationMode,
+  Screen,
+  ScreenUpdate,
+  HostRequest,
   Sketch,
   AnnotationSketch,
+  RulerSketch,
+  CellCountSketch,
   SketchUpdate,
+  SketchTool,
   DocState,
   DocStateWire,
   DocUpdateWire,

@@ -20,15 +20,8 @@ public class ImageAdjustmentsTests : IClassFixture<CellCountApiFactory>
         _factory = factory;
     }
 
-    private static async Task<Guid> CreateCollectionAsync(HttpClient client, string slideId)
-    {
-        var response = await client.PostAsJsonAsync(
-            "/collections/ensure",
-            new Collections.Collections { SlideId = slideId, UserId = "001" });
-        response.EnsureSuccessStatusCode();
-        var created = await response.Content.ReadFromJsonAsync<Collections.Collections>();
-        return created!.CollectionId;
-    }
+    private static Task<Guid> CreateCollectionAsync(HttpClient client, string slideId) =>
+        TestJson.EnsureCollectionAsync(client, slideId);
 
     private static ImageAdjustments.ImageAdjustments NewImageAdjustment(Guid collectionId, string name = "preset") => new()
     {
@@ -171,32 +164,18 @@ public class ImageAdjustmentsTests : IClassFixture<CellCountApiFactory>
     }
 
     [Fact]
-    public async Task Post_PassesUserIdThroughUnmodified()
+    public async Task Post_SetsUserIdToWhoeverIsSignedIn_IgnoringTheBody()
     {
-        var client = _factory.CreateClient();
+        var client = TestAuthHandler.As(_factory.CreateClient(), "alice");
         var collectionId = await CreateCollectionAsync(client, Guid.NewGuid().ToString());
         var payload = NewImageAdjustment(collectionId);
-        payload.UserId = "whoever-was-signed-in";
+        payload.UserId = "someone-else";
 
         var response = await client.PostAsJsonAsync("/imageadjustments", payload);
         response.EnsureSuccessStatusCode();
 
         var created = await response.Content.ReadFromJsonAsync<ImageAdjustments.ImageAdjustments>();
-        Assert.Equal("whoever-was-signed-in", created!.UserId);
-    }
-
-    [Fact]
-    public async Task Post_WithoutUserId_DefaultsToEmptyString()
-    {
-        var client = _factory.CreateClient();
-        var collectionId = await CreateCollectionAsync(client, Guid.NewGuid().ToString());
-        var payload = NewImageAdjustment(collectionId);
-
-        var response = await client.PostAsJsonAsync("/imageadjustments", payload);
-        response.EnsureSuccessStatusCode();
-
-        var created = await response.Content.ReadFromJsonAsync<ImageAdjustments.ImageAdjustments>();
-        Assert.Equal("", created!.UserId);
+        Assert.Equal("alice", created!.UserId);
     }
 
     [Fact]

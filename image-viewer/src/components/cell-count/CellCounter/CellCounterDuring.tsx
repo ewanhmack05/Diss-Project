@@ -236,6 +236,7 @@ function CellCounterDuring() {
           type="button"
           className="cell-counter-tool-picker-button cell-counter-tool-picker-button--primary"
           onClick={handleStop}
+          disabled={count < 1}
         >
           Stop counting
         </button>

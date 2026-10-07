@@ -11,6 +11,7 @@ import CountInvites from "../CountInvites";
 import { useComparisonContext } from "../../../context/ComparisonContext";
 import { useSharedCountContext } from "../../../context/SharedCountContext";
 import { useRealtimeContext } from "../../../context/RealtimeContext";
+import { useCollectionContext } from "../../../context/CollectionContext";
 import "../comparison/Comparison.css";
 import "./CellCounterToolPicker.css";
 
@@ -38,6 +39,7 @@ function CellCounterToolPicker() {
   // counting can't start while a shape tool is selected.
   const { activeTool } = useDrawContext();
   const { cellCounts } = useCellCountStoreContext();
+  const { roomId } = useCollectionContext();
   const recentCellCount = mostRecentCellCount(cellCounts);
   const { status } = useRealtimeContext();
   const comparison = useComparisonContext();
@@ -154,7 +156,7 @@ function CellCounterToolPicker() {
       </button>
 
       {/* Both need the hub, so they're not offered at all without one. */}
-      {status !== "off" && (
+      {roomId && (
         <div className="comparison-buttons">
           <button
             type="button"

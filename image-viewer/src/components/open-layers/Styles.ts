@@ -335,10 +335,14 @@ function rulerSketchStyle(mppX: number | null, mppY: number | null) {
 // which would sit right over the centre of your own view if you're both
 // looking at the same place.
 function remoteViewportStyle(feature: FeatureLike): Style[] {
+	return labelledViewportStyle(feature, 2, 12);
+}
+
+function labelledViewportStyle(feature: FeatureLike, outlineWidth: number, fontSize: number): Style[] {
 	const colour = feature.get("colour") as string;
 	const label = feature.get("label") as string | undefined;
 	const geometry = feature.getGeometry();
-	const outline = new Style({ stroke: new Stroke({ color: colour, width: 2 }) });
+	const outline = new Style({ stroke: new Stroke({ color: colour, width: outlineWidth }) });
 	if (!label || !(geometry instanceof Polygon)) return [outline];
 	const corner = geometry.getCoordinates()[0][0];
 	return [
@@ -347,7 +351,7 @@ function remoteViewportStyle(feature: FeatureLike): Style[] {
 			geometry: new Point(corner),
 			text: new Text({
 				text: label,
-				font: "600 12px 'Source Sans Pro', Arial, sans-serif",
+				font: `600 ${fontSize}px 'Source Sans Pro', Arial, sans-serif`,
 				fill: new Fill({ color: "#fff" }),
 				backgroundFill: new Fill({ color: colour }),
 				padding: [1, 4, 1, 4],
@@ -396,6 +400,67 @@ function remoteSketchStyle(feature: FeatureLike, resolution: number): Style[] {
 	return styles;
 }
 
+// Someone else's measuring line, in their colour - dashed while they drag,
+// solid once they let go - with the distance over it and their name at the end.
+function remoteRulerStyle(mppX: number | null, mppY: number | null) {
+	return (feature: FeatureLike): Style[] => {
+		const geometry = feature.getGeometry();
+		if (!(geometry instanceof LineString)) return [];
+		const colour = feature.get("ownerColour") as string;
+		const done = feature.get("done") as boolean;
+		return [
+			new Style({
+				stroke: new Stroke({ color: colour, width: 2, lineDash: done ? undefined : [6, 4] }),
+				text: rulerTextStyle(rulerDistanceLabel(geometry, mppX, mppY)),
+			}),
+			new Style({
+				geometry: new Point(geometry.getLastCoordinate()),
+				text: new Text({
+					text: feature.get("owner") as string,
+					font: "600 12px 'Source Sans Pro', Arial, sans-serif",
+					fill: new Fill({ color: "#fff" }),
+					backgroundFill: new Fill({ color: colour }),
+					padding: [1, 4, 1, 4],
+					textAlign: "left",
+					textBaseline: "bottom",
+					offsetX: 8,
+					offsetY: -8,
+				}),
+			}),
+		];
+	};
+}
+
+// Someone else's count as they go (see remoteCellCountFeatures) - dots like
+// your own, and their ROI box with their name and tally on its top edge.
+function remoteCellCountStyle(feature: FeatureLike): Style[] {
+	if (feature.get("kind") !== "roi") return [cellCountDotStyle(feature)];
+	const geometry = feature.getGeometry();
+	const styles = [roiBoxStyle()];
+	if (geometry instanceof Polygon) {
+		const ring = geometry.getCoordinates()[0] ?? [];
+		const top = ring.reduce<number[] | undefined>((best, c) => (!best || c[1] > best[1] ? c : best), undefined);
+		if (top) {
+			styles.push(
+				new Style({
+					geometry: new Point(top),
+					text: new Text({
+						text: feature.get("label") as string,
+						font: "600 12px 'Source Sans Pro', Arial, sans-serif",
+						fill: new Fill({ color: "#fff" }),
+						backgroundFill: new Fill({ color: feature.get("ownerColour") as string }),
+						padding: [1, 4, 1, 4],
+						textAlign: "left",
+						textBaseline: "bottom",
+						offsetY: -4,
+					}),
+				}),
+			);
+		}
+	}
+	return styles;
+}
+
 const COMPARISON_MISSED_COLOUR = "#ff3b30";
 
 // A revealed comparison count (see MapNode) - `kind` says which bit this is.
@@ -422,9 +487,17 @@ function comparisonResultStyle(feature: FeatureLike, resolution: number): Style 
 	}
 }
 
-// Same outline on the overview map, just thinner and no name - it's tiny.
-function remoteViewportOverviewStyle(feature: FeatureLike): Style {
-	return new Style({ stroke: new Stroke({ color: feature.get("colour") as string, width: 1.5 }) });
+// Narrowest the overview gets before names fit on it - it's 10em (160px)
+// normally and grows when hovered.
+const OVERVIEW_LABEL_MIN_PX = 240;
+
+// Same outline on the overview map, thinner. Names only once it's been
+// expanded, they'd cover most of it otherwise.
+function remoteViewportOverviewStyle(feature: FeatureLike, overviewWidth: number): Style[] {
+	if (overviewWidth < OVERVIEW_LABEL_MIN_PX) {
+		return [new Style({ stroke: new Stroke({ color: feature.get("colour") as string, width: 1.5 }) })];
+	}
+	return labelledViewportStyle(feature, 1.5, 11);
 }
 
 export {
@@ -441,7 +514,10 @@ export {
 	rulerSketchStyle,
 	remoteViewportStyle,
 	remoteViewportOverviewStyle,
+	OVERVIEW_LABEL_MIN_PX,
 	remoteSketchStyle,
+	remoteRulerStyle,
+	remoteCellCountStyle,
 	comparisonResultStyle,
 	sharedDotFlatStyle,
 	penPosition,

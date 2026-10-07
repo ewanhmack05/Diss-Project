@@ -10,6 +10,7 @@ import {
 import { restrictToWindowEdges } from '@dnd-kit/modifiers'
 import { ImageViewerContextProvider } from './context/ImageViewerContext'
 import { ToolbarContextProvider, useToolbarContext, type ToolId } from './context/ToolbarContext'
+import { NavigationContextProvider } from './context/NavigationContext'
 import { CollectionContextProvider } from './context/CollectionContext'
 import { RealtimeContextProvider } from './context/RealtimeContext'
 import { AnnotationStoreContextProvider } from './context/AnnotationStoreContext'
@@ -20,9 +21,11 @@ import { RotationContextProvider } from './context/RotationContext'
 import { RulerContextProvider } from './context/RulerContext'
 import { AdjustmentsContextProvider } from './context/AdjustmentsContext'
 import { ToastContextProvider } from './context/ToastContext'
+import { DialogContextProvider } from './context/DialogContext'
 import { ComparisonContextProvider } from './context/ComparisonContext'
 import { SharedCountContextProvider } from './context/SharedCountContext'
 import { EventContextProvider } from './context/EventContext'
+import { AuthContextProvider, type AuthOptions } from './context/AuthContext'
 import MapNode from './components/MapNode'
 import AnnotationsPanel from './components/annotation/AnnotationsPanel'
 import CellCountPanel from './components/cell-count/CellCountPanel'
@@ -30,6 +33,7 @@ import RotationPanel from './components/rotation/RotationPanel'
 import RulerPanel from './components/ruler/RulerPanel'
 import AdjustmentsPanel from './components/adjustments/AdjustmentsPanel'
 import RealTimePanel from './components/realtime/RealTimePanel'
+import InviteGate from './components/realtime/InviteGate'
 import Toolbar, { type ToolName } from './components/toolbar/Toolbar'
 import DraggablePanel from './components/toolbar/DraggablePanel'
 import DockZones from './components/toolbar/DockZone'
@@ -51,6 +55,7 @@ import {
 import { bringToFront, stackIndex } from './components/toolbar/focusOrder'
 import { clampToBounds, placeInColumns, type Bounds, type Rect } from './components/toolbar/panelPlacement'
 import ToastStack from './components/toast/ToastStack'
+import DialogHost from './components/dialog/DialogHost'
 import PresenceList from './components/presence/PresenceList'
 import type { ImageSource } from './interfaces/ImageSource'
 import './App.css'
@@ -101,18 +106,26 @@ interface AppProps {
   annotationStoreUrl: string
   // Optional - without it the viewer works on its own, just not live.
   realtimeHubUrl?: string
+  // Keycloak - everything needs a signed-in user (see AuthContext).
+  auth: AuthOptions
   options?: AppOptions
   on?: (event: string, payload: unknown) => void
 }
 
-function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, options, on }: AppProps) {
+function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, auth, options, on }: AppProps) {
   const imageSource: ImageSource = { tilerUrl: tilerServiceUrl, slideId: source }
 
   return (
     <ToastContextProvider>
+      <DialogContextProvider>
       <EventContextProvider on={on}>
+        <AuthContextProvider auth={auth}>
         <ImageViewerContextProvider source={imageSource}>
+          {/* Collections decide which session you're in, and so which
+              realtime room - working alone there's no room at all. An
+              invite link is dealt with before the viewer opens. */}
           <CollectionContextProvider baseUrl={annotationStoreUrl}>
+            <InviteGate>
             <RealtimeContextProvider hubUrl={realtimeHubUrl}>
               <AnnotationStoreContextProvider baseUrl={annotationStoreUrl}>
                 <CellCountStoreContextProvider baseUrl={annotationStoreUrl}>
@@ -122,11 +135,13 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, opti
                         <RulerContextProvider>
                           <AdjustmentsContextProvider baseUrl={annotationStoreUrl}>
                             <ToolbarContextProvider>
+                              <NavigationContextProvider>
                               <ComparisonContextProvider>
                                 <SharedCountContextProvider>
                                   <ViewerShell fontSize={options?.fontSize} tools={options?.tools} />
                                 </SharedCountContextProvider>
                               </ComparisonContextProvider>
+                              </NavigationContextProvider>
                             </ToolbarContextProvider>
                           </AdjustmentsContextProvider>
                         </RulerContextProvider>
@@ -136,9 +151,12 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, opti
                 </CellCountStoreContextProvider>
               </AnnotationStoreContextProvider>
             </RealtimeContextProvider>
+            </InviteGate>
           </CollectionContextProvider>
         </ImageViewerContextProvider>
+        </AuthContextProvider>
       </EventContextProvider>
+      </DialogContextProvider>
     </ToastContextProvider>
   )
 }
@@ -510,6 +528,7 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
       <Toolbar tools={tools} />
       <PresenceList />
       <ToastStack />
+      <DialogHost />
     </div>
   )
 }

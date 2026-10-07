@@ -37,6 +37,11 @@ public class CellCount
     public double? LocationX { get; set; }
     public double? LocationY { get; set; }
     public DateTimeOffset Created { get; set; }
+    // Who saved it (the host, for a shared count - each dot says who placed
+    // it) - their Keycloak id and name, set server-side on POST from
+    // the token, like SlideId. Empty for rows from before sign-in.
+    public string CreatedById { get; set; } = "";
+    public string CreatedByName { get; set; } = "";
     // Null unless WithRoi was on. No reverse nav on RegionOfInterest -
     // keeps JSON from looping back through this property.
     public RegionOfInterest? RegionOfInterest { get; set; }

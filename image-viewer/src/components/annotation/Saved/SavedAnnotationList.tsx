@@ -5,18 +5,23 @@ import { LinePreview, ShapeGlyph } from '../ShapeGlyph'
 import SavedAnnotationEdit from './SavedAnnotationEdit'
 import SavedRow, { SavedDetails } from '../../saved/SavedRow'
 import { formatLongDate, formatShortDate, newestFirst } from '../../saved/savedDates'
+import { savedBy } from '../../saved/savedBy'
+import { useAuthContext } from '../../../context/AuthContext'
+import { useCollectionContext } from '../../../context/CollectionContext'
 import './SavedAnnotationList.css'
 
 function SavedAnnotationList() {
   const { annotations, status, selectedAnnotationId, setSelectedAnnotationId } =
     useAnnotationStoreContext()
+  const { canEdit } = useCollectionContext()
+  const { user } = useAuthContext()
   // Kept here rather than reset on edit, so Back returns to the same results.
   const [search, setSearch] = useState('')
   // One open at a time. Kept through an edit too, so Back lands on it.
   const [openId, setOpenId] = useState<string | null>(null)
 
   const editing = annotations.find((a) => a.id === selectedAnnotationId)
-  if (editing) {
+  if (editing && canEdit) {
     return (
       <SavedAnnotationEdit
         key={editing.id}
@@ -42,11 +47,11 @@ function SavedAnnotationList() {
   const filtered = newestFirst(
     query
       ? annotations.filter(
-          (a) =>
-            a.label.toLowerCase().includes(query) ||
-            a.notes.toLowerCase().includes(query) ||
-            ShapeTools[a.shape].label.toLowerCase().includes(query),
-        )
+        (a) =>
+          a.label.toLowerCase().includes(query) ||
+          a.notes.toLowerCase().includes(query) ||
+          ShapeTools[a.shape].label.toLowerCase().includes(query),
+      )
       : annotations,
   )
 
@@ -66,6 +71,7 @@ function SavedAnnotationList() {
           {filtered.map((annotation) => {
             const shape = ShapeTools[annotation.shape].label
             const line = `${annotation.lineThickness}px ${annotation.lineStyle}`
+            const by = savedBy(annotation, user.id)
             return (
               <SavedRow
                 key={annotation.id}
@@ -85,6 +91,7 @@ function SavedAnnotationList() {
                       {line}
                     </span>
                     <span className="saved-row-spacer" />
+                    {by && <span className="saved-row-by">{by}</span>}
                     <span>{formatShortDate(annotation.created)}</span>
                   </>
                 }
@@ -95,6 +102,7 @@ function SavedAnnotationList() {
                     ['Shape', shape],
                     ['Line', line],
                     ...(annotation.notes ? [['Notes', annotation.notes] as [string, string]] : []),
+                    ...(by ? [['Saved by', by] as [string, string]] : []),
                     ['Saved', formatLongDate(annotation.created)],
                   ]}
                   actions={
@@ -102,6 +110,7 @@ function SavedAnnotationList() {
                       type="button"
                       className="saved-row-button saved-row-button--primary"
                       onClick={() => setSelectedAnnotationId(annotation.id)}
+                      disabled={!canEdit}
                     >
                       Edit
                     </button>

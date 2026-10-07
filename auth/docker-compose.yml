@@ -1,0 +1,45 @@
+# Keycloak for local dev, with its own small Postgres so it doesn't need
+# anything set up on the machine's Postgres. The viewer reaches it through
+# its dev server at /auth (see image-viewer/vite.config.ts), so only the
+# viewer's port needs to be reachable from other machines.
+services:
+  keycloak-db:
+    image: postgres:17
+    container_name: diss-keycloak-db
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak
+    volumes:
+      - keycloak-db:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.3
+    container_name: diss-keycloak
+    # Dev mode: plain HTTP, and the hostname follows whatever the browser
+    # used, so localhost and the VPN address both work.
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
+      # Served under /auth so the viewer's dev server can pass it straight
+      # through, and it trusts that server's X-Forwarded-* headers so its
+      # links and token issuer use the address the browser actually used.
+      KC_HTTP_RELATIVE_PATH: /auth
+      KC_PROXY_HEADERS: xforwarded
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      - "8080:8080" # http://localhost:8080/auth/admin - admin / admin
+    volumes:
+      - ./realm:/opt/keycloak/data/import:ro
+    depends_on:
+      - keycloak-db
+    restart: unless-stopped
+
+volumes:
+  keycloak-db:

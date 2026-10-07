@@ -16,15 +16,8 @@ public class AnnotationsTests : IClassFixture<CellCountApiFactory>
         _factory = factory;
     }
 
-    private static async Task<Guid> CreateCollectionAsync(HttpClient client, string slideId)
-    {
-        var response = await client.PostAsJsonAsync(
-            "/collections/ensure",
-            new Collections.Collections { SlideId = slideId, UserId = "001" });
-        response.EnsureSuccessStatusCode();
-        var created = await response.Content.ReadFromJsonAsync<Collections.Collections>();
-        return created!.CollectionId;
-    }
+    private static Task<Guid> CreateCollectionAsync(HttpClient client, string slideId) =>
+        TestJson.EnsureCollectionAsync(client, slideId);
 
     private static Annotation NewAnnotation(Guid collectionId) => new()
     {
@@ -98,6 +91,21 @@ public class AnnotationsTests : IClassFixture<CellCountApiFactory>
         var annotations = await response.Content.ReadFromJsonAsync<List<Annotation>>();
         var onlyResult = Assert.Single(annotations!);
         Assert.Equal(collectionIdA, onlyResult.CollectionId);
+    }
+
+    [Fact]
+    public async Task Post_RecordsWhoSavedIt_FromTheToken()
+    {
+        var client = TestAuthHandler.As(_factory.CreateClient(), "alice", "Alice Moore");
+        var collectionId = await CreateCollectionAsync(client, Guid.NewGuid().ToString());
+        var payload = NewAnnotation(collectionId);
+        payload.CreatedById = "someone-else";
+        payload.CreatedByName = "Someone Else";
+
+        var created = await (await client.PostAsJsonAsync("/annotations", payload)).Content.ReadFromJsonAsync<Annotation>();
+
+        Assert.Equal("alice", created!.CreatedById);
+        Assert.Equal("Alice Moore", created.CreatedByName);
     }
 
     [Fact]

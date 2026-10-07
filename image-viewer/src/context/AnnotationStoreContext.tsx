@@ -5,6 +5,7 @@ import { useImageViewerContext } from './ImageViewerContext'
 import { useEmitEvent } from './EventContext'
 import { useCollectionContext } from './CollectionContext'
 import { useRealtimeContext } from './RealtimeContext'
+import { useAuthContext } from './AuthContext'
 import { applyOp } from '../components/realtime/realtime'
 
 type Status = 'loading' | 'ready' | 'error'
@@ -35,8 +36,9 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
   const { source } = useImageViewerContext()
   const { slideId } = source
   const emit = useEmitEvent()
-  const { collectionId, status: collectionStatus } = useCollectionContext()
+  const { collectionId, status: collectionStatus, canEdit } = useCollectionContext()
   const { sendOp, onOp } = useRealtimeContext()
+  const { authFetch, user } = useAuthContext()
 
   const [annotations, setAnnotations] = useState<Annotation[]>([])
   const [status, setStatus] = useState<Status>('loading')
@@ -60,7 +62,7 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
 
     setStatus('loading')
 
-    fetch(`${baseUrl}/annotations?collectionId=${encodeURIComponent(collectionId)}`)
+    authFetch(`${baseUrl}/annotations?collectionId=${encodeURIComponent(collectionId)}`)
       .then((response) => {
         if (!response.ok) throw new Error(String(response.status))
         return response.json() as Promise<Annotation[]>
@@ -80,7 +82,7 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
     return () => {
       cancelled = true
     }
-  }, [baseUrl, slideId, collectionId, collectionStatus, emit])
+  }, [baseUrl, slideId, collectionId, collectionStatus, emit, authFetch])
 
   // Someone else's change, already saved by them - just mirror it locally.
   // No toast/emit here, those are for your own actions.
@@ -100,7 +102,15 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
   // emit a matching :error event - separately - if it didn't actually
   // persist. Fine for a proof of concept; a real conflict/rollback story can
   // wait until this has more than one collaborator writing to it.
-  const addAnnotation = (annotation: Annotation) => {
+  const addAnnotation = (unstamped: Annotation) => {
+    // Shows who saved it straight away - annotation-store sets the same from the token.
+    const annotation = { ...unstamped, createdById: user.id, createdByName: user.name }
+    // Only a viewer in the collection you're working in - annotation-store would
+    // turn it down anyway.
+    if (!canEdit) {
+      emit('collection:read-only')
+      return
+    }
     // Neither the draw tools nor AddAnnotationForm wait on this context's own
     // status before letting a save happen - collectionId can still be null
     // this early. Posting null there would 400 against the backend's
@@ -115,7 +125,7 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
     // Sent straight away rather than after the save, to keep the delay down.
     // A save that then fails isn't rolled back for anyone, same as locally.
     sendOp({ kind: 'create', entity: 'annotation', id: annotation.id, data: annotation })
-    fetch(`${baseUrl}/annotations`, {
+    authFetch(`${baseUrl}/annotations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...annotation, collectionId }),
@@ -136,7 +146,7 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
     setAnnotations((current) => current.map((a) => (a.id === id ? { ...a, ...patch } : a)))
     emit('annotation:updated', { id, patch })
     sendOp({ kind: 'update', entity: 'annotation', id, data: patch })
-    fetch(`${baseUrl}/annotations/${id}`, {
+    authFetch(`${baseUrl}/annotations/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...patch, slideId }),
@@ -155,7 +165,7 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
     setAnnotations((current) => current.filter((a) => a.id !== id))
     emit('annotation:deleted', { id })
     sendOp({ kind: 'delete', entity: 'annotation', id })
-    fetch(`${baseUrl}/annotations/${id}`, { method: 'DELETE' })
+    authFetch(`${baseUrl}/annotations/${id}`, { method: 'DELETE' })
       .then((response) => {
         if (!response.ok) throw new Error(String(response.status))
       })

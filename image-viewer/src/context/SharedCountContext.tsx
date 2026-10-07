@@ -3,6 +3,7 @@ import type { Contributor, SharedCount } from '../components/realtime/realtime'
 import type { CellCountDot } from '../interfaces/CellCount'
 import { findDoubleCounts, savedDots, tallyByContributor } from '../components/cell-count/shared/sharedCount'
 import { useRealtimeContext } from './RealtimeContext'
+import { useCollectionContext } from './CollectionContext'
 import { useCellCountDrawContext } from './CellCountDrawContext'
 import { useToolbarContext } from './ToolbarContext'
 import { useEmitEvent } from './EventContext'
@@ -128,7 +129,9 @@ function SharedCountContextProvider({ children }: { children: ReactNode }) {
   }, [pending, counting])
 
   const busy = counting || pending !== null
-  const canHost = status === 'connected' && others.length > 0 && !sharedCount && !busy
+  // View only can't count, so they can't start one or be asked into one.
+  const { canEdit } = useCollectionContext()
+  const canHost = status === 'connected' && canEdit && others.some((p) => p.canEdit) && !sharedCount && !busy
 
   const beginCounting = (roi: boolean, roiConfirmed: boolean) => {
     setFinishedDots(null)

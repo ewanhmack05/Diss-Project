@@ -19,22 +19,29 @@ import {
   type DocStateWire,
   type DocUpdateWire,
   type JoinResult,
+  type NavigationMode,
+  type Screen,
+  type ScreenUpdate,
+  type HostRequest,
   type Participant,
   type Sketch,
   type SketchUpdate,
+  type SketchTool,
   type StampedOp,
   type Viewport,
   type ViewportUpdate,
 } from '../components/realtime/realtime'
-import { useImageViewerContext } from './ImageViewerContext'
 import { useEmitEvent } from './EventContext'
-import { newId } from '../newId'
+import { useAuthContext } from './AuthContext'
+import { useCollectionContext } from './CollectionContext'
 
 // off - no hub URL given, so realtime is switched off entirely.
+// alone - not in a session, so there's no room to be in.
 // offline - couldn't connect, still retrying in the background.
-type RealtimeStatus = 'off' | 'connecting' | 'connected' | 'reconnecting' | 'offline'
+type RealtimeStatus = 'off' | 'alone' | 'connecting' | 'connected' | 'reconnecting' | 'offline'
 
 type OpHandler = (op: StampedOp) => void
+type RequestHandler = (request: HostRequest) => void
 type DocUpdateHandler = (docId: string, update: Uint8Array) => void
 type DocEditorsHandler = (docId: string, editors: string[]) => void
 
@@ -44,8 +51,21 @@ interface RealtimeContextValue {
   others: Participant[]
   sendOp: (op: AnnotationOp) => void
   sendViewport: (viewport: Viewport) => void
-  // Null once you finish or give up drawing.
-  sendSketch: (sketch: Sketch | null) => void
+  // One per tool - a new one for a tool replaces its last one.
+  sendSketch: (sketch: Sketch) => void
+  // Done or given up with that tool. Goes straight away.
+  clearSketch: (tool: SketchTool) => void
+  // What's on your screen besides the map, for anyone following you in Present.
+  sendScreen: (screen: Screen) => void
+  // How everyone moves round - only the host can change it (see NavigationContext).
+  navigation: NavigationMode
+  setNavigation: (mode: NavigationMode) => Promise<void>
+  // Host only. to is connection ids, or null for everyone else. Look sends
+  // where you are now.
+  askToLook: (to: string[] | null) => Promise<void>
+  askToOpen: (to: string[] | null, panel: string) => Promise<void>
+  // Returns an unsubscribe, like onOp.
+  onRequest: (handler: RequestHandler) => () => void
   // Returns an unsubscribe, so it drops straight into a useEffect.
   onOp: (handler: OpHandler) => () => void
   // Shared docs (see sharedFields.ts). openDoc resolves null when not
@@ -55,7 +75,7 @@ interface RealtimeContextValue {
   closeDoc: (docId: string) => void
   onDocUpdate: (handler: DocUpdateHandler) => () => void
   onDocEditors: (handler: DocEditorsHandler) => () => void
-  // The comparison count running on this slide, if any (see
+  // The comparison count running in the session, if any (see
   // ComparisonContext). These reject with the hub's message if the call
   // doesn't fit its current state, or if not connected.
   comparison: Comparison | null
@@ -63,7 +83,7 @@ interface RealtimeContextValue {
   joinComparison: (id: string) => Promise<void>
   leaveComparison: (id: string) => Promise<void>
   submitComparison: (id: string, dots: ComparisonDot[]) => Promise<void>
-  // The shared count running on this slide, if any (see SharedCountContext).
+  // The shared count running in the session, if any (see SharedCountContext).
   // Your own dots are added and removed here straight away, rather than
   // waiting on the hub, which doesn't echo them back.
   sharedCount: SharedCount | null
@@ -82,38 +102,30 @@ const VIEWPORT_THROTTLE_MS = 100
 const RETRY_MIN_MS = 2000
 const RETRY_MAX_MS = 30000
 
-// No auth yet, so each tab makes up a guest. Kept per tab (sessionStorage)
-// so a reload is the same person but two tabs are two people.
-function guestIdentity(): { userId: string; displayName: string } {
-  let userId: string | null = null
-  try {
-    userId = sessionStorage.getItem('realtime-user-id')
-    if (!userId) {
-      userId = newId()
-      sessionStorage.setItem('realtime-user-id', userId)
-    }
-  } catch {
-    userId = newId()
-  }
-  return { userId, displayName: `Guest ${userId.slice(0, 4)}` }
-}
-
 interface RealtimeContextProviderProps {
   // Leave out to run the viewer without the hub.
   hubUrl?: string
   children: ReactNode
 }
 
+// The room is the session you're in (see CollectionContext) - working
+// alone there's no connection at all.
 function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderProps) {
-  const { source } = useImageViewerContext()
-  const { slideId } = source
   const emit = useEmitEvent()
+  const { getAccessToken } = useAuthContext()
+  const { roomId, session, refresh: refreshCollections } = useCollectionContext()
+  // Read from the connection's handlers, which shouldn't reconnect when it changes.
+  const refreshRef = useRef(refreshCollections)
+  useEffect(() => {
+    refreshRef.current = refreshCollections
+  })
 
-  const [status, setStatus] = useState<Exclude<RealtimeStatus, 'off'>>('connecting')
+  const [status, setStatus] = useState<Exclude<RealtimeStatus, 'off' | 'alone'>>('connecting')
   const [me, setMe] = useState<Participant | null>(null)
   const [others, setOthers] = useState<Participant[]>([])
   const [comparison, setComparison] = useState<Comparison | null>(null)
   const [sharedCount, setSharedCount] = useState<SharedCount | null>(null)
+  const [navigation, setNavigationState] = useState<NavigationMode>('free')
   // Read by the dot sends, which don't want to rebuild on every dot.
   const sharedCountRef = useRef<SharedCount | null>(null)
   const meRef = useRef<Participant | null>(null)
@@ -122,23 +134,26 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
     meRef.current = me
   })
 
-  const identityRef = useRef(guestIdentity())
   const connectionRef = useRef<HubConnection | null>(null)
   const joinedRef = useRef(false)
   const lastViewportRef = useRef<Viewport | null>(null)
-  const lastSketchRef = useRef<Sketch | null>(null)
+  const lastSketchesRef = useRef(new Map<SketchTool, Sketch>())
+  const lastScreenRef = useRef<Screen | null>(null)
   const opHandlersRef = useRef(new Set<OpHandler>())
+  const requestHandlersRef = useRef(new Set<RequestHandler>())
   const docUpdateHandlersRef = useRef(new Set<DocUpdateHandler>())
   const docEditorsHandlersRef = useRef(new Set<DocEditorsHandler>())
   // One of each per connection, made in the effect below.
   const throttledViewportRef = useRef<((viewport: Viewport) => void) | null>(null)
-  const throttledSketchRef = useRef<ReturnType<typeof throttle<[Sketch]>> | null>(null)
+  const sketchSenderRef = useRef<{ send: (sketch: Sketch) => void; cancel: (tool: SketchTool) => void } | null>(null)
+  const throttledScreenRef = useRef<ReturnType<typeof throttle<[Screen]>> | null>(null)
 
   useEffect(() => {
-    if (!hubUrl) return
+    if (!hubUrl || !roomId) return
 
     const connection = new HubConnectionBuilder()
-      .withUrl(`${hubUrl}/hubs/slides`)
+      // Who you are comes from the token - the hub checks it on connect.
+      .withUrl(`${hubUrl}/hubs/slides`, { accessTokenFactory: getAccessToken })
       .withAutomaticReconnect()
       .configureLogging(LogLevel.None)
       .build()
@@ -148,12 +163,29 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
       connection.send('UpdateViewport', viewport).catch(() => {})
     }, VIEWPORT_THROTTLE_MS)
     throttledViewportRef.current = throttledViewport
-    // Same rate as viewports - plenty to watch a line being drawn.
-    const throttledSketch = throttle((sketch: Sketch) => {
+    // Same rate as viewports - plenty to watch a line being drawn. One
+    // throttle per tool, or a quick ruler update could swallow a count's.
+    const sketchThrottles = new Map<SketchTool, ReturnType<typeof throttle<[Sketch]>>>()
+    sketchSenderRef.current = {
+      send: (sketch) => {
+        let throttled = sketchThrottles.get(sketch.tool)
+        if (!throttled) {
+          throttled = throttle((latest: Sketch) => {
+            if (!joinedRef.current) return
+            connection.send('UpdateSketch', latest).catch(() => {})
+          }, VIEWPORT_THROTTLE_MS)
+          sketchThrottles.set(sketch.tool, throttled)
+        }
+        throttled(sketch)
+      },
+      cancel: (tool) => sketchThrottles.get(tool)?.cancel(),
+    }
+    // Slider drags would otherwise send on every step.
+    const throttledScreen = throttle((screen: Screen) => {
       if (!joinedRef.current) return
-      connection.send('UpdateSketch', sketch).catch(() => {})
+      connection.send('UpdateScreen', screen).catch(() => {})
     }, VIEWPORT_THROTTLE_MS)
-    throttledSketchRef.current = throttledSketch
+    throttledScreenRef.current = throttledScreen
 
     let stopped = false
     let retryTimer: ReturnType<typeof setTimeout> | undefined
@@ -166,23 +198,25 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
       setOthers([])
       setComparison(null)
       setSharedCount(null)
+      setNavigationState('free')
     }
 
     // Also used after a reconnect - that's a new connection id as far as
     // the hub is concerned, so it has to join again.
     const join = async () => {
-      const { userId, displayName } = identityRef.current
-      const result = await connection.invoke<JoinResult>('JoinSlide', slideId, userId, displayName)
+      const result = await connection.invoke<JoinResult>('JoinSession', roomId)
       if (stopped) return
       joinedRef.current = true
       setMe(result.me)
       setOthers(result.others)
       setComparison(result.comparison)
       setSharedCount(result.sharedCount)
+      setNavigationState(result.navigation)
       setStatus('connected')
       retryMs = RETRY_MIN_MS
       if (lastViewportRef.current) connection.send('UpdateViewport', lastViewportRef.current).catch(() => {})
-      if (lastSketchRef.current) connection.send('UpdateSketch', lastSketchRef.current).catch(() => {})
+      lastSketchesRef.current.forEach((sketch) => connection.send('UpdateSketch', sketch).catch(() => {}))
+      if (lastScreenRef.current) connection.send('UpdateScreen', lastScreenRef.current).catch(() => {})
     }
 
     const start = async () => {
@@ -203,18 +237,43 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
       }
     }
 
-    connection.on('UserJoined', (participant: Participant) =>
+    // Someone new may have just joined the session through a link, so the
+    // people list needs fetching again.
+    connection.on('UserJoined', (participant: Participant) => {
       setOthers((current) => [...current.filter((p) => p.connectionId !== participant.connectionId), participant])
-    )
+      refreshRef.current()
+    })
     connection.on('UserLeft', (connectionId: string) =>
       setOthers((current) => current.filter((p) => p.connectionId !== connectionId))
     )
     connection.on('ViewportUpdated', ({ connectionId, viewport }: ViewportUpdate) =>
       setOthers((current) => current.map((p) => (p.connectionId === connectionId ? { ...p, viewport } : p)))
     )
-    connection.on('SketchUpdated', ({ connectionId, sketch }: SketchUpdate) =>
-      setOthers((current) => current.map((p) => (p.connectionId === connectionId ? { ...p, sketch } : p)))
+    connection.on('SketchUpdated', ({ connectionId, tool, sketch }: SketchUpdate) =>
+      setOthers((current) =>
+        current.map((p) => {
+          if (p.connectionId !== connectionId) return p
+          const sketches = { ...p.sketches }
+          if (sketch) sketches[tool] = sketch
+          else delete sketches[tool]
+          return { ...p, sketches }
+        })
+      )
     )
+    connection.on('ScreenUpdated', ({ connectionId, screen }: ScreenUpdate) =>
+      setOthers((current) => current.map((p) => (p.connectionId === connectionId ? { ...p, screen } : p)))
+    )
+    connection.on('NavigationChanged', (mode: NavigationMode) => setNavigationState(mode))
+    connection.on('RequestReceived', (request: HostRequest) =>
+      requestHandlersRef.current.forEach((handler) => handler(request))
+    )
+    // Someone's role was checked again - only they and the host hear.
+    connection.on('ParticipantUpdated', (participant: Participant) => {
+      setMe((current) => (current?.connectionId === participant.connectionId ? { ...current, ...participant } : current))
+      setOthers((current) =>
+        current.map((p) => (p.connectionId === participant.connectionId ? { ...p, canEdit: participant.canEdit } : p))
+      )
+    })
     connection.on('DocUpdated', ({ docId, update }: DocUpdateWire) => {
       const bytes = fromBase64(update)
       docUpdateHandlersRef.current.forEach((handler) => handler(docId, bytes))
@@ -239,6 +298,8 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
       )
     )
     connection.on('AnnotationOp', (op: StampedOp) => {
+      // Someone's role changed, they were taken out, or the session ended.
+      if (op.op.entity === 'collection') refreshRef.current()
       opHandlersRef.current.forEach((handler) => handler(op))
       emit('realtime:op', op)
     })
@@ -267,12 +328,14 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
       reset()
       throttledViewport.cancel()
       throttledViewportRef.current = null
-      throttledSketch.cancel()
-      throttledSketchRef.current = null
+      sketchThrottles.forEach((throttled) => throttled.cancel())
+      sketchSenderRef.current = null
+      throttledScreen.cancel()
+      throttledScreenRef.current = null
       connectionRef.current = null
       connection.stop()
     }
-  }, [hubUrl, slideId, emit])
+  }, [hubUrl, roomId, emit, getAccessToken])
 
   const sendOp = useCallback((op: AnnotationOp) => {
     const connection = connectionRef.current
@@ -287,18 +350,63 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
     throttledViewportRef.current?.(viewport)
   }, [])
 
+  const sendSketch = useCallback((sketch: Sketch) => {
+    lastSketchesRef.current.set(sketch.tool, sketch)
+    sketchSenderRef.current?.send(sketch)
+  }, [])
+
   // Finishing goes out straight away rather than waiting on the throttle,
   // so a saved shape and its sketch aren't both on screen for a moment.
-  const sendSketch = useCallback((sketch: Sketch | null) => {
-    lastSketchRef.current = sketch
-    const throttled = throttledSketchRef.current
-    if (sketch) {
-      throttled?.(sketch)
-      return
-    }
-    throttled?.cancel()
+  const clearSketch = useCallback((tool: SketchTool) => {
+    lastSketchesRef.current.delete(tool)
+    sketchSenderRef.current?.cancel(tool)
     const connection = connectionRef.current
-    if (connection && joinedRef.current) connection.send('UpdateSketch', null).catch(() => {})
+    if (connection && joinedRef.current) connection.send('ClearSketch', tool).catch(() => {})
+  }, [])
+
+  // The host changed your role - the hub checks it again itself, so going
+  // view only takes you out of any count you were asked into.
+  const myRole = session?.myRole
+  const lastRoleRef = useRef(myRole)
+  useEffect(() => {
+    if (myRole === lastRoleRef.current) return
+    lastRoleRef.current = myRole
+    const connection = connectionRef.current
+    if (connection && joinedRef.current) connection.invoke('RefreshRole').catch(() => {})
+  }, [myRole])
+
+  const sendScreen = useCallback((screen: Screen) => {
+    lastScreenRef.current = screen
+    throttledScreenRef.current?.(screen)
+  }, [])
+
+  const setNavigation = useCallback(async (mode: NavigationMode) => {
+    const connection = connectionRef.current
+    if (!connection || !joinedRef.current) throw new Error('Not connected')
+    await connection.invoke('SetNavigation', mode)
+  }, [])
+
+  const sendRequest = useCallback(async (to: string[] | null, kind: string, data: unknown) => {
+    const connection = connectionRef.current
+    if (!connection || !joinedRef.current) throw new Error('Not connected')
+    await connection.invoke('SendRequest', to, kind, data)
+  }, [])
+
+  const askToLook = useCallback(
+    (to: string[] | null) => {
+      const viewport = lastViewportRef.current
+      return viewport ? sendRequest(to, 'look', viewport) : Promise.reject(new Error('Nowhere to look yet'))
+    },
+    [sendRequest]
+  )
+
+  const askToOpen = useCallback((to: string[] | null, panel: string) => sendRequest(to, 'openPanel', { panel }), [sendRequest])
+
+  const onRequest = useCallback((handler: RequestHandler) => {
+    requestHandlersRef.current.add(handler)
+    return () => {
+      requestHandlersRef.current.delete(handler)
+    }
   }, [])
 
   const onOp = useCallback((handler: OpHandler) => {
@@ -397,12 +505,19 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
   return (
     <RealtimeContext.Provider
       value={{
-        status: hubUrl ? status : 'off',
+        status: !hubUrl ? 'off' : !roomId ? 'alone' : status,
         me,
         others,
         sendOp,
         sendViewport,
         sendSketch,
+        clearSketch,
+        sendScreen,
+        navigation,
+        setNavigation,
+        askToLook,
+        askToOpen,
+        onRequest,
         onOp,
         openDoc,
         sendDocUpdate,
