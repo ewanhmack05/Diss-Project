@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace RealtimeHub.Slides;
 
 // A doc this connection no longer has open. No editors left means it was
@@ -9,6 +11,15 @@ public record ComparisonChange(string RoomId, Comparison? Comparison);
 
 // SharedCount is null once it's been dropped or finished.
 public record SharedCountChange(string RoomId, SharedCount? SharedCount);
+
+// After someone's role is checked again. The changes are set if going view
+// only took them out of a count.
+// Hosts are the host's connections, who get told along with them.
+public record RoleChange(
+    Participant Participant,
+    IReadOnlyList<string> Hosts,
+    ComparisonChange? Comparison,
+    SharedCountChange? SharedCount);
 
 // Comparison and SharedCount are only set if they were part of one.
 public record LeaveResult(
@@ -36,6 +47,8 @@ public partial class SlideRooms
         "#42d4f4", "#f032e6", "#9a6324", "#469990", "#800000",
     ];
 
+    private const string ViewOnly = "You can only view this session, so you can't start a count";
+
     private readonly Lock _lock = new();
     private readonly Dictionary<string, Room> _rooms = new();
     private readonly Dictionary<string, string> _roomByConnection = new();
@@ -48,6 +61,8 @@ public partial class SlideRooms
         // One of each at a time per room.
         public Comparison? Comparison;
         public SharedCountState? SharedCount;
+        // Lasts while anyone's in the room, like everything else here.
+        public NavigationMode Navigation;
     }
 
     private class SharedDoc
@@ -57,7 +72,7 @@ public partial class SlideRooms
         public List<string> Editors { get; } = new();
     }
 
-    public JoinResult Join(string roomId, string connectionId, string userId, string displayName)
+    public JoinResult Join(string roomId, string connectionId, string userId, string displayName, SessionRole role)
     {
         lock (_lock)
         {
@@ -68,22 +83,24 @@ public partial class SlideRooms
             }
 
             var me = new Participant(connectionId, roomId, userId, displayName,
-                PickColour(room), DateTimeOffset.UtcNow);
+                PickColour(room), DateTimeOffset.UtcNow, role == SessionRole.Owner, role != SessionRole.Viewer);
             var others = room.Participants.Values.ToList();
 
             room.Participants[connectionId] = me;
             _roomByConnection[connectionId] = roomId;
 
-            // Turning up part way through still gets you an invite.
-            if (room.Comparison is { Revealed: false } running)
+            // Turning up part way through still gets you an invite, unless
+            // you can only view.
+            if (me.CanEdit && room.Comparison is { Revealed: false } running)
             {
                 room.Comparison = running with
                 {
                     Counters = [.. running.Counters, new Counter(connectionId, me.DisplayName, me.Colour, CounterState.Invited)],
                 };
             }
-            room.SharedCount?.Contributors.Add(new Contributor(connectionId, me.UserId, me.DisplayName, me.Colour, ContributorState.Invited));
-            return new JoinResult(me, others, room.Seq, room.Comparison?.Blind(), room.SharedCount?.Snapshot());
+            if (me.CanEdit)
+                room.SharedCount?.Contributors.Add(new Contributor(connectionId, me.UserId, me.DisplayName, me.Colour, ContributorState.Invited));
+            return new JoinResult(me, others, room.Seq, room.Comparison?.Blind(), room.SharedCount?.Snapshot(), room.Navigation);
         }
     }
 
@@ -133,15 +150,89 @@ public partial class SlideRooms
         }
     }
 
-    public Participant? SetSketch(string connectionId, Sketch? sketch)
+    // Null clears that tool's.
+    public Participant? SetSketch(string connectionId, string tool, Sketch? sketch)
     {
         lock (_lock)
         {
             if (!_roomByConnection.TryGetValue(connectionId, out var roomId)) return null;
             var participants = _rooms[roomId].Participants;
-            var updated = participants[connectionId] with { Sketch = sketch };
+            var current = participants[connectionId];
+            var sketches = new Dictionary<string, Sketch>(current.Sketches ?? new Dictionary<string, Sketch>());
+            if (sketch is null) sketches.Remove(tool);
+            else
+            {
+                if (!sketches.ContainsKey(tool) && sketches.Count >= SlideHub.MaxSketchTools)
+                    throw new CountException($"More than {SlideHub.MaxSketchTools} tools sketching at once");
+                sketches[tool] = sketch;
+            }
+            var updated = current with { Sketches = sketches.Count > 0 ? sketches : null };
             participants[connectionId] = updated;
             return updated;
+        }
+    }
+
+    public Participant? SetScreen(string connectionId, JsonElement screen)
+    {
+        lock (_lock)
+        {
+            if (!_roomByConnection.TryGetValue(connectionId, out var roomId)) return null;
+            var participants = _rooms[roomId].Participants;
+            var updated = participants[connectionId] with { Screen = screen };
+            participants[connectionId] = updated;
+            return updated;
+        }
+    }
+
+    // Their role, checked again after the host changed it. Going view only
+    // takes them out of any count. Null if they're not in a room.
+    public RoleChange? SetRole(string connectionId, SessionRole role)
+    {
+        lock (_lock)
+        {
+            if (!_roomByConnection.TryGetValue(connectionId, out var roomId)) return null;
+            var room = _rooms[roomId];
+            var updated = room.Participants[connectionId] with { CanEdit = role != SessionRole.Viewer };
+            room.Participants[connectionId] = updated;
+            var hosts = room.Participants.Values
+                .Where(p => p.Host && p.ConnectionId != connectionId)
+                .Select(p => p.ConnectionId)
+                .ToList();
+            if (updated.CanEdit) return new RoleChange(updated, hosts, null, null);
+
+            var comparison = RemoveCounter(room, connectionId) ? new ComparisonChange(roomId, room.Comparison) : null;
+            var sharedCount = RemoveContributor(room, connectionId)
+                ? new SharedCountChange(roomId, room.SharedCount?.Snapshot())
+                : null;
+            return new RoleChange(updated, hosts, comparison, sharedCount);
+        }
+    }
+
+    // Who a host's request goes to - everyone else in the room, or just the
+    // ones named that are in it. Null if they're not in a room, or not its host.
+    public IReadOnlyList<string>? RequestTargets(string connectionId, IReadOnlyList<string>? to)
+    {
+        lock (_lock)
+        {
+            if (!_roomByConnection.TryGetValue(connectionId, out var roomId)) return null;
+            var participants = _rooms[roomId].Participants;
+            if (!participants[connectionId].Host) return null;
+            return participants.Keys
+                .Where(id => id != connectionId && (to is null || to.Contains(id)))
+                .ToList();
+        }
+    }
+
+    // Host only - null if they're not in a room, or not its host.
+    public string? SetNavigation(string connectionId, NavigationMode mode)
+    {
+        lock (_lock)
+        {
+            if (!_roomByConnection.TryGetValue(connectionId, out var roomId)) return null;
+            var room = _rooms[roomId];
+            if (!room.Participants[connectionId].Host) return null;
+            room.Navigation = mode;
+            return roomId;
         }
     }
 
@@ -203,8 +294,8 @@ public partial class SlideRooms
         }
     }
 
-    // Everyone else in the room is invited. A revealed one gets replaced,
-    // one still going doesn't. Null if the connection isn't in a room.
+    // Everyone else in the room who can edit is invited. A revealed one gets
+    // replaced, one still going doesn't. Null if the connection isn't in a room.
     public ComparisonChange? StartComparison(string connectionId, ComparisonSettings settings)
     {
         lock (_lock)
@@ -212,8 +303,10 @@ public partial class SlideRooms
             if (!_roomByConnection.TryGetValue(connectionId, out var roomId)) return null;
             var room = _rooms[roomId];
             if (room.Comparison is { Revealed: false }) throw new CountException("A comparison is already running");
+            if (!room.Participants[connectionId].CanEdit) throw new CountException(ViewOnly);
 
             var counters = room.Participants.Values
+                .Where(p => p.CanEdit)
                 .OrderBy(p => p.ConnectionId == connectionId ? 0 : 1)
                 .Select(p => new Counter(p.ConnectionId, p.DisplayName, p.Colour,
                     p.ConnectionId == connectionId ? CounterState.Counting : CounterState.Invited))

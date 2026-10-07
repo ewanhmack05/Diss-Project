@@ -9,6 +9,8 @@ const EventContext = createContext<EmitEvent | null>(null)
 // Covers annotation and cell count CRUD outcomes - both the optimistic
 // local change and, separately, whether it actually persisted - plus the
 // connection failures a host can't otherwise see (tiler, annotation store, real-time hub).
+// Being taken out of a session or it ending get a popup instead (see
+// CollectionContext), so they're not here.
 const TOAST_MESSAGES: Record<string, { message: string; variant: 'success' | 'error' }> = {
   'annotation:created': { message: 'Annotation saved', variant: 'success' },
   'annotation:created:error': { message: "Couldn't save annotation", variant: 'error' },
@@ -36,10 +38,10 @@ const TOAST_MESSAGES: Record<string, { message: string; variant: 'success' | 'er
   'imageadjustments:load-error': { message: "Couldn't reach the annotation store", variant: 'error' },
   'realtime:connect-error': { message: "Couldn't reach the real-time hub", variant: 'error' },
   'collection:read-only': { message: 'You can only look in here, not change anything', variant: 'error' },
-  'session:removed': { message: "You're no longer in that session", variant: 'error' },
-  'session:ended': { message: 'The host ended the session', variant: 'success' },
   'session:error': { message: "Couldn't do that - try again", variant: 'error' },
   'session:link-copied': { message: 'Invite link copied', variant: 'success' },
+  'request:sent': { message: "Asked - it's up to them now", variant: 'success' },
+  'request:error': { message: "Couldn't ask them - try again", variant: 'error' },
   'comparison:invited': { message: "You've been invited to a comparison count", variant: 'success' },
   'comparison:revealed': { message: 'Comparison results are in', variant: 'success' },
   'comparison:ended': { message: 'The comparison count ended early', variant: 'error' },

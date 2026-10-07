@@ -147,6 +147,168 @@ public class SlideHubTests : IClassFixture<HubFactory>
     }
 
     [Fact]
+    public async Task CollectionOp_GoesToOthers_WithoutData()
+    {
+        var slide = NewRoom();
+        await using var a = await ConnectAsync("a");
+        await using var b = await ConnectAsync("b");
+        await Join(a, slide);
+        await Join(b, slide);
+
+        var received = Listen<StampedOp>(b, nameof(ISlideClient.AnnotationOp));
+        await a.InvokeAsync<StampedOp>("SendAnnotationOp",
+            new AnnotationOp(OpKind.Update, OpEntity.Collection, Guid.NewGuid()));
+
+        var got = await received.Task.WaitAsync(Timeout);
+        Assert.Equal(OpEntity.Collection, got.Op.Entity);
+        Assert.Null(got.Op.Data);
+    }
+
+    [Fact]
+    public async Task OnlyTheHost_SetsNavigation_AndLateJoinersGetIt()
+    {
+        var slide = NewRoom();
+        await using var host = await ConnectAsync("host-a");
+        await using var b = await ConnectAsync("b");
+        var hostJoin = await Join(host, slide);
+        var bJoin = await Join(b, slide);
+        Assert.True(hostJoin.Me.Host);
+        Assert.False(bJoin.Me.Host);
+        Assert.Equal(NavigationMode.Free, bJoin.Navigation);
+
+        var refused = await Assert.ThrowsAsync<HubException>(() => b.InvokeAsync("SetNavigation", NavigationMode.Present));
+        Assert.Contains("Only the host", refused.Message);
+
+        var toB = Listen<NavigationMode>(b, nameof(ISlideClient.NavigationChanged));
+        var toHost = Listen<NavigationMode>(host, nameof(ISlideClient.NavigationChanged));
+        await host.InvokeAsync("SetNavigation", NavigationMode.Follow);
+        Assert.Equal(NavigationMode.Follow, await toB.Task.WaitAsync(Timeout));
+        Assert.Equal(NavigationMode.Follow, await toHost.Task.WaitAsync(Timeout));
+
+        await using var c = await ConnectAsync("c");
+        var late = await Join(c, slide);
+        Assert.Equal(NavigationMode.Follow, late.Navigation);
+        Assert.Contains(late.Others, p => p.Host && p.UserId == "host-a");
+    }
+
+    [Fact]
+    public async Task Screen_IsRelayed_AndGivenToLateJoiners()
+    {
+        var slide = NewRoom();
+        await using var host = await ConnectAsync("host-a");
+        await using var b = await ConnectAsync("b");
+        await Join(host, slide);
+        await Join(b, slide);
+
+        var received = Listen<ScreenUpdate>(b, nameof(ISlideClient.ScreenUpdated));
+        var screen = JsonSerializer.SerializeToElement(new { panels = new[] { "ruler" }, tabs = new { annotations = "saved" } });
+        await host.InvokeAsync("UpdateScreen", screen);
+        var got = await received.Task.WaitAsync(Timeout);
+        Assert.Equal("saved", got.Screen.GetProperty("tabs").GetProperty("annotations").GetString());
+
+        await using var c = await ConnectAsync("c");
+        var late = await Join(c, slide);
+        Assert.Equal("ruler", late.Others.Single(p => p.Host).Screen!.Value.GetProperty("panels")[0].GetString());
+
+        await Assert.ThrowsAsync<HubException>(() =>
+            host.InvokeAsync("UpdateScreen", JsonSerializer.SerializeToElement(new[] { "not", "an", "object" })));
+        await Assert.ThrowsAsync<HubException>(() =>
+            host.InvokeAsync("UpdateScreen", JsonSerializer.SerializeToElement(new { big = new string('x', SlideHub.MaxScreenLength) })));
+    }
+
+    [Fact]
+    public async Task ViewOnly_IsntAskedIntoCounts_AndCantStartThem()
+    {
+        var slide = NewRoom();
+        await using var a = await ConnectAsync("a");
+        await using var viewer = await ConnectAsync("viewer-v");
+        await Join(a, slide);
+        var joined = await Join(viewer, slide);
+        Assert.False(joined.Me.CanEdit);
+        var viewerId = joined.Me.ConnectionId;
+
+        var comparison = await StartComparison(a);
+        Assert.DoesNotContain(comparison.Counters, c => c.ConnectionId == viewerId);
+        var shared = await a.InvokeAsync<SharedCount>("StartSharedCount", SharedSettings);
+        Assert.DoesNotContain(shared.Contributors, c => c.ConnectionId == viewerId);
+
+        // Turning up part way through doesn't get them an invite either.
+        await using var late = await ConnectAsync("viewer-late");
+        var lateJoin = await Join(late, slide);
+        var lateId = lateJoin.Me.ConnectionId;
+        Assert.DoesNotContain(lateJoin.Comparison!.Counters, c => c.ConnectionId == lateId);
+        Assert.DoesNotContain(lateJoin.SharedCount!.Contributors, c => c.ConnectionId == lateId);
+
+        await using var other = await ConnectAsync("viewer-w");
+        await Join(other, NewRoom());
+        var refused = await Assert.ThrowsAsync<HubException>(() => StartComparison(other));
+        Assert.Contains("only view", refused.Message);
+        await Assert.ThrowsAsync<HubException>(() => other.InvokeAsync<SharedCount>("StartSharedCount", SharedSettings));
+    }
+
+    [Fact]
+    public async Task GoingViewOnly_TakesYouOutOfCounts()
+    {
+        var slide = NewRoom();
+        var userId = $"b-{Guid.NewGuid():N}";
+        await using var a = await ConnectAsync("a");
+        await using var b = await ConnectAsync(userId);
+        await Join(a, slide);
+        var bId = (await Join(b, slide)).Me.ConnectionId;
+        await using var host = await ConnectAsync("host-h");
+        await using var c = await ConnectAsync("c");
+        await Join(host, slide);
+        await Join(c, slide);
+        var comparison = await StartComparison(a);
+        Assert.Contains(comparison.Counters, c => c.ConnectionId == bId);
+
+        var changed = Listen<Comparison?>(a, nameof(ISlideClient.ComparisonChanged));
+        var toThem = Listen<Participant>(b, nameof(ISlideClient.ParticipantUpdated));
+        var toHost = Listen<Participant>(host, nameof(ISlideClient.ParticipantUpdated));
+        var toOthers = Listen<Participant>(c, nameof(ISlideClient.ParticipantUpdated));
+        TestSessionAccess.Changed[userId] = SessionRole.Viewer;
+        await b.InvokeAsync("RefreshRole");
+
+        Assert.False((await toThem.Task.WaitAsync(Timeout)).CanEdit);
+        Assert.False((await toHost.Task.WaitAsync(Timeout)).CanEdit);
+        await AssertNothing(toOthers);
+
+        var after = await changed.Task.WaitAsync(Timeout);
+        Assert.True(after is null || after.Counters.All(c => c.ConnectionId != bId));
+        await Assert.ThrowsAsync<HubException>(() => StartComparison(b));
+    }
+
+    [Fact]
+    public async Task OnlyTheHost_SendsRequests_ToWhoTheyPick()
+    {
+        var slide = NewRoom();
+        await using var host = await ConnectAsync("host-a");
+        await using var b = await ConnectAsync("b");
+        await using var c = await ConnectAsync("c");
+        await Join(host, slide);
+        var bId = (await Join(b, slide)).Me.ConnectionId;
+        await Join(c, slide);
+
+        var toB = Listen<HostRequest>(b, nameof(ISlideClient.RequestReceived));
+        var toC = Listen<HostRequest>(c, nameof(ISlideClient.RequestReceived));
+        var data = JsonSerializer.SerializeToElement(new { panel = "ruler" });
+        await host.InvokeAsync("SendRequest", new[] { bId }, "openPanel", data);
+
+        var got = await toB.Task.WaitAsync(Timeout);
+        Assert.Equal("openPanel", got.Kind);
+        Assert.Equal("User host-a", got.FromName);
+        Assert.Equal("ruler", got.Data!.Value.GetProperty("panel").GetString());
+        await AssertNothing(toC);
+
+        // Null is everyone else.
+        await host.InvokeAsync("SendRequest", null, "look", null);
+        Assert.Equal("look", (await toC.Task.WaitAsync(Timeout)).Kind);
+
+        var refused = await Assert.ThrowsAsync<HubException>(() => b.InvokeAsync("SendRequest", null, "look", null));
+        Assert.Contains("Only the host", refused.Message);
+    }
+
+    [Fact]
     public async Task Slides_AreKeptApart()
     {
         await using var a = await ConnectAsync("a");
@@ -238,21 +400,30 @@ public class SlideHubTests : IClassFixture<HubFactory>
 
         var got = await updated.Task.WaitAsync(Timeout);
         Assert.Equal(aJoin.Me.ConnectionId, got.ConnectionId);
-        Assert.Equal("annotation", got.Sketch!.Tool);
-        Assert.Equal(5, got.Sketch.Data.GetProperty("points")[2].GetDouble());
+        Assert.Equal("annotation", got.Tool);
+        Assert.Equal(5, got.Sketch!.Data.GetProperty("points")[2].GetDouble());
         await AssertNothing(echoed);
 
+        // A second tool sits alongside the first rather than replacing it.
+        var ruler = new Sketch("ruler", JsonSerializer.SerializeToElement(new { done = true }));
+        await a.InvokeAsync("UpdateSketch", ruler);
         await using var c = await ConnectAsync("c");
         var aSeenByC = Assert.Single((await Join(c, slide)).Others, p => p.UserId == "a");
-        Assert.Equal("annotation", aSeenByC.Sketch!.Tool);
+        Assert.Equal(["annotation", "ruler"], aSeenByC.Sketches!.Keys.Order());
 
         var cleared = Listen<SketchUpdate>(b, nameof(ISlideClient.SketchUpdated));
-        await a.InvokeAsync("UpdateSketch", (Sketch?)null);
-        Assert.Null((await cleared.Task.WaitAsync(Timeout)).Sketch);
+        await a.InvokeAsync("ClearSketch", "annotation");
+        var clearedUpdate = await cleared.Task.WaitAsync(Timeout);
+        Assert.Equal("annotation", clearedUpdate.Tool);
+        Assert.Null(clearedUpdate.Sketch);
 
         await using var d = await ConnectAsync("d");
         var aSeenByD = Assert.Single((await Join(d, slide)).Others, p => p.UserId == "a");
-        Assert.Null(aSeenByD.Sketch);
+        Assert.Equal(["ruler"], aSeenByD.Sketches!.Keys);
+
+        await a.InvokeAsync("ClearSketch", "ruler");
+        await using var e = await ConnectAsync("e");
+        Assert.Null(Assert.Single((await Join(e, slide)).Others, p => p.UserId == "a").Sketches);
     }
 
     [Fact]
@@ -270,6 +441,13 @@ public class SlideHubTests : IClassFixture<HubFactory>
         var noData = await Assert.ThrowsAsync<HubException>(() =>
             a.InvokeAsync("UpdateSketch", new { tool = "annotation" }));
         Assert.Contains("sketch.data is required", noData.Message);
+
+        await Assert.ThrowsAsync<HubException>(() => a.InvokeAsync("ClearSketch", ""));
+        for (var i = 0; i < SlideHub.MaxSketchTools; i++)
+            await a.InvokeAsync("UpdateSketch", LineSketch(1) with { Tool = $"tool-{i}" });
+        var tooMany = await Assert.ThrowsAsync<HubException>(() =>
+            a.InvokeAsync("UpdateSketch", LineSketch(1) with { Tool = "one-more" }));
+        Assert.Contains("tools sketching at once", tooMany.Message);
     }
 
     [Fact]

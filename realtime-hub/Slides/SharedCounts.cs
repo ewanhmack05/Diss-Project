@@ -22,7 +22,7 @@ public partial class SlideRooms
             Contributors[Contributors.FindIndex(c => c.ConnectionId == contributor.ConnectionId)] = contributor;
     }
 
-    // Everyone else in the room is invited. Null if the connection isn't in a room.
+    // Everyone else in the room who can edit is invited. Null if the connection isn't in a room.
     public SharedCountChange? StartSharedCount(string connectionId, SharedCountSettings settings)
     {
         lock (_lock)
@@ -30,9 +30,11 @@ public partial class SlideRooms
             if (!_roomByConnection.TryGetValue(connectionId, out var roomId)) return null;
             var room = _rooms[roomId];
             if (room.SharedCount is not null) throw new CountException("A shared count is already running");
+            if (!room.Participants[connectionId].CanEdit) throw new CountException(ViewOnly);
 
             var state = new SharedCountState(Guid.NewGuid(), connectionId, settings);
             state.Contributors.AddRange(room.Participants.Values
+                .Where(p => p.CanEdit)
                 .OrderBy(p => p.ConnectionId == connectionId ? 0 : 1)
                 .Select(p => new Contributor(p.ConnectionId, p.UserId, p.DisplayName, p.Colour,
                     p.ConnectionId == connectionId ? ContributorState.Joined : ContributorState.Invited)));

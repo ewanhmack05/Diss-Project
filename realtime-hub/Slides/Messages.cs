@@ -8,7 +8,10 @@ namespace RealtimeHub.Slides;
 // this service doesn't break when that schema changes.
 
 // One connection in a session's room. Keyed by connection, not user, so the same
-// user in two tabs shows as two participants.
+// user in two tabs shows as two participants. Host is whether they own the
+// session, CanEdit whether they're more than view only - only they get
+// asked into counts. Screen is what's on their screen besides the map - open panels,
+// which tab each is on, image adjustments - for Present. Opaque, like Sketch.
 public record Participant(
     string ConnectionId,
     string RoomId,
@@ -16,8 +19,22 @@ public record Participant(
     string DisplayName,
     string Colour,
     DateTimeOffset Joined,
+    bool Host = false,
+    bool CanEdit = false,
     Viewport? Viewport = null,
-    Sketch? Sketch = null);
+    IReadOnlyDictionary<string, Sketch>? Sketches = null,
+    JsonElement? Screen = null);
+
+// How everyone moves round the slide. Follow keeps everyone on the host's
+// view until they move away themselves, Present keeps them there and opens
+// whatever the host opens.
+public enum NavigationMode { Free, Follow, Present }
+
+public record ScreenUpdate(string ConnectionId, JsonElement Screen);
+
+// The host asking someone to do something - look where they are, open a
+// panel. Kind says what, Data is opaque. It's only ever asked - they can say no.
+public record HostRequest(string FromConnectionId, string FromName, string Kind, JsonElement? Data);
 
 // OpenLayers view state. Extent is the view box before rotation, in map
 // units - turn it by Rotation round Center to get what's actually on screen.
@@ -27,11 +44,12 @@ public record Viewport(double[] Center, double Resolution, double Rotation, doub
 public record ViewportUpdate(string ConnectionId, Viewport Viewport);
 
 // Whatever someone is part way through drawing, so others see it take shape
-// before it's saved. Tool is "annotation", "ruler" etc, Data is opaque.
+// before it's saved. Tool is "annotation", "ruler" etc, Data is opaque. One
+// per tool, so measuring doesn't wipe out a count, say.
 public record Sketch(string Tool, JsonElement Data);
 
-// Sketch is null once they finish or give up.
-public record SketchUpdate(string ConnectionId, Sketch? Sketch);
+// Sketch is null once they finish or give up with that tool.
+public record SketchUpdate(string ConnectionId, string Tool, Sketch? Sketch);
 
 public enum OpKind { Create, Update, Delete }
 
@@ -122,7 +140,8 @@ public record JoinResult(
     IReadOnlyList<Participant> Others,
     long Seq,
     Comparison? Comparison = null,
-    SharedCount? SharedCount = null);
+    SharedCount? SharedCount = null,
+    NavigationMode Navigation = NavigationMode.Free);
 
 public static class HubJson
 {

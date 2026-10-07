@@ -256,6 +256,26 @@ public static class CollectionEndpoints
             return Results.Ok(invites.Where(i => i.Expires > now).OrderByDescending(i => i.Created).Select(InviteViewOf));
         });
 
+        // Host only. Changes a working link in place - who it lets in as, and
+        // how long from now it lasts. Same code, so it can still be shared as is.
+        app.MapPut("/collections/{id:guid}/invites/{code}", async (Guid id, string code, InviteRequest request, ClaimsPrincipal user, AnnotationDbContext db) =>
+        {
+            if (await db.RequireAsync(id, user, CollectionRole.Owner) is { } denied) return denied;
+            if (request.Role == CollectionRole.Owner) return Results.BadRequest("An invite can't make someone the host");
+            if (request.Hours < 1 || request.Hours > MaxInviteHours)
+                return Results.BadRequest($"Hours has to be between 1 and {MaxInviteHours}");
+            var invite = await db.CollectionInvites.FirstOrDefaultAsync(i => i.Code == code && i.CollectionId == id);
+            if (invite is null) return Results.NotFound();
+            var now = DateTimeOffset.UtcNow;
+            if (invite.Stopped is not null || invite.Expires <= now)
+                return Results.Problem("This link has stopped working - make a new one", statusCode: StatusCodes.Status410Gone);
+
+            invite.Role = request.Role;
+            invite.Expires = now.AddHours(request.Hours);
+            await db.SaveChangesAsync();
+            return Results.Ok(InviteViewOf(invite));
+        });
+
         app.MapDelete("/collections/{id:guid}/invites/{code}", async (Guid id, string code, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
             if (await db.RequireAsync(id, user, CollectionRole.Owner) is { } denied) return denied;

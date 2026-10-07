@@ -271,41 +271,6 @@
   cursor: not-allowed;
 }
 
-/* Planned controls, shown so the shape of the tab is clear - nothing works yet. */
-.realtime-section--soon {
-  padding: 0.7em;
-  border: 1px dashed var(--white-22);
-  border-radius: 0.4em;
-}
-
-.realtime-section--soon .realtime-segment--active {
-  color: var(--chrome-text-secondary);
-  background: var(--white-08);
-}
-
-.realtime-soon-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.realtime-soon-tag {
-  padding: 0.05em 0.5em;
-  font-size: 0.7em;
-  font-weight: 600;
-  color: var(--chrome-text-secondary);
-  background: var(--white-08);
-  border-radius: 999px;
-}
-
-.realtime-soon-option {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 0.85em;
-  color: var(--disabled);
-}
-
 .realtime-button,
 .realtime-icon-button {
   flex-shrink: 0;
@@ -411,4 +376,23 @@
 .realtime-signed-in strong {
   color: var(--chrome-text);
   font-weight: 600;
+}
+
+.realtime-ask-open {
+  flex: 1;
+  min-width: 0;
+  padding: 0.4em 0.5em;
+  font-family: var(--sans);
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--chrome-text);
+  background: var(--white-08);
+  border: none;
+  border-radius: 0.3125rem;
+  cursor: pointer;
+}
+
+.realtime-ask-open option {
+  color: var(--chrome-text);
+  background: var(--chrome-bg-solid);
 }

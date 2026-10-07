@@ -120,6 +120,31 @@ public class SessionsTests : IClassFixture<CellCountApiFactory>
     }
 
     [Fact]
+    public async Task ChangingALink_ChangesWhoItLetsIn()
+    {
+        var alice = As("alice");
+        var bob = As("bob");
+        var session = await StartAsync(alice, NewSlide());
+        var invite = await InviteAsync(alice, session.CollectionId, CollectionRole.Editor);
+        var url = $"/collections/{session.CollectionId}/invites/{invite.Code}";
+
+        var response = await alice.PutAsJsonAsync(url, new InviteRequest(CollectionRole.Viewer, 1), Json);
+        response.EnsureSuccessStatusCode();
+        var changed = (await response.Content.ReadFromJsonAsync<InviteView>(Json))!;
+        Assert.Equal(invite.Code, changed.Code);
+        Assert.Equal(CollectionRole.Viewer, changed.Role);
+        Assert.True(changed.Expires < invite.Expires);
+
+        var accept = await AcceptAsync(bob, invite.Code);
+        Assert.Equal(CollectionRole.Viewer, (await accept.Content.ReadFromJsonAsync<CollectionView>(Json))!.MyRole);
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await bob.PutAsJsonAsync(url, new InviteRequest(CollectionRole.Editor, 1), Json)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await alice.PutAsJsonAsync(url, new InviteRequest(CollectionRole.Owner, 1), Json)).StatusCode);
+        (await alice.DeleteAsync(url)).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Gone, (await alice.PutAsJsonAsync(url, new InviteRequest(CollectionRole.Editor, 1), Json)).StatusCode);
+    }
+
+    [Fact]
     public async Task ANewLink_StopsTheOldOne_AndStoppedLinksDontWork()
     {
         var alice = As("alice");

@@ -8,6 +8,15 @@ import { containsCoordinate, type Extent } from 'ol/extent'
 import type { Coordinate } from 'ol/coordinate'
 import Draw, { type DrawEvent } from 'ol/interaction/Draw'
 import Translate from 'ol/interaction/Translate'
+import DragPan from 'ol/interaction/DragPan'
+import DragRotate from 'ol/interaction/DragRotate'
+import DragZoom from 'ol/interaction/DragZoom'
+import DoubleClickZoom from 'ol/interaction/DoubleClickZoom'
+import KeyboardPan from 'ol/interaction/KeyboardPan'
+import KeyboardZoom from 'ol/interaction/KeyboardZoom'
+import MouseWheelZoom from 'ol/interaction/MouseWheelZoom'
+import PinchRotate from 'ol/interaction/PinchRotate'
+import PinchZoom from 'ol/interaction/PinchZoom'
 import VectorLayer from 'ol/layer/Vector'
 import WebGLVectorLayer from 'ol/layer/WebGLVector'
 import type WebGLTileLayer from 'ol/layer/WebGLTile'
@@ -26,6 +35,8 @@ import {
   remoteViewportStyle,
   remoteViewportOverviewStyle,
   remoteSketchStyle,
+  remoteRulerStyle,
+  remoteCellCountStyle,
   comparisonResultStyle,
   sharedDotFlatStyle,
 } from './open-layers/Styles'
@@ -35,8 +46,16 @@ import { pixelDistance, physicalDistanceMicrons, formatDistanceMicrons, formatDi
 import { parseCellCountDots, dotsFromHistory } from './cell-count/CellCountDots'
 import { computeViewedCellCountExtent } from './cell-count/CellCountView'
 import { compareCounts } from './cell-count/comparison/compare'
-import { viewportFrom, viewportRing, watchView } from './realtime/realtime'
-import { annotationSketch, remoteSketchFeatures, type SketchLook } from './realtime/sketch'
+import { followView, sameView, viewportFrom, viewportRing, watchView, type ViewState } from './realtime/realtime'
+import {
+  annotationSketch,
+  remoteSketchFeatures,
+  rulerSketch,
+  remoteRulerFeatures,
+  cellCountSketch,
+  remoteCellCountFeatures,
+  type SketchLook,
+} from './realtime/sketch'
 import { useImageViewerContext } from '../context/ImageViewerContext'
 import { useAnnotationStoreContext } from '../context/AnnotationStoreContext'
 import { useDrawContext } from '../context/DrawContext'
@@ -47,6 +66,7 @@ import { useCellCountDrawContext } from '../context/CellCountDrawContext'
 import { useCellCountStoreContext } from '../context/CellCountStoreContext'
 import { useToolbarContext } from '../context/ToolbarContext'
 import { useRealtimeContext } from '../context/RealtimeContext'
+import { useNavigationContext } from '../context/NavigationContext'
 import { useComparisonContext } from '../context/ComparisonContext'
 import { useSharedCountContext } from '../context/SharedCountContext'
 import type { SharedDot } from './realtime/realtime'
@@ -75,6 +95,11 @@ interface RoiDrag {
 // equal, so the context<->map sync effects compare against this instead of
 // using strict equality.
 const ROTATION_EPSILON_DEGREES = 0.01
+
+// Everything that moves the map round by hand - turned off in Present.
+const NAVIGATION_INTERACTIONS = [
+  DragPan, DragRotate, DragZoom, DoubleClickZoom, KeyboardPan, KeyboardZoom, MouseWheelZoom, PinchRotate, PinchZoom,
+]
 
 // How close two people's dots have to be to count as the same cell in a
 // comparison - about a nucleus' radius. Slides with no mpp get pixels.
@@ -124,13 +149,15 @@ function MapNode() {
     decrementCount,
     setPending: setCellCountPending,
     setDotHistory,
+    dotHistory,
     undoSignal,
     redoSignal,
     cancelling,
   } = useCellCountDrawContext()
   const { cellCounts, viewedCellCountId } = useCellCountStoreContext()
   const { activeTools } = useToolbarContext()
-  const { others, sendViewport, sendSketch, addSharedDot, removeSharedDot } = useRealtimeContext()
+  const { me, others, sendViewport, sendSketch, clearSketch, addSharedDot, removeSharedDot } = useRealtimeContext()
+  const { following, leader, mode: navigationMode, breakAway, lookAt } = useNavigationContext()
   const {
     stage: comparisonStage,
     results: comparisonResults,
@@ -198,6 +225,13 @@ function MapNode() {
   // Shapes other people are part way through drawing.
   const remoteSketchesSourceRef = useRef(new VectorSource())
   const remoteSketchesLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
+  const remoteRulersSourceRef = useRef(new VectorSource())
+  const remoteCountsSourceRef = useRef(new VectorSource())
+  // Whether our count is out there for people watching us present.
+  const countSentRef = useRef(false)
+  // Whether our measurement is out there, so closing the ruler only clears
+  // our sketch when it's a ruler one, not an annotation half drawn.
+  const rulerSentRef = useRef(false)
   const annotationsLayerRef = useRef<WebGLVectorLayer<VectorSource> | null>(null)
   const annotationArrowsLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const drawLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
@@ -324,6 +358,16 @@ function MapNode() {
           visible: annotationsVisible,
         })
         remoteSketchesLayerRef.current = remoteSketchesLayer
+        // Shown whatever you have open - someone measuring is worth seeing.
+        const remoteRulersLayer = new VectorLayer({
+          source: remoteRulersSourceRef.current,
+          style: remoteRulerStyle(metadata.mppX, metadata.mppY),
+        })
+        // The host's count while they present - shown whatever you have open.
+        const remoteCountsLayer = new VectorLayer({
+          source: remoteCountsSourceRef.current,
+          style: remoteCellCountStyle,
+        })
         const remoteViewportsLayer = new VectorLayer({
           source: remoteViewportsSourceRef.current,
           style: remoteViewportStyle,
@@ -342,7 +386,7 @@ function MapNode() {
           { baseUrl: `${slideUrl}/`, tileSize: metadata.tileSize },
           metadata.objectivePower,
           metadata.mppX,
-          [annotationsLayer, annotationArrowsLayer, drawLayer, cellCountDotsLayer, roiLayer, viewedDotsLayer, viewedRoiLayer, comparisonLayer, doubleCountLayer, sharedDotsLayer, rulerLayer, remoteSketchesLayer, remoteViewportsLayer]
+          [annotationsLayer, annotationArrowsLayer, drawLayer, cellCountDotsLayer, roiLayer, viewedDotsLayer, viewedRoiLayer, comparisonLayer, doubleCountLayer, sharedDotsLayer, rulerLayer, remoteCountsLayer, remoteSketchesLayer, remoteRulersLayer, remoteViewportsLayer]
         )
         overviewMap.addLayer(
           new VectorLayer({
@@ -408,6 +452,71 @@ function MapNode() {
     return watchView(view, map, send)
   }, [mapVersion, sendViewport])
 
+  // Follow me and Present - keep the view on the host's (see
+  // NavigationContext). Fitted to your screen, so you see roughly what they
+  // do. Moving it yourself drops you out of Follow, and in Present puts you
+  // straight back.
+  const leaderViewport = following ? (leader?.viewport ?? null) : null
+  const locked = following && navigationMode === 'present'
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !leaderViewport) return
+
+    const view = map.getView()
+    let applying = false
+    let applied: ViewState | null = null
+    const apply = () => {
+      const size = map.getSize()
+      if (!size) return
+      const target = followView(leaderViewport, [size[0], size[1]])
+      applying = true
+      view.setCenter(target.center)
+      view.setResolution(target.resolution)
+      view.setRotation(target.rotation)
+      applying = false
+      // What the view actually ended up as, after its own limits.
+      const center = view.getCenter()
+      const resolution = view.getResolution()
+      applied = center && resolution ? { center: [center[0], center[1]], resolution, rotation: view.getRotation() } : null
+    }
+    const onMove = () => {
+      if (applying || !applied) return
+      const center = view.getCenter()
+      const resolution = view.getResolution()
+      if (!center || !resolution) return
+      if (sameView({ center: [center[0], center[1]], resolution, rotation: view.getRotation() }, applied)) return
+      if (locked) apply()
+      else breakAway()
+    }
+
+    apply()
+    const viewEvents = ['change:center', 'change:resolution', 'change:rotation'] as const
+    viewEvents.forEach((type) => view.on(type, onMove))
+    map.on('change:size', apply)
+    return () => {
+      viewEvents.forEach((type) => view.un(type, onMove))
+      map.un('change:size', apply)
+    }
+  }, [leaderViewport, locked, breakAway, mapVersion])
+
+  // Said yes to the host's "look here" - glide to roughly what they saw,
+  // fitted to your screen like following is.
+  useEffect(() => {
+    const map = mapRef.current
+    const size = map?.getSize()
+    if (!map || !size || !lookAt) return
+    const target = followView(lookAt.viewport, [size[0], size[1]])
+    map.getView().animate({ ...target, duration: 600 })
+  }, [lookAt])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    map.getInteractions().forEach((interaction) => {
+      if (NAVIGATION_INTERACTIONS.some((type) => interaction instanceof type)) interaction.setActive(!locked)
+    })
+  }, [locked, mapVersion])
+
   // Redraw everyone else's viewport whenever one moves or someone comes/goes.
   useEffect(() => {
     const source = remoteViewportsSourceRef.current
@@ -430,6 +539,49 @@ function MapNode() {
     source.clear()
     source.addFeatures(remoteSketchFeatures(others))
   }, [others])
+
+  // Same for everyone else's measuring lines.
+  useEffect(() => {
+    const source = remoteRulersSourceRef.current
+    source.clear()
+    source.addFeatures(remoteRulerFeatures(others))
+  }, [others])
+
+  // And the host's count while they present.
+  useEffect(() => {
+    const source = remoteCountsSourceRef.current
+    source.clear()
+    source.addFeatures(remoteCellCountFeatures(others))
+  }, [others])
+
+  // Presenting a count - everyone watching sees the dots and tally as they
+  // go, from starting until it's saved or thrown away. Never during a
+  // comparison, which has to stay blind, or a shared count, where everyone
+  // already sees every dot.
+  const presentingCount =
+    !!me?.host && navigationMode === 'present' && (counting || !!cellCountPending) && !comparisonStage && !sharedStage
+  const [roiVersion, setRoiVersion] = useState(0)
+  useEffect(() => {
+    const source = roiSourceRef.current
+    const bump = () => setRoiVersion((v) => v + 1)
+    const events = ['addfeature', 'removefeature', 'changefeature', 'clear'] as const
+    events.forEach((type) => source.on(type, bump))
+    return () => events.forEach((type) => source.un(type, bump))
+  }, [])
+  useEffect(() => {
+    if (!presentingCount) {
+      if (countSentRef.current) {
+        countSentRef.current = false
+        clearSketch('cellCount')
+      }
+      return
+    }
+    const roi = roiFeatureRef.current
+    const dots = cellCountPending ? cellCountPending.dots : dotHistory
+    const count = cellCountPending ? cellCountPending.count : cellCount
+    countSentRef.current = true
+    sendSketch(cellCountSketch(dots, dotSize, count, roi ? featureToGeoJson(roi) : null))
+  }, [presentingCount, dotHistory, cellCount, cellCountPending, dotSize, roiVersion, sendSketch])
 
   // Keep annotation shapes off the image unless the annotations panel is
   // actually open - re-applied on every toggle; the layers' own construction
@@ -463,8 +615,12 @@ function MapNode() {
     if (!rulerVisible) {
       rulerSourceRef.current.clear()
       setLastMeasurement(null)
+      if (rulerSentRef.current) {
+        rulerSentRef.current = false
+        clearSketch('ruler')
+      }
     }
-  }, [rulerVisible, setLastMeasurement])
+  }, [rulerVisible, setLastMeasurement, sendSketch])
 
   // Explicit "Clear" button in the ruler panel - same signal-counter idiom
   // as undoSignal/redoSignal above, since the panel has no direct handle on
@@ -473,8 +629,12 @@ function MapNode() {
     if (rulerClearSignal !== lastRulerClearSignalRef.current) {
       lastRulerClearSignalRef.current = rulerClearSignal
       rulerSourceRef.current.clear()
+      if (rulerSentRef.current) {
+        rulerSentRef.current = false
+        clearSketch('ruler')
+      }
     }
-  }, [rulerClearSignal])
+  }, [rulerClearSignal, sendSketch])
 
   // Measuring tool: a plain two-point LineString Draw, active only while the
   // ruler panel is open. drawstart clears any previous line first, so only
@@ -501,8 +661,34 @@ function MapNode() {
       style: rulerSketchStyle(mppX, mppY),
     })
 
-    draw.on('drawstart', () => {
+    // Others see the line as it's dragged, then where it ends up.
+    const send = (coordinates: number[][], done: boolean) => {
+      const sketch = rulerSketch(coordinates, done)
+      if (!sketch) return
+      rulerSentRef.current = true
+      sendSketch(sketch)
+    }
+    let dragging: LineString | null = null
+    const sendDragging = () => {
+      if (dragging) send(dragging.getCoordinates(), false)
+    }
+    const stopDragging = () => {
+      dragging?.un('change', sendDragging)
+      dragging = null
+    }
+
+    draw.on('drawstart', (event: DrawEvent) => {
       rulerSourceRef.current.clear()
+      dragging = (event.feature as Feature<LineString>).getGeometry()!
+      dragging.on('change', sendDragging)
+    })
+
+    draw.on('drawabort', () => {
+      stopDragging()
+      if (rulerSentRef.current) {
+        rulerSentRef.current = false
+        clearSketch('ruler')
+      }
     })
 
     draw.on('drawend', (event: DrawEvent) => {
@@ -521,14 +707,17 @@ function MapNode() {
         realDistanceMicrons !== null ? formatDistanceMicrons(realDistanceMicrons) : formatDistancePixels(pixelLength)
       )
       setLastMeasurement({ pixelDistance: pixelLength, realDistanceMicrons })
+      stopDragging()
+      send(coords, true)
     })
 
     map.addInteraction(draw)
 
     return () => {
+      stopDragging()
       map.removeInteraction(draw)
     }
-  }, [rulerVisible, activeTool, counting, setLastMeasurement])
+  }, [rulerVisible, activeTool, counting, setLastMeasurement, sendSketch])
 
   useEffect(() => {
     rotationDegreesRef.current = rotationDegrees
@@ -1115,21 +1304,21 @@ function MapNode() {
     if (!map || !pending) return
 
     const feature = pending.feature
-    const send = () =>
-      sendSketch(
-        sketchOf(map, feature, {
-          shape: pending.shape,
-          colour: feature.get('colour'),
-          lineThickness: feature.get('lineThickness'),
-          lineStyle: feature.get('lineStyle'),
-        })
-      )
+    const send = () => {
+      const sketch = sketchOf(map, feature, {
+        shape: pending.shape,
+        colour: feature.get('colour'),
+        lineThickness: feature.get('lineThickness'),
+        lineStyle: feature.get('lineStyle'),
+      })
+      if (sketch) sendSketch(sketch)
+    }
     send()
     feature.on(['change', 'propertychange'], send)
 
     return () => {
       feature.un(['change', 'propertychange'], send)
-      sendSketch(null)
+      clearSketch('annotation')
     }
   }, [pending, sendSketch])
 
@@ -1155,7 +1344,8 @@ function MapNode() {
     const look: SketchLook = { shape: activeTool, colour, lineThickness, lineStyle }
     let sketching: Feature<Geometry> | null = null
     const sendSketching = () => {
-      if (sketching) sendSketch(sketchOf(map, sketching, look))
+      const sketch = sketching && sketchOf(map, sketching, look)
+      if (sketch) sendSketch(sketch)
     }
     const stopSketching = () => {
       sketching?.un('change', sendSketching)
@@ -1167,7 +1357,7 @@ function MapNode() {
     })
     draw.on('drawabort', () => {
       stopSketching()
-      sendSketch(null)
+      clearSketch('annotation')
     })
 
     draw.on('drawend', (event: DrawEvent) => {
@@ -1197,7 +1387,7 @@ function MapNode() {
         drawSourceRef.current.once('addfeature', (e) => {
           if (e.feature) drawSourceRef.current.removeFeature(e.feature)
         })
-        sendSketch(null)
+        clearSketch('annotation')
         return
       }
 
@@ -1210,7 +1400,7 @@ function MapNode() {
 
     return () => {
       // Switching tool or closing the panel mid-shape throws it away.
-      if (sketching) sendSketch(null)
+      if (sketching) clearSketch('annotation')
       stopSketching()
       map.removeInteraction(draw)
     }

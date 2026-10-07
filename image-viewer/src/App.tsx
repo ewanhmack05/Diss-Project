@@ -10,6 +10,7 @@ import {
 import { restrictToWindowEdges } from '@dnd-kit/modifiers'
 import { ImageViewerContextProvider } from './context/ImageViewerContext'
 import { ToolbarContextProvider, useToolbarContext, type ToolId } from './context/ToolbarContext'
+import { NavigationContextProvider } from './context/NavigationContext'
 import { CollectionContextProvider } from './context/CollectionContext'
 import { RealtimeContextProvider } from './context/RealtimeContext'
 import { AnnotationStoreContextProvider } from './context/AnnotationStoreContext'
@@ -20,6 +21,7 @@ import { RotationContextProvider } from './context/RotationContext'
 import { RulerContextProvider } from './context/RulerContext'
 import { AdjustmentsContextProvider } from './context/AdjustmentsContext'
 import { ToastContextProvider } from './context/ToastContext'
+import { DialogContextProvider } from './context/DialogContext'
 import { ComparisonContextProvider } from './context/ComparisonContext'
 import { SharedCountContextProvider } from './context/SharedCountContext'
 import { EventContextProvider } from './context/EventContext'
@@ -53,6 +55,7 @@ import {
 import { bringToFront, stackIndex } from './components/toolbar/focusOrder'
 import { clampToBounds, placeInColumns, type Bounds, type Rect } from './components/toolbar/panelPlacement'
 import ToastStack from './components/toast/ToastStack'
+import DialogHost from './components/dialog/DialogHost'
 import PresenceList from './components/presence/PresenceList'
 import type { ImageSource } from './interfaces/ImageSource'
 import './App.css'
@@ -114,6 +117,7 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, auth
 
   return (
     <ToastContextProvider>
+      <DialogContextProvider>
       <EventContextProvider on={on}>
         <AuthContextProvider auth={auth}>
         <ImageViewerContextProvider source={imageSource}>
@@ -131,11 +135,13 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, auth
                         <RulerContextProvider>
                           <AdjustmentsContextProvider baseUrl={annotationStoreUrl}>
                             <ToolbarContextProvider>
+                              <NavigationContextProvider>
                               <ComparisonContextProvider>
                                 <SharedCountContextProvider>
                                   <ViewerShell fontSize={options?.fontSize} tools={options?.tools} />
                                 </SharedCountContextProvider>
                               </ComparisonContextProvider>
+                              </NavigationContextProvider>
                             </ToolbarContextProvider>
                           </AdjustmentsContextProvider>
                         </RulerContextProvider>
@@ -150,6 +156,7 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, auth
         </ImageViewerContextProvider>
         </AuthContextProvider>
       </EventContextProvider>
+      </DialogContextProvider>
     </ToastContextProvider>
   )
 }
@@ -521,6 +528,7 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
       <Toolbar tools={tools} />
       <PresenceList />
       <ToastStack />
+      <DialogHost />
     </div>
   )
 }

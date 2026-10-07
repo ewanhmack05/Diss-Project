@@ -41,9 +41,18 @@ public class HubFactory : WebApplicationFactory<Program>
 }
 
 // Stands in for annotation-store: every session is open to everyone, apart
-// from ids starting "locked", which nobody can join.
+// from ids starting "locked", which nobody can join. Users whose id starts
+// "host" own whatever they join, "viewer" can only view, anyone else can
+// edit. Roles can be changed for a user, like the host would.
 public class TestSessionAccess : ISessionAccess
 {
-    public Task<bool> CanJoinAsync(string sessionId, string accessToken, CancellationToken cancellationToken) =>
-        Task.FromResult(!sessionId.StartsWith("locked", StringComparison.Ordinal));
+    public static readonly System.Collections.Concurrent.ConcurrentDictionary<string, SessionRole> Changed = new();
+
+    public Task<SessionRole?> RoleInAsync(string sessionId, string userId, string accessToken, CancellationToken cancellationToken) =>
+        Task.FromResult<SessionRole?>(
+            sessionId.StartsWith("locked", StringComparison.Ordinal) ? null
+            : Changed.TryGetValue(userId, out var changed) ? changed
+            : userId.StartsWith("host", StringComparison.Ordinal) ? SessionRole.Owner
+            : userId.StartsWith("viewer", StringComparison.Ordinal) ? SessionRole.Viewer
+            : SessionRole.Editor);
 }

@@ -3,11 +3,13 @@ import { useRealtimeContext } from '../../context/RealtimeContext'
 import { useCollectionContext, type Collection, type CollectionRole } from '../../context/CollectionContext'
 import { useAuthContext } from '../../context/AuthContext'
 import { useEmitEvent } from '../../context/EventContext'
+import { TOOL_NAMES, type ToolId } from '../../context/ToolbarContext'
 import CountInvites from '../cell-count/CountInvites'
 import SessionInvite from './SessionInvite'
 import { useComparisonContext } from '../../context/ComparisonContext'
 import { useSharedCountContext } from '../../context/SharedCountContext'
 import { formatLongDate, formatShortDate } from '../saved/savedDates'
+import type { NavigationMode } from './realtime'
 import './RealTimePanel.css'
 
 const ROLE_TEXT: Record<CollectionRole, string> = {
@@ -245,6 +247,108 @@ function LiveLine({ text }: { text: string }) {
   )
 }
 
+const NAVIGATION_OPTIONS: { mode: NavigationMode; label: string; about: string }[] = [
+  { mode: 'free', label: 'Free', about: 'Everyone moves round on their own.' },
+  { mode: 'follow', label: 'Follow me', about: 'Everyone sees what you see. They can move away and come back.' },
+  { mode: 'present', label: 'Present', about: "Everyone sees what you see and can't move away. Panels you open, open for them too." },
+]
+
+function NavigationControls() {
+  const { status, navigation, setNavigation } = useRealtimeContext()
+  const emit = useEmitEvent()
+  const live = status === 'connected'
+  const current = NAVIGATION_OPTIONS.find((option) => option.mode === navigation)
+
+  return (
+    <section className="realtime-section">
+      <h3 className="realtime-heading">Navigation</h3>
+      <div className="realtime-segmented" role="group" aria-label="Navigation">
+        {NAVIGATION_OPTIONS.map((option) => (
+          <button
+            key={option.mode}
+            type="button"
+            aria-pressed={navigation === option.mode}
+            disabled={!live}
+            className={`realtime-segment${navigation === option.mode ? ' realtime-segment--active' : ''}`}
+            onClick={() => setNavigation(option.mode).catch(() => emit('session:error'))}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+      {current && <p className="realtime-note">{current.about}</p>}
+    </section>
+  )
+}
+
+// Panels the host can ask people to open - not the RealTime one.
+const ASKABLE_PANELS: ToolId[] = ['annotations', 'cellcount', 'rotate', 'ruler', 'adjustments']
+
+// The host asking everyone, or one person, to look where they are or open a
+// panel. It's only asked - it comes up for them to say yes or no to.
+function AskPeople() {
+  const { status, others, askToLook, askToOpen } = useRealtimeContext()
+  const emit = useEmitEvent()
+  const [to, setTo] = useState('')
+  if (others.length === 0) return null
+
+  const live = status === 'connected'
+  // Gone since it was picked - back to everyone.
+  const target = others.some((p) => p.connectionId === to) ? [to] : null
+  const send = (ask: Promise<void>) => ask.then(() => emit('request:sent')).catch(() => emit('request:error'))
+
+  return (
+    <section className="realtime-section">
+      <h3 className="realtime-heading">Ask people to…</h3>
+      <label className="realtime-field realtime-field--row">
+        <span className="realtime-field-label">Who</span>
+        <select value={target ? to : ''} onChange={(e) => setTo(e.target.value)}>
+          <option value="">Everyone</option>
+          {others.map((p) => (
+            <option key={p.connectionId} value={p.connectionId}>
+              {p.displayName}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="realtime-button-row">
+        <button type="button" className="realtime-button" disabled={!live} onClick={() => send(askToLook(target))}>
+          Look here
+        </button>
+        <select
+          className="realtime-ask-open"
+          aria-label="Open a tab"
+          value=""
+          disabled={!live}
+          onChange={(e) => {
+            if (e.target.value) send(askToOpen(target, e.target.value))
+          }}
+        >
+          <option value="">Open a tab…</option>
+          {ASKABLE_PANELS.map((panel) => (
+            <option key={panel} value={panel}>
+              {TOOL_NAMES[panel]}
+            </option>
+          ))}
+        </select>
+      </div>
+    </section>
+  )
+}
+
+// What the host has everyone doing, for people who joined.
+function NavigationNote() {
+  const { navigation } = useRealtimeContext()
+  if (navigation === 'free') return null
+  return (
+    <p className="realtime-note">
+      {navigation === 'present'
+        ? "The host is presenting - you'll see what they see."
+        : "The host has everyone following them - move the map to look round on your own, and Follow to go back."}
+    </p>
+  )
+}
+
 function Hosting({ session }: { session: Collection }) {
   const { endSession, refresh } = useCollectionContext()
   const emit = useEmitEvent()
@@ -269,34 +373,8 @@ function Hosting({ session }: { session: Collection }) {
       <SessionInvite />
       <PeopleList session={session} controls />
       <CountActivity />
-      <section className="realtime-section realtime-section--soon">
-        <div className="realtime-soon-header">
-          <h3 className="realtime-heading">Session controls</h3>
-          <span className="realtime-soon-tag">Coming soon</span>
-        </div>
-        <label className="realtime-soon-option">
-          Others can draw annotations
-          <input type="checkbox" checked disabled readOnly />
-        </label>
-        <label className="realtime-soon-option">
-          Others can start counts
-          <input type="checkbox" checked disabled readOnly />
-        </label>
-        <div className="realtime-field">
-          <span className="realtime-soon-option">Navigation</span>
-          <div className="realtime-segmented" role="group" aria-label="Navigation">
-            <button type="button" disabled className="realtime-segment realtime-segment--active">
-              Free
-            </button>
-            <button type="button" disabled className="realtime-segment">
-              Follow me
-            </button>
-            <button type="button" disabled className="realtime-segment">
-              Present
-            </button>
-          </div>
-        </div>
-      </section>
+      <NavigationControls />
+      <AskPeople />
       {confirmingEnd ? (
         <div className="realtime-confirm">
           <p className="realtime-note">End it for everyone? Its link stops working and it becomes read-only.</p>
@@ -334,6 +412,7 @@ function Joined({ session }: { session: Collection }) {
           ? "You can look at everything here, but not change it - ask the host if you need to."
           : 'Anything you add is saved to this session, where everyone in it can see it - not to your own collection.'}
       </p>
+      <NavigationNote />
       <PeopleList session={session} controls={false} />
       <CountActivity />
       <button type="button" className="realtime-button realtime-button--wide" onClick={leaveSession}>

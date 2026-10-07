@@ -13,6 +13,7 @@ import SavedRow, { SavedDetails } from "../../saved/SavedRow";
 import { formatLongDate, formatShortDate, newestFirst } from "../../saved/savedDates";
 import { savedBy } from "../../saved/savedBy";
 import { useAuthContext } from "../../../context/AuthContext";
+import { useCollectionContext } from "../../../context/CollectionContext";
 import "./SavedCountList.css";
 
 function RoiIcon() {
@@ -45,6 +46,7 @@ interface SavedCountRowProps {
 function SavedCountRow({ cellCount, open, onToggle }: SavedCountRowProps) {
   const { viewedCellCountId, setSelectedCellCountId, setViewedCellCountId } =
     useCellCountStoreContext();
+  const { canEdit } = useCollectionContext();
   const { user } = useAuthContext();
   const by = savedBy(cellCount, user.id);
   const dots = parseCellCountDots(cellCount.dots);
@@ -142,6 +144,7 @@ function SavedCountRow({ cellCount, open, onToggle }: SavedCountRowProps) {
               type="button"
               className="saved-row-button saved-row-button--primary"
               onClick={() => setSelectedCellCountId(cellCount.id)}
+              disabled={!canEdit}
             >
               Edit
             </button>
@@ -155,13 +158,14 @@ function SavedCountRow({ cellCount, open, onToggle }: SavedCountRowProps) {
 function SavedCountList() {
   const { cellCounts, status, selectedCellCountId, setSelectedCellCountId } =
     useCellCountStoreContext();
+  const { canEdit } = useCollectionContext();
   // Kept here rather than reset on edit, so Back returns to the same results.
   const [search, setSearch] = useState("");
   // One open at a time. Kept through an edit too, so Back lands on it.
   const [openId, setOpenId] = useState<string | null>(null);
 
   const editing = cellCounts.find((c) => c.id === selectedCellCountId);
-  if (editing) {
+  if (editing && canEdit) {
     return (
       <SavedCountEdit
         key={editing.id}
@@ -191,10 +195,10 @@ function SavedCountList() {
   const filtered = newestFirst(
     query
       ? cellCounts.filter(
-          (c) =>
-            c.label.toLowerCase().includes(query) ||
-            c.notes.toLowerCase().includes(query),
-        )
+        (c) =>
+          c.label.toLowerCase().includes(query) ||
+          c.notes.toLowerCase().includes(query),
+      )
       : cellCounts,
   );
 

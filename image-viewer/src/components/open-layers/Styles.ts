@@ -400,6 +400,67 @@ function remoteSketchStyle(feature: FeatureLike, resolution: number): Style[] {
 	return styles;
 }
 
+// Someone else's measuring line, in their colour - dashed while they drag,
+// solid once they let go - with the distance over it and their name at the end.
+function remoteRulerStyle(mppX: number | null, mppY: number | null) {
+	return (feature: FeatureLike): Style[] => {
+		const geometry = feature.getGeometry();
+		if (!(geometry instanceof LineString)) return [];
+		const colour = feature.get("ownerColour") as string;
+		const done = feature.get("done") as boolean;
+		return [
+			new Style({
+				stroke: new Stroke({ color: colour, width: 2, lineDash: done ? undefined : [6, 4] }),
+				text: rulerTextStyle(rulerDistanceLabel(geometry, mppX, mppY)),
+			}),
+			new Style({
+				geometry: new Point(geometry.getLastCoordinate()),
+				text: new Text({
+					text: feature.get("owner") as string,
+					font: "600 12px 'Source Sans Pro', Arial, sans-serif",
+					fill: new Fill({ color: "#fff" }),
+					backgroundFill: new Fill({ color: colour }),
+					padding: [1, 4, 1, 4],
+					textAlign: "left",
+					textBaseline: "bottom",
+					offsetX: 8,
+					offsetY: -8,
+				}),
+			}),
+		];
+	};
+}
+
+// Someone else's count as they go (see remoteCellCountFeatures) - dots like
+// your own, and their ROI box with their name and tally on its top edge.
+function remoteCellCountStyle(feature: FeatureLike): Style[] {
+	if (feature.get("kind") !== "roi") return [cellCountDotStyle(feature)];
+	const geometry = feature.getGeometry();
+	const styles = [roiBoxStyle()];
+	if (geometry instanceof Polygon) {
+		const ring = geometry.getCoordinates()[0] ?? [];
+		const top = ring.reduce<number[] | undefined>((best, c) => (!best || c[1] > best[1] ? c : best), undefined);
+		if (top) {
+			styles.push(
+				new Style({
+					geometry: new Point(top),
+					text: new Text({
+						text: feature.get("label") as string,
+						font: "600 12px 'Source Sans Pro', Arial, sans-serif",
+						fill: new Fill({ color: "#fff" }),
+						backgroundFill: new Fill({ color: feature.get("ownerColour") as string }),
+						padding: [1, 4, 1, 4],
+						textAlign: "left",
+						textBaseline: "bottom",
+						offsetY: -4,
+					}),
+				}),
+			);
+		}
+	}
+	return styles;
+}
+
 const COMPARISON_MISSED_COLOUR = "#ff3b30";
 
 // A revealed comparison count (see MapNode) - `kind` says which bit this is.
@@ -455,6 +516,8 @@ export {
 	remoteViewportOverviewStyle,
 	OVERVIEW_LABEL_MIN_PX,
 	remoteSketchStyle,
+	remoteRulerStyle,
+	remoteCellCountStyle,
 	comparisonResultStyle,
 	sharedDotFlatStyle,
 	penPosition,

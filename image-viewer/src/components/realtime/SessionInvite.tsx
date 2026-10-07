@@ -15,14 +15,21 @@ const CAN_TEXT: Record<CollectionRole, string> = {
   owner: '',
 }
 
+// The option closest to how long the link was made to last.
+function hoursOf(invite: Invite): number {
+  const made = (new Date(invite.expires).getTime() - new Date(invite.created).getTime()) / 3_600_000
+  return HOURS.reduce((best, option) => (Math.abs(option.hours - made) < Math.abs(best - made) ? option.hours : best), HOURS[0].hours)
+}
+
 function linkFor(code: string): string {
   return `${window.location.origin}${window.location.pathname}?invite=${encodeURIComponent(code)}`
 }
 
-// The host's invite link - one working link at a time. Making a new one
-// stops the old one, so changing who it's for is just making another.
+// The host's invite link - one working link at a time. Who it lets in as
+// and when it runs out change the working link straight away. Making a new
+// one stops the old one, for when the old one has gone further than it should.
 function SessionInvite() {
-  const { session, loadInvites, createInvite, stopInvite } = useCollectionContext()
+  const { session, loadInvites, createInvite, updateInvite, stopInvite } = useCollectionContext()
   const emit = useEmitEvent()
   const [invite, setInvite] = useState<Invite | null>(null)
   const [role, setRole] = useState<CollectionRole>('editor')
@@ -37,7 +44,13 @@ function SessionInvite() {
     if (!sessionId) return
     loadInvites()
       .then((invites) => {
-        if (!cancelled) setInvite(invites[0] ?? null)
+        if (cancelled) return
+        const current = invites[0] ?? null
+        setInvite(current)
+        if (current) {
+          setRole(current.role)
+          setHours(hoursOf(current))
+        }
       })
       .catch(() => {})
     return () => {
@@ -50,6 +63,23 @@ function SessionInvite() {
     createInvite(role, hours)
       .then(setInvite)
       .catch(() => emit('session:error'))
+      .finally(() => setBusy(false))
+  }
+
+  // With a working link, changing either setting changes it straight away.
+  const change = (nextRole: CollectionRole, nextHours: number) => {
+    const before = { role, hours }
+    setRole(nextRole)
+    setHours(nextHours)
+    if (!invite) return
+    setBusy(true)
+    updateInvite(invite.code, nextRole, nextHours)
+      .then(setInvite)
+      .catch(() => {
+        setRole(before.role)
+        setHours(before.hours)
+        emit('session:error')
+      })
       .finally(() => setBusy(false))
   }
 
@@ -116,7 +146,8 @@ function SessionInvite() {
               type="button"
               aria-pressed={role === option}
               className={`realtime-segment${role === option ? ' realtime-segment--active' : ''}`}
-              onClick={() => setRole(option)}
+              disabled={busy}
+              onClick={() => change(option, hours)}
             >
               {option === 'editor' ? 'Edit' : 'View only'}
             </button>
@@ -125,7 +156,7 @@ function SessionInvite() {
       </div>
       <label className="realtime-field realtime-field--row">
         <span className="realtime-field-label">Link expires</span>
-        <select value={hours} onChange={(e) => setHours(Number(e.target.value))}>
+        <select value={hours} disabled={busy} onChange={(e) => change(role, Number(e.target.value))}>
           {HOURS.map((option) => (
             <option key={option.hours} value={option.hours}>
               {option.label}
@@ -136,7 +167,7 @@ function SessionInvite() {
       <button type="button" className="realtime-button realtime-button--accent realtime-button--wide" disabled={busy} onClick={make}>
         {invite ? 'Make a new link' : 'Make a link'}
       </button>
-      {invite && <p className="realtime-note">A new link stops the one above working.</p>}
+      {invite && <p className="realtime-note">Changes apply to the link above. A new link stops it working.</p>}
     </section>
   )
 }

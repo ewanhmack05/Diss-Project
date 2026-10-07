@@ -2,6 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { useImageViewerContext } from './ImageViewerContext'
 import { useEmitEvent } from './EventContext'
 import { useAuthContext } from './AuthContext'
+import { useDialogContext } from './DialogContext'
+import { useToastContext } from './ToastContext'
 
 type Status = 'loading' | 'ready' | 'error'
 
@@ -81,6 +83,8 @@ interface CollectionContextValue {
   endSession: () => Promise<void>
   loadInvites: () => Promise<Invite[]>
   createInvite: (role: CollectionRole, hours: number) => Promise<Invite>
+  // Changes a working link in place - same code, new role and expiry.
+  updateInvite: (code: string, role: CollectionRole, hours: number) => Promise<Invite>
   stopInvite: (code: string) => Promise<void>
   previewInvite: (code: string) => Promise<InvitePreview | null>
   acceptInvite: (code: string) => Promise<void>
@@ -115,11 +119,17 @@ function storeActive(slideId: string, id: string | null) {
   }
 }
 
+function hostName(session: Collection): string {
+  return session.members.find((m) => m.role === 'owner')?.displayName || 'The host'
+}
+
 function CollectionContextProvider({ baseUrl, children }: CollectionContextProviderProps) {
   const { source } = useImageViewerContext()
   const { slideId } = source
   const emit = useEmitEvent()
   const { authFetch } = useAuthContext()
+  const { showDialog } = useDialogContext()
+  const { addToast } = useToastContext()
 
   const [personalCollectionId, setPersonalCollectionId] = useState<string | null>(null)
   const [collections, setCollections] = useState<Collection[]>([])
@@ -166,6 +176,21 @@ function CollectionContextProvider({ baseUrl, children }: CollectionContextProvi
     const after = list.find((c) => c.collectionId === activeIdRef.current)
     if (before?.kind === 'session' && !before.ended && after?.ended && after.myRole !== 'owner') {
       emit('session:ended', { collectionId: after.collectionId })
+      showDialog({
+        title: `${after.collectionName} has ended`,
+        message: `${hostName(after)} ended the session. It's read-only now - you can stay and look back at it, or go back to your own work.`,
+        actions: [{ label: 'Back to my own work', onClick: () => setActive(null) }, { label: 'Stay and look' }],
+      })
+    }
+    // The host changed what you can do.
+    if (before?.kind === 'session' && after && !after.ended && before.myRole !== after.myRole && after.myRole !== 'owner') {
+      emit('session:role-changed', { collectionId: after.collectionId, role: after.myRole })
+      addToast(
+        after.myRole === 'viewer'
+          ? `${hostName(after)} changed you to view only - you can look, but not change anything`
+          : `${hostName(after)} changed you to can edit - you can add and change things now`,
+        'info'
+      )
     }
     setCollections(list)
     // Taken out of the session you were in - back to your own.
@@ -173,8 +198,13 @@ function CollectionContextProvider({ baseUrl, children }: CollectionContextProvi
     if (current && !list.some((c) => c.collectionId === current)) {
       emit('session:removed', { collectionId: current })
       setActive(null)
+      showDialog({
+        title: before ? `You've been removed from ${before.collectionName}` : "You're no longer in that session",
+        message: `${before ? hostName(before) : 'The host'} took you out of the session. You're back working on your own - anything you added there stays with the session.`,
+        actions: [{ label: 'OK' }],
+      })
     }
-  }, [request, slideId, emit, setActive])
+  }, [request, slideId, emit, setActive, showDialog, addToast])
 
   useEffect(() => {
     let cancelled = false
@@ -248,6 +278,14 @@ function CollectionContextProvider({ baseUrl, children }: CollectionContextProvi
     [send, sessionId]
   )
 
+  const updateInvite = useCallback(
+    (code: string, role: CollectionRole, hours: number) => {
+      if (!sessionId) return Promise.reject(new Error('Not in a session'))
+      return send<Invite>(`/collections/${sessionId}/invites/${encodeURIComponent(code)}`, 'PUT', { role, hours })
+    },
+    [send, sessionId]
+  )
+
   const stopInvite = useCallback(
     async (code: string) => {
       if (sessionId) await send(`/collections/${sessionId}/invites/${encodeURIComponent(code)}`, 'DELETE')
@@ -314,6 +352,7 @@ function CollectionContextProvider({ baseUrl, children }: CollectionContextProvi
         endSession,
         loadInvites,
         createInvite,
+        updateInvite,
         stopInvite,
         previewInvite,
         acceptInvite,
