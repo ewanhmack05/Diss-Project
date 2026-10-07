@@ -1,0 +1,79 @@
+# Everything behind the viewer, in containers: Keycloak (from auth/), the
+# tiler, annotation-store with its own Postgres, and the realtime hub.
+#   docker compose up -d --build
+# Each is on the same port as `dotnet run`, so `npm run dev` in
+# image-viewer works the same against either. Stop any you're running
+# with dotnet first, and the auth/ stack if it's up - this one includes it.
+# The *_PORT variables move a port if something else already has it.
+
+name: diss
+
+include:
+  - auth/docker-compose.yml
+
+services:
+  annotation-db:
+    image: postgres:17
+    container_name: diss-annotation-db
+    environment:
+      POSTGRES_DB: annotationstore
+      POSTGRES_USER: annotationstore
+      POSTGRES_PASSWORD: annotationstore
+    volumes:
+      - annotation-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U annotationstore -d annotationstore"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  annotation-store:
+    build: annotation-store
+    container_name: diss-annotation-store
+    environment:
+      ConnectionStrings__AnnotationStore: Host=annotation-db;Database=annotationstore;Username=annotationstore;Password=annotationstore
+      # Keycloak's address inside compose, for its signing keys. Tokens still
+      # name whatever address the browser used, which is fine - see Auth/.
+      Auth__MetadataAddress: http://keycloak:8080/auth/realms/diss/.well-known/openid-configuration
+      # Grafana's OTLP port on the machine, if dashboard/ is running.
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://host.docker.internal:4317
+    ports:
+      - "${ANNOTATION_STORE_PORT:-5252}:8080"
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    depends_on:
+      annotation-db:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    restart: unless-stopped
+
+  realtime-hub:
+    build: realtime-hub
+    container_name: diss-realtime-hub
+    environment:
+      AnnotationStore__BaseUrl: http://annotation-store:8080/
+      Auth__MetadataAddress: http://keycloak:8080/auth/realms/diss/.well-known/openid-configuration
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://host.docker.internal:4317
+    ports:
+      - "${REALTIME_HUB_PORT:-5180}:8080"
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    depends_on:
+      - annotation-store
+    restart: unless-stopped
+
+  tiler:
+    build: tiler
+    container_name: diss-tiler
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://host.docker.internal:4317
+    ports:
+      - "${TILER_PORT:-5095}:8080"
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    restart: unless-stopped
+
+volumes:
+  annotation-db:

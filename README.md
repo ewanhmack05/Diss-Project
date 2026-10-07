@@ -38,6 +38,25 @@ cd realtime-hub/     # optional - the viewer works without it, just not live
 dotnet build && dotnet run --urls http://localhost:5180
 ```
 
+### Or with Docker - 2 terminals
+
+Everything behind the viewer runs in containers from the root
+`docker-compose.yml` - Keycloak, the tiler (slide 003 only), annotation-store
+with its own Postgres, and the realtime hub - on the same ports as above, so
+the viewer doesn't know the difference:
+
+```bash
+docker compose -f auth/docker-compose.yml down   # if the auth/ stack is up - this one includes it
+docker compose up -d --build                     # first build takes a few minutes, mostly the slide
+
+cd image-viewer/
+npm run dev
+```
+
+`docker compose down` stops it. Its Keycloak and annotation-store keep their
+data in their own Docker volumes, separate from the `auth/` stack and your
+local Postgres - so annotations from one don't show in the other.
+
 Optional: `cd dashboard/ && docker compose up -d` for load, timing and
 error stats from `tiler` and `annotation-store` at http://localhost:3000.
 The services run the same without it.

@@ -83,8 +83,9 @@ if (app.Environment.IsDevelopment())
 
 // Dev convenience so a fresh checkout (or a pulled schema change) doesn't
 // need a manual `dotnet ef database update` first - creates the database
-// and applies any pending migrations on startup.
-if (app.Environment.IsDevelopment())
+// and applies any pending migrations on startup. Database:MigrateOnStartup
+// does the same outside Development, for the container (see Dockerfile).
+if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
 {
     using var scope = app.Services.CreateScope();
     scope.ServiceProvider.GetRequiredService<AnnotationDbContext>().Database.Migrate();
