@@ -1,5 +1,7 @@
 # annotation-store
 
+[![annotation-store](https://github.com/ewanhmack05/Diss-Project/actions/workflows/annotation-store.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/annotation-store.yml)
+
 ASP.NET Core (.NET 10) + EF Core (Npgsql) backend for persisted annotations
 and cell counts, one Postgres database shared by both via a single
 `AnnotationDbContext`.

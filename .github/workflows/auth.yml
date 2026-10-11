@@ -1,0 +1,65 @@
+name: auth
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - auth/**
+      - .github/workflows/auth.yml
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Lint, realm import
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: auth
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Lint (shellcheck)
+        run: shellcheck add-realtime-hub-client.sh
+
+      - name: Compose file is valid
+        run: docker compose config -q
+
+      # The viewer signs in through image-viewer, and the hub reads users
+      # through realtime-hub - losing either from the realm breaks sign-in
+      # or the Users tab.
+      - name: Realm has the clients the services use
+        run: >
+          jq -e '.realm == "diss"
+          and any(.clients[]; .clientId == "image-viewer")
+          and any(.clients[]; .clientId == "realtime-hub")'
+          realm/diss-realm.json
+
+      - name: Keycloak starts and imports the realm
+        run: |
+          docker compose up -d
+          url=http://localhost:8080/auth/realms/diss/.well-known/openid-configuration
+          for i in $(seq 1 60); do
+            if curl -fsS "$url" | jq -e '.issuer | endswith("/auth/realms/diss")' >/dev/null 2>&1; then
+              echo "Realm diss is up after $((i * 5))s"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Realm diss didn't come up within 5 minutes"
+          exit 1
+
+      - name: Keycloak logs
+        if: failure()
+        run: docker compose logs keycloak
+
+      - name: Stop Keycloak
+        if: always()
+        run: docker compose down -v

@@ -1,0 +1,95 @@
+# Shared checks for the .NET services, called by annotation-store.yml,
+# realtime-hub.yml and tiler.yml. Format, build with warnings as errors,
+# tests if the service has them, and a Docker build to catch a broken
+# Dockerfile before it gets anywhere near a deploy.
+
+name: .NET service
+
+on:
+  workflow_call:
+    inputs:
+      directory:
+        description: Service folder, e.g. annotation-store
+        required: true
+        type: string
+      project:
+        description: The service's .csproj, relative to its folder
+        required: true
+        type: string
+      tests:
+        description: The test .csproj, relative to the service folder. Empty if there isn't one.
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Lint, build, test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: ${{ inputs.directory }}
+    steps:
+      # No LFS - none of the .NET builds need the slides.
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ inputs.directory }}-${{ hashFiles(format('{0}/**/*.csproj', inputs.directory)) }}
+          restore-keys: nuget-${{ runner.os }}-${{ inputs.directory }}-
+
+      - name: Restore
+        run: |
+          dotnet restore ${{ inputs.project }}
+          if [ -n "${{ inputs.tests }}" ]; then dotnet restore ${{ inputs.tests }}; fi
+
+      - name: Lint (dotnet format)
+        run: |
+          dotnet format ${{ inputs.project }} --verify-no-changes --no-restore
+          if [ -n "${{ inputs.tests }}" ]; then dotnet format ${{ inputs.tests }} --verify-no-changes --no-restore; fi
+
+      - name: Build
+        run: |
+          dotnet build ${{ inputs.project }} -c Release --no-restore -warnaserror
+          if [ -n "${{ inputs.tests }}" ]; then dotnet build ${{ inputs.tests }} -c Release --no-restore -warnaserror; fi
+
+      - name: Test
+        if: inputs.tests != ''
+        run: >
+          dotnet test ${{ inputs.tests }} -c Release --no-build
+          --logger trx --logger "console;verbosity=normal"
+          --results-directory TestResults
+
+      - name: Upload test results
+        if: always() && inputs.tests != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.directory }}-test-results
+          path: ${{ inputs.directory }}/TestResults
+          if-no-files-found: ignore
+
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      # Build only, nothing is pushed. The deploy workflow pushes.
+      - uses: docker/build-push-action@v7
+        with:
+          context: ${{ inputs.directory }}
+          push: false
+          cache-from: type=gha,scope=ci-${{ inputs.directory }}
+          cache-to: type=gha,mode=max,scope=ci-${{ inputs.directory }}

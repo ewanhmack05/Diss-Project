@@ -1,0 +1,134 @@
+# Deploy to Azure - bare bones, follows Option A in docs/azure.md:
+# backend images on GHCR, run as Container Apps, viewer on Static Web Apps.
+# Run by hand from the Actions tab until it's filled in.
+#
+# Needs, in a "production" environment on the repo (Settings > Environments):
+#   vars.AZURE_CLIENT_ID        app registration with a federated credential
+#   vars.AZURE_TENANT_ID        for this repo's production environment (OIDC,
+#   vars.AZURE_SUBSCRIPTION_ID  so no client secret is stored)
+#   vars.AZURE_RESOURCE_GROUP
+#   secrets.AZURE_STATIC_WEB_APPS_API_TOKEN
+#
+# TODO:
+#   - Container Apps need registry credentials to pull from GHCR, or make
+#     the packages public, or switch REGISTRY to an ACR
+#   - Keycloak and Postgres aren't here - Keycloak is the stock image plus
+#     the realm, Postgres is Flexible Server. Set them up once by hand or IaC
+#   - The viewer still assumes services on its own host (docs/azure.md,
+#     "To handle" item 3) - pass the real URLs to the build once that's done
+#   - Gate on the CI workflows passing before switching on the push trigger
+
+name: Deploy to Azure
+
+on:
+  workflow_dispatch:
+  # push:
+  #   branches: [master]
+
+concurrency:
+  group: deploy-azure
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io
+  # GHCR names must be lower case.
+  IMAGE_PREFIX: ghcr.io/ewanhmack05/diss
+
+jobs:
+  images:
+    name: Push ${{ matrix.service }} image
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        service: [annotation-store, realtime-hub, tiler]
+    steps:
+      - uses: actions/checkout@v7
+
+      # The tiler image has slide 003 built in. Only pull that slide, not
+      # all of them - it's still ~2.9 GB of LFS bandwidth per deploy, so
+      # watch the quota. Azure Files is the fallback (docs/azure.md, item 6).
+      - name: Pull slide 003
+        if: matrix.service == 'tiler'
+        run: git lfs pull --include "tiler/data/003.mrxs,tiler/data/003/**"
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.service }}
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:${{ github.sha }}
+            ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:latest
+          cache-from: type=gha,scope=deploy-${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=deploy-${{ matrix.service }}
+
+  backend:
+    name: Deploy ${{ matrix.service }}
+    needs: images
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      matrix:
+        service: [annotation-store, realtime-hub, tiler]
+    steps:
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # Assumes the Container Apps already exist, named diss-<service>.
+      - name: Point the container app at the new image
+        run: >
+          az containerapp update
+          --name diss-${{ matrix.service }}
+          --resource-group ${{ vars.AZURE_RESOURCE_GROUP }}
+          --image ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:${{ github.sha }}
+
+  viewer:
+    name: Deploy image-viewer
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    defaults:
+      run:
+        working-directory: image-viewer
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: image-viewer/package-lock.json
+
+      - run: npm ci --no-audit --no-fund
+
+      - run: npm run build
+
+      - uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          action: upload
+          app_location: image-viewer/dist
+          skip_app_build: true
+          skip_api_build: true

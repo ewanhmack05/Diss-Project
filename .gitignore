@@ -11,6 +11,7 @@ node_modules
 dist
 dist-ssr
 *.local
+*.tsbuildinfo
 
 # Editor directories and files
 .vscode/*
@@ -33,3 +34,10 @@ obj/
 .env
 .env.local
 
+# Claude
+CLAUDE.md
+.claude
+
+# Raw FlyWire downloads - large, publicly re-downloadable, never committed.
+# The derived seed.json (small, checked in) is what the bot actually reads.
+flywire-bot/data/raw/

@@ -1,5 +1,7 @@
 # tiler
 
+[![tiler](https://github.com/ewanhmack05/Diss-Project/actions/workflows/tiler.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/tiler.yml)
+
 ASP.NET Core (.NET 10) tile server for whole-slide images. Opens `.mrxs`
 (MIRAX) files via [OpenSlideSharp](https://github.com/IOL0ol1/OpenSlideSharp)
 (.NET bindings for [OpenSlide](https://openslide.org/)) and serves tiles in a

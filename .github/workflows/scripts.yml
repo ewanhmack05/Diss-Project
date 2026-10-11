@@ -1,0 +1,38 @@
+name: scripts
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - scripts/**
+      - .github/workflows/scripts.yml
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Lint (ruff)
+        uses: astral-sh/ruff-action@v4.1.0
+        with:
+          src: scripts
+
+      # Standard library only (see scripts/README.md), so compiling is
+      # the whole check that they still parse.
+      - name: Scripts compile
+        run: python -m py_compile scripts/*.py

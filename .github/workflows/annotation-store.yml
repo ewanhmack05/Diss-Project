@@ -1,0 +1,25 @@
+name: annotation-store
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - annotation-store/**
+      - .github/workflows/annotation-store.yml
+      - .github/workflows/dotnet.yml
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  dotnet:
+    uses: ./.github/workflows/dotnet.yml
+    with:
+      directory: annotation-store
+      project: AnnotationStore.csproj
+      tests: Tests/AnnotationStore.Tests.csproj

@@ -59,10 +59,10 @@ public class SessionsTests : IClassFixture<CellCountApiFactory>
         Assert.Equal(CollectionKind.Session, session.Kind);
         Assert.Equal(CollectionRole.Owner, session.MyRole);
         Assert.Equal("User alice's session", session.CollectionName);
-        var list = await alice.GetFromJsonAsync<List<CollectionView>>($"/collections?slideId={slideId}", Json);
+        var list = (await alice.GetFromJsonAsync<List<CollectionView>>($"/collections?slideId={slideId}", Json))!;
         Assert.Equal(
             [CollectionKind.Personal, CollectionKind.Session, CollectionKind.Session],
-            list!.Select(c => c.Kind));
+            list.Select(c => c.Kind));
         Assert.Equal(second.CollectionId, list[1].CollectionId);
     }
 

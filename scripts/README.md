@@ -1,5 +1,7 @@
 # scripts
 
+[![scripts](https://github.com/ewanhmack05/Diss-Project/actions/workflows/scripts.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/scripts.yml)
+
 One-off and dev scripts that sit outside the services - test data, database
 maintenance and the like. Python scripts use the standard library only, so
 there's nothing to install. Run them from the repo root.

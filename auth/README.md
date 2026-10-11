@@ -1,5 +1,7 @@
 # auth
 
+[![auth](https://github.com/ewanhmack05/Diss-Project/actions/workflows/auth.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/auth.yml)
+
 Keycloak for sign-in, run locally in Docker. See
 [docs/auth.md](../docs/auth.md) for why Keycloak and how it connects to the
 rest.
