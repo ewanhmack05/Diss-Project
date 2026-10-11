@@ -73,8 +73,14 @@ Keycloak is in, locally, and everything needs signing in.
 
 - Invite links for people without an account (guests) - links need a
   signed-in user for now.
-- Inviting a named person directly rather than sending a link - needs a
-  user list, from Keycloak's admin API with a service account.
-- Old data under the placeholder `'001'` user still belongs to `'001'`.
-  Moving it to a real account is one UPDATE on `Collections.UserId` and
-  `CollectionMembers.UserId`.
+
+### Invites
+- Users list
+    - The RealTime tab has a Users tab listing everyone with an account in Keycloak - who's online first, with what they're doing, then everyone offline
+    - The host can invite anyone online on the same slide straight from it - they get a popup and see the invite before joining
+    - The list comes from Keycloak's admin API, read by realtime-hub as the `realtime-hub` client, whose service account can only view users (see [auth/README.md](../auth/README.md#adding-the-realtime-hub-client))
+- Generated link
+    - The host makes a link in the RealTime tab, e.g. https://localhost:5173/?invite=juyhsUFHC4gB
+- Invite codes
+    - The code is the part after `?invite=` (`juyhsUFHC4gB` above), shown on its own under the link
+    - Working alone, anyone can type or paste it (or the whole link) into Join with a code in the RealTime tab to join the session

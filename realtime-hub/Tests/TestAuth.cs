@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using RealtimeHub.Presence;
 using RealtimeHub.Slides;
 
 namespace RealtimeHub.Tests;
@@ -36,6 +37,7 @@ public class HubFactory : WebApplicationFactory<Program>
             services.AddAuthentication(TestAuthHandler.Scheme)
                 .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.Scheme, _ => { });
             services.AddSingleton<ISessionAccess, TestSessionAccess>();
+            services.AddSingleton<IUserDirectory, TestUserDirectory>();
         });
     }
 }
@@ -55,4 +57,21 @@ public class TestSessionAccess : ISessionAccess
             : userId.StartsWith("host", StringComparison.Ordinal) ? SessionRole.Owner
             : userId.StartsWith("viewer", StringComparison.Ordinal) ? SessionRole.Viewer
             : SessionRole.Editor);
+}
+
+// Stands in for Keycloak's user list. Fails once Fail is set, like Keycloak
+// being down with nothing fetched yet.
+public class TestUserDirectory : IUserDirectory
+{
+    public static readonly IReadOnlyList<DirectoryUser> Everyone =
+    [
+        new("alice", "alice", "User alice"),
+        new("bob", "bob", "User bob"),
+        new("carol", "carol", "User carol"),
+    ];
+
+    public static volatile bool Fail;
+
+    public Task<IReadOnlyList<DirectoryUser>> AllAsync(CancellationToken cancellationToken) =>
+        Fail ? throw new HttpRequestException("Keycloak is down") : Task.FromResult(Everyone);
 }

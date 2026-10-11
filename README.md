@@ -38,6 +38,18 @@ cd realtime-hub/     # optional - the viewer works without it, just not live
 dotnet build && dotnet run --urls http://localhost:5180
 ```
 
+**Keycloak set up before the Users tab?** If your Keycloak was first started
+before the `realtime-hub` client was added to the realm, run this once while
+it's up, or the Users tab only shows who's online (it says "Couldn't load
+everyone from Keycloak"):
+
+```bash
+./auth/add-realtime-hub-client.sh
+```
+
+A brand new Keycloak gets the client from the realm import and doesn't need
+it. See [auth/README.md](auth/README.md#adding-the-realtime-hub-client).
+
 ### Or with Docker - 2 terminals
 
 Everything behind the viewer runs in containers from the root

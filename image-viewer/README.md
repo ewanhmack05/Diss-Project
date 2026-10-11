@@ -45,6 +45,19 @@ any edge of the screen - two panels on the same edge split it evenly.
   microns-per-pixel, or in pixels
 - **Image Adjustments** - brightness, contrast and gamma, applied in the
   WebGL tile layer's shader. Settings can be saved as named presets
+- **RealTime** - **Session** and **Users** tabs
+  - **Session** - start, host, join or leave a session. The host gets an
+    invite link and the same code on its own. Working alone, **Join with a
+    code** takes either the code or the whole link and brings up the same
+    invite card the link does, over the viewer rather than instead of it
+  - **Users** - everyone with an account in Keycloak. Who's online now
+    comes first, with what they're doing (hosting, in a session, working
+    alone, which slide), then everyone offline. The host can **Invite**
+    anyone online on the same slide - they get a popup, look at the
+    invite, and join if they want. With no working invite, one is made
+    (can edit, 24 hours). Kept up to date over realtime-hub's presence hub
+    (`src/context/PresenceContext.tsx`, `src/components/users/presence.ts`).
+    If Keycloak's list can't be had, it shows just who's online
 - **Fullscreen** - uses the Fullscreen API (`requestFullscreen`)
 
 ## Rendering

@@ -31,6 +31,12 @@ start it again.
   address is relative (`/*`), so it works from localhost, the LAN or the VPN
   without listing each address. Access tokens carry the audience `diss-api`,
   which annotation-store and the realtime hub check for.
+- **Client:** `realtime-hub` - confidential, no sign-in of its own. Its
+  service account only has `view-users`, which realtime-hub uses to list
+  everyone for the viewer's Users tab. The secret is a dev one,
+  `realtime-hub-dev-secret`, also in realtime-hub's `appsettings.json`.
+  An older Keycloak won't have it - see
+  [Adding the realtime-hub client](#adding-the-realtime-hub-client).
 - **Test users** (password `password` for all three):
 
 | Username | Name        |
@@ -38,3 +44,42 @@ start it again.
 | alice    | Alice Moore |
 | bob      | Bob Hughes  |
 | carol    | Carol Singh |
+
+## Adding the realtime-hub client
+
+`add-realtime-hub-client.sh` adds the `realtime-hub` client to a Keycloak
+that already has the `diss` realm. It's needed once on any Keycloak first
+started before that client was in `realm/diss-realm.json` - the realm
+import is skipped while the realm exists, so it never picks the client up.
+Without it, realtime-hub can't read the user list and the viewer's Users
+tab only shows who's online.
+
+Run it from the repo root while Keycloak is running - Git Bash
+on Windows is fine:
+
+```bash
+./auth/add-realtime-hub-client.sh
+```
+
+It signs in to Keycloak's admin CLI inside the `diss-keycloak` container
+as `admin` / `admin`, then:
+
+- adds the `realtime-hub` client (confidential, service account on, no
+  sign-in flows, secret `realtime-hub-dev-secret`) if it isn't there
+- gives its service account `view-users` from `realm-management`, and
+  nothing else
+
+Safe to run again - it skips the client if it's there, and adding a role
+it already has does nothing. Both `docker compose` setups (this folder's
+and the root one) name the container `diss-keycloak`, but they keep their
+data in separate volumes, so each needs it once. For any other container
+name, pass it: `./auth/add-realtime-hub-client.sh <container>`.
+
+To check it worked, the hub's dev endpoint should list everyone:
+
+```bash
+curl http://localhost:5180/users
+```
+
+Not needed on a fresh Keycloak (or after `docker compose down -v`) - the
+import brings the client in.
