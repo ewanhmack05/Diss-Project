@@ -72,7 +72,8 @@ auto-shutdown. Dropping Grafana for Application Insights could fit a B2s
 2. ~~Dockerfiles for tiler and annotation-store, plus one local compose file~~ - done. The realtime hub has one too, and the root `docker-compose.yml` runs all of them with Keycloak (see the root README). annotation-store creates its tables on start up in the container (`Database__MigrateOnStartup`)
 3. Configurable service URLs in the viewer, instead of "same host, fixed port" - ~2 hours
 4. "Tile server is starting" state in the viewer instead of the connection error, for the cold start - ~1 hour
-5. Container Apps ephemeral storage limit - check the ~3.1 GB image fits. Fallback: mount the slide from Azure Files and point `Slides__DataPath` at it.
+5. Deploy workflow - skeleton in `.github/workflows/deploy-azure.yml` (images to GHCR, `az containerapp update`, Static Web Apps upload). Needs the Azure resources, an OIDC app registration and the GHCR pull credentials before it'll run
+6. Container Apps ephemeral storage limit - check the ~3.1 GB image fits. Fallback: mount the slide from Azure Files and point `Slides__DataPath` at it.
 
 ## Before anything is public
 

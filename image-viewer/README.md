@@ -1,5 +1,7 @@
 # Diss Project - Image Viewer
 
+[![image-viewer](https://github.com/ewanhmack05/Diss-Project/actions/workflows/image-viewer.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/image-viewer.yml)
+
 React + TypeScript + OpenLayers viewer for a dissertation on real-time
 collaboration around whole-slide image annotation. Proof of concept.
 

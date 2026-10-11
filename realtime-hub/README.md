@@ -1,5 +1,7 @@
 # realtime-hub
 
+[![realtime-hub](https://github.com/ewanhmack05/Diss-Project/actions/workflows/realtime-hub.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/realtime-hub.yml)
+
 .NET SignalR service for real-time collaboration. Everyone viewing the same
 slide shares a room, and the hub relays annotation changes, viewports,
 in-progress drawing and shared text edits between them, and runs comparison

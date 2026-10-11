@@ -1,0 +1,30 @@
+# No test project yet, so this is format, build and the Docker build.
+# The checkout skips LFS, so the Docker build copies slide 003's pointer
+# files rather than the 2.9 GB slide - enough to prove the Dockerfile
+# works, but that image won't serve tiles. The deploy workflow pulls the
+# real slide.
+
+name: tiler
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - tiler/**
+      - .github/workflows/tiler.yml
+      - .github/workflows/dotnet.yml
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  dotnet:
+    uses: ./.github/workflows/dotnet.yml
+    with:
+      directory: tiler
+      project: Tiler.csproj

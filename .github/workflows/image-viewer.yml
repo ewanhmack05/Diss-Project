@@ -1,0 +1,46 @@
+name: image-viewer
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - image-viewer/**
+      - .github/workflows/image-viewer.yml
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Lint, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: image-viewer
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: image-viewer/package-lock.json
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint (oxlint)
+        run: npm run lint
+
+      - name: Test (vitest)
+        run: npm test
+
+      # tsc -b then vite build, so this is the type check too.
+      - name: Build
+        run: npm run build

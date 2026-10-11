@@ -1,5 +1,7 @@
 # dashboard
 
+[![dashboard](https://github.com/ewanhmack05/Diss-Project/actions/workflows/dashboard.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/dashboard.yml)
+
 Grafana, run in Docker, showing statistics for `tiler` and
 `annotation-store`: load, request timing, errors, busiest endpoints and
 machine usage. Uses the all-in-one

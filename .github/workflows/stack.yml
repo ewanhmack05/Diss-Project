@@ -1,0 +1,30 @@
+# The root docker-compose.yml, which pulls in auth/'s. Each service's own
+# workflow does its Docker build - this only checks the stack fits together.
+
+name: stack
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - docker-compose.yml
+      - auth/docker-compose.yml
+      - .github/workflows/stack.yml
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Compose file is valid
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - run: docker compose config -q

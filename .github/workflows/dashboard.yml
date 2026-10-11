@@ -1,0 +1,42 @@
+name: dashboard
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - dashboard/**
+      - .github/workflows/dashboard.yml
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Validate config
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Compose file is valid
+        run: docker compose config -q
+
+      - name: Provisioning YAML is valid
+        run: yq -e '.providers | length > 0' grafana/dashboards.yaml
+
+      # Grafana skips a dashboard it can't parse without failing to start,
+      # so a broken one only shows up as a missing dashboard.
+      - name: Dashboards are valid JSON
+        run: |
+          for f in grafana/dashboards/*.json; do
+            jq -e '.panels | length > 0' "$f" >/dev/null || { echo "$f is broken"; exit 1; }
+            echo "$f ok"
+          done

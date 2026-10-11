@@ -1,0 +1,25 @@
+name: realtime-hub
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - realtime-hub/**
+      - .github/workflows/realtime-hub.yml
+      - .github/workflows/dotnet.yml
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  dotnet:
+    uses: ./.github/workflows/dotnet.yml
+    with:
+      directory: realtime-hub
+      project: RealtimeHub.csproj
+      tests: Tests/RealtimeHub.Tests.csproj

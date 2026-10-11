@@ -12,7 +12,7 @@ public class TestAuthHandler(
     IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
     : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
 {
-    public const string Scheme = "Test";
+    public new const string Scheme = "Test";
     public const string DefaultUser = "001";
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()

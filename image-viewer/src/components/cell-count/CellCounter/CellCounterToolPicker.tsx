@@ -10,7 +10,6 @@ import DockedCard from "../../toolbar/DockedCard";
 import CountInvites from "../CountInvites";
 import { useComparisonContext } from "../../../context/ComparisonContext";
 import { useSharedCountContext } from "../../../context/SharedCountContext";
-import { useRealtimeContext } from "../../../context/RealtimeContext";
 import { useCollectionContext } from "../../../context/CollectionContext";
 import "../comparison/Comparison.css";
 import "./CellCounterToolPicker.css";
