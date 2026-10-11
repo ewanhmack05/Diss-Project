@@ -41,7 +41,6 @@ function CellCounterToolPicker() {
   const { cellCounts } = useCellCountStoreContext();
   const { roomId } = useCollectionContext();
   const recentCellCount = mostRecentCellCount(cellCounts);
-  const { status } = useRealtimeContext();
   const comparison = useComparisonContext();
   const shared = useSharedCountContext();
 

@@ -3,12 +3,18 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using RealtimeHub.Auth;
+using RealtimeHub.Presence;
 using RealtimeHub.Slides;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton<SlideRooms>();
+builder.Services.AddSingleton<OnlineUsers>();
+// Everyone with an account, from Keycloak's admin API - see Presence/UserDirectory.cs.
+builder.Services.AddHttpClient(KeycloakUserDirectory.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<IUserDirectory, KeycloakUserDirectory>();
 // Who's in which session lives in annotation-store - see Slides/SessionAccess.cs.
 builder.Services.AddHttpClient<ISessionAccess, AnnotationStoreSessionAccess>(client =>
     client.BaseAddress = new Uri(builder.Configuration["AnnotationStore:BaseUrl"] ?? "http://localhost:5252/"));
@@ -70,11 +76,14 @@ if (app.Environment.IsDevelopment())
 }
 
 app.MapHub<SlideHub>("/hubs/slides");
+app.MapHub<PresenceHub>("/hubs/presence");
 
 // Read-only look at who's connected - handy from Scalar/curl while testing.
 // Development only, and open, since they're just for poking at.
 if (app.Environment.IsDevelopment())
 {
+    app.MapGet("/online", (OnlineUsers online) => Results.Ok(online.Snapshot())).AllowAnonymous();
+    app.MapGet("/users", async (IUserDirectory directory, CancellationToken ct) => Results.Ok(await directory.AllAsync(ct))).AllowAnonymous();
     app.MapGet("/rooms", (SlideRooms rooms) => Results.Ok(rooms.Summary())).AllowAnonymous();
     app.MapGet("/rooms/{roomId}", (string roomId, SlideRooms rooms) => Results.Ok(rooms.InRoom(roomId))).AllowAnonymous();
     app.MapGet("/rooms/{roomId}/docs", (string roomId, SlideRooms rooms) => Results.Ok(rooms.DocsInRoom(roomId))).AllowAnonymous();

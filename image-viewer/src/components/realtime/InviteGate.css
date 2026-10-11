@@ -12,6 +12,17 @@
   background: var(--chrome-bg-solid);
 }
 
+/* A code typed in or sent from the Users tab - over the viewer, which stays as it
+   was underneath. Above panels, toasts and popups (DialogHost is 40). */
+.invite--overlay {
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.invite--overlay .invite-card {
+  background: var(--chrome-bg-solid);
+}
+
 .invite-card {
   box-sizing: border-box;
   width: 100%;

@@ -6,6 +6,9 @@ import { useEmitEvent } from '../../context/EventContext'
 import { TOOL_NAMES, type ToolId } from '../../context/ToolbarContext'
 import CountInvites from '../cell-count/CountInvites'
 import SessionInvite from './SessionInvite'
+import UsersList from '../users/UsersList'
+import JoinWithCode from '../users/JoinWithCode'
+import { usePresenceContext } from '../../context/PresenceContext'
 import { useComparisonContext } from '../../context/ComparisonContext'
 import { useSharedCountContext } from '../../context/SharedCountContext'
 import { formatLongDate, formatShortDate } from '../saved/savedDates'
@@ -138,8 +141,8 @@ function WorkingAlone() {
       <section className="realtime-section">
         <h3 className="realtime-heading">Work together</h3>
         <p className="realtime-note">
-          Start a session to work on this slide with other people. You'll get an invite link to send them - nobody can
-          join without it.
+          Start a session to work on this slide with other people. You'll get an invite link and code to send them, or
+          invite anyone online from Users - nobody can join without one.
         </p>
         <button type="button" className="realtime-button realtime-button--accent realtime-button--wide" disabled={starting} onClick={start}>
           {starting ? 'Starting…' : 'Start a session'}
@@ -175,6 +178,7 @@ function WorkingAlone() {
           </ul>
         </section>
       )}
+      <JoinWithCode />
       <p className="realtime-note">Anything you add on your own stays in your own collection.</p>
     </>
   )
@@ -457,22 +461,45 @@ function SignedIn() {
   )
 }
 
-// Working alone, hosting a session, in someone else's, or looking back at
-// one that's ended - and who you're signed in as.
+type RealTimeTab = 'session' | 'users'
+
+// Session: working alone, hosting a session, in someone else's, or looking
+// back at one that's ended. Users: everyone with an account, online first. Both say who
+// you're signed in as. The tab is kept here rather than in the toolbar's
+// context - it's your own, so Present doesn't follow the host's.
 function RealTimePanel() {
   const { status, session } = useCollectionContext()
+  const { onlineCount } = usePresenceContext()
+  const [tab, setTab] = useState<RealTimeTab>('session')
 
   let body
-  if (status !== 'ready') body = <p className="realtime-note">Loading…</p>
+  if (tab === 'users') body = <UsersList />
+  else if (status !== 'ready') body = <p className="realtime-note">Loading…</p>
   else if (!session) body = <WorkingAlone />
   else if (session.ended) body = <Ended session={session} />
   else if (session.myRole === 'owner') body = <Hosting session={session} />
   else body = <Joined session={session} />
 
   return (
-    <div className="realtime-panel">
-      {body}
-      <SignedIn />
+    <div className="realtime-panel-wrap">
+      <div className="realtime-tabs" role="tablist" aria-label="Real-time">
+        {(['session', 'users'] as const).map((option) => (
+          <button
+            key={option}
+            type="button"
+            role="tab"
+            aria-selected={tab === option}
+            className={`realtime-tab${tab === option ? ' realtime-tab--active' : ''}`}
+            onClick={() => setTab(option)}
+          >
+            {option === 'session' ? 'Session' : `Users${onlineCount > 0 ? ` (${onlineCount} online)` : ''}`}
+          </button>
+        ))}
+      </div>
+      <div className="realtime-panel" role="tabpanel">
+        {body}
+        <SignedIn />
+      </div>
     </div>
   )
 }

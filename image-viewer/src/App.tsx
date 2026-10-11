@@ -13,6 +13,7 @@ import { ToolbarContextProvider, useToolbarContext, type ToolId } from './contex
 import { NavigationContextProvider } from './context/NavigationContext'
 import { CollectionContextProvider } from './context/CollectionContext'
 import { RealtimeContextProvider } from './context/RealtimeContext'
+import { PresenceContextProvider } from './context/PresenceContext'
 import { AnnotationStoreContextProvider } from './context/AnnotationStoreContext'
 import { CellCountStoreContextProvider } from './context/CellCountStoreContext'
 import { CellCountDrawContextProvider } from './context/CellCountDrawContext'
@@ -123,9 +124,11 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, auth
         <ImageViewerContextProvider source={imageSource}>
           {/* Collections decide which session you're in, and so which
               realtime room - working alone there's no room at all. An
-              invite link is dealt with before the viewer opens. */}
+              invite link is dealt with before the viewer opens. Presence
+              (who's online) is connected the whole time, room or not. */}
           <CollectionContextProvider baseUrl={annotationStoreUrl}>
             <InviteGate>
+            <PresenceContextProvider hubUrl={realtimeHubUrl}>
             <RealtimeContextProvider hubUrl={realtimeHubUrl}>
               <AnnotationStoreContextProvider baseUrl={annotationStoreUrl}>
                 <CellCountStoreContextProvider baseUrl={annotationStoreUrl}>
@@ -151,6 +154,7 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, auth
                 </CellCountStoreContextProvider>
               </AnnotationStoreContextProvider>
             </RealtimeContextProvider>
+            </PresenceContextProvider>
             </InviteGate>
           </CollectionContextProvider>
         </ImageViewerContextProvider>

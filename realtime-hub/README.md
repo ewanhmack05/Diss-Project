@@ -7,8 +7,9 @@ and shared cell counts. Kept separate from annotation-store so it can be ported 
 reused (see [docs/libraries.md](../docs/libraries.md)).
 
 A room is one **session** - a collection people work in together, joined
-through invite links (see annotation-store's README). Working alone, the
-viewer doesn't connect at all.
+through invite links or their codes (see annotation-store's README). Working
+alone, the viewer doesn't join a room - it only connects to
+[presence](#presence), to see who else is online.
 
 Everyone signs in with Keycloak (see [auth/](../auth)). The hub checks the
 access token when a connection opens - browsers send it as
@@ -198,6 +199,68 @@ type DocEditors = { docId: string; editors: string[] };
 - **Message size** - the hub accepts messages up to 1MB (SignalR's default
   of 32KB dropped long freehand annotations).
 
+## Presence
+
+A second hub at `/hubs/presence`, separate from the rooms. The viewer stays
+connected to it the whole time it's open, in a session or not, so the
+Users tab can show everyone with an account, who's online, and the host can
+ask them straight into their session.
+
+### Client → hub
+
+| Method         | Args               | Returns          | Notes                                                     |
+| -------------- | ------------------ | ---------------- | --------------------------------------------------------- |
+| `Online`       | -                  | `OnlineSnapshot` | Everyone online, you included                             |
+| `Users`        | -                  | `DirectoryUser[]`| Everyone with an account in Keycloak, online or not, you included. Fails if Keycloak can't be reached and there's no earlier list |
+| `SetWhere`     | `PresenceWhere`    | -                | Where this tab is. Call on connect and whenever it changes. Ids up to 128 characters |
+| `InviteUser`   | `userId`, `code`   | -                | Sends them an invite code. Fails if it isn't code-shaped (url-safe base64, up to 64), it's you, or they've gone offline |
+
+### Hub → client
+
+| Event            | Payload        | When                                                          |
+| ---------------- | -------------- | ------------------------------------------------------------- |
+| `UserOnline`     | `OnlineUser`   | Someone comes online, or where they are changes. Not to the tab that changed |
+| `UserOffline`    | `UserOffline`  | Someone's last tab closes                                      |
+| `InviteReceived` | `UserInvite`   | Someone invited you - to every tab you have open               |
+
+```ts
+type PresenceWhere = { slideId: string | null; sessionId: string | null; hosting: boolean };
+type OnlineUser = {
+  userId: string; displayName: string; slideId: string | null; sessionId: string | null;
+  hosting: boolean; since: string; version: number;
+};
+type UserOffline = { userId: string; version: number };
+type OnlineSnapshot = { users: OnlineUser[]; version: number };
+type UserInvite = { fromUserId: string; fromName: string; code: string; sent: string };
+type DirectoryUser = { userId: string; username: string; displayName: string };
+```
+
+- **Per user, not per tab** - someone with two tabs is one person, online
+  until their last tab goes. Where they are is whichever tab last said, and
+  `since` is when their first tab connected.
+- **`version`** - one counter across everyone, only goes up. A snapshot and
+  a change can overtake each other on the way to a client, so the client
+  keeps whichever is newer per person, and only drops someone missing from
+  a snapshot if what it has about them is older than the snapshot (see the
+  viewer's `src/components/users/presence.ts`). Resets with the hub, so a
+  client starts again from nothing on every new connection.
+- **Invites aren't checked here** - the hub just passes the code on. Who
+  sent it comes from their token, and annotation-store still shows what
+  the code is for before anyone joins, so a code for someone else's session
+  can't pass itself off as the sender's.
+- **Everyone with an account** comes from Keycloak's admin API
+  (`GET /admin/realms/diss/users`), signed in as the `realtime-hub`
+  client's service account, which only has `view-users` - see
+  [auth/README.md](../auth/README.md). Its secret is
+  `Auth:AdminClientSecret` (a dev one in `appsettings.json`; set
+  `Auth__AdminClientSecret` anywhere real). Keycloak's address comes from
+  `Auth:MetadataAddress`. The list is kept for a minute, and if Keycloak
+  goes away the last one is used until it's back. Disabled accounts and
+  service accounts aren't in it. `displayName` is first and last name, or
+  the username - the same as the token's `name`.
+- **`sessionId` is shown to everyone** - it's only a collection id;
+  getting into the room still needs annotation-store to say yes.
+
 ## HTTP
 
 | Endpoint                   | Returns                                                          |
@@ -207,6 +270,8 @@ type DocEditors = { docId: string; editors: string[] };
 | `GET /rooms/{roomId}/docs`| open docs: `docId`, `instanceId`, `editors`, `updates`, `bytes`  |
 | `GET /rooms/{roomId}/comparison` | the running comparison (no dots until revealed), 204 if none |
 | `GET /rooms/{roomId}/sharedcount` | the running shared count, dots included, 204 if none |
+| `GET /online`              | who's online (`OnlineSnapshot`)                                  |
+| `GET /users`               | everyone with an account, from Keycloak (`DirectoryUser[]`)      |
 
 ## Notes
 

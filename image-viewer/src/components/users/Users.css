@@ -1,0 +1,27 @@
+/* Users tab and Join with a code - built on RealTimePanel.css's classes. */
+.users-person {
+  align-items: center;
+}
+
+.users-about {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.users-about .realtime-person-name {
+  flex: none;
+}
+
+.users-where {
+  font-size: 0.75em;
+  color: var(--chrome-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.users-wrong {
+  color: #e8a87c;
+}

@@ -82,6 +82,9 @@ interface CollectionContextValue {
   renameSession: (name: string) => Promise<void>
   endSession: () => Promise<void>
   loadInvites: () => Promise<Invite[]>
+  // Goes up whenever a new invite is made, so anything showing the working
+  // one knows to load it again - the Users tab can make one too.
+  inviteChanges: number
   createInvite: (role: CollectionRole, hours: number) => Promise<Invite>
   // Changes a working link in place - same code, new role and expiry.
   updateInvite: (code: string, role: CollectionRole, hours: number) => Promise<Invite>
@@ -135,6 +138,7 @@ function CollectionContextProvider({ baseUrl, children }: CollectionContextProvi
   const [collections, setCollections] = useState<Collection[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [status, setStatus] = useState<Status>('loading')
+  const [inviteChanges, setInviteChanges] = useState(0)
   const activeIdRef = useRef(activeId)
   const collectionsRef = useRef(collections)
   useEffect(() => {
@@ -273,7 +277,10 @@ function CollectionContextProvider({ baseUrl, children }: CollectionContextProvi
   const createInvite = useCallback(
     (role: CollectionRole, hours: number) => {
       if (!sessionId) return Promise.reject(new Error('Not in a session'))
-      return send<Invite>(`/collections/${sessionId}/invites`, 'POST', { role, hours })
+      return send<Invite>(`/collections/${sessionId}/invites`, 'POST', { role, hours }).then((invite) => {
+        setInviteChanges((n) => n + 1)
+        return invite
+      })
     },
     [send, sessionId]
   )
@@ -351,6 +358,7 @@ function CollectionContextProvider({ baseUrl, children }: CollectionContextProvi
         renameSession,
         endSession,
         loadInvites,
+        inviteChanges,
         createInvite,
         updateInvite,
         stopInvite,

@@ -25,22 +25,29 @@ function linkFor(code: string): string {
   return `${window.location.origin}${window.location.pathname}?invite=${encodeURIComponent(code)}`
 }
 
-// The host's invite link - one working link at a time. Who it lets in as
+// The host's invite link, and its code on its own for typing into Join
+// with a code - one working link at a time. Who it lets in as
 // and when it runs out change the working link straight away. Making a new
 // one stops the old one, for when the old one has gone further than it should.
 function SessionInvite() {
-  const { session, loadInvites, createInvite, updateInvite, stopInvite } = useCollectionContext()
+  const { session, loadInvites, inviteChanges, createInvite, updateInvite, stopInvite } = useCollectionContext()
   const emit = useEmitEvent()
   const [invite, setInvite] = useState<Invite | null>(null)
   const [role, setRole] = useState<CollectionRole>('editor')
   const [hours, setHours] = useState(24)
   const [busy, setBusy] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const codeRef = useRef<HTMLInputElement>(null)
   const sessionId = session?.collectionId
+
+  // Only a different session clears it - a new invite made elsewhere just
+  // replaces it once it's loaded.
+  useEffect(() => {
+    setInvite(null)
+  }, [sessionId])
 
   useEffect(() => {
     let cancelled = false
-    setInvite(null)
     if (!sessionId) return
     loadInvites()
       .then((invites) => {
@@ -56,7 +63,7 @@ function SessionInvite() {
     return () => {
       cancelled = true
     }
-  }, [sessionId, loadInvites])
+  }, [sessionId, loadInvites, inviteChanges])
 
   const make = () => {
     setBusy(true)
@@ -90,25 +97,23 @@ function SessionInvite() {
       .catch(() => emit('session:error'))
   }
 
-  // Clipboard needs https or localhost - otherwise the link is selected
+  // Clipboard needs https or localhost - otherwise the text is selected
   // so it can be copied by hand.
-  const copy = () => {
-    if (!invite) return
-    const link = linkFor(invite.code)
-    const fallback = () => inputRef.current?.select()
+  const copy = (text: string, field: HTMLInputElement | null, copied: string) => {
+    const fallback = () => field?.select()
     if (!navigator.clipboard) {
       fallback()
       return
     }
     navigator.clipboard
-      .writeText(link)
-      .then(() => emit('session:link-copied'))
+      .writeText(text)
+      .then(() => emit(copied))
       .catch(fallback)
   }
 
   return (
     <section className="realtime-section">
-      <h3 className="realtime-heading">Invite link</h3>
+      <h3 className="realtime-heading">Invite</h3>
       {invite ? (
         <>
           <div className="realtime-invite-link">
@@ -120,7 +125,30 @@ function SessionInvite() {
               value={linkFor(invite.code)}
               onFocus={(e) => e.target.select()}
             />
-            <button type="button" className="realtime-button realtime-button--accent" onClick={copy}>
+            <button
+              type="button"
+              className="realtime-button realtime-button--accent"
+              onClick={() => copy(linkFor(invite.code), inputRef.current, 'session:link-copied')}
+            >
+              Copy
+            </button>
+          </div>
+          <div className="realtime-invite-link">
+            <span className="realtime-invite-code-label">Or the code</span>
+            <input
+              ref={codeRef}
+              type="text"
+              readOnly
+              aria-label="Invite code"
+              className="realtime-invite-code"
+              value={invite.code}
+              onFocus={(e) => e.target.select()}
+            />
+            <button
+              type="button"
+              className="realtime-button"
+              onClick={() => copy(invite.code, codeRef.current, 'session:code-copied')}
+            >
               Copy
             </button>
           </div>
@@ -134,7 +162,7 @@ function SessionInvite() {
           </div>
         </>
       ) : (
-        <p className="realtime-note">No working link - make one to invite people in.</p>
+        <p className="realtime-note">No working invite - make one to let people in with a link or its code.</p>
       )}
 
       <div className="realtime-field">
@@ -167,7 +195,7 @@ function SessionInvite() {
       <button type="button" className="realtime-button realtime-button--accent realtime-button--wide" disabled={busy} onClick={make}>
         {invite ? 'Make a new link' : 'Make a link'}
       </button>
-      {invite && <p className="realtime-note">Changes apply to the link above. A new link stops it working.</p>}
+      {invite && <p className="realtime-note">Changes apply to the link and code above. A new link stops them working.</p>}
     </section>
   )
 }

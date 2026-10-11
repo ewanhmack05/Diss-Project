@@ -396,3 +396,54 @@
   color: var(--chrome-text);
   background: var(--chrome-bg-solid);
 }
+
+/* The invite code on its own - for reading out or typing into Join with a code. */
+.realtime-invite-code-label {
+  align-self: center;
+  flex-shrink: 0;
+  font-size: 0.78em;
+  color: var(--chrome-text-secondary);
+}
+
+.realtime-invite-link input.realtime-invite-code {
+  font-family: ui-monospace, monospace;
+  letter-spacing: 0.04em;
+}
+
+/* Session and Users tabs - same look as the Annotations panel's. They
+   stay put while the content under them scrolls. */
+.realtime-panel-wrap {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.realtime-tabs {
+  display: flex;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--white-10);
+  background: var(--chrome-bg);
+}
+
+.realtime-tab {
+  flex: 1;
+  padding: 0.6em;
+  font-family: var(--sans);
+  font-size: 0.9em;
+  font-weight: 600;
+  color: var(--chrome-text-secondary);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+
+.realtime-tab:hover {
+  color: var(--chrome-text);
+}
+
+.realtime-tab--active {
+  color: var(--chrome-text);
+  border-bottom-color: var(--accent);
+}
