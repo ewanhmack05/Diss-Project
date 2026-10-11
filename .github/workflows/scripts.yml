@@ -28,7 +28,7 @@ jobs:
           python-version: "3.12"
 
       - name: Lint (ruff)
-        uses: astral-sh/ruff-action@v4
+        uses: astral-sh/ruff-action@v4.1.0
         with:
           src: scripts
 
