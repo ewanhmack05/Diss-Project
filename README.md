@@ -14,6 +14,42 @@ scripts/            Dev scripts - stress-test data, SQL. See scripts/README.md
 docs/               Planning notes - auth, Azure, real-time libraries, sessions, rendering
 ```
 
+## CI and deploy
+
+GitHub Actions in [.github/workflows](.github/workflows). Each folder has
+its own workflow, run on a push to any branch that changes that folder (or
+the workflow itself). They can also be run by hand from the Actions tab.
+
+| Workflow | Runs |
+| --- | --- |
+| [annotation-store](.github/workflows/annotation-store.yml), [realtime-hub](.github/workflows/realtime-hub.yml) | `dotnet format` check, build with warnings as errors, xUnit tests, Docker build |
+| [tiler](.github/workflows/tiler.yml) | the same, minus tests (none yet). Docker build without LFS, so slide 003 is pointer files |
+| [image-viewer](.github/workflows/image-viewer.yml) | `npm ci`, oxlint, vitest, `tsc -b` + Vite build |
+| [auth](.github/workflows/auth.yml) | shellcheck, compose check, realm has its clients, Keycloak starts and imports the realm |
+| [dashboard](.github/workflows/dashboard.yml) | compose check, provisioning YAML and dashboard JSON parse |
+| [scripts](.github/workflows/scripts.yml) | ruff, Python compiles |
+| [stack](.github/workflows/stack.yml) | root `docker-compose.yml` is valid |
+
+The three .NET workflows share their steps through
+[dotnet.yml](.github/workflows/dotnet.yml), a reusable workflow that
+never runs on its own, so it has no badge. Each Docker build
+is build only. Pushing images is the deploy workflow's job.
+
+[deploy-azure.yml](.github/workflows/deploy-azure.yml) is a skeleton for
+Option A in [docs/azure.md](docs/azure.md): images to GHCR, Container Apps
+for the backend, Static Web Apps for the viewer. Manual trigger only, with
+what still needs filling in listed at the top.
+
+[![image-viewer](https://github.com/ewanhmack05/Diss-Project/actions/workflows/image-viewer.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/image-viewer.yml)
+[![tiler](https://github.com/ewanhmack05/Diss-Project/actions/workflows/tiler.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/tiler.yml)
+[![annotation-store](https://github.com/ewanhmack05/Diss-Project/actions/workflows/annotation-store.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/annotation-store.yml)
+[![realtime-hub](https://github.com/ewanhmack05/Diss-Project/actions/workflows/realtime-hub.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/realtime-hub.yml)
+[![auth](https://github.com/ewanhmack05/Diss-Project/actions/workflows/auth.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/auth.yml)
+[![dashboard](https://github.com/ewanhmack05/Diss-Project/actions/workflows/dashboard.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/dashboard.yml)
+[![scripts](https://github.com/ewanhmack05/Diss-Project/actions/workflows/scripts.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/scripts.yml)
+[![stack](https://github.com/ewanhmack05/Diss-Project/actions/workflows/stack.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/stack.yml)
+[![deploy-azure](https://github.com/ewanhmack05/Diss-Project/actions/workflows/deploy-azure.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/deploy-azure.yml)
+
 ## Prerequisites
 
 New machine? See [SETUP.md](SETUP.md) for installing .NET 10, Node.js,
@@ -93,33 +129,6 @@ the same proxy.
 This is the base setup for the real-time collaboration - all of this is
 rough work and to be taken as proof of concept.
 
-## CI and deploy
-
-GitHub Actions in [.github/workflows](.github/workflows). Each folder has
-its own workflow, run on a push to any branch that changes that folder (or
-the workflow itself). They can also be run by hand from the Actions tab.
-
-| Workflow | Runs |
-| --- | --- |
-| [annotation-store](.github/workflows/annotation-store.yml), [realtime-hub](.github/workflows/realtime-hub.yml) | `dotnet format` check, build with warnings as errors, xUnit tests, Docker build |
-| [tiler](.github/workflows/tiler.yml) | the same, minus tests (none yet). Docker build without LFS, so slide 003 is pointer files |
-| [image-viewer](.github/workflows/image-viewer.yml) | `npm ci`, oxlint, vitest, `tsc -b` + Vite build |
-| [auth](.github/workflows/auth.yml) | shellcheck, compose check, realm has its clients, Keycloak starts and imports the realm |
-| [dashboard](.github/workflows/dashboard.yml) | compose check, provisioning YAML and dashboard JSON parse |
-| [scripts](.github/workflows/scripts.yml) | ruff, Python compiles |
-| [stack](.github/workflows/stack.yml) | root `docker-compose.yml` is valid |
-
-The three .NET workflows share their steps through
-[dotnet.yml](.github/workflows/dotnet.yml), a reusable workflow that
-never runs on its own - the underscore just marks that. Each Docker build
-is build only. Pushing images is the deploy workflow's job.
-
-[deploy-azure.yml](.github/workflows/deploy-azure.yml) is a skeleton for
-Option A in [docs/azure.md](docs/azure.md): images to GHCR, Container Apps
-for the backend, Static Web Apps for the viewer. Manual trigger only, with
-what still needs filling in listed at the top.
-
-[![stack](https://github.com/ewanhmack05/Diss-Project/actions/workflows/stack.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/stack.yml)
 
 ## Planning - real-time collaboration
 
@@ -137,6 +146,7 @@ Todos and notes, split by area, in [docs/](docs):
 ### Data
 All example slide data has been sourced from https://openslide.cs.cmu.edu/download/openslide-testdata/Mirax/
 ## Playback videos
+Most, if not all Pull requests will have videos showing what has been added
 
 Per tab videos:
 
