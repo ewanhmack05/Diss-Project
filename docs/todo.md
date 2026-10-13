@@ -29,8 +29,23 @@ Nothing keeps earlier versions yet. Annotation and cell count edits are last wri
 
 - Rotation and image adjustments are only shared in Present - not live otherwise (ruler is done)
 - Guest links - people without an account can't join a session (see [auth.md](auth.md))
+  - Load in as 'guest' user with read only permission 
 - Sessions are one slide each - whether one should cover several (a case) is still open (see [thought-process.md](thought-process.md))
 - Azure - two options costed in [azure.md](azure.md), nothing deployed yet. Tiler runs on linux now, so it isn't blocked
+- Pagination
+  - Annotations
+  - Cell counter 
+- Fix the overwhelming amount of data on tabs
+- Overhaul designs? 
+  - Dark mode/Light mode
+- Stress testing 
+  - openLayer & webGL
+  - OpenTelemetry & Grafana 
+- Version Controlling
+  - Notes
+  - Annotation history
+  - Soft deletes
+  - Multiple users writing at once
 
 ### Notes
 <img width="1127" height="2048" alt="image" src="https://github.com/user-attachments/assets/ca21ef6a-17e0-40f9-bbef-d5d39dbe6c60" />
