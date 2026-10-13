@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import VectorSource from 'ol/source/Vector'
 import type { Annotation } from '../interfaces/Annotation'
 import { useImageViewerContext } from './ImageViewerContext'
@@ -7,13 +7,28 @@ import { useCollectionContext } from './CollectionContext'
 import { useRealtimeContext } from './RealtimeContext'
 import { useAuthContext } from './AuthContext'
 import { applyOp } from '../components/realtime/realtime'
+import { useSavedTotal } from '../components/saved/useSavedTotal'
 
 type Status = 'loading' | 'ready' | 'error'
 
 interface AnnotationStoreContextValue {
   annotations: Annotation[]
   status: Status
+  // Goes up each time a create or delete settles - yours once annotation-store
+  // has answered, someone else's when it arrives. The Saved list refetches
+  // its page on it.
+  revision: number
+  // How many annotations the collection has, from annotation-store - null until
+  // it's known. For the Saved tab's label.
+  total: number | null
+  wasDeleted: (id: string) => boolean
+  // annotation-store's address, for the Saved list's own paged reads.
+  baseUrl: string
   selectedAnnotationId: string | null
+  // The saved annotation picked with View on map - the map flies to it and
+  // draws a halo round it. Every annotation is drawn anyway; this just
+  // picks one out.
+  viewedAnnotationId: string | null
   // The OL features MapNode renders saved annotations as - shared here (not
   // owned by MapNode) so editing UI (colour changes, etc.) can preview
   // directly against the live map feature, the same way AddAnnotationForm
@@ -23,6 +38,7 @@ interface AnnotationStoreContextValue {
   updateAnnotation: (id: string, patch: Pick<Annotation, 'label' | 'notes' | 'colour'>) => void
   deleteAnnotation: (id: string) => void
   setSelectedAnnotationId: (id: string | null) => void
+  setViewedAnnotationId: (id: string | null) => void
 }
 
 const AnnotationStoreContext = createContext<AnnotationStoreContextValue | null>(null)
@@ -43,6 +59,11 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
   const [annotations, setAnnotations] = useState<Annotation[]>([])
   const [status, setStatus] = useState<Status>('loading')
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null)
+  const [viewedAnnotationId, setViewedAnnotationId] = useState<string | null>(null)
+  const [revision, setRevision] = useState(0)
+  const total = useSavedTotal(baseUrl, 'annotations', collectionId, revision)
+  const bumpRevision = () => setRevision((current) => current + 1)
+  const wasDeleted = useCallback((id: string) => deletedIdsRef.current.has(id), [])
   const annotationsSourceRef = useRef(new VectorSource())
   // Anything deleted, by you or anyone else. An edit form that closes
   // because its annotation was deleted still flushes its last autosave,
@@ -92,7 +113,11 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
         if (op.entity !== 'annotation') return
         if (op.kind === 'delete') deletedIdsRef.current.add(op.id)
         setAnnotations((current) => applyOp(current, op))
-        if (op.kind === 'delete') setSelectedAnnotationId((current) => (current === op.id ? null : current))
+        if (op.kind === 'delete') {
+          setSelectedAnnotationId((current) => (current === op.id ? null : current))
+          setViewedAnnotationId((current) => (current === op.id ? null : current))
+        }
+        if (op.kind !== 'update') setRevision((current) => current + 1)
       }),
     [onOp]
   )
@@ -137,6 +162,7 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
         setStatus('error')
         emit('annotation:created:error', annotation)
       })
+      .finally(bumpRevision)
   }
 
   // annotation-store's PUT replaces label, notes and colour together, so
@@ -163,6 +189,7 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
   const deleteAnnotation = (id: string) => {
     deletedIdsRef.current.add(id)
     setAnnotations((current) => current.filter((a) => a.id !== id))
+    setViewedAnnotationId((current) => (current === id ? null : current))
     emit('annotation:deleted', { id })
     sendOp({ kind: 'delete', entity: 'annotation', id })
     authFetch(`${baseUrl}/annotations/${id}`, { method: 'DELETE' })
@@ -173,6 +200,7 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
         setStatus('error')
         emit('annotation:deleted:error', { id })
       })
+      .finally(bumpRevision)
   }
 
   return (
@@ -180,12 +208,18 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
       value={{
         annotations,
         status,
+        revision,
+        wasDeleted,
+        baseUrl,
+        total,
         selectedAnnotationId,
+        viewedAnnotationId,
         annotationsSource: annotationsSourceRef.current,
         addAnnotation,
         updateAnnotation,
         deleteAnnotation,
         setSelectedAnnotationId,
+        setViewedAnnotationId,
       }}
     >
       {children}

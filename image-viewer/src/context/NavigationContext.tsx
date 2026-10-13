@@ -48,7 +48,8 @@ function NavigationContextProvider({ children }: { children: ReactNode }) {
   const { values: adjustments, setValues: setAdjustments } = useAdjustmentsContext()
   const { pending: drawing } = useDrawContext()
   const { pending: counting } = useCellCountDrawContext()
-  const { selectedAnnotationId, setSelectedAnnotationId } = useAnnotationStoreContext()
+  const { selectedAnnotationId, setSelectedAnnotationId, viewedAnnotationId, setViewedAnnotationId } =
+    useAnnotationStoreContext()
   const { selectedCellCountId, viewedCellCountId, setSelectedCellCountId, setViewedCellCountId } =
     useCellCountStoreContext()
   const [brokeAway, setBrokeAway] = useState(false)
@@ -69,10 +70,11 @@ function NavigationContextProvider({ children }: { children: ReactNode }) {
       tabs: panelTabs,
       adjustments,
       viewedCellCountId,
+      viewedAnnotationId,
       editingAnnotationId: selectedAnnotationId,
       editingCellCountId: selectedCellCountId,
     })
-  }, [activeTools, panelTabs, adjustments, viewedCellCountId, selectedAnnotationId, selectedCellCountId, sendScreen])
+  }, [activeTools, panelTabs, adjustments, viewedCellCountId, viewedAnnotationId, selectedAnnotationId, selectedCellCountId, sendScreen])
 
   // In Present, open and close what the host does. Only changes are copied,
   // so you can still open something else yourself in between.
@@ -109,7 +111,10 @@ function NavigationContextProvider({ children }: { children: ReactNode }) {
     const last = lastHostTabsRef.current
     const changes = tabChanges(last, now).filter(([panel]) => !busy[panel])
     changes.forEach(([panel, tab]) => {
-      if (panel === 'annotations' && tab !== 'saved') setSelectedAnnotationId(null)
+      if (panel === 'annotations' && tab !== 'saved') {
+        setSelectedAnnotationId(null)
+        setViewedAnnotationId(null)
+      }
       if (panel === 'cellcount' && tab !== 'saved') {
         setSelectedCellCountId(null)
         setViewedCellCountId(null)
@@ -126,7 +131,7 @@ function NavigationContextProvider({ children }: { children: ReactNode }) {
       else delete next[panel]
     }
     lastHostTabsRef.current = next
-  }, [presenting, hostTabsKey, drawing, counting, setPanelTab, setSelectedAnnotationId, setSelectedCellCountId, setViewedCellCountId])
+  }, [presenting, hostTabsKey, drawing, counting, setPanelTab, setSelectedAnnotationId, setViewedAnnotationId, setSelectedCellCountId, setViewedCellCountId])
 
   // A saved count the host shows on the map shows on yours. Only changes,
   // like the panels.
@@ -141,6 +146,20 @@ function NavigationContextProvider({ children }: { children: ReactNode }) {
     lastHostViewedRef.current = hostViewedCount
     setViewedCellCountId(hostViewedCount)
   }, [presenting, hostViewedCount, setViewedCellCountId])
+
+  // Same for an annotation the host picks out with View on map. A screen
+  // from a viewer from before this has no viewedAnnotationId - that's none.
+  const hostViewedAnnotation = hostScreen?.viewedAnnotationId ?? null
+  const lastHostViewedAnnotationRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!presenting) {
+      lastHostViewedAnnotationRef.current = null
+      return
+    }
+    if (hostViewedAnnotation === lastHostViewedAnnotationRef.current) return
+    lastHostViewedAnnotationRef.current = hostViewedAnnotation
+    setViewedAnnotationId(hostViewedAnnotation)
+  }, [presenting, hostViewedAnnotation, setViewedAnnotationId])
 
   // And the host's image adjustments, like their rotation. Yours come back
   // once Present ends.

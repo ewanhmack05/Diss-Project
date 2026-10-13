@@ -37,7 +37,7 @@ interface Participant {
 
 // What's on someone's screen besides the map, for Present. tabs is which
 // tab each panel is on, by panel id. viewedCellCountId is a saved count
-// shown on the map. The two being edited are only for telling view-only
+// shown on the map, viewedAnnotationId a saved annotation picked out on it. The two being edited are only for telling view-only
 // watchers what the host is up to - nobody else gets put into editing.
 // The hub never looks inside.
 interface Screen {
@@ -45,6 +45,7 @@ interface Screen {
   tabs: Record<string, string>
   adjustments: ImageAdjustmentValues | null
   viewedCellCountId: string | null
+  viewedAnnotationId: string | null
   editingAnnotationId: string | null
   editingCellCountId: string | null
 }

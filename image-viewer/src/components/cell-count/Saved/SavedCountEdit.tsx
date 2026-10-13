@@ -5,7 +5,7 @@ import { debounce } from '../../realtime/realtime'
 import { useSharedFields } from '../../realtime/useSharedFields'
 import { LABEL_MAX, NOTES_MAX, nextSave } from '../../realtime/autosave'
 import EditingWith from '../../realtime/EditingWith'
-import { parseCellCountDots, colourBreakdownFromDots } from '../CellCountDots'
+import { countSummary } from '../CellCountDots'
 import CountedBy from '../CountedBy'
 import CellCountColourSwatch from '../CellCountColourSwatch'
 import DockedCard from '../../toolbar/DockedCard'
@@ -67,8 +67,8 @@ function SavedCountEdit({ cellCount, onBack }: SavedCountEditProps) {
   // Closing the form, however it happens, saves whatever's still waiting.
   useEffect(() => () => saveText.flush(), [saveText])
 
-  const dots = parseCellCountDots(cellCount.dots)
-  const colourBreakdown = colourBreakdownFromDots(dots)
+  // The summary, not the dots - editing a label doesn't need them loaded.
+  const { colours: colourBreakdown, people } = countSummary(cellCount)
 
   const handleDelete = () => {
     saveText.cancel()
@@ -125,7 +125,7 @@ function SavedCountEdit({ cellCount, onBack }: SavedCountEditProps) {
           </div>
         </div>
 
-        <CountedBy dots={dots} />
+        <CountedBy people={people} />
 
         <div className="cell-count-form-row">
           <div className="cell-count-form-field">

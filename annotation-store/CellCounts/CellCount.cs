@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace AnnotationStore.CellCounts;
 
 // A user-placed dot marker for manually counting cells (e.g. mitotic
@@ -45,4 +47,16 @@ public class CellCount
     // Null unless WithRoi was on. No reverse nav on RegionOfInterest -
     // keeps JSON from looping back through this property.
     public RegionOfInterest? RegionOfInterest { get; set; }
+    // The dots' colour and placed-by counts, as JSON, set from Dots on POST -
+    // see CellCountSummary. What the Saved list sends instead of the dots.
+    // Null on rows saved before these existed, until they're first listed.
+    // Not sent as they are; the list sends them parsed.
+    [JsonIgnore] public string? ColourCountsJson { get; set; }
+    [JsonIgnore] public string? PlacedByCountsJson { get; set; }
+}
+
+public static class CellCountLimits
+{
+    // POST /cellcounts' body limit - room for a million dots.
+    public const long MaxRequestBytes = 80L * 1024 * 1024;
 }

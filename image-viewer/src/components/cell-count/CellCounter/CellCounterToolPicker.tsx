@@ -2,7 +2,7 @@ import { useCellCountDrawContext } from "../../../context/CellCountDrawContext";
 import { useCellCountStoreContext } from "../../../context/CellCountStoreContext";
 import { useDrawContext } from "../../../context/DrawContext";
 import { DotSizeOptions, RoiBoxSizeOptions } from "../Tools";
-import { parseCellCountDots, colourBreakdownFromDots } from "../CellCountDots";
+import { countSummary } from "../CellCountDots";
 import { mostRecentCellCount } from "../CellCountView";
 import ColourPicker from "../../colour-picker/ColourPicker";
 import CellCountColourSwatch from "../CellCountColourSwatch";
@@ -129,7 +129,7 @@ function CellCounterToolPicker() {
         {recentCellCount ? (
           <div className="cell-counter-tool-picker-recent">
             <CellCountColourSwatch
-              breakdown={colourBreakdownFromDots(parseCellCountDots(recentCellCount.dots))}
+              breakdown={countSummary(recentCellCount).colours}
               className="cell-counter-tool-picker-recent-swatch"
             />
             <span className="cell-counter-tool-picker-recent-label">

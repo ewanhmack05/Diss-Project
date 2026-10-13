@@ -16,6 +16,10 @@ interface CellCountColourCount {
 	count: number;
 }
 
+interface PlacedByCount extends DotPlacer {
+	count: number;
+}
+
 // ROI box a count was taken within, as GeoJson. Own model on the backend,
 // linked one-to-one to its CellCount. Null unless withRoi was on.
 interface RegionOfInterest {
@@ -32,8 +36,16 @@ interface CellCount {
 	// as Annotation's geoJson field on the backend. Use parseCellCountDots
 	// (components/cell-count/CellCountDots) rather than JSON.parse-ing this
 	// directly. Empty for a click made with withAnnotation off - it still
-	// tallies, but there's no dot to record.
-	dots: string;
+	// tallies, but there's no dot to record. Null when it hasn't been loaded:
+	// annotation-store's list leaves the dots out (they can run to tens of
+	// megabytes) and sends colourCounts / placedByCounts instead, so a count
+	// from the Saved list only has its dots once it's viewed on the map.
+	dots: string | null;
+	// The dots' colour and placed-by counts, from the list. Use countSummary
+	// (CellCountDots) - it falls back to the dots for a count that didn't
+	// come from the list, e.g. one you just saved.
+	colourCounts?: CellCountColourCount[];
+	placedByCounts?: PlacedByCount[];
 	withAnnotation: boolean;
 	withRoi: boolean;
 	count: number;
@@ -48,4 +60,4 @@ interface CellCount {
 	createdByName?: string;
 }
 
-export type { CellCount, CellCountDot, CellCountColourCount, RegionOfInterest, DotPlacer };
+export type { CellCount, CellCountDot, CellCountColourCount, PlacedByCount, RegionOfInterest, DotPlacer };

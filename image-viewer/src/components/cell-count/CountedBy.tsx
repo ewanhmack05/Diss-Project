@@ -1,11 +1,9 @@
-import type { CellCountDot } from '../../interfaces/CellCount'
-import { placedByBreakdown } from './CellCountDots'
+import type { PlacedByCount } from '../../interfaces/CellCount'
 import './CellCounter/CellCountForm.css'
 
 // Who placed how many of the dots - only shared counts record it, so it
 // renders nothing for anything else.
-function CountedBy({ dots }: { dots: CellCountDot[] }) {
-  const people = placedByBreakdown(dots)
+function CountedBy({ people }: { people: PlacedByCount[] }) {
   if (people.length === 0) return null
 
   return (

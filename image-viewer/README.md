@@ -37,11 +37,17 @@ any edge of the screen - two panels on the same edge split it evenly.
     [Yjs](https://github.com/yjs/yjs) CRDT, so two people typing in the same
     box both keep their text (`src/components/realtime/sharedFields.ts`).
     Everything saves as it changes; the form lists who else is editing
+  - **Saved** shows 50 a page, newest first, with search done by
+    annotation-store across all of them. The map still draws every
+    annotation - only the list pages. The page size is `SAVED_PAGE_SIZE` in
+    `src/components/saved/paging.ts`, shared with saved cell counts
 - **Cell Count** - place dots to manually count cells (e.g. mitotic figures),
   with a running tally, dot size and colour options, and an optional region
   of interest box. Saved counts can be reopened and viewed on the slide.
   A saved count's label and notes are shared live and autosave, the same
-  as annotations
+  as annotations. Saved counts page and search the same way. A count's dots
+  load only when it's viewed on the map - the list and the edit form use
+  the colour and placed-by summary annotation-store sends instead
 - **Rotate** - rotate the slide view
 - **Ruler** - measure a straight-line distance, shown in µm using the slide's
   microns-per-pixel, or in pixels

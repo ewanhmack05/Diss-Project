@@ -163,6 +163,18 @@ function annotationStyle(feature: FeatureLike, resolution: number): Style[] {
 	return withArrowHead([baseStyle(colour, lineThickness, lineStyle, geometry, resolution)], shape, colour, lineThickness, geometry, resolution);
 }
 
+// The halo behind a saved annotation picked with View on map, so it stands
+// out from every other shape on the slide. Drawn on a layer under the
+// annotations, so the shape itself still shows on top in its own colour:
+// a dark edge and a light band, which shows on pale and dark tissue alike.
+function viewedAnnotationStyle(feature: FeatureLike): Style[] {
+	const lineThickness = (feature.get("lineThickness") as number | undefined) ?? 2;
+	return [
+		new Style({ stroke: new Stroke({ color: "rgba(0, 0, 0, 0.55)", width: lineThickness + 14, lineJoin: "round", lineCap: "round" }) }),
+		new Style({ stroke: new Stroke({ color: "rgba(255, 255, 255, 0.9)", width: lineThickness + 8, lineJoin: "round", lineCap: "round" }) }),
+	];
+}
+
 // Saved annotations render on the GPU (WebGLVectorLayer), which only takes
 // flat styles - no style functions, so anything annotationStyle works out
 // per render has to be baked onto the feature up front instead. Call this
@@ -504,6 +516,7 @@ export {
 	annotationStyle,
 	annotationFlatStyle,
 	annotationArrowHeadStyle,
+	viewedAnnotationStyle,
 	setAnnotationRenderProperties,
 	sketchStyle,
 	cellCountDotStyle,

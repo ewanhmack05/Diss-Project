@@ -3,6 +3,7 @@ import { useCellCountStoreContext } from '../../../context/CellCountStoreContext
 import { useCellCountDrawContext } from '../../../context/CellCountDrawContext'
 import DockedCard from '../../toolbar/DockedCard'
 import CountedBy from '../CountedBy'
+import { placedByBreakdown } from '../CellCountDots'
 import './CellCountForm.css'
 import { newId } from '../../../newId'
 
@@ -76,7 +77,7 @@ function AddCellCountForm() {
       </DockedCard>
 
       <DockedCard title="Details" className="cell-count-form-details-card">
-        <CountedBy dots={pending.dots} />
+        <CountedBy people={placedByBreakdown(pending.dots)} />
 
         <div className="cell-count-form-row">
           <div className="cell-count-form-field">

@@ -3,6 +3,7 @@ import { useCollectionContext } from '../../context/CollectionContext'
 import { useDrawContext } from '../../context/DrawContext'
 import { useToolbarContext } from '../../context/ToolbarContext'
 import PresenterNote from '../realtime/PresenterNote'
+import { savedTabLabel } from '../saved/useSavedTotal'
 import FreeForm from './FreeForm/FreeForm'
 import SavedAnnotationList from './Saved/SavedAnnotationList'
 import './AnnotationsPanel.css'
@@ -10,7 +11,7 @@ import './AnnotationsPanel.css'
 type AnnotationsTab = 'free-form' | 'saved'
 
 function AnnotationsPanel() {
-  const { annotations, setSelectedAnnotationId } = useAnnotationStoreContext()
+  const { total, setSelectedAnnotationId, setViewedAnnotationId } = useAnnotationStoreContext()
   const { canEdit } = useCollectionContext()
   // In the toolbar's context so Present can follow the host's tab.
   const { panelTabs, setPanelTab } = useToolbarContext()
@@ -27,10 +28,12 @@ function AnnotationsPanel() {
           type="button"
           className={`annotations-panel-tab${shownTab === 'free-form' ? ' annotations-panel-tab--active' : ''}`}
           onClick={() => {
-            // Selection is shared context state (so the map can pan to it),
-            // not local to the list - leaving Saved should still drop it, or
-            // coming back later reopens straight into whatever was last edited.
+            // Selection and viewing are shared context state (so the map can
+            // pan to them), not local to the list - leaving Saved should still
+            // drop both, or coming back later reopens straight into whatever
+            // was last edited, and the halo stays on one you've left behind.
             setSelectedAnnotationId(null)
+            setViewedAnnotationId(null)
             setTab('free-form')
           }}
         >
@@ -42,7 +45,7 @@ function AnnotationsPanel() {
           disabled={!!pending}
           onClick={() => setTab('saved')}
         >
-          Saved{annotations.length > 0 ? ` (${annotations.length})` : ''}
+          {savedTabLabel(total)}
         </button>
       </div>
 

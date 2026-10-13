@@ -40,8 +40,10 @@ function PresenterNote({ panel }: { panel: 'annotations' | 'cellcount' }) {
       text = counting
         ? `${name} is counting - ${counting.data.count} so far. Follow along on the map.`
         : `${name} is setting up a count - it shows on your map once they start.`
-    } else if (editing) {
-      text = `${name} is editing ${editing.label || 'a count'} - you'll see the changes once they save.`
+    } else if (hostScreen.editingCellCountId) {
+      // Only counts you've loaded have a label here - not worth fetching
+      // one (and its dots) just to name it.
+      text = `${name} is editing ${(editing && editing.label) || 'a count'} - you'll see the changes once they save.`
     }
   }
 

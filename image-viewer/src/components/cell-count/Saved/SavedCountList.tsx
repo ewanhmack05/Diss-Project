@@ -1,16 +1,15 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useCellCountStoreContext } from "../../../context/CellCountStoreContext";
 import type { CellCount } from "../../../interfaces/CellCount";
-import {
-  parseCellCountDots,
-  colourBreakdownFromDots,
-  placedByBreakdown,
-} from "../CellCountDots";
+import { countSummary } from "../CellCountDots";
 import { toggleViewedCellCountId } from "../CellCountView";
 import CellCountColourSwatch from "../CellCountColourSwatch";
 import SavedCountEdit from "./SavedCountEdit";
 import SavedRow, { SavedDetails } from "../../saved/SavedRow";
-import { formatLongDate, formatShortDate, newestFirst } from "../../saved/savedDates";
+import { formatLongDate, formatShortDate } from "../../saved/savedDates";
+import { SAVED_PAGE_SIZE, clampPage, mergePage } from "../../saved/paging";
+import useSavedPage from "../../saved/useSavedPage";
+import SavedPager from "../../saved/SavedPager";
 import { savedBy } from "../../saved/savedBy";
 import { useAuthContext } from "../../../context/AuthContext";
 import { useCollectionContext } from "../../../context/CollectionContext";
@@ -49,9 +48,14 @@ function SavedCountRow({ cellCount, open, onToggle }: SavedCountRowProps) {
   const { canEdit } = useCollectionContext();
   const { user } = useAuthContext();
   const by = savedBy(cellCount, user.id);
-  const dots = parseCellCountDots(cellCount.dots);
-  const colours = colourBreakdownFromDots(dots);
-  const people = placedByBreakdown(dots);
+  // From the summary the list sends - the dots themselves only load for
+  // View on map. Memoised for a count you've just saved, which is worked
+  // out from its dots.
+  const { colourCounts, placedByCounts, dots } = cellCount;
+  const { colours, people } = useMemo(
+    () => countSummary({ colourCounts, placedByCounts, dots }),
+    [colourCounts, placedByCounts, dots],
+  );
   const isViewing = viewedCellCountId === cellCount.id;
   // Same rules as the old View button - nothing to draw without dots or
   // a location.
@@ -156,13 +160,38 @@ function SavedCountRow({ cellCount, open, onToggle }: SavedCountRowProps) {
 }
 
 function SavedCountList() {
-  const { cellCounts, status, selectedCellCountId, setSelectedCellCountId } =
-    useCellCountStoreContext();
-  const { canEdit } = useCollectionContext();
+  const {
+    cellCounts,
+    status,
+    revision,
+    wasDeleted,
+    baseUrl,
+    rememberCellCounts,
+    selectedCellCountId,
+    setSelectedCellCountId,
+  } = useCellCountStoreContext();
+  const { canEdit, collectionId } = useCollectionContext();
   // Kept here rather than reset on edit, so Back returns to the same results.
   const [search, setSearch] = useState("");
   // One open at a time. Kept through an edit too, so Back lands on it.
   const [openId, setOpenId] = useState<string | null>(null);
+  // Kept through an edit too, and reset to the first page by a new search.
+  const [page, setPage] = useState(0);
+  // A page at a time from annotation-store, searched there too - all of
+  // them at once meant every count's dots, which ran to tens of megabytes.
+  const savedPage = useSavedPage<CellCount>({
+    baseUrl,
+    path: "cellcounts",
+    collectionId,
+    page,
+    pageSize: SAVED_PAGE_SIZE,
+    search,
+    revision,
+  });
+  // So View and Edit find a count from this page in the store.
+  useEffect(() => {
+    rememberCellCounts(savedPage.fetched);
+  }, [savedPage.fetched, rememberCellCounts]);
 
   const editing = cellCounts.find((c) => c.id === selectedCellCountId);
   if (editing && canEdit) {
@@ -175,11 +204,11 @@ function SavedCountList() {
     );
   }
 
-  if (status === "loading") {
+  if (status === "loading" || savedPage.status === "loading") {
     return <p className="saved-cell-count-list-empty">Loading...</p>;
   }
 
-  if (status === "error") {
+  if (status === "error" || savedPage.status === "error") {
     return (
       <p className="saved-cell-count-list-empty">
         Couldn't reach the annotation store.
@@ -187,20 +216,22 @@ function SavedCountList() {
     );
   }
 
-  if (cellCounts.length === 0) {
+  const { items, total } = mergePage({
+    fetched: savedPage.fetched,
+    total: savedPage.total,
+    live: cellCounts,
+    isDeleted: wasDeleted,
+    page,
+    search,
+    pageSize: SAVED_PAGE_SIZE,
+  });
+  // A delete can leave this page past the end - step back to the last one.
+  const shownPage = clampPage(page, total, SAVED_PAGE_SIZE);
+  if (shownPage !== page) setPage(shownPage);
+
+  if (total === 0 && !search.trim()) {
     return <p className="saved-cell-count-list-empty">Nothing saved yet.</p>;
   }
-
-  const query = search.trim().toLowerCase();
-  const filtered = newestFirst(
-    query
-      ? cellCounts.filter(
-        (c) =>
-          c.label.toLowerCase().includes(query) ||
-          c.notes.toLowerCase().includes(query),
-      )
-      : cellCounts,
-  );
 
   return (
     <>
@@ -209,13 +240,16 @@ function SavedCountList() {
         className="saved-cell-count-list-search"
         value={search}
         placeholder="Search saved counts"
-        onChange={(e) => setSearch(e.target.value)}
+        onChange={(e) => {
+          setSearch(e.target.value);
+          setPage(0);
+        }}
       />
-      {filtered.length === 0 ? (
-        <p className="saved-cell-count-list-empty">No matches.</p>
+      {items.length === 0 ? (
+        <p className="saved-cell-count-list-empty">{savedPage.loadingMore ? "Searching..." : "No matches."}</p>
       ) : (
         <ul className="saved-cell-count-list themed-scroll">
-          {filtered.map((cellCount) => (
+          {items.map((cellCount) => (
             <SavedCountRow
               key={cellCount.id}
               cellCount={cellCount}
@@ -225,6 +259,13 @@ function SavedCountList() {
           ))}
         </ul>
       )}
+      <SavedPager
+        page={page}
+        total={total}
+        pageSize={SAVED_PAGE_SIZE}
+        loading={savedPage.loadingMore}
+        onPage={setPage}
+      />
     </>
   );
 }
