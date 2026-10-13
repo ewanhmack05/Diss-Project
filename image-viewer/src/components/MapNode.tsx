@@ -122,7 +122,7 @@ function sharedDotOf(feature: Feature<Point>): Omit<SharedDot, 'connectionId'> {
 
 function MapNode() {
   const { source } = useImageViewerContext()
-  const { annotations, selectedAnnotationId, viewedAnnotationId, annotationsSource, addAnnotation } =
+  const { annotations, selectedAnnotationId, viewedAnnotationId, setViewedAnnotationId, annotationsSource, addAnnotation } =
     useAnnotationStoreContext()
   const {
     activeTool,
@@ -155,7 +155,7 @@ function MapNode() {
     redoSignal,
     cancelling,
   } = useCellCountDrawContext()
-  const { cellCounts, viewedCellCountId } = useCellCountStoreContext()
+  const { cellCounts, viewedCellCountId, setViewedCellCountId } = useCellCountStoreContext()
   const { activeTools } = useToolbarContext()
   const { me, others, sendViewport, sendSketch, clearSketch, addSharedDot, removeSharedDot } = useRealtimeContext()
   const { following, leader, mode: navigationMode, breakAway, lookAt } = useNavigationContext()
@@ -624,6 +624,14 @@ function MapNode() {
     remoteSketchesLayerRef.current?.setVisible(annotationsVisible)
   }, [annotationsVisible])
 
+  // Closing the Annotations panel, however it's closed, drops what was
+  // picked with View on map - opening it again doesn't bring the halo back.
+  // Off the panel being open rather than it unmounting, since docking it
+  // somewhere else remounts it.
+  useEffect(() => {
+    if (!annotationsVisible) setViewedAnnotationId(null)
+  }, [annotationsVisible, setViewedAnnotationId])
+
   // Same idea as the annotations layer above, for the cell-count panel.
   // Your own dots hide behind comparison results or a shared count while
   // either is up - both draw them again with everyone else's.
@@ -636,6 +644,12 @@ function MapNode() {
     viewedDotsLayerRef.current?.setVisible(cellCountVisible)
     viewedRoiLayerRef.current?.setVisible(cellCountVisible)
   }, [cellCountVisible, comparisonResults, sharedCounting])
+
+  // Same as annotations: closing the Cell Count panel takes the viewed count
+  // off the map for good, rather than it coming back on reopening.
+  useEffect(() => {
+    if (!cellCountVisible) setViewedCellCountId(null)
+  }, [cellCountVisible, setViewedCellCountId])
 
   // Same idea again, for the ruler - and since a measurement is a one-off
   // scratch reading rather than something saved, closing the tool clears it
