@@ -225,6 +225,11 @@ unless it's a delete), then stamps it:
 StampedOp { seq: 42, serverTime, connectionId, userId, op: { kind, entity, id, data } }
 ```
 
+`entity` is `annotation`, `cellCount`, `annotationGroup` (a group made,
+renamed, merged or deleted) or `collection` (a nudge that the session
+changed, with no data). A bulk change from the viewer's Select tab is one op
+per annotation.
+
 `seq` goes up by one for every op in the room. It lets a client spot a gap
 (a missed op) and put two edits to the same thing in order. `data` is passed
 through without being read, so the hub doesn't care what an annotation looks

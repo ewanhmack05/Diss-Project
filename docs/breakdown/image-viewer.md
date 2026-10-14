@@ -76,11 +76,11 @@ src/
   App.tsx            the provider tree, then the shell: map, panels, docking, toolbar
   newId.ts           UUIDs that work over plain http too
   interfaces/        Annotation, CellCount, ImageAdjustment, ImageSource
-  context/           19 providers, one per concern (section 3)
+  context/           21 providers, one per concern (section 3)
   components/
     MapNode.tsx      the OpenLayers map and everything drawn on it (~1500 lines)
     open-layers/     map, view, tile layer, overview, scale bar, styles, GeoJSON
-    annotation/      Free Form tab (tool picker, name form) and Saved tab
+    annotation/      Free Form tab (tool picker, name form), Select tab (picking, groups) and Saved tab
     cell-count/      counter, saved counts, comparison/, shared/
     saved/           paging, search, filters - shared by both Saved lists
     realtime/        RealTime panel, invite gate, sketches, shared text, autosave
@@ -113,7 +113,7 @@ flowchart TD
   C --> G["InviteGate<br/>?invite= handled before the viewer opens"]
   G --> P["Presence<br/>who's online, always connected"]
   P --> R["Realtime<br/>the session's room, only in a session"]
-  R --> S["AnnotationStore · CellCountStore<br/>load, save, mirror others' ops"]
+  R --> S["AnnotationStore · AnnotationGroup · AnnotationSelect · CellCountStore<br/>load, save, mirror others' ops"]
   S --> D["CellCountDraw · Draw · Rotation · Ruler · Adjustments<br/>tool state"]
   D --> N["Toolbar · Navigation · Comparison · SharedCount"]
   N --> V["ViewerShell<br/>MapNode, panels, toolbar"]
@@ -126,7 +126,9 @@ flowchart TD
 | `Collection` | Your collections on this slide, which one is active, sessions, invites, roles |
 | `Presence` | Everyone with an account, who's online and what they're doing |
 | `Realtime` | The SignalR connection to the session's room - see [realtime-hub.md](realtime-hub.md#10-viewer-side) |
-| `AnnotationStore` | Every annotation in the collection, plus the OpenLayers source they're drawn from |
+| `AnnotationStore` | Every annotation in the collection, plus the OpenLayers source they're drawn from. Bulk updates and deletes, the waiting deletes undo can still stop, and the Saved list's filter the map draws by |
+| `AnnotationGroup` | The collection's groups, and which are hidden on the map while the Select tab's open |
+| `AnnotationSelect` | What's picked on the Select tab, and box or lasso. Your own, not shared |
 | `CellCountStore` | Counts loaded so far (not all - see [section 11](#11-the-saved-lists)) |
 | `Draw` | Selected shape tool, colour, thickness, line style, the shape waiting to be named, quick draw |
 | `CellCountDraw` | Whether you're counting, the tally, dot size, colour, ROI settings, the count waiting to be saved |
@@ -291,7 +293,8 @@ line's end, style functions) stay on canvas.
 | Layer | Renderer | Shows |
 | ----- | -------- | ----- |
 | Slide tiles | WebGL | The image. Brightness, contrast, gamma and colour gains run in its shader |
-| Saved annotations | WebGL | Every annotation in the collection |
+| Saved annotations | WebGL | Every annotation in the collection - minus hidden groups, and anything the open Saved list's search and filters leave out |
+| Selected annotations | Canvas | A teal halo round what's picked on the Select tab |
 | Arrowheads | Canvas | The heads of arrow annotations |
 | Viewed annotation | Canvas | A halo round the one picked with View on map |
 | Draw | Canvas | The shape being drawn or waiting to be named |
@@ -478,6 +481,10 @@ flowchart LR
   dropped rather than sent to something that's gone.
 - **Updates send label, notes and colour together**, because
   annotation-store's `PUT` replaces all three.
+- **Bulk changes** from the Select tab go in one request
+  (`PUT /annotations/bulk`), with an op per annotation for everyone else. A
+  bulk delete is shown straight away but only sent once its undo time is up -
+  see [the Select tab](#the-select-tab---many-at-once).
 
 `newId()` uses `crypto.randomUUID()` where it exists and builds a v4 UUID
 from `getRandomValues` where it doesn't (plain http from another machine).
@@ -492,13 +499,27 @@ rather than loading everything. The shared code is in
 - **Search and filters run on the server**, across every row, not just the
   page. Typing waits 250ms after the last key before asking.
 - **Filters** - who saved it, shape, colour (palette colours or Custom),
-  has notes, has an ROI, date range. The Filter button shows how many are on.
+  group (or No group), has notes, has an ROI, date range. The Filter button
+  shows how many are on.
+- **The tab's count follows the list.** While the Saved tab is open its
+  label is the list's own count - so it follows the search and filters, and
+  says `Saved (0)` when they find nothing. On other tabs it's the whole
+  collection's.
+- **The map follows the list too.** While the annotations Saved tab is open,
+  the map only draws what its search and filters let through
+  (`mapFilter` in `AnnotationStoreContext`, checked with the same `passes`
+  and `matchesSearch`). Leaving the tab draws everything again.
 - **Live changes merge into the page** (`mergePage`) until the next fetch:
   an edit shows straight away, a delete drops out, and something new goes to
   the top of page 1 if it passes the filters (and there's no search, since
   whether that matches is the server's call).
 - **Refetch on `revision`.** The stores bump it each time a create or delete
   settles, and a burst of them turns into one refetch.
+- **Deletes come off the counts straight away.** Each fetch remembers the
+  revision it was made at. A bulk delete that hasn't been sent yet (or was
+  sent after that fetch) is taken off its count, if it would have matched
+  the search and filters, until a fetch arrives that already leaves it out -
+  so nothing's taken off twice.
 - **Page kept in range.** Deleting the last row on the last page moves you
   back a page rather than leaving you on an empty one.
 
@@ -601,7 +622,7 @@ all tested without a browser.
 
 ## 15. Tests
 
-26 test files, 331 tests, run with Vitest (`npm test`). They sit next to
+28 test files, 352 tests, run with Vitest (`npm test`). They sit next to
 the code they cover and test the plain `.ts` logic, not React components or
 a live map.
 
@@ -610,7 +631,9 @@ a live map.
 | open-layers | OpenLayers, Styles, GeoJSON | Zoom ladder, styles, GeoJSON round trips |
 | realtime | realtime, sharedFields, sketch, autosave | `applyOp`, caret moves, Yjs merges, sketch simplifying, what to autosave |
 | cell-count | CellCountDots, CellCountView, compare, sharedCount | Dot parsing, view extent, comparison matching, double counts |
-| saved | paging, filters, savedBy, savedDates, sheetPlacement, useSavedTotal | Page maths, `mergePage`, filter query strings, live filtering |
+| saved | paging, filters, savedBy, savedDates, sheetPlacement, useSavedTotal | Page maths, `mergePage` (pending deletes too), filter query strings, live filtering, search matching, the tab label |
+| annotation | selection | Fully inside a box or lasso, which shape a click is on |
+| collections | collectionGeoJson | Export and import, y flipping, QuPath-style files, groups, what's skipped |
 | toolbar | dock, focusOrder, panelPlacement | Docking, splitting, stacking, placing |
 | other | adjustments, rotation, ruler, popupPosition, presence, newId | Clamping, angles, distances, out-of-order presence |
 
@@ -652,6 +675,9 @@ build on every push that touches the viewer.
 | View on map | Picking a saved annotation or count to fly to and highlight |
 | Optimistic write | Showing a change before the server has confirmed it |
 | Revision | A counter the stores bump when a save settles, so the Saved list knows to refetch |
+| Shared collection | Someone's own collection they've let anyone signed in look at, read-only |
+| Group | A named set of annotations in a collection, with notes - made and managed on the Select tab |
+| Picked | Annotations selected on the Select tab, to change together |
 | OIDC / PKCE | The sign-in standard Keycloak speaks, and the extra check that makes it safe in a browser |
 | Present / Follow | Navigation modes where your view follows the host's |
 | Dock | Snapping a panel to an edge of the screen |

@@ -21,7 +21,7 @@ Tools are toggled from a toolbar. Each one opens a floating panel that can be
 dragged anywhere over the slide ([dnd-kit](https://dndkit.com/)) or docked to
 any edge of the screen - two panels on the same edge split it evenly.
 
-- **Annotations** - **Free Form** and **Saved** tabs
+- **Annotations** - **Free Form**, **Select** and **Saved** tabs
   - Six shape tools: line, freehand, polygon, arrow, rectangle, circle, plus
     line thickness, line style (solid/dashed) and a colour palette
   - Finishing a shape opens a label + colour form. While it's open, the shape
@@ -38,9 +38,20 @@ any edge of the screen - two panels on the same edge split it evenly.
     box both keep their text (`src/components/realtime/sharedFields.ts`).
     Everything saves as it changes; the form lists who else is editing
   - **Saved** shows 50 a page, newest first, with search done by
-    annotation-store across all of them. The map still draws every
+    annotation-store across all of them. The map still loads every
     annotation - only the list pages. The page size is `SAVED_PAGE_SIZE` in
     `src/components/saved/paging.ts`, shared with saved cell counts
+  - **Saved**'s Filter narrows by who saved it, shape, colour, group, notes
+    and date. While it's open the map only draws what the search and
+    filters let through, and the tab's count is the list's
+  - **Select** picks annotations on the map - drag a box or a lasso round
+    them (fully inside only), Shift to add, click one to put it in or take
+    it out. Then recolour them, put them in a group, or delete them (with
+    Undo). **Groups** are named sets of annotations in the collection: show
+    or hide one on the map, pick everything in one, or open its page to
+    rename it, add notes, recolour it, merge it into another group or delete
+    what's in it (`src/components/annotation/Select/`). Viewers get this tab
+    as **Groups**, to show and hide only
 - **Cell Count** - place dots to manually count cells (e.g. mitotic figures),
   with a running tally, dot size and colour options, and an optional region
   of interest box. Saved counts can be reopened and viewed on the slide.
@@ -54,7 +65,8 @@ any edge of the screen - two panels on the same edge split it evenly.
 - **Image Adjustments** - brightness, contrast and gamma, applied in the
   WebGL tile layer's shader. Settings can be saved as named presets
 - **RealTime** - **Session** and **Users** tabs
-  - **Session** - start, host, join or leave a session. The host gets an
+  - **Session** - start, host, join or leave a session. Rejoining one you're
+    already in, or looking back at an ended one, is in **Collections**. The host gets an
     invite link and the same code on its own. Working alone, **Join with a
     code** takes either the code or the whole link and brings up the same
     invite card the link does, over the viewer rather than instead of it
@@ -66,6 +78,18 @@ any edge of the screen - two panels on the same edge split it evenly.
     (can edit, 24 hours). Kept up to date over realtime-hub's presence hub
     (`src/context/PresenceContext.tsx`, `src/components/users/presence.ts`).
     If Keycloak's list can't be had, it shows just who's online
+- **Collections** - **Mine** and **Shared** tabs, each collection with how
+  many annotations and cell counts it has and when one was last added
+  - **Mine** - your own collection on the slide: rename it, **Let others
+    view it** (anyone signed in can then look, read-only), export, import
+  - **Shared** - the sessions you're in (rejoin or view, export, import if
+    you can edit, leave, or delete one you host once it's ended), and other
+    people's shared collections (view and export)
+  - **Export** is GeoJSON in slide pixels from the top left (y down, like
+    QuPath) - annotations as their shapes, cell counts as their dots, groups
+    by name. **Import** reads that or a QuPath-style file, shows what it
+    found and what it can't use, then saves it all in one go
+    (`src/components/collections/`)
 - **Fullscreen** - uses the Fullscreen API (`requestFullscreen`)
 
 ## Rendering

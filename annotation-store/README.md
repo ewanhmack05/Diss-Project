@@ -194,6 +194,7 @@ ties, so no row turns up on two pages.
 | `LineStyle`     | text          | `solid` / `dashed`                                                                                  |
 | `LineThickness` | int           |                                                                                                     |
 | `GeoJson`       | text          | the drawn feature, as written by `image-viewer`'s `featureToGeoJson`                                |
+| `GroupId`       | uuid, null    | the `AnnotationGroup` it's in, if any - always one in the same collection                           |
 | `Created`       | timestamptz   | server-assigned                                                                                     |
 
 `CellCounts/CellCount.cs` - a user-placed dot marker for manually counting
@@ -213,3 +214,14 @@ cells (e.g. mitotic figures) within a region:
 | `LocationX`      | double, null  | where the count was taken (slide pixel space), fixed at creation - null for a count with no recorded location |
 | `LocationY`      | double, null  | see `LocationX`                                                |
 | `Created`        | timestamptz   | server-assigned                                               |
+
+`Annotations/AnnotationGroup.cs` - a named set of annotations in one
+collection:
+
+| field          | type     | notes                                             |
+| -------------- | -------- | ------------------------------------------------- |
+| `Id`           | uuid, PK | server-assigned                                   |
+| `CollectionId` | uuid     | which collection it's in - deleting that deletes it |
+| `Name`         | text     | up to 64 characters                               |
+| `Notes`        | text     | up to 10,000 characters                           |
+| `Created`      | timestamptz | server-assigned                                |
