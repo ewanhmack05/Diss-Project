@@ -122,7 +122,7 @@ type Sketch = { tool: string; data: unknown };  // tool: 'annotation', 'ruler' (
 type SketchUpdate = { connectionId: string; tool: string; sketch: Sketch | null };
 // entity 'collection' is a nudge that the session changed (someone's role,
 // someone taken out, it ended), so everyone fetches it again.
-type AnnotationOp = { kind: 'create' | 'update' | 'delete'; entity: 'annotation' | 'cellCount' | 'collection'; id: string; data?: unknown };
+type AnnotationOp = { kind: 'create' | 'update' | 'delete'; entity: 'annotation' | 'cellCount' | 'collection' | 'annotationGroup'; id: string; data?: unknown };
 type StampedOp = { seq: number; serverTime: string; connectionId: string; userId: string; op: AnnotationOp };
 type JoinResult = { me: Participant; others: Participant[]; seq: number; comparison: Comparison | null; sharedCount: SharedCount | null; navigation: NavigationMode };
 // matchRadius is in map units - dots closer than this are the same cell.

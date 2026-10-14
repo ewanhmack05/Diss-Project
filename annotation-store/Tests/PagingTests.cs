@@ -189,6 +189,27 @@ public class PagingTests : IClassFixture<CellCountApiFactory>
     }
 
     [Fact]
+    public async Task Annotations_FilterByGroup_WithNoneForUngrouped()
+    {
+        var (client, collectionId) = await AnnotationsAsync(3);
+        var all = (await client.GetFromJsonAsync<Annotation[]>($"/annotations?collectionId={collectionId}"))!;
+        var byLabel = all.ToDictionary(a => a.Label, a => a.Id);
+        var tumour = await (await client.PostAsJsonAsync("/annotationgroups",
+            new NewGroupRequest(collectionId, "Tumour", [byLabel["A 1"]]))).Content.ReadFromJsonAsync<GroupView>();
+        var stroma = await (await client.PostAsJsonAsync("/annotationgroups",
+            new NewGroupRequest(collectionId, "Stroma", [byLabel["A 2"]]))).Content.ReadFromJsonAsync<GroupView>();
+        var url = $"/annotations?collectionId={collectionId}";
+        async Task<string[]> Labels(string query) =>
+            (await client.GetFromJsonAsync<Annotation[]>($"{url}&{query}"))!.Select(a => a.Label).ToArray();
+
+        Assert.Equal(["A 1"], await Labels($"group={tumour!.Id}"));
+        Assert.Equal(["A 3"], await Labels("group=none"));
+        Assert.Equal(["A 3", "A 2"], await Labels($"group={stroma!.Id}&group=none"));
+        Assert.Empty(await Labels("group=not-a-group"));
+        Assert.Equal(2, await client.GetFromJsonAsync<int>($"/annotations/total?collectionId={collectionId}&group={tumour.Id}&group=none"));
+    }
+
+    [Fact]
     public async Task Annotations_FilterBySavedDate_FromInclusiveToExclusive()
     {
         var (client, collectionId) = await AnnotationsAsync(2);

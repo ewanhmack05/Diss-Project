@@ -55,8 +55,9 @@ public enum OpKind { Create, Update, Delete }
 
 // Image adjustments stay personal, so they aren't here. Collection is a
 // nudge that the session changed - someone's role, someone taken out, or it
-// ended - so everyone fetches it again.
-public enum OpEntity { Annotation, CellCount, Collection }
+// ended - so everyone fetches it again. AnnotationGroup is a group of
+// annotations being made, renamed or deleted.
+public enum OpEntity { Annotation, CellCount, Collection, AnnotationGroup }
 
 public record AnnotationOp(OpKind Kind, OpEntity Entity, Guid Id, JsonElement? Data = null);
 

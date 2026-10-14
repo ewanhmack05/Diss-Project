@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { placeSheet, samePlacement, type SheetPlacement } from './sheetPlacement'
-import { NO_FILTERS, PALETTE, activeFilterCount, toggled, type Either, type SavedFilters } from './filters'
+import { NO_FILTERS, NO_GROUP, PALETTE, activeFilterCount, toggled, type Either, type SavedFilters } from './filters'
 import type { SavedFacets } from './useSavedFacets'
 import './SavedFilterMenu.css'
 
@@ -9,6 +9,13 @@ interface ShapeChoice {
   value: string
   label: string
   glyph: ReactNode
+}
+
+// A group and how many are in it - the last one is "No group".
+interface GroupChoice {
+  id: string
+  name: string
+  count: number
 }
 
 interface SavedFilterMenuProps {
@@ -21,6 +28,8 @@ interface SavedFilterMenuProps {
   // annotations have shapes and colours, cell counts a region of interest.
   shapes?: ShapeChoice[]
   colours?: boolean
+  // Annotations only - the collection's groups. Left out, there's no section.
+  groups?: GroupChoice[]
   roi?: boolean
 }
 
@@ -110,7 +119,7 @@ function EitherPicker({ value, onChange, label }: { value: Either; onChange: (va
 // opens against the panel's side - who saved it, shape, colour, notes,
 // region of interest and when. Changes apply as they're made, with the list
 // still in view; the badge says how many are on.
-function SavedFilterMenu({ filters, onChange, facets, myId, shapes, colours, roi }: SavedFilterMenuProps) {
+function SavedFilterMenu({ filters, onChange, facets, myId, shapes, colours, groups, roi }: SavedFilterMenuProps) {
   const [frame, setFrame] = useState<Frame | null>(null)
   const toggleRef = useRef<HTMLButtonElement>(null)
   const popupRef = useRef<HTMLDivElement>(null)
@@ -293,6 +302,28 @@ function SavedFilterMenu({ filters, onChange, facets, myId, shapes, colours, roi
                       onClick={() => set({ customColour: !filters.customColour })}
                     />
                   </div>
+                </FilterSection>
+              )}
+
+              {groups && (
+                <FilterSection title="Group">
+                  {groups.length === 1 ? (
+                    <p className="saved-filter-empty">No groups yet - make them on the Select tab.</p>
+                  ) : (
+                    <div className="saved-filter-chips">
+                      {groups.map((group) => (
+                        <Chip
+                          key={group.id}
+                          className={group.id === NO_GROUP ? 'saved-filter-chip--plain' : ''}
+                          on={filters.groups.includes(group.id)}
+                          onClick={() => set({ groups: toggled(filters.groups, group.id) })}
+                        >
+                          {group.name}
+                          <span className="saved-filter-count">{group.count.toLocaleString()}</span>
+                        </Chip>
+                      ))}
+                    </div>
+                  )}
                 </FilterSection>
               )}
 

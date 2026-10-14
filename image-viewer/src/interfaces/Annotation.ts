@@ -9,6 +9,8 @@ interface Annotation {
 	lineStyle: LineStyleName;
 	lineThickness: number;
 	geoJson: string;
+	// The AnnotationGroup it's in, if any. Missing on anything from before groups.
+	groupId?: string | null;
 	created: string;
 	// Who saved it - set by annotation-store from their token. Missing on
 	// anything saved before sign-in.
