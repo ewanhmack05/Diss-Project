@@ -3,7 +3,8 @@ import { useCellCountDrawContext } from '../../context/CellCountDrawContext'
 import { useCollectionContext } from '../../context/CollectionContext'
 import { useToolbarContext } from '../../context/ToolbarContext'
 import PresenterNote from '../realtime/PresenterNote'
-import { savedTabLabel } from '../saved/useSavedTotal'
+import { useState } from 'react'
+import { savedTabLabel, type ListTotal } from '../saved/useSavedTotal'
 import CellCounter from './CellCounter/CellCounter'
 import SavedCountList from './Saved/SavedCountList'
 import './CellCountPanel.css'
@@ -18,6 +19,9 @@ function CellCountPanel() {
   const tab = (panelTabs.cellcount ?? 'new') as CellCountTab
   const setTab = (next: CellCountTab) => setPanelTab('cellcount', next)
   const { pending } = useCellCountDrawContext()
+  // The Saved list's own count while it's open - it follows the search and
+  // filters, and takes deletes off straight away.
+  const [listTotal, setListTotal] = useState<ListTotal | null>(null)
 
   const shownTab = canEdit ? tab : 'saved'
   return (
@@ -44,13 +48,13 @@ function CellCountPanel() {
           disabled={!!pending}
           onClick={() => setTab('saved')}
         >
-          {savedTabLabel(total)}
+          {savedTabLabel(total, shownTab === 'saved' ? listTotal : null)}
         </button>
       </div>
 
       <div className="cell-count-panel-content themed-scroll">
         <PresenterNote panel="cellcount" />
-        {shownTab === 'new' ? <CellCounter /> : <SavedCountList />}
+        {shownTab === 'new' ? <CellCounter /> : <SavedCountList onTotal={setListTotal} />}
       </div>
     </div>
   )

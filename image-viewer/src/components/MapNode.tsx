@@ -42,6 +42,9 @@ import {
   sharedDotFlatStyle,
 } from './open-layers/Styles'
 import { featureToGeoJson, geoJsonToFeature } from './open-layers/GeoJSON'
+import { useAnnotationGroupContext } from '../context/AnnotationGroupContext'
+import { useMapSelection } from './annotation/Select/useMapSelection'
+import { matchesSearch, passes } from './saved/filters'
 import { degreesToRadians, radiansToDegrees } from './rotation/rotation'
 import { pixelDistance, physicalDistanceMicrons, formatDistanceMicrons, formatDistancePixels } from './ruler/ruler'
 import { parseCellCountDots, dotsFromHistory } from './cell-count/CellCountDots'
@@ -122,8 +125,15 @@ function sharedDotOf(feature: Feature<Point>): Omit<SharedDot, 'connectionId'> {
 
 function MapNode() {
   const { source } = useImageViewerContext()
-  const { annotations, selectedAnnotationId, viewedAnnotationId, setViewedAnnotationId, annotationsSource, addAnnotation } =
-    useAnnotationStoreContext()
+  const {
+    annotations,
+    selectedAnnotationId,
+    viewedAnnotationId,
+    setViewedAnnotationId,
+    annotationsSource,
+    addAnnotation,
+    mapFilter,
+  } = useAnnotationStoreContext()
   const {
     activeTool,
     colour,
@@ -157,6 +167,7 @@ function MapNode() {
   } = useCellCountDrawContext()
   const { cellCounts, viewedCellCountId, setViewedCellCountId } = useCellCountStoreContext()
   const { activeTools } = useToolbarContext()
+  const { hiddenGroupIds } = useAnnotationGroupContext()
   const { me, others, sendViewport, sendSketch, clearSketch, addSharedDot, removeSharedDot } = useRealtimeContext()
   const { following, leader, mode: navigationMode, breakAway, lookAt } = useNavigationContext()
   const {
@@ -447,10 +458,17 @@ function MapNode() {
   }, [source, emit])
 
   // Keep the map's annotations layer in sync with the saved-annotations store.
+  // Groups hidden on the Select tab are left off, and so is anything the
+  // Saved list's search and filters leave out while it's open.
   useEffect(() => {
+    const shown = annotations.filter(
+      (annotation) =>
+        (!annotation.groupId || !hiddenGroupIds.has(annotation.groupId)) &&
+        (!mapFilter || (passes(annotation, mapFilter.filters) && matchesSearch(annotation, mapFilter.search)))
+    )
     annotationsSource.clear()
     annotationsSource.addFeatures(
-      annotations.map((annotation) => {
+      shown.map((annotation) => {
         const feature = geoJsonToFeature(annotation.geoJson)
         feature.setId(annotation.id)
         feature.set('colour', annotation.colour)
@@ -461,7 +479,9 @@ function MapNode() {
         return feature
       })
     )
-  }, [annotations, annotationsSource])
+  }, [annotations, annotationsSource, hiddenGroupIds, mapFilter])
+
+  useMapSelection(mapRef, mapVersion, annotationsSource, annotations, annotationsVisible)
 
   // Tell the hub where you are whenever the view moves or the window
   // resizes. The context throttles it and resends it after a reconnect.

@@ -16,6 +16,7 @@ import SavedPager from "../../saved/SavedPager";
 import { savedBy } from "../../saved/savedBy";
 import { useAuthContext } from "../../../context/AuthContext";
 import { useCollectionContext } from "../../../context/CollectionContext";
+import type { ListTotal } from "../../saved/useSavedTotal";
 import "./SavedCountList.css";
 
 function RoiIcon() {
@@ -162,7 +163,9 @@ function SavedCountRow({ cellCount, open, onToggle }: SavedCountRowProps) {
   );
 }
 
-function SavedCountList() {
+// onTotal hears how many the list is showing, for the tab's label - null
+// while it's loading, and once it's closed.
+function SavedCountList({ onTotal }: { onTotal?: (total: ListTotal | null) => void }) {
   const {
     cellCounts,
     status,
@@ -202,6 +205,24 @@ function SavedCountList() {
     rememberCellCounts(savedPage.fetched);
   }, [savedPage.fetched, rememberCellCounts]);
 
+  // Worked out before anything's shown, so the tab has it during an edit too.
+  const { items, total } = mergePage({
+    fetched: savedPage.fetched,
+    total: savedPage.total,
+    live: cellCounts,
+    isDeleted: wasDeleted,
+    page,
+    search,
+    filters,
+    pageSize: SAVED_PAGE_SIZE,
+  });
+  const ready = status === "ready" && savedPage.status === "ready";
+  const filtered = isFiltered(search, filters);
+  useEffect(() => {
+    onTotal?.(ready ? { total, filtered } : null);
+  }, [onTotal, ready, total, filtered]);
+  useEffect(() => () => onTotal?.(null), [onTotal]);
+
   const editing = cellCounts.find((c) => c.id === selectedCellCountId);
   if (editing && canEdit) {
     return (
@@ -225,16 +246,6 @@ function SavedCountList() {
     );
   }
 
-  const { items, total } = mergePage({
-    fetched: savedPage.fetched,
-    total: savedPage.total,
-    live: cellCounts,
-    isDeleted: wasDeleted,
-    page,
-    search,
-    filters,
-    pageSize: SAVED_PAGE_SIZE,
-  });
   // A delete can leave this page past the end - step back to the last one.
   const shownPage = clampPage(page, total, SAVED_PAGE_SIZE);
   if (shownPage !== page) setPage(shownPage);

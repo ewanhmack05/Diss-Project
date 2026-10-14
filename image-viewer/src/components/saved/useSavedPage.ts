@@ -8,6 +8,8 @@ type PageStatus = 'loading' | 'ready' | 'error'
 interface SavedPage<T> {
   fetched: T[]
   total: number
+  // The revision it was fetched for - anything settled after isn't in it.
+  at: number
   // 'loading' only until the first page arrives - after that the last page
   // stays up while the next one loads, so the list doesn't flash empty.
   status: PageStatus
@@ -48,6 +50,7 @@ function useSavedPage<T>({
   const [state, setState] = useState<SavedPage<T> & { collectionId: string | null }>({
     fetched: [],
     total: 0,
+    at: -1,
     status: 'loading',
     loadingMore: false,
     collectionId: null,
@@ -85,11 +88,11 @@ function useSavedPage<T>({
         Promise.all([json(urls.page) as Promise<T[]>, json(urls.total) as Promise<number>])
           .then(([fetched, total]) => {
             if (request !== latestRef.current) return
-            setState({ fetched, total, status: 'ready', loadingMore: false, collectionId })
+            setState({ fetched, total, at: revision, status: 'ready', loadingMore: false, collectionId })
           })
           .catch(() => {
             if (request !== latestRef.current) return
-            setState({ fetched: [], total: 0, status: 'error', loadingMore: false, collectionId })
+            setState({ fetched: [], total: 0, at: revision, status: 'error', loadingMore: false, collectionId })
           })
       },
       immediate ? 0 : SETTLE_MS,
@@ -97,7 +100,7 @@ function useSavedPage<T>({
     return () => clearTimeout(timer)
   }, [baseUrl, path, collectionId, page, pageSize, search, key, revision, authFetch])
 
-  if (state.collectionId !== collectionId) return { fetched: [], total: 0, status: 'loading', loadingMore: false }
+  if (state.collectionId !== collectionId) return { fetched: [], total: 0, at: -1, status: 'loading', loadingMore: false }
   return state
 }
 

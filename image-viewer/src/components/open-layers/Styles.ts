@@ -175,6 +175,22 @@ function viewedAnnotationStyle(feature: FeatureLike): Style[] {
 	];
 }
 
+// Annotations picked on the Select tab - an accent halo behind each, like
+// the View on map one but in the panel's teal.
+function selectedAnnotationStyle(feature: FeatureLike): Style[] {
+	const lineThickness = (feature.get("lineThickness") as number | undefined) ?? 2;
+	return [
+		new Style({ stroke: new Stroke({ color: "rgba(0, 0, 0, 0.5)", width: lineThickness + 12, lineJoin: "round", lineCap: "round" }) }),
+		new Style({ stroke: new Stroke({ color: "rgba(118, 174, 174, 0.95)", width: lineThickness + 7, lineJoin: "round", lineCap: "round" }) }),
+	];
+}
+
+// The lasso while it's being drawn.
+const lassoStyle = new Style({
+	stroke: new Stroke({ color: "rgba(118, 174, 174, 1)", width: 2, lineDash: [6, 4] }),
+	fill: new Fill({ color: "rgba(118, 174, 174, 0.12)" }),
+});
+
 // Saved annotations render on the GPU (WebGLVectorLayer), which only takes
 // flat styles - no style functions, so anything annotationStyle works out
 // per render has to be baked onto the feature up front instead. Call this
@@ -517,6 +533,8 @@ export {
 	annotationFlatStyle,
 	annotationArrowHeadStyle,
 	viewedAnnotationStyle,
+	selectedAnnotationStyle,
+	lassoStyle,
 	setAnnotationRenderProperties,
 	sketchStyle,
 	cellCountDotStyle,
