@@ -8,6 +8,7 @@ import fullscreenExitIconSvg from '../../icons/fullscreen-exit.svg?raw'
 import rotateIconSvg from '../../icons/rotate.svg?raw'
 import rulerIconSvg from '../../icons/ruler.svg?raw'
 import realtimeIconSvg from '../../icons/realtime.svg?raw'
+import collectionsIconSvg from '../../icons/collections.svg?raw'
 import './Toolbar.css'
 
 // Global shortcuts (like F for fullscreen) shouldn't fire while the user is
@@ -23,9 +24,9 @@ function Icon({ svg }: { svg: string }) {
   return <span className="toolbar-icon" dangerouslySetInnerHTML={{ __html: svg }} />
 }
 
-type ToolName = 'fullscreen' | 'annotations' | 'cellcount' | 'rotate' | 'ruler' | 'adjustments' | 'realtime'
+type ToolName = 'fullscreen' | 'annotations' | 'cellcount' | 'rotate' | 'ruler' | 'adjustments' | 'realtime' | 'collections'
 
-const DEFAULT_TOOLS: ToolName[] = ['fullscreen', 'annotations', 'cellcount', 'rotate', 'ruler', 'adjustments', 'realtime']
+const DEFAULT_TOOLS: ToolName[] = ['fullscreen', 'annotations', 'cellcount', 'rotate', 'ruler', 'adjustments', 'realtime', 'collections']
 
 interface ToolbarProps {
   tools?: ToolName[]
@@ -130,6 +131,16 @@ function Toolbar({ tools = DEFAULT_TOOLS }: ToolbarProps) {
           onClick={() => toggleTool('realtime')}
         >
           <Icon svg={realtimeIconSvg} />
+        </button>
+      )}
+      {tools.includes('collections') && (
+        <button
+          type="button"
+          className={`toolbar-button${activeTools.includes('collections') ? ' toolbar-button--active' : ''}`}
+          title="Collections"
+          onClick={() => toggleTool('collections')}
+        >
+          <Icon svg={collectionsIconSvg} />
         </button>
       )}
     </div>

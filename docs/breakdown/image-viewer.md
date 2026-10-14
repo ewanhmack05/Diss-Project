@@ -84,6 +84,7 @@ src/
     cell-count/      counter, saved counts, comparison/, shared/
     saved/           paging, search, filters - shared by both Saved lists
     realtime/        RealTime panel, invite gate, sketches, shared text, autosave
+    collections/     Collections panel - yours, sessions, shared ones, GeoJSON in and out
     users/           Users tab, presence state, join with a code
     presence/        who's here, top left
     rotation/ ruler/ adjustments/   one panel each, plus their maths
@@ -201,6 +202,42 @@ decides where everything is read from and saved to.
 - **Being taken out or the session ending** - someone in the room tells
   everyone to refetch, and if you're no longer in it (or it's ended) you get
   a popup and go back to your own collection.
+- **Shared personal collections.** The owner can turn on "Let others view"
+  for their own collection. It then comes back in everyone's
+  `GET /collections` on that slide with `myRole: viewer`, so it opens the
+  same way an ended session does - read-only. If they turn it off while
+  you're looking, the next list load sends you back to your own with a popup.
+
+### The Collections panel
+
+[CollectionsPanel.tsx](../../image-viewer/src/components/collections/CollectionsPanel.tsx)
+lists every collection you can see on the slide, each with how many
+annotations and cell counts it has and when something was last added. It has
+two tabs, kept in the panel itself so Present doesn't follow the host's:
+
+- **Mine** - your own. Rename it, turn sharing on or off, export, import.
+- **Shared** - two lists:
+  - **Sessions** - the ones you host or joined, moved here from RealTime.
+    Rejoin or view, export, import (if you can edit and it hasn't ended),
+    leave for good, or delete one you host once it's ended.
+  - **Shared with everyone** - other people's shared collections. View and
+    export only.
+
+The counts reload whenever an annotation or cell count is added or deleted.
+
+**Export** fetches `GET /collections/{id}/export` and writes a FeatureCollection
+([collectionGeoJson.ts](../../image-viewer/src/components/collections/collectionGeoJson.ts)):
+annotations as their line or polygon, cell counts as one MultiPoint of their
+dots with each dot's colour alongside, and the ROI box in the properties.
+Coordinates are slide pixels from the top left with y going down - what
+QuPath and most slide tools use - so y is flipped from the map's.
+
+**Import** reads a file, shows what it found and what it can't use, then
+sends everything to `POST /collections/{id}/import` in one go. Lines and
+polygons become annotations (each part of a Multi- one on its own), points
+become cell counts. Names and colours are taken from `label`/`name`/QuPath's
+`classification` and `colour`/`color`. A file where nothing has y above 0
+is taken to be in the map's own space already and isn't flipped.
 
 ### The invite gate
 
@@ -320,6 +357,40 @@ sequenceDiagram
   and everything autosaves 500ms after you stop. Colour changes show live on
   the map as you drag the picker.
 
+### The Select tab - many at once
+
+[SelectTab.tsx](../../image-viewer/src/components/annotation/Select/SelectTab.tsx)
+picks annotations on the map to change together. The map side is
+[useMapSelection.ts](../../image-viewer/src/components/annotation/Select/useMapSelection.ts),
+which MapNode calls; what's picked is in `AnnotationSelectContext`, your own
+and not shared.
+
+- **Picking.** Drag a box (OpenLayers' `DragBox`) or draw a lasso (a
+  freehand `Draw`) - everything *fully* inside it is picked
+  ([selection.ts](../../image-viewer/src/components/annotation/Select/selection.ts)).
+  Shift adds to what's picked. Clicking a shape puts it in or takes it out,
+  the smallest one under the click winning. Esc or clicking empty space
+  clears. Picked shapes get a teal halo on a canvas layer under the
+  annotations. Only while the tab's open and you're not counting cells.
+- **Recolour** and **group** go to `PUT /annotations/bulk` in one request,
+  with an update op per annotation for everyone else.
+- **Delete** asks first, then takes them off the map straight away with an
+  Undo toast. Nothing's deleted in annotation-store until the undo time
+  (8s) is up - undoing just puts them back, same ids and authors. Leaving
+  the page sends anything still waiting, with `keepalive`.
+- **Groups** (`AnnotationGroupContext`) - named sets of annotations in the
+  collection, one level. Make one from what's picked, move things between
+  them or out, rename (double-click), delete (the annotations stay), pick
+  everything in one, or hide one from the map - hiding is just for you, and
+  only lasts while the tab's open. Clicking a group's name opens its page
+  ([GroupPage.tsx](../../image-viewer/src/components/annotation/Select/GroupPage.tsx)):
+  rename it, notes (saved as you type), recolour everything in it, pick it
+  on the map, merge it into another group, delete its annotations (with
+  Undo), or delete the group and keep them. Viewers see the name and notes.
+  Viewers get the tab as **Groups**, to show and hide only. Group changes
+  go out as `annotationGroup` ops. The Saved list's filter has a **Group**
+  section too - any of the groups, and **No group** - sent as `group`.
+
 ## 8. Counting cells
 
 A cell count is a tally of clicks, one per cell. Its state is in
@@ -373,6 +444,7 @@ happen in the viewer.
 | **Image adjustments** | Brightness, contrast, gamma and red/green/blue gain. Sliders update WebGL style variables on the tile layer - no shader rebuild, so dragging is smooth. Settings can be saved as named presets in your personal collection. |
 | **Fullscreen** | The browser's Fullscreen API. |
 | **RealTime** | Session and Users tabs - see [section 12](#12-working-together). |
+| **Collections** | Yours, your sessions and other people's shared ones, GeoJSON export and import - see [section 5](#the-collections-panel). |
 
 Which tools show is set by `index.tsx`'s `tools` list.
 
@@ -456,7 +528,8 @@ Three providers deal with other people. The hub side is in
 [RealTimePanel.tsx](../../image-viewer/src/components/realtime/RealTimePanel.tsx)
 shows one of four things on its Session tab:
 
-- **Working alone** - start a session, rejoin one of yours, join with a code.
+- **Working alone** - start a session, or join with a code. Rejoining one
+  you're already in is in the Collections panel.
 - **Hosting** - the invite link and code, who can join as editor or viewer,
   how long it lasts, the people list with role changes and remove, end the
   session, and navigation controls.

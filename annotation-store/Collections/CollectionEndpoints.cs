@@ -2,6 +2,8 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using AnnotationStore.Annotations;
 using AnnotationStore.Auth;
+using AnnotationStore.CellCounts;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace AnnotationStore.Collections;
@@ -9,7 +11,8 @@ namespace AnnotationStore.Collections;
 public record MemberView(string UserId, string DisplayName, CollectionRole Role);
 
 // A collection as the signed-in user sees it - their own role, and who else
-// is in it.
+// is in it. The counts and LastAdded are only filled in by GET /collections,
+// for the viewer's Collections tab.
 public record CollectionView(
     Guid CollectionId,
     string SlideId,
@@ -18,12 +21,33 @@ public record CollectionView(
     string OwnerId,
     CollectionKind Kind,
     DateTimeOffset? Ended,
+    bool Shared,
     CollectionRole MyRole,
-    IReadOnlyList<MemberView> Members);
+    IReadOnlyList<MemberView> Members,
+    int AnnotationCount = 0,
+    int CellCountCount = 0,
+    DateTimeOffset? LastAdded = null);
 
 public record EnsureRequest(string SlideId, string? CollectionName = null);
 
 public record RenameRequest(string CollectionName);
+
+public record SharingRequest(bool Shared);
+
+// A GeoJSON import, already turned into rows by the viewer. Saved together,
+// so it all goes in or none of it does.
+public record ImportRequest(List<Annotation> Annotations, List<CellCount> CellCounts, List<ImportGroup>? Groups = null);
+
+// Annotations from the file that were in a group, by its name. Goes into
+// the collection's group of that name, made if there isn't one. Notes are
+// added to the group's own.
+public record ImportGroup(string Name, List<Guid> AnnotationIds, string? Notes = null);
+
+// Groups is every group the import put something in, new or not.
+public record ImportResult(List<Annotation> Annotations, List<CellCount> CellCounts, List<AnnotationGroup> Groups);
+
+public record ExportView(
+    Guid CollectionId, string SlideId, string CollectionName, List<Annotation> Annotations, List<CellCount> CellCounts, List<AnnotationGroup> Groups);
 
 public record MemberRequest(string DisplayName, CollectionRole Role);
 
@@ -61,18 +85,47 @@ public static class CollectionEndpoints
     public static void MapCollectionEndpoints(this WebApplication app)
     {
         // Every collection on this slide the user is in - their own first,
-        // then sessions still going, newest first, then ended ones.
+        // then sessions still going, newest first, then ended ones - and
+        // last, anyone else's they've shared, by owner. Each with how many
+        // annotations and cell counts it has, and when the last was added.
         app.MapGet("/collections", async (string slideId, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
             var me = user.UserId();
             var collections = await db.Collections
-                .Where(c => c.SlideId == slideId && c.Members.Any(m => m.UserId == me))
+                .Where(c => c.SlideId == slideId && (c.Members.Any(m => m.UserId == me)
+                    || (c.Kind == CollectionKind.Personal && c.Shared)))
                 .Include(c => c.Members)
                 .ToListAsync();
+
+            var ids = collections.Select(c => c.CollectionId).ToList();
+            var annotations = await db.Annotations
+                .Where(a => ids.Contains(a.CollectionId))
+                .GroupBy(a => a.CollectionId)
+                .Select(g => new { Id = g.Key, Count = g.Count(), Last = g.Max(a => a.Created) })
+                .ToDictionaryAsync(g => g.Id);
+            var cellCounts = await db.CellCounts
+                .Where(c => ids.Contains(c.CollectionId))
+                .GroupBy(c => c.CollectionId)
+                .Select(g => new { Id = g.Key, Count = g.Count(), Last = g.Max(c => c.Created) })
+                .ToDictionaryAsync(g => g.Id);
+
             return Results.Ok(collections
-                .OrderBy(c => c.Kind == CollectionKind.Personal ? 0 : c.Ended is null ? 1 : 2)
+                .OrderBy(c => c.Members.All(m => m.UserId != me) ? 3
+                    : c.Kind == CollectionKind.Personal ? 0 : c.Ended is null ? 1 : 2)
+                .ThenBy(c => c.Members.All(m => m.UserId != me) ? OwnerName(c) : "")
                 .ThenByDescending(c => c.Created)
-                .Select(c => View(c, me)));
+                .Select(c =>
+                {
+                    var a = annotations.GetValueOrDefault(c.CollectionId);
+                    var cc = cellCounts.GetValueOrDefault(c.CollectionId);
+                    DateTimeOffset? last = a is null ? cc?.Last : cc is null || a.Last > cc.Last ? a.Last : cc.Last;
+                    return View(c, me) with
+                    {
+                        AnnotationCount = a?.Count ?? 0,
+                        CellCountCount = cc?.Count ?? 0,
+                        LastAdded = last,
+                    };
+                }));
         });
 
         // Everything in one collection in one go - for Scalar, curl or an
@@ -80,12 +133,35 @@ public static class CollectionEndpoints
         app.MapGet("/collections/{id:guid}", async (Guid id, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
             if (await db.RequireAsync(id, user, CollectionRole.Viewer) is { } denied) return denied;
+            // Split - as one query it's a row for every member x annotation x
+            // count x preset, each carrying the GeoJson and dots again.
             return Results.Ok(await db.Collections
+                .AsNoTracking()
+                .AsSplitQuery()
                 .Include(c => c.Members)
                 .Include(c => c.Annotations)
                 .Include(c => c.CellCounts).ThenInclude(cc => cc.RegionOfInterest)
                 .Include(c => c.ImageAdjustments)
                 .FirstAsync(c => c.CollectionId == id));
+        });
+
+        // Just what a GeoJSON export needs - annotations, and counts with
+        // their dots and ROI box - each its own query.
+        app.MapGet("/collections/{id:guid}/export", async (Guid id, ClaimsPrincipal user, AnnotationDbContext db) =>
+        {
+            if (await db.RequireAsync(id, user, CollectionRole.Viewer) is { } denied) return denied;
+            var collection = await db.Collections.AsNoTracking().FirstAsync(c => c.CollectionId == id);
+            var annotations = await db.Annotations.AsNoTracking()
+                .Where(a => a.CollectionId == id)
+                .OrderBy(a => a.Created)
+                .ToListAsync();
+            var cellCounts = await db.CellCounts.AsNoTracking()
+                .Where(c => c.CollectionId == id)
+                .Include(c => c.RegionOfInterest)
+                .OrderBy(c => c.Created)
+                .ToListAsync();
+            var groups = await db.AnnotationGroups.AsNoTracking().Where(g => g.CollectionId == id).ToListAsync();
+            return Results.Ok(new ExportView(collection.CollectionId, collection.SlideId, collection.CollectionName, annotations, cellCounts, groups));
         });
 
         // For the realtime hub, checking someone's allowed in a session's room.
@@ -154,6 +230,84 @@ public static class CollectionEndpoints
             collection.CollectionName = request.CollectionName.Trim();
             await db.SaveChangesAsync();
             return Results.Ok(View(collection, user.UserId()));
+        });
+
+        // Owner only, personal only. Lets anyone signed in look at it,
+        // read-only, or stops them. A session has invite links for that.
+        app.MapPut("/collections/{id:guid}/sharing", async (Guid id, SharingRequest request, ClaimsPrincipal user, AnnotationDbContext db) =>
+        {
+            if (await db.RequireAsync(id, user, CollectionRole.Owner) is { } denied) return denied;
+            var collection = await db.Collections.Include(c => c.Members).FirstAsync(c => c.CollectionId == id);
+            if (collection.Kind != CollectionKind.Personal) return Results.BadRequest("Only a personal collection can be shared this way");
+            collection.Shared = request.Shared;
+            await db.SaveChangesAsync();
+            return Results.Ok(View(collection, user.UserId()));
+        });
+
+        // Editors and the owner. Saves everything from a GeoJSON import in
+        // one go, stamped the same way POST /annotations and /cellcounts are.
+        app.MapPost("/collections/{id:guid}/import", [RequestSizeLimit(CellCountLimits.MaxRequestBytes)] async (Guid id, ImportRequest request, ClaimsPrincipal user, AnnotationDbContext db) =>
+        {
+            if (await db.RequireAsync(id, user, CollectionRole.Editor) is { } denied) return denied;
+            var collection = await db.Collections.FirstAsync(c => c.CollectionId == id);
+            var now = DateTimeOffset.UtcNow;
+
+            foreach (var annotation in request.Annotations)
+            {
+                if (annotation.Id == Guid.Empty) annotation.Id = Guid.NewGuid();
+                annotation.CollectionId = id;
+                annotation.SlideId = collection.SlideId;
+                annotation.Created = now;
+                annotation.CreatedById = user.UserId();
+                annotation.CreatedByName = user.DisplayName();
+                annotation.GroupId = null;
+            }
+            foreach (var cellCount in request.CellCounts)
+            {
+                if (cellCount.Id == Guid.Empty) cellCount.Id = Guid.NewGuid();
+                cellCount.CollectionId = id;
+                cellCount.SlideId = collection.SlideId;
+                cellCount.Created = now;
+                CellCountSummary.Stamp(cellCount);
+                cellCount.CreatedById = user.UserId();
+                cellCount.CreatedByName = user.DisplayName();
+                if (cellCount.RegionOfInterest is not null)
+                {
+                    if (cellCount.RegionOfInterest.Id == Guid.Empty) cellCount.RegionOfInterest.Id = Guid.NewGuid();
+                    cellCount.RegionOfInterest.CellCountId = cellCount.Id;
+                    cellCount.RegionOfInterest.Created = now;
+                }
+            }
+
+            // Matched by name, so an export from one collection lands in the
+            // same groups in another.
+            var byId = request.Annotations.ToDictionary(a => a.Id);
+            var used = new List<AnnotationGroup>();
+            foreach (var wanted in request.Groups ?? [])
+            {
+                var name = wanted.Name.Trim();
+                if (name.Length is 0 or > AnnotationGroupEndpoints.MaxNameLength) continue;
+                var group = db.AnnotationGroups.Local.FirstOrDefault(g => g.CollectionId == id && g.Name == name)
+                    ?? await db.AnnotationGroups.FirstOrDefaultAsync(g => g.CollectionId == id && g.Name == name);
+                if (group is null)
+                {
+                    group = new AnnotationGroup { Id = Guid.NewGuid(), CollectionId = id, Name = name, Created = now };
+                    db.AnnotationGroups.Add(group);
+                }
+                if (!used.Contains(group))
+                {
+                    used.Add(group);
+                    if (wanted.Notes is { } notes && !group.Notes.Contains(notes.Trim()))
+                        group.Notes = AnnotationGroupEndpoints.JoinNotes(group.Notes, notes);
+                }
+                foreach (var annotationId in wanted.AnnotationIds)
+                    if (byId.TryGetValue(annotationId, out var annotation)) annotation.GroupId = group.Id;
+            }
+
+            db.Annotations.AddRange(request.Annotations);
+            db.CellCounts.AddRange(request.CellCounts);
+            await db.SaveChangesAsync();
+            return Results.Ok(new ImportResult(request.Annotations, request.CellCounts, used));
         });
 
         app.MapDelete("/collections/{id:guid}", async (Guid id, ClaimsPrincipal user, AnnotationDbContext db) =>
@@ -353,6 +507,9 @@ public static class CollectionEndpoints
         : invite.Expires <= DateTimeOffset.UtcNow ? "expired"
         : "open";
 
+    private static string OwnerName(Collections collection) =>
+        collection.Members.FirstOrDefault(m => m.Role == CollectionRole.Owner)?.DisplayName ?? "";
+
     private static Task<bool> IsSessionAsync(AnnotationDbContext db, Guid id) =>
         db.Collections.AnyAsync(c => c.CollectionId == id && c.Kind == CollectionKind.Session);
 
@@ -398,7 +555,9 @@ public static class CollectionEndpoints
         collection.UserId,
         collection.Kind,
         collection.Ended,
-        collection.Members.First(m => m.UserId == me).Role,
+        collection.Shared,
+        // Not a member - someone else's they've shared.
+        collection.Members.FirstOrDefault(m => m.UserId == me)?.Role ?? CollectionRole.Viewer,
         collection.Members
             .OrderByDescending(m => m.Role)
             .ThenBy(m => m.DisplayName)

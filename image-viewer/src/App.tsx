@@ -34,6 +34,9 @@ import RotationPanel from './components/rotation/RotationPanel'
 import RulerPanel from './components/ruler/RulerPanel'
 import AdjustmentsPanel from './components/adjustments/AdjustmentsPanel'
 import RealTimePanel from './components/realtime/RealTimePanel'
+import CollectionsPanel from './components/collections/CollectionsPanel'
+import { AnnotationGroupContextProvider } from './context/AnnotationGroupContext'
+import { AnnotationSelectContextProvider } from './context/AnnotationSelectContext'
 import InviteGate from './components/realtime/InviteGate'
 import Toolbar, { type ToolName } from './components/toolbar/Toolbar'
 import DraggablePanel from './components/toolbar/DraggablePanel'
@@ -131,6 +134,8 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, auth
             <PresenceContextProvider hubUrl={realtimeHubUrl}>
             <RealtimeContextProvider hubUrl={realtimeHubUrl}>
               <AnnotationStoreContextProvider baseUrl={annotationStoreUrl}>
+                <AnnotationGroupContextProvider baseUrl={annotationStoreUrl}>
+                <AnnotationSelectContextProvider>
                 <CellCountStoreContextProvider baseUrl={annotationStoreUrl}>
                   <CellCountDrawContextProvider>
                     <DrawContextProvider>
@@ -152,6 +157,8 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, auth
                     </DrawContextProvider>
                   </CellCountDrawContextProvider>
                 </CellCountStoreContextProvider>
+                </AnnotationSelectContextProvider>
+                </AnnotationGroupContextProvider>
               </AnnotationStoreContextProvider>
             </RealtimeContextProvider>
             </PresenceContextProvider>
@@ -211,6 +218,7 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
     'ruler-panel': createRef<HTMLDivElement>(),
     'adjustments-panel': createRef<HTMLDivElement>(),
     'realtime': createRef<HTMLDivElement>(),
+    'collections': createRef<HTMLDivElement>(),
   }).current
   // One hidden, always-mounted probe per edge, sized/positioned exactly
   // like a real DockEdge (see .dock-edge--probe in DockEdge.css) purely so
@@ -229,6 +237,7 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
     { id: 'ruler-panel', title: 'Ruler', tool: 'ruler', content: <RulerPanel /> },
     { id: 'adjustments-panel', title: 'Adjustments', tool: 'adjustments', content: <AdjustmentsPanel /> },
     { id: 'realtime', title: 'RealTime', tool: 'realtime', content: <RealTimePanel /> },
+    { id: 'collections', title: 'Collections', tool: 'collections', content: <CollectionsPanel /> },
   ]
 
   // Only set while dragging a panel that started out docked - see

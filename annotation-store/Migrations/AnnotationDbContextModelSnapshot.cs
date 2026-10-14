@@ -50,6 +50,9 @@ namespace AnnotationStore.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid?>("GroupId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Label")
                         .IsRequired()
                         .HasColumnType("text");
@@ -77,9 +80,38 @@ namespace AnnotationStore.Migrations
 
                     b.HasIndex("CollectionId");
 
+                    b.HasIndex("GroupId");
+
                     b.HasIndex("SlideId");
 
                     b.ToTable("Annotations");
+                });
+
+            modelBuilder.Entity("AnnotationStore.Annotations.AnnotationGroup", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CollectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("Created")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollectionId");
+
+                    b.ToTable("AnnotationGroups");
                 });
 
             modelBuilder.Entity("AnnotationStore.CellCounts.CellCount", b =>
@@ -253,6 +285,9 @@ namespace AnnotationStore.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<bool>("Shared")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("SlideId")
                         .IsRequired()
                         .HasColumnType("text");
@@ -314,6 +349,20 @@ namespace AnnotationStore.Migrations
                         .HasForeignKey("CollectionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("AnnotationStore.Annotations.AnnotationGroup", null)
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("AnnotationStore.Annotations.AnnotationGroup", b =>
+                {
+                    b.HasOne("AnnotationStore.Collections.Collections", null)
+                        .WithMany("Groups")
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("AnnotationStore.CellCounts.CellCount", b =>
@@ -371,6 +420,8 @@ namespace AnnotationStore.Migrations
                     b.Navigation("Annotations");
 
                     b.Navigation("CellCounts");
+
+                    b.Navigation("Groups");
 
                     b.Navigation("ImageAdjustments");
 
