@@ -97,24 +97,46 @@ app.MapCollectionEndpoints();
 
 // Annotation endpoints
 
-// Newest first. Without skip/take/search it's every annotation in the
-// collection - what the map loads. The Saved list asks for a page at a time
-// (see Paging/Paging.cs), with /total giving the count for the same search.
+// Newest first. Without skip/take/search/filters it's every annotation in
+// the collection - what the map loads. The Saved list asks for a page at a
+// time (see Paging/Paging.cs), with /total giving the count for the same
+// search and filters, and /facets the people and colours to filter by.
 // Anyone in the collection can read. Adding, changing and deleting need
 // editor or owner - see Collections/CollectionAccess.cs.
-app.MapGet("/annotations", async (Guid collectionId, int? skip, int? take, string? search, ClaimsPrincipal user, AnnotationDbContext db) =>
+app.MapGet("/annotations", async (Guid collectionId, int? skip, int? take, string? search, [AsParameters] SavedFilter filter, ClaimsPrincipal user, AnnotationDbContext db) =>
     SavedPaging.Invalid(skip, take)
     ?? await db.RequireAsync(collectionId, user, CollectionRole.Viewer)
     ?? Results.Ok(await db.Annotations
         .Where(a => a.CollectionId == collectionId)
         .Matching(search)
+        .Filtered(filter)
         .NewestFirst()
         .Page(skip, take)
         .ToListAsync()));
 
-app.MapGet("/annotations/total", async (Guid collectionId, string? search, ClaimsPrincipal user, AnnotationDbContext db) =>
+app.MapGet("/annotations/total", async (Guid collectionId, string? search, [AsParameters] SavedFilter filter, ClaimsPrincipal user, AnnotationDbContext db) =>
     await db.RequireAsync(collectionId, user, CollectionRole.Viewer)
-    ?? Results.Ok(await db.Annotations.Where(a => a.CollectionId == collectionId).Matching(search).CountAsync()));
+    ?? Results.Ok(await db.Annotations
+        .Where(a => a.CollectionId == collectionId)
+        .Matching(search)
+        .Filtered(filter)
+        .CountAsync()));
+
+app.MapGet("/annotations/facets", async (Guid collectionId, ClaimsPrincipal user, AnnotationDbContext db) =>
+{
+    if (await db.RequireAsync(collectionId, user, CollectionRole.Viewer) is { } denied) return denied;
+    var inCollection = db.Annotations.Where(a => a.CollectionId == collectionId);
+    var authors = await inCollection
+        .Where(a => a.CreatedById != "")
+        .GroupBy(a => new { a.CreatedById, a.CreatedByName })
+        .Select(g => new SavedAuthor(g.Key.CreatedById, g.Key.CreatedByName, g.Count()))
+        .ToListAsync();
+    var colours = await inCollection
+        .GroupBy(a => a.Colour)
+        .Select(g => new SavedColour(g.Key, g.Count()))
+        .ToListAsync();
+    return Results.Ok(new SavedFacets(SavedPaging.Authors(authors), SavedPaging.Colours(colours)));
+});
 
 app.MapPost("/annotations", async (Annotation annotation, ClaimsPrincipal user, AnnotationDbContext db) =>
 {
@@ -157,11 +179,11 @@ app.MapDelete("/annotations/{id:guid}", async (Guid id, ClaimsPrincipal user, An
 
 // Cell count endpoints
 
-// Newest first, paged and searched the same way as annotations. Without
+// Newest first, paged, searched and filtered the same way as annotations. Without
 // the dots - each list item has their colour and placed-by counts instead
 // (CellCounts/CellCountSummary.cs), and GET /cellcounts/{id} has the dots
 // for the one the viewer actually draws.
-app.MapGet("/cellcounts", async (Guid collectionId, int? skip, int? take, string? search, ClaimsPrincipal user, AnnotationDbContext db) =>
+app.MapGet("/cellcounts", async (Guid collectionId, int? skip, int? take, string? search, [AsParameters] SavedFilter filter, ClaimsPrincipal user, AnnotationDbContext db) =>
 {
     if (SavedPaging.Invalid(skip, take) is { } invalid) return invalid;
     if (await db.RequireAsync(collectionId, user, CollectionRole.Viewer) is { } denied) return denied;
@@ -170,6 +192,7 @@ app.MapGet("/cellcounts", async (Guid collectionId, int? skip, int? take, string
     var rows = await db.CellCounts
         .Where(c => c.CollectionId == collectionId)
         .Matching(search)
+        .Filtered(filter)
         .NewestFirst()
         .Page(skip, take)
         .Select(c => new
@@ -218,9 +241,23 @@ app.MapGet("/cellcounts", async (Guid collectionId, int? skip, int? take, string
     }));
 });
 
-app.MapGet("/cellcounts/total", async (Guid collectionId, string? search, ClaimsPrincipal user, AnnotationDbContext db) =>
+app.MapGet("/cellcounts/total", async (Guid collectionId, string? search, [AsParameters] SavedFilter filter, ClaimsPrincipal user, AnnotationDbContext db) =>
     await db.RequireAsync(collectionId, user, CollectionRole.Viewer)
-    ?? Results.Ok(await db.CellCounts.Where(c => c.CollectionId == collectionId).Matching(search).CountAsync()));
+    ?? Results.Ok(await db.CellCounts
+        .Where(c => c.CollectionId == collectionId)
+        .Matching(search)
+        .Filtered(filter)
+        .CountAsync()));
+
+app.MapGet("/cellcounts/facets", async (Guid collectionId, ClaimsPrincipal user, AnnotationDbContext db) =>
+    await db.RequireAsync(collectionId, user, CollectionRole.Viewer)
+    ?? Results.Ok(new SavedFacets(
+        SavedPaging.Authors(await db.CellCounts
+            .Where(c => c.CollectionId == collectionId && c.CreatedById != "")
+            .GroupBy(c => new { c.CreatedById, c.CreatedByName })
+            .Select(g => new SavedAuthor(g.Key.CreatedById, g.Key.CreatedByName, g.Count()))
+            .ToListAsync()),
+        [])));
 
 // One count on its own - for when the viewer needs a count that isn't on
 // the page it has loaded, e.g. the one a session's host is editing.

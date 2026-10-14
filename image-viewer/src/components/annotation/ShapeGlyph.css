@@ -1,0 +1,11 @@
+.shape-glyph {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+/* 15px in lists. Anywhere else can size it with font-size by setting
+   --shape-glyph-size, e.g. 1.2em on the shape buttons. */
+.shape-glyph svg {
+  width: var(--shape-glyph-size, 15px);
+  height: var(--shape-glyph-size, 15px);
+}

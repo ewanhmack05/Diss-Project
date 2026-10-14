@@ -27,7 +27,9 @@ TAG = "stress-test"
 # answering 413, so it's checked here rather than left to fail mid-upload.
 STORE_LIMIT_BYTES = 80 * 1024 * 1024
 MAX_DOTS = 1_000_000
-COLOURS = ["#ff0000", "#0000ff", "#ff00ff", "#000000", "#008000", "#00e5ff", "#fff614", "#ffffff"]
+# The viewer's palette (PreDefinedColours in image-viewer/src/components/annotation/Tools.ts),
+# so seeded annotations filter by colour like drawn ones.
+COLOURS = ["#FB0909", "#0913FB", "#FB09FB", "#000000", "#168304", "#06EAF9", "#F9E006", "#FFFFFF"]
 SHAPES = ["polygon", "rectangle", "circle", "line", "arrow", "freehand"]
 SHAPE_WEIGHTS = [3, 2, 2, 1, 1, 2]
 

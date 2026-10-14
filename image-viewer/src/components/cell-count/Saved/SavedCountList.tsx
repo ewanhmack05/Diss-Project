@@ -7,7 +7,10 @@ import CellCountColourSwatch from "../CellCountColourSwatch";
 import SavedCountEdit from "./SavedCountEdit";
 import SavedRow, { SavedDetails } from "../../saved/SavedRow";
 import { formatLongDate, formatShortDate } from "../../saved/savedDates";
-import { SAVED_PAGE_SIZE, clampPage, mergePage } from "../../saved/paging";
+import { SAVED_PAGE_SIZE, clampPage, isFiltered, mergePage } from "../../saved/paging";
+import { NO_FILTERS, type SavedFilters } from "../../saved/filters";
+import SavedFilterMenu from "../../saved/SavedFilterMenu";
+import { useSavedFacets } from "../../saved/useSavedFacets";
 import useSavedPage from "../../saved/useSavedPage";
 import SavedPager from "../../saved/SavedPager";
 import { savedBy } from "../../saved/savedBy";
@@ -171,8 +174,12 @@ function SavedCountList() {
     setSelectedCellCountId,
   } = useCellCountStoreContext();
   const { canEdit, collectionId } = useCollectionContext();
+  const { user } = useAuthContext();
   // Kept here rather than reset on edit, so Back returns to the same results.
   const [search, setSearch] = useState("");
+  // Same as the search - kept through an edit, and back to the first page
+  // when changed.
+  const [filters, setFilters] = useState<SavedFilters>(NO_FILTERS);
   // One open at a time. Kept through an edit too, so Back lands on it.
   const [openId, setOpenId] = useState<string | null>(null);
   // Kept through an edit too, and reset to the first page by a new search.
@@ -186,8 +193,10 @@ function SavedCountList() {
     page,
     pageSize: SAVED_PAGE_SIZE,
     search,
+    filters,
     revision,
   });
+  const facets = useSavedFacets(baseUrl, "cellcounts", collectionId, revision);
   // So View and Edit find a count from this page in the store.
   useEffect(() => {
     rememberCellCounts(savedPage.fetched);
@@ -223,28 +232,41 @@ function SavedCountList() {
     isDeleted: wasDeleted,
     page,
     search,
+    filters,
     pageSize: SAVED_PAGE_SIZE,
   });
   // A delete can leave this page past the end - step back to the last one.
   const shownPage = clampPage(page, total, SAVED_PAGE_SIZE);
   if (shownPage !== page) setPage(shownPage);
 
-  if (total === 0 && !search.trim()) {
+  if (total === 0 && !isFiltered(search, filters)) {
     return <p className="saved-cell-count-list-empty">Nothing saved yet.</p>;
   }
 
   return (
     <>
-      <input
-        type="search"
-        className="saved-cell-count-list-search"
-        value={search}
-        placeholder="Search saved counts"
-        onChange={(e) => {
-          setSearch(e.target.value);
-          setPage(0);
-        }}
-      />
+      <div className="saved-search-row">
+        <input
+          type="search"
+          className="saved-cell-count-list-search"
+          value={search}
+          placeholder="Search saved counts"
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(0);
+          }}
+        />
+        <SavedFilterMenu
+          filters={filters}
+          onChange={(next) => {
+            setFilters(next);
+            setPage(0);
+          }}
+          facets={facets}
+          myId={user.id}
+          roi
+        />
+      </div>
       {items.length === 0 ? (
         <p className="saved-cell-count-list-empty">{savedPage.loadingMore ? "Searching..." : "No matches."}</p>
       ) : (

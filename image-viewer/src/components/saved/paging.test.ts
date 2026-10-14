@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { SAVED_PAGE_SIZE, clampPage, mergePage, pageCount, pageUrls } from './paging'
+import { SAVED_PAGE_SIZE, clampPage, isFiltered, mergePage, pageCount, pageUrls } from './paging'
+import { NO_FILTERS } from './filters'
 
 interface Row {
   id: string
   created: string
   label?: string
+  createdById?: string
+  shape?: string
 }
 
 // Rows "r1".."rn", r1 the newest, a minute apart, in the server's format.
@@ -62,6 +65,21 @@ describe('pageUrls', () => {
 
   it('leaves out a search of just spaces', () => {
     expect(pageUrls('/store', 'annotations', 'c-1', 0, 50, '   ').total).toBe('/store/annotations/total?collectionId=c-1')
+  })
+
+  it('sends the filters to both, after the search', () => {
+    const urls = pageUrls('/store', 'annotations', 'c-1', 0, 50, 'box', { ...NO_FILTERS, createdBy: ['bob'], shapes: ['rectangle'] })
+    expect(urls.page).toBe('/store/annotations?collectionId=c-1&search=box&createdBy=bob&shape=rectangle&skip=0&take=50')
+    expect(urls.total).toBe('/store/annotations/total?collectionId=c-1&search=box&createdBy=bob&shape=rectangle')
+  })
+})
+
+describe('isFiltered', () => {
+  it('is any search or filter', () => {
+    expect(isFiltered('  ', NO_FILTERS)).toBe(false)
+    expect(isFiltered('a', NO_FILTERS)).toBe(true)
+    expect(isFiltered('', { ...NO_FILTERS, createdBy: ['bob'] })).toBe(true)
+    expect(isFiltered('', { ...NO_FILTERS, notes: 'no' })).toBe(true)
   })
 })
 
@@ -145,6 +163,23 @@ describe('mergePage', () => {
     const mine = { id: 'new', created: new Date(Date.UTC(2026, 9, 13, 12, 5)).toISOString() }
     const view = mergePage({ ...base, search: 'tumour', fetched: rows(2), total: 2, live: [...rows(2), mine] })
     expect(view.items.map((r) => r.id)).toEqual(['r1', 'r2'])
+  })
+
+  it('only adds a fresh save that gets past the filters', () => {
+    const at = (minute: number) => new Date(Date.UTC(2026, 9, 13, 12, minute)).toISOString()
+    const live = [
+      ...rows(2),
+      { id: 'bob-box', created: at(5), createdById: 'bob', shape: 'rectangle' },
+      { id: 'bob-line', created: at(6), createdById: 'bob', shape: 'line' },
+      { id: 'alice-box', created: at(7), createdById: 'alice', shape: 'rectangle' },
+    ]
+    const ids = (createdBy: string[], shapes: string[]) =>
+      mergePage({ ...base, pageSize: 50, filters: { ...NO_FILTERS, createdBy, shapes }, fetched: [], total: 0, live }).items.map(
+        (r) => r.id
+      )
+    expect(ids(['bob'], [])).toEqual(['bob-line', 'bob-box'])
+    expect(ids([], ['rectangle'])).toEqual(['alice-box', 'bob-box'])
+    expect(ids(['bob'], ['rectangle'])).toEqual(['bob-box'])
   })
 
   it('only adds to the first page', () => {

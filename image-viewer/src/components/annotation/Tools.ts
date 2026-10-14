@@ -26,7 +26,11 @@ const ShapeOrder: ShapeTool[] = ["line", "freehand", "polygon", "arrow", "rectan
 // Same fixed palette as their ColourSelection (Tools.ts PreDefinedColours).
 const PreDefinedColours = ["#FB0909", "#0913FB", "#FB09FB", "#000000", "#168304", "#06EAF9", "#F9E006", "#FFFFFF"];
 
+// What a new shape or cell-count dot starts in - the palette's yellow, so
+// it shows as a swatch rather than Custom (and filters as yellow).
+const DefaultColour = "#F9E006";
+
 const LineThicknessOptions = [1, 2, 3, 4, 5, 6];
 
-export { ShapeTools, ShapeOrder, PreDefinedColours, LineThicknessOptions };
+export { ShapeTools, ShapeOrder, PreDefinedColours, DefaultColour, LineThicknessOptions };
 export type { ShapeTool, LineStyleName, ShapeToolConfig };

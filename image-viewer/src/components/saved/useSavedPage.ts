@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuthContext } from '../../context/AuthContext'
 import { pageUrls } from './paging'
+import { NO_FILTERS, filterKey, type SavedFilters } from './filters'
 
 type PageStatus = 'loading' | 'ready' | 'error'
 
@@ -18,7 +19,8 @@ interface SavedPage<T> {
 const SETTLE_MS = 250
 
 // One page of a Saved list from annotation-store, plus the total for the
-// same search. Refetches when the page, the search or `revision` changes -
+// same search and filters. Refetches when the page, the search, the filters
+// or `revision` changes -
 // revision is the store's count of settled saves and deletes, so the page
 // catches up with them.
 function useSavedPage<T>({
@@ -28,6 +30,7 @@ function useSavedPage<T>({
   page,
   pageSize,
   search,
+  filters = NO_FILTERS,
   revision,
 }: {
   baseUrl: string
@@ -36,6 +39,7 @@ function useSavedPage<T>({
   page: number
   pageSize: number
   search: string
+  filters?: SavedFilters
   revision: number
 }): SavedPage<T> {
   const { authFetch } = useAuthContext()
@@ -51,21 +55,28 @@ function useSavedPage<T>({
   // Only the newest request's answer is used - a slow page 1 mustn't land
   // on top of the page 2 asked for after it.
   const latestRef = useRef(0)
-  const previousRef = useRef<{ page: number; collectionId: string } | null>(null)
+  const previousRef = useRef<{ page: number; collectionId: string; key: string } | null>(null)
+  // The effect goes by this rather than the object, which is new each time
+  // the popout changes anything.
+  const key = filterKey(filters)
 
   useEffect(() => {
     if (collectionId === null) return
-    // The first load, a new page or a new collection is fetched straight
-    // away; search and revision changes wait to settle.
+    // The first load, a new page, a new collection or a picked filter is
+    // fetched straight away; search and revision changes wait to settle.
     const previous = previousRef.current
-    const immediate = previous === null || previous.page !== page || previous.collectionId !== collectionId
-    previousRef.current = { page, collectionId }
+    const immediate =
+      previous === null ||
+      previous.page !== page ||
+      previous.collectionId !== collectionId ||
+      previous.key !== key
+    previousRef.current = { page, collectionId, key }
     const request = ++latestRef.current
 
     const timer = setTimeout(
       () => {
         setState((current) => ({ ...current, loadingMore: current.status === 'ready' && current.collectionId === collectionId }))
-        const urls = pageUrls(baseUrl, path, collectionId, page, pageSize, search)
+        const urls = pageUrls(baseUrl, path, collectionId, page, pageSize, search, JSON.parse(key) as SavedFilters)
         const json = (url: string) =>
           authFetch(url).then((response) => {
             if (!response.ok) throw new Error(String(response.status))
@@ -84,7 +95,7 @@ function useSavedPage<T>({
       immediate ? 0 : SETTLE_MS,
     )
     return () => clearTimeout(timer)
-  }, [baseUrl, path, collectionId, page, pageSize, search, revision, authFetch])
+  }, [baseUrl, path, collectionId, page, pageSize, search, key, revision, authFetch])
 
   if (state.collectionId !== collectionId) return { fetched: [], total: 0, status: 'loading', loadingMore: false }
   return state
