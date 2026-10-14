@@ -224,6 +224,19 @@
   color: var(--chrome-text-secondary);
 }
 
+/* One line - trimmed rather than wrapped on a narrow panel, with the full
+   text on hover. */
+.realtime-invite-about-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.realtime-invite-about .realtime-text-button {
+  white-space: nowrap;
+}
+
 .realtime-field {
   display: flex;
   flex-direction: column;

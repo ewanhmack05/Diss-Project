@@ -77,17 +77,25 @@ interface CollectionContextValue {
   // The session's room, when there is one - only while it hasn't ended.
   roomId: string | null
   canEdit: boolean
+  // The active session was opened just to look at, because nobody was in
+  // it - read-only, and no room. reopen() takes it live again.
+  dormant: boolean
   refresh: () => Promise<void>
   // Moves into a collection you're in - rejoining a session, or opening an
   // ended one to look back at it.
-  open: (collectionId: string) => void
+  open: (collectionId: string, options?: { viewOnly?: boolean }) => void
+  reopen: () => void
   // Back to your own collection. You stay in the session to rejoin later.
   leaveSession: () => void
   // These reject if annotation-store says no. endSession needs a refresh
   // after - see it below.
+  // One per slide - with one already going, that's the one you go into.
   startSession: (name?: string) => Promise<void>
   renameSession: (name: string) => Promise<void>
   endSession: () => Promise<void>
+  // Ends one you host that you're not in - an older one from before only one
+  // was allowed. Nobody's in it, so there's no room to tell.
+  endOther: (collectionId: string) => Promise<void>
   loadInvites: () => Promise<Invite[]>
   // Goes up whenever a new invite is made, so anything showing the working
   // one knows to load it again - the Users tab can make one too.
@@ -116,21 +124,25 @@ interface CollectionContextProviderProps {
   children: ReactNode
 }
 
-// Remembered per tab, so a reload stays in the same session.
+// Remembered per tab, so a reload stays in the same session - and still
+// just looking, if that's how it was opened.
 const activeKey = (slideId: string) => `active-collection:${slideId}`
+const viewOnlyKey = (slideId: string) => `active-collection-view-only:${slideId}`
 
-function readStoredActive(slideId: string): string | null {
+function readStoredActive(slideId: string): { id: string | null; viewOnly: boolean } {
   try {
-    return sessionStorage.getItem(activeKey(slideId))
+    return { id: sessionStorage.getItem(activeKey(slideId)), viewOnly: sessionStorage.getItem(viewOnlyKey(slideId)) === '1' }
   } catch {
-    return null
+    return { id: null, viewOnly: false }
   }
 }
 
-function storeActive(slideId: string, id: string | null) {
+function storeActive(slideId: string, id: string | null, viewOnly: boolean) {
   try {
     if (id) sessionStorage.setItem(activeKey(slideId), id)
     else sessionStorage.removeItem(activeKey(slideId))
+    if (id && viewOnly) sessionStorage.setItem(viewOnlyKey(slideId), '1')
+    else sessionStorage.removeItem(viewOnlyKey(slideId))
   } catch {
     // Just not remembered across a reload.
   }
@@ -151,6 +163,7 @@ function CollectionContextProvider({ baseUrl, children }: CollectionContextProvi
   const [personalCollectionId, setPersonalCollectionId] = useState<string | null>(null)
   const [collections, setCollections] = useState<Collection[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [viewOnly, setViewOnly] = useState(false)
   const [status, setStatus] = useState<Status>('loading')
   const [inviteChanges, setInviteChanges] = useState(0)
   const activeIdRef = useRef(activeId)
@@ -181,12 +194,13 @@ function CollectionContextProvider({ baseUrl, children }: CollectionContextProvi
   )
 
   const setActive = useCallback(
-    (id: string | null) => {
+    (id: string | null, lookOnly = false) => {
       // Straight away, not after the render, so a list load right after
       // this knows it's moved on.
       activeIdRef.current = id
       setActiveId(id)
-      storeActive(slideId, id)
+      setViewOnly(!!id && lookOnly)
+      storeActive(slideId, id, lookOnly)
     },
     [slideId]
   )
@@ -242,7 +256,9 @@ function CollectionContextProvider({ baseUrl, children }: CollectionContextProvi
     setStatus('loading')
     setPersonalCollectionId(null)
     setCollections([])
-    setActiveId(readStoredActive(slideId))
+    const stored = readStoredActive(slideId)
+    setActiveId(stored.id)
+    setViewOnly(!!stored.id && stored.viewOnly)
 
     send<Collection>('/collections/ensure', 'POST', { slideId })
       .then(async (own) => {
@@ -273,11 +289,26 @@ function CollectionContextProvider({ baseUrl, children }: CollectionContextProvi
 
   const startSession = useCallback(
     async (name?: string) => {
-      const created = await send<Collection>('/sessions', 'POST', { slideId, collectionName: name })
+      // 409 is annotation-store handing back the one you've already got.
+      const response = await authFetch(`${baseUrl}/sessions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slideId, collectionName: name }),
+      })
+      if (!response.ok && response.status !== 409) throw new Error(String(response.status))
+      const session = (await response.json()) as Collection
       await loadCollections()
-      setActive(created.collectionId)
+      setActive(session.collectionId)
     },
-    [send, slideId, loadCollections, setActive]
+    [authFetch, baseUrl, slideId, loadCollections, setActive]
+  )
+
+  const endOther = useCallback(
+    async (id: string) => {
+      await send(`/collections/${id}/end`, 'POST')
+      await loadCollections()
+    },
+    [send, loadCollections]
   )
 
   const renameSession = useCallback(
@@ -413,14 +444,19 @@ function CollectionContextProvider({ baseUrl, children }: CollectionContextProvi
         collections,
         active,
         session,
-        roomId: session && !session.ended ? session.collectionId : null,
-        canEdit: !!active && active.myRole !== 'viewer' && !active.ended,
+        roomId: session && !session.ended && !viewOnly ? session.collectionId : null,
+        canEdit: !!active && active.myRole !== 'viewer' && !active.ended && !(session && viewOnly),
+        dormant: !!session && !session.ended && viewOnly,
         refresh,
-        open: setActive,
+        open: (id, options) => setActive(id, options?.viewOnly ?? false),
+        reopen: () => {
+          if (activeIdRef.current) setActive(activeIdRef.current, false)
+        },
         leaveSession: () => setActive(null),
         startSession,
         renameSession,
         endSession,
+        endOther,
         loadInvites,
         inviteChanges,
         createInvite,

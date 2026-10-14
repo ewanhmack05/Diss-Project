@@ -32,6 +32,9 @@ interface PresenceContextValue {
   onlineCount: number
   // False if Keycloak's list couldn't be had, so users is only who's online.
   everyoneLoaded: boolean
+  // Sessions someone else is in right now, by id - null while that isn't
+  // known (not connected), so nothing's taken to be empty when it isn't.
+  busySessions: Set<string> | null
   // Sends them your session's invite code - it comes up for them to look
   // at and say yes or no to. Rejects with the hub's reason.
   inviteUser: (userId: string, code: string) => Promise<void>
@@ -182,6 +185,10 @@ function PresenceContextProvider({ hubUrl, children }: { hubUrl?: string; childr
         users: listUsers(directory, state, user.id),
         onlineCount: onlineUsers(state, user.id).length,
         everyoneLoaded: directory !== null,
+        busySessions:
+          hubUrl && status === 'connected'
+            ? new Set(onlineUsers(state, user.id).flatMap((u) => (u.sessionId ? [u.sessionId] : [])))
+            : null,
         inviteUser,
       }}
     >

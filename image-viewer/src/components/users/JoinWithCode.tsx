@@ -49,13 +49,6 @@ function JoinWithCode() {
           Join
         </button>
       </form>
-      {wrong ? (
-        <p id="join-code-wrong" className="realtime-note users-wrong">
-          That doesn't look like an invite code - it's the letters and numbers after ?invite= in the link.
-        </p>
-      ) : (
-        <p className="realtime-note">Got a code from the host? Type it in here instead of opening the link.</p>
-      )}
     </section>
   )
 }

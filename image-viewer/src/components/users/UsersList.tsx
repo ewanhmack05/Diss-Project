@@ -94,9 +94,6 @@ function UsersList() {
           <p className="realtime-note">Nobody else is online right now.</p>
         )}
         {online.length > 0 && <ul className="realtime-people">{online.map(row)}</ul>}
-        {online.length > 0 && !me.hosting && (
-          <p className="realtime-note">Start or host a session to invite people straight in.</p>
-        )}
         {online.length > 0 && me.hosting && (
           <p className="realtime-note">
             They get your session's invite to look at first. With no working invite, one is made that lets them edit

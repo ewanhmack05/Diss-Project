@@ -215,8 +215,18 @@ public static class CollectionEndpoints
 
         // Starts a session on a slide, hosted by the caller. Nobody else is in
         // it until they open an invite link.
+        // One at a time per slide - a host who already has one that hasn't
+        // ended gets a 409 with it, to go back into instead.
         app.MapPost("/sessions", async (EnsureRequest request, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
+            var me = user.UserId();
+            var existing = await db.Collections
+                .Include(c => c.Members)
+                .Where(c => c.SlideId == request.SlideId && c.UserId == me && c.Kind == CollectionKind.Session && c.Ended == null)
+                .OrderByDescending(c => c.Created)
+                .FirstOrDefaultAsync();
+            if (existing is not null) return Results.Conflict(View(existing, me));
+
             var collection = await CreateAsync(db, user, request.SlideId, CollectionKind.Session,
                 string.IsNullOrWhiteSpace(request.CollectionName) ? $"{user.DisplayName()}'s session" : request.CollectionName);
             return Results.Created($"/collections/{collection.CollectionId}", View(collection, user.UserId()));
