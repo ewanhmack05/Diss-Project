@@ -2,6 +2,7 @@ import { useCollectionContext, type Collection } from '../../../context/Collecti
 import { useAuthContext } from '../../../context/AuthContext'
 import { useDialogContext } from '../../../context/DialogContext'
 import { useEmitEvent } from '../../../context/EventContext'
+import { usePresenceContext } from '../../../context/PresenceContext'
 import CollectionRow from '../CollectionRow'
 
 interface SharedCollectionListProps {
@@ -15,10 +16,16 @@ function ownerName(collection: Collection): string {
   return collection.members.find((m) => m.role === 'owner')?.displayName || 'someone'
 }
 
-function sessionAbout(session: Collection, me: string): string {
+function sessionAbout(session: Collection, me: string, empty: boolean): string {
   const who = session.ownerId === me ? "You're hosting" : `Hosted by ${ownerName(session)}`
   const people = `${session.members.length} ${session.members.length === 1 ? 'person' : 'people'}`
-  const state = session.ended ? 'ended' : session.myRole === 'viewer' ? 'you can view' : 'you can edit'
+  const state = session.ended
+    ? 'ended'
+    : empty
+      ? 'nobody in it'
+      : session.myRole === 'viewer'
+        ? 'you can view'
+        : 'you can edit'
   return `${who} · ${people} · ${state}`
 }
 
@@ -26,7 +33,8 @@ function sessionAbout(session: Collection, me: string): string {
 // opened the same way, from here. Starting a session, and running one,
 // stays in RealTime.
 function SharedCollectionList({ collections, activeId, onExport, onImport }: SharedCollectionListProps) {
-  const { open, leaveForGood, deleteSession } = useCollectionContext()
+  const { open, reopen, dormant, leaveForGood, deleteSession, endOther } = useCollectionContext()
+  const { busySessions } = usePresenceContext()
   const { user } = useAuthContext()
   const { showDialog } = useDialogContext()
   const emit = useEmitEvent()
@@ -37,6 +45,21 @@ function SharedCollectionList({ collections, activeId, onExport, onImport }: Sha
       message: `You won't see it here any more, and you'll need a new invite from ${ownerName(session)} to get back in. Anything you added stays with the session.`,
       actions: [
         { label: 'Leave', variant: 'danger', onClick: () => leaveForGood(session.collectionId).catch(() => emit('collection:error')) },
+        { label: 'Cancel' },
+      ],
+    })
+
+  // You host one at a time - the one you're in, or else the newest. Any
+  // other still going is from before that, and can only be ended.
+  const hosting = collections.filter((c) => c.kind === 'session' && !c.ended && c.ownerId === user.id)
+  const current = hosting.find((c) => c.collectionId === activeId) ?? hosting[0]
+
+  const confirmEnd = (session: Collection) =>
+    showDialog({
+      title: `End ${session.collectionName}?`,
+      message: "You can only host one session on a slide at a time. It'll be read-only, and its links stop - it's kept to look back at.",
+      actions: [
+        { label: 'End session', variant: 'danger', onClick: () => endOther(session.collectionId).catch(() => emit('collection:error')) },
         { label: 'Cancel' },
       ],
     })
@@ -57,16 +80,50 @@ function SharedCollectionList({ collections, activeId, onExport, onImport }: Sha
         const here = collection.collectionId === activeId
         const isSession = collection.kind === 'session'
         const canImport = collection.myRole !== 'viewer' && !collection.ended
+        const isHost = collection.myRole === 'owner'
+        // A live session nobody's in is closed - it can be looked at, and
+        // only the host can open it up again. Live while you're in it.
+        // Not known (presence not connected) counts as someone in it.
+        const live = isSession && !collection.ended
+        const empty = live && !(here && !dormant) && busySessions !== null && !busySessions.has(collection.collectionId)
         return (
           <CollectionRow
             key={collection.collectionId}
             collection={collection}
-            about={isSession ? sessionAbout(collection, user.id) : `${ownerName(collection)} · read-only`}
+            about={isSession ? sessionAbout(collection, user.id, empty) : `${ownerName(collection)} · read-only`}
             here={here}
           >
-            {!here && (
-              <button type="button" className="collections-button" onClick={() => open(collection.collectionId)}>
-                {!isSession || collection.ended ? 'View' : 'Rejoin'}
+            {!here &&
+              (live && !empty ? (
+                <button type="button" className="collections-button" onClick={() => open(collection.collectionId)}>
+                  Rejoin
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="collections-button"
+                  onClick={() => open(collection.collectionId, { viewOnly: live })}
+                >
+                  View
+                </button>
+              ))}
+            {live && isHost && !here && current && collection.collectionId !== current.collectionId && (
+              <button type="button" className="collections-button collections-button--danger" onClick={() => confirmEnd(collection)}>
+                End
+              </button>
+            )}
+            {live && empty && isHost && collection.collectionId === current?.collectionId && (
+              <button
+                type="button"
+                className="collections-button collections-button--accent"
+                onClick={() => (here ? reopen() : open(collection.collectionId))}
+              >
+                Reopen
+              </button>
+            )}
+            {here && dormant && !empty && (
+              <button type="button" className="collections-button collections-button--accent" onClick={reopen}>
+                Rejoin
               </button>
             )}
             <button type="button" className="collections-button" onClick={() => onExport(collection)}>

@@ -178,7 +178,7 @@ A collection is someone's workspace on one slide. There are two kinds:
 | | Personal | Session |
 | - | -------- | ------- |
 | Made by | Automatically, on first opening a slide (`POST /collections/ensure`) | Someone pressing start (`POST /sessions`) |
-| How many | One per person per slide - enforced by a filtered unique index | As many as you like |
+| How many | One per person per slide - enforced by a filtered unique index | One not ended per host per slide - `POST /sessions` gives back the one you have (409). Checked in the endpoint, not an index, since older data can have more |
 | Who's in it | Only you - though you can share it read-only with everyone | The host, plus anyone who opens an invite link |
 | Realtime | No - the viewer doesn't connect | Yes - the hub room id is the collection id |
 | Ending | Can't be ended | Host ends it. It goes read-only and its links stop, but it's kept to look back at |

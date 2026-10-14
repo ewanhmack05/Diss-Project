@@ -123,11 +123,14 @@ function CountActivity() {
 }
 
 function WorkingAlone() {
-  const { collections, startSession } = useCollectionContext()
+  const { collections, startSession, open } = useCollectionContext()
+  const { user } = useAuthContext()
   const { activeTools, toggleTool } = useToolbarContext()
   const emit = useEmitEvent()
   const [starting, setStarting] = useState(false)
   const sessions = collections.filter((c) => c.kind === 'session').length
+  // One per slide - the newest you host that hasn't ended. The list is newest first.
+  const mine = collections.find((c) => c.kind === 'session' && !c.ended && c.ownerId === user.id)
 
   const start = () => {
     setStarting(true)
@@ -140,13 +143,31 @@ function WorkingAlone() {
     <>
       <section className="realtime-section">
         <h3 className="realtime-heading">Work together</h3>
-        <p className="realtime-note">
-          Start a session to work on this slide with other people. You'll get an invite link and code to send them, or
-          invite anyone online from Users - nobody can join without one.
-        </p>
-        <button type="button" className="realtime-button realtime-button--accent realtime-button--wide" disabled={starting} onClick={start}>
-          {starting ? 'Starting…' : 'Start a session'}
-        </button>
+        {mine ? (
+          <>
+            <p className="realtime-note">
+              You already host <strong>{mine.collectionName}</strong> on this slide - one at a time. Reopen it to carry on,
+              or end it from inside to start a fresh one.
+            </p>
+            <button
+              type="button"
+              className="realtime-button realtime-button--accent realtime-button--wide"
+              onClick={() => open(mine.collectionId)}
+            >
+              Reopen your session
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="realtime-note">
+              Start a session to work on this slide with other people. You'll get an invite link and code to send them, or
+              invite anyone online from Users - nobody can join without one.
+            </p>
+            <button type="button" className="realtime-button realtime-button--accent realtime-button--wide" disabled={starting} onClick={start}>
+              {starting ? 'Starting…' : 'Start a session'}
+            </button>
+          </>
+        )}
       </section>
 
       {/* Rejoining one, or looking back at one that's ended, is in Collections. */}
@@ -167,7 +188,6 @@ function WorkingAlone() {
         </section>
       )}
       <JoinWithCode />
-      <p className="realtime-note">Anything you add on your own stays in your own collection.</p>
     </>
   )
 }
@@ -399,11 +419,6 @@ function Joined({ session }: { session: Collection }) {
         <LiveLine text={`Live · hosted by ${host?.displayName ?? 'someone'}`} />
         <span className="realtime-badge">{session.myRole === 'viewer' ? 'You can view' : 'You can edit'}</span>
       </section>
-      <p className="realtime-note">
-        {session.myRole === 'viewer'
-          ? "You can look at everything here, but not change it - ask the host if you need to."
-          : 'Anything you add is saved to this session, where everyone in it can see it - not to your own collection.'}
-      </p>
       <NavigationNote />
       <PeopleList session={session} controls={false} />
       <CountActivity />
@@ -422,6 +437,41 @@ function Ended({ session }: { session: Collection }) {
         <SessionTitle session={session} editable={false} />
         <p className="realtime-live">Ended {session.ended ? formatLongDate(session.ended) : ''} · read-only</p>
       </section>
+      <PeopleList session={session} controls={false} />
+      <button type="button" className="realtime-button realtime-button--wide" onClick={leaveSession}>
+        Back to working on my own
+      </button>
+    </>
+  )
+}
+
+// A session opened to look at because nobody was in it - read-only, with
+// no room. The host can open it up again; anyone else can go back in once
+// someone is.
+function Dormant({ session }: { session: Collection }) {
+  const { leaveSession, reopen } = useCollectionContext()
+  const { busySessions } = usePresenceContext()
+  const someoneIn = busySessions?.has(session.collectionId) ?? false
+  const isHost = session.myRole === 'owner'
+  const host = session.members.find((m) => m.role === 'owner')
+  return (
+    <>
+      <section className="realtime-section realtime-section--tight">
+        <SessionTitle session={session} editable={false} />
+        <p className="realtime-live">{someoneIn ? "Someone's in it now" : "Nobody's in it · read-only"}</p>
+      </section>
+      <p className="realtime-note">
+        {someoneIn
+          ? 'Rejoin to work in it with them.'
+          : isHost
+            ? "You're looking at it without opening it up. Reopen it to work in it, or to let people back in."
+            : `You're looking at it read-only. You can rejoin once ${host?.displayName ?? 'the host'} reopens it.`}
+      </p>
+      {(someoneIn || isHost) && (
+        <button type="button" className="realtime-button realtime-button--accent realtime-button--wide" onClick={reopen}>
+          {someoneIn ? 'Rejoin' : 'Reopen session'}
+        </button>
+      )}
       <PeopleList session={session} controls={false} />
       <button type="button" className="realtime-button realtime-button--wide" onClick={leaveSession}>
         Back to working on my own
@@ -456,7 +506,7 @@ type RealTimeTab = 'session' | 'users'
 // you're signed in as. The tab is kept here rather than in the toolbar's
 // context - it's your own, so Present doesn't follow the host's.
 function RealTimePanel() {
-  const { status, session } = useCollectionContext()
+  const { status, session, dormant } = useCollectionContext()
   const { onlineCount } = usePresenceContext()
   const [tab, setTab] = useState<RealTimeTab>('session')
 
@@ -465,6 +515,7 @@ function RealTimePanel() {
   else if (status !== 'ready') body = <p className="realtime-note">Loading…</p>
   else if (!session) body = <WorkingAlone />
   else if (session.ended) body = <Ended session={session} />
+  else if (dormant) body = <Dormant session={session} />
   else if (session.myRole === 'owner') body = <Hosting session={session} />
   else body = <Joined session={session} />
 

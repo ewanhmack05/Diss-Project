@@ -9,9 +9,11 @@ const HOURS = [
   { hours: 24 * 7, label: 'in 7 days' },
 ]
 
+// Short, so it fits on one line beside Stop this link - the form below
+// spells it out.
 const CAN_TEXT: Record<CollectionRole, string> = {
-  editor: 'People who join can edit',
-  viewer: 'People who join can only view',
+  editor: 'Can edit',
+  viewer: 'View only',
   owner: '',
 }
 
@@ -59,7 +61,7 @@ function SessionInvite() {
           setHours(hoursOf(current))
         }
       })
-      .catch(() => {})
+      .catch(() => { })
     return () => {
       cancelled = true
     }
@@ -153,7 +155,10 @@ function SessionInvite() {
             </button>
           </div>
           <div className="realtime-invite-about">
-            <span>
+            <span
+              className="realtime-invite-about-text"
+              title={`People who join ${invite.role === 'viewer' ? 'can only view' : 'can edit'} · until ${formatLongDate(invite.expires)}`}
+            >
               {CAN_TEXT[invite.role]} · until {formatLongDate(invite.expires)}
             </span>
             <button type="button" className="realtime-text-button realtime-text-button--danger" onClick={stop}>
@@ -161,9 +166,7 @@ function SessionInvite() {
             </button>
           </div>
         </>
-      ) : (
-        <p className="realtime-note">No working invite - make one to let people in with a link or its code.</p>
-      )}
+      ) : null}
 
       <div className="realtime-field">
         <span className="realtime-field-label">People who join can</span>
@@ -195,7 +198,6 @@ function SessionInvite() {
       <button type="button" className="realtime-button realtime-button--accent realtime-button--wide" disabled={busy} onClick={make}>
         {invite ? 'Make a new link' : 'Make a link'}
       </button>
-      {invite && <p className="realtime-note">Changes apply to the link and code above. A new link stops them working.</p>}
     </section>
   )
 }

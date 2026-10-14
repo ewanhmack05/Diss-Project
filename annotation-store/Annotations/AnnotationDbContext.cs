@@ -39,8 +39,9 @@ public class AnnotationDbContext(DbContextOptions<AnnotationDbContext> options) 
         modelBuilder.Entity<Collections.Collections>().HasKey(c => c.CollectionId);
         // At most one personal collection per user per slide - POST
         // /collections/ensure relies on this to make "get or create" race-safe
-        // at the DB level. Sessions aren't limited - you can host as many as
-        // you like. The filter is plain SQL that Postgres and SQLite both take.
+        // at the DB level. Sessions are one not ended per host per slide, but
+        // that's checked in POST /sessions, not here - older data can have
+        // more. The filter is plain SQL that Postgres and SQLite both take.
         modelBuilder.Entity<Collections.Collections>().Property(c => c.Kind).HasConversion<string>();
         modelBuilder.Entity<Collections.Collections>()
             .HasIndex(c => new { c.SlideId, c.UserId })

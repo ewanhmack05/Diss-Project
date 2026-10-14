@@ -54,16 +54,32 @@ public class SessionsTests : IClassFixture<CellCountApiFactory>
         await TestJson.EnsureCollectionAsync(alice, slideId);
 
         var session = await StartAsync(alice, slideId);
-        var second = await StartAsync(alice, slideId, "Ki-67 review");
 
         Assert.Equal(CollectionKind.Session, session.Kind);
         Assert.Equal(CollectionRole.Owner, session.MyRole);
         Assert.Equal("User alice's session", session.CollectionName);
         var list = (await alice.GetFromJsonAsync<List<CollectionView>>($"/collections?slideId={slideId}", Json))!;
-        Assert.Equal(
-            [CollectionKind.Personal, CollectionKind.Session, CollectionKind.Session],
-            list.Select(c => c.Kind));
-        Assert.Equal(second.CollectionId, list[1].CollectionId);
+        Assert.Equal([CollectionKind.Personal, CollectionKind.Session], list.Select(c => c.Kind));
+    }
+
+    [Fact]
+    public async Task Start_WithOneGoing_GivesThatOneBack_UntilItsEnded()
+    {
+        var alice = As("alice");
+        var slideId = NewSlide();
+        var first = await StartAsync(alice, slideId);
+
+        var again = await alice.PostAsJsonAsync("/sessions", new EnsureRequest(slideId, "Ki-67 review"));
+        Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
+        Assert.Equal(first.CollectionId, (await again.Content.ReadFromJsonAsync<CollectionView>(Json))!.CollectionId);
+
+        // Another slide, or someone else, isn't held up by it.
+        await StartAsync(alice, NewSlide());
+        await StartAsync(As("bob"), slideId);
+
+        (await alice.PostAsync($"/collections/{first.CollectionId}/end", null)).EnsureSuccessStatusCode();
+        var next = await StartAsync(alice, slideId, "Ki-67 review");
+        Assert.NotEqual(first.CollectionId, next.CollectionId);
     }
 
     [Fact]

@@ -4,6 +4,7 @@ import { useAnnotationStoreContext } from '../../context/AnnotationStoreContext'
 import { useCellCountStoreContext } from '../../context/CellCountStoreContext'
 import { useEmitEvent } from '../../context/EventContext'
 import { useToastContext } from '../../context/ToastContext'
+import { usePresenceContext } from '../../context/PresenceContext'
 import { parseImport, type ParsedImport } from './collectionGeoJson'
 import { useCollectionFiles } from './useCollectionFiles'
 import ImportPreview from './ImportPreview'
@@ -21,14 +22,22 @@ interface PendingImport {
 
 // Where you're looking, when it isn't your own.
 function ShowingNote({ active }: { active: Collection }) {
-  const { leaveSession } = useCollectionContext()
-  const readOnly = active.myRole === 'viewer' || !!active.ended
+  const { leaveSession, dormant, reopen } = useCollectionContext()
+  const { busySessions } = usePresenceContext()
+  const readOnly = active.myRole === 'viewer' || !!active.ended || dormant
+  // Someone's gone back in since you opened it to look.
+  const someoneIn = dormant && busySessions?.has(active.collectionId)
   return (
     <div className="collections-showing">
       <p className="collections-note">
         Showing <strong>{active.collectionName}</strong>
-        {readOnly ? ' - read-only.' : '.'}
+        {dormant ? (someoneIn ? " - someone's in it now." : " - nobody's in it, so it's read-only.") : readOnly ? ' - read-only.' : '.'}
       </p>
+      {dormant && (someoneIn || active.myRole === 'owner') && (
+        <button type="button" className="collections-button collections-button--accent" onClick={reopen}>
+          {someoneIn ? 'Rejoin' : 'Reopen'}
+        </button>
+      )}
       <button type="button" className="collections-button" onClick={leaveSession}>
         Back to mine
       </button>

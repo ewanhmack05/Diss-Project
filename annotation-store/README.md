@@ -58,7 +58,7 @@ viewer, without being a member.
 | `GET /collections/{id}/export` | members, or anyone if shared | Its annotations and cell counts (dots and ROI included), oldest first - what the viewer's GeoJSON export reads |
 | `GET /collections/{id}/membership` | members | Your role, its kind and whether it's ended - what the realtime hub checks before letting you into a session's room |
 | `POST /collections/ensure` | anyone | Get or create your own for `{ slideId }` |
-| `POST /sessions` | anyone | Start a session on `{ slideId, collectionName? }`, hosted by you |
+| `POST /sessions` | anyone | Start a session on `{ slideId, collectionName? }`, hosted by you. One at a time per slide - with one not ended, it's a 409 with that one instead |
 | `PUT /collections/{id}` | owner | Rename |
 | `PUT /collections/{id}/sharing` | owner | Personal only - `{ shared }`. Lets anyone signed in view it, read-only |
 | `POST /collections/{id}/import` | editor, owner | `{ annotations, cellCounts }` from a GeoJSON import, saved together and stamped as you |

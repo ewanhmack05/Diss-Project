@@ -22,8 +22,8 @@ describe('formatShortDate', () => {
 })
 
 describe('formatLongDate', () => {
-  it('gives the date and time', () => {
-    expect(formatLongDate(at(2026, 9, 30, 14, 36))).toBe('30 Sept 2026, 14:36')
+  it('gives the date and time, without the year', () => {
+    expect(formatLongDate(at(2026, 9, 30, 14, 36))).toBe('30 Sept, 14:36')
   })
 
   it('says so when it can’t read it', () => {
