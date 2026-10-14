@@ -34,6 +34,8 @@ interface CellCountStoreContextValue {
   selectedCellCountId: string | null
   viewedCellCountId: string | null
   addCellCount: (cellCount: CellCount) => void
+  // Already saved by a GeoJSON import - see collections/useCollectionFiles.
+  addImported: (cellCounts: CellCount[]) => void
   updateCellCount: (id: string, patch: CellCountEdit) => void
   deleteCellCount: (id: string) => void
   setSelectedCellCountId: (id: string | null) => void
@@ -170,6 +172,15 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
       .finally(bumpRevision)
   }
 
+  // Already saved, all together, by an import - same as
+  // AnnotationStoreContext's addImported.
+  const addImported = (imported: CellCount[]) => {
+    if (imported.length === 0) return
+    setCellCounts((current) => [...current, ...imported])
+    for (const cellCount of imported) sendOp({ kind: 'create', entity: 'cellCount', id: cellCount.id, data: cellCount })
+    bumpRevision()
+  }
+
   // annotation-store's PUT replaces all of these together, so pass them all.
   const updateCellCount = (id: string, patch: CellCountEdit) => {
     if (deletedIdsRef.current.has(id)) return
@@ -271,6 +282,7 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
         selectedCellCountId,
         viewedCellCountId,
         addCellCount,
+        addImported,
         updateCellCount,
         deleteCellCount,
         setSelectedCellCountId,

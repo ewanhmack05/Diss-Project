@@ -3,7 +3,7 @@ import { useRealtimeContext } from '../../context/RealtimeContext'
 import { useCollectionContext, type Collection, type CollectionRole } from '../../context/CollectionContext'
 import { useAuthContext } from '../../context/AuthContext'
 import { useEmitEvent } from '../../context/EventContext'
-import { TOOL_NAMES, type ToolId } from '../../context/ToolbarContext'
+import { TOOL_NAMES, useToolbarContext, type ToolId } from '../../context/ToolbarContext'
 import CountInvites from '../cell-count/CountInvites'
 import SessionInvite from './SessionInvite'
 import UsersList from '../users/UsersList'
@@ -11,7 +11,7 @@ import JoinWithCode from '../users/JoinWithCode'
 import { usePresenceContext } from '../../context/PresenceContext'
 import { useComparisonContext } from '../../context/ComparisonContext'
 import { useSharedCountContext } from '../../context/SharedCountContext'
-import { formatLongDate, formatShortDate } from '../saved/savedDates'
+import { formatLongDate } from '../saved/savedDates'
 import type { NavigationMode } from './realtime'
 import './RealTimePanel.css'
 
@@ -123,11 +123,11 @@ function CountActivity() {
 }
 
 function WorkingAlone() {
-  const { collections, startSession, open } = useCollectionContext()
-  const { user } = useAuthContext()
+  const { collections, startSession } = useCollectionContext()
+  const { activeTools, toggleTool } = useToolbarContext()
   const emit = useEmitEvent()
   const [starting, setStarting] = useState(false)
-  const sessions = collections.filter((c) => c.kind === 'session')
+  const sessions = collections.filter((c) => c.kind === 'session').length
 
   const start = () => {
     setStarting(true)
@@ -149,33 +149,21 @@ function WorkingAlone() {
         </button>
       </section>
 
-      {sessions.length > 0 && (
+      {/* Rejoining one, or looking back at one that's ended, is in Collections. */}
+      {sessions > 0 && (
         <section className="realtime-section">
-          <h3 className="realtime-heading">Your sessions on this slide</h3>
-          <ul className="realtime-sessions">
-            {sessions.map((session) => {
-              const host = session.members.find((m) => m.role === 'owner')
-              const who = session.ownerId === user.id ? "You're hosting" : `Hosted by ${host?.displayName ?? 'someone'}`
-              const how = session.ended
-                ? 'ended'
-                : session.myRole === 'viewer'
-                  ? 'you can view'
-                  : `${session.members.length} ${session.members.length === 1 ? 'person' : 'people'}`
-              return (
-                <li key={session.collectionId} className="realtime-session">
-                  <span className="realtime-session-about">
-                    <span className="realtime-session-name">{session.collectionName}</span>
-                    <span className="realtime-session-meta">
-                      {who} · {how} · {formatShortDate(session.created)}
-                    </span>
-                  </span>
-                  <button type="button" className="realtime-button" onClick={() => open(session.collectionId)}>
-                    {session.ended ? 'Open' : 'Rejoin'}
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
+          <p className="realtime-note">
+            You're in {sessions} {sessions === 1 ? 'session' : 'sessions'} on this slide.
+          </p>
+          <button
+            type="button"
+            className="realtime-button realtime-button--wide"
+            onClick={() => {
+              if (!activeTools.includes('collections')) toggleTool('collections')
+            }}
+          >
+            Open Collections
+          </button>
         </section>
       )}
       <JoinWithCode />

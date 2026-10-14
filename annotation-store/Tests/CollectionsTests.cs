@@ -134,7 +134,7 @@ public class CollectionsTests : IClassFixture<CellCountApiFactory>
     }
 
     [Fact]
-    public async Task PersonalCollections_CantBeShared()
+    public async Task PersonalCollections_CantTakeInvitesOrMembers()
     {
         var alice = As("alice");
         var collection = await EnsureAsync(alice, NewSlide());
@@ -201,5 +201,144 @@ public class CollectionsTests : IClassFixture<CellCountApiFactory>
         Assert.False(await db.CellCounts.AnyAsync(c => c.Id == cellCount!.Id));
         Assert.False(await db.ImageAdjustments.AnyAsync(a => a.ImageAdjustmentId == adjustment!.ImageAdjustmentId));
         Assert.False(await db.CollectionMembers.AnyAsync(m => m.CollectionId == id));
+    }
+
+    private static Task<HttpResponseMessage> ShareAsync(HttpClient client, Guid id, bool shared) =>
+        client.PutAsJsonAsync($"/collections/{id}/sharing", new SharingRequest(shared), Json);
+
+    [Fact]
+    public async Task Sharing_LetsOthersRead_ButNotChange()
+    {
+        var alice = As("alice", "Alice Moore");
+        var bob = As("bob");
+        var slideId = NewSlide();
+        var collection = await EnsureAsync(alice, slideId);
+        var id = collection.CollectionId;
+        await alice.PostAsJsonAsync("/annotations", new Annotation { CollectionId = id, Label = "a" });
+
+        Assert.Equal(HttpStatusCode.NotFound, (await bob.GetAsync($"/annotations?collectionId={id}")).StatusCode);
+
+        var shared = await ShareAsync(alice, id, true);
+        Assert.Equal(HttpStatusCode.OK, shared.StatusCode);
+        Assert.True((await shared.Content.ReadFromJsonAsync<CollectionView>(Json))!.Shared);
+
+        var annotations = (await bob.GetFromJsonAsync<List<Annotation>>($"/annotations?collectionId={id}", Json))!;
+        Assert.Equal("a", Assert.Single(annotations).Label);
+        Assert.Equal(HttpStatusCode.OK, (await bob.GetAsync($"/collections/{id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await bob.PostAsJsonAsync("/annotations", new Annotation { CollectionId = id, Label = "b" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await bob.PutAsJsonAsync($"/collections/{id}", new RenameRequest("x"))).StatusCode);
+
+        await ShareAsync(alice, id, false);
+        Assert.Equal(HttpStatusCode.NotFound, (await bob.GetAsync($"/annotations?collectionId={id}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task List_IncludesOthersShared_AsViewer_WithCounts()
+    {
+        var alice = As("alice", "Alice Moore");
+        var bob = As("bob");
+        var slideId = NewSlide();
+        var alices = await EnsureAsync(alice, slideId);
+        await EnsureAsync(bob, slideId);
+        await alice.PostAsJsonAsync("/annotations", new Annotation { CollectionId = alices.CollectionId, Label = "a" });
+        await alice.PostAsJsonAsync("/annotations", new Annotation { CollectionId = alices.CollectionId, Label = "b" });
+        await alice.PostAsJsonAsync("/cellcounts", new CellCount { CollectionId = alices.CollectionId, Label = "c", Dots = "[]" });
+
+        Assert.Single(await ListAsync(bob, slideId));
+        await ShareAsync(alice, alices.CollectionId, true);
+
+        var list = await ListAsync(bob, slideId);
+        Assert.Equal(2, list.Count);
+        Assert.Equal("bob", list[0].OwnerId);
+        var theirs = list[1];
+        Assert.Equal(alices.CollectionId, theirs.CollectionId);
+        Assert.Equal(CollectionRole.Viewer, theirs.MyRole);
+        Assert.Equal(2, theirs.AnnotationCount);
+        Assert.Equal(1, theirs.CellCountCount);
+        Assert.NotNull(theirs.LastAdded);
+        Assert.Empty(await ListAsync(As("carol"), NewSlide()));
+    }
+
+    [Fact]
+    public async Task Sharing_IsOwnerOnly_AndPersonalOnly()
+    {
+        var alice = As("alice");
+        var slideId = NewSlide();
+        var collection = await EnsureAsync(alice, slideId);
+        var session = (await (await alice.PostAsJsonAsync("/sessions", new EnsureRequest(slideId)))
+            .Content.ReadFromJsonAsync<CollectionView>(Json))!;
+
+        Assert.Equal(HttpStatusCode.NotFound, (await ShareAsync(As("bob"), collection.CollectionId, true)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await ShareAsync(alice, session.CollectionId, true)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Import_SavesEverythingAtOnce_StampedAsTheCaller()
+    {
+        var alice = As("alice", "Alice Moore");
+        var slideId = NewSlide();
+        var collection = await EnsureAsync(alice, slideId);
+        var id = collection.CollectionId;
+
+        var response = await alice.PostAsJsonAsync($"/collections/{id}/import", new ImportRequest(
+            [new Annotation { Label = "a", GeoJson = "{}" }, new Annotation { Label = "b", GeoJson = "{}" }],
+            [new CellCount { Label = "c", Dots = "[{\"x\":1,\"y\":2,\"colour\":\"#ff0000\"}]", Count = 1,
+                RegionOfInterest = new RegionOfInterest { GeoJson = "{}" } }]), Json);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = (await response.Content.ReadFromJsonAsync<ImportResult>(Json))!;
+        Assert.Equal(2, result.Annotations.Count);
+        Assert.All(result.Annotations, a =>
+        {
+            Assert.Equal(id, a.CollectionId);
+            Assert.Equal(slideId, a.SlideId);
+            Assert.Equal("alice", a.CreatedById);
+        });
+        var count = Assert.Single(result.CellCounts);
+        Assert.NotNull(count.RegionOfInterest);
+        Assert.Equal(2, (await alice.GetFromJsonAsync<List<Annotation>>($"/annotations?collectionId={id}", Json))!.Count);
+    }
+
+    [Fact]
+    public async Task Export_HasAnnotationsAndCountsWithDots_ToAnyoneWhoCanView()
+    {
+        var alice = As("alice");
+        var collection = await EnsureAsync(alice, NewSlide());
+        var id = collection.CollectionId;
+        await alice.PostAsJsonAsync("/annotations", new Annotation { CollectionId = id, Label = "a" });
+        await alice.PostAsJsonAsync("/annotations", new Annotation { CollectionId = id, Label = "b" });
+        await alice.PostAsJsonAsync("/cellcounts", new CellCount
+        {
+            CollectionId = id,
+            Label = "c",
+            Dots = "[{\"x\":1,\"y\":2,\"colour\":\"#ff0000\"}]",
+            RegionOfInterest = new RegionOfInterest { GeoJson = "{}" },
+        });
+
+        var export = (await alice.GetFromJsonAsync<ExportView>($"/collections/{id}/export", Json))!;
+
+        Assert.Equal(collection.CollectionName, export.CollectionName);
+        Assert.Equal(["a", "b"], export.Annotations.Select(a => a.Label));
+        var count = Assert.Single(export.CellCounts);
+        Assert.Contains("#ff0000", count.Dots);
+        Assert.NotNull(count.RegionOfInterest);
+
+        Assert.Equal(HttpStatusCode.NotFound, (await As("bob").GetAsync($"/collections/{id}/export")).StatusCode);
+        await ShareAsync(alice, id, true);
+        Assert.Equal(HttpStatusCode.OK, (await As("bob").GetAsync($"/collections/{id}/export")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Import_NeedsEditor()
+    {
+        var alice = As("alice");
+        var collection = await EnsureAsync(alice, NewSlide());
+        await ShareAsync(alice, collection.CollectionId, true);
+
+        var response = await As("bob").PostAsJsonAsync($"/collections/{collection.CollectionId}/import",
+            new ImportRequest([new Annotation { Label = "a" }], []), Json);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 }

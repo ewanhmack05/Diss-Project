@@ -16,3 +16,15 @@ describe('savedTabLabel', () => {
     expect(savedTabLabel(50_000)).toBe(`Saved (${(50_000).toLocaleString()})`)
   })
 })
+
+describe('savedTabLabel with the list open', () => {
+  it("goes by the list's count over the collection's", () => {
+    expect(savedTabLabel(130, { total: 5, filtered: true })).toBe('Saved (5)')
+    expect(savedTabLabel(130, { total: 128, filtered: false })).toBe('Saved (128)')
+  })
+
+  it('says 0 when a search or filter finds nothing, but not when nothing is saved', () => {
+    expect(savedTabLabel(130, { total: 0, filtered: true })).toBe('Saved (0)')
+    expect(savedTabLabel(0, { total: 0, filtered: false })).toBe('Saved')
+  })
+})

@@ -198,4 +198,32 @@ describe('mergePage', () => {
     const view = mergePage({ ...base, fetched: rows(3), total: 0, live: rows(3) })
     expect(view.total).toBe(3)
   })
+
+  it('takes a pending delete off the total, on this page or not, without counting it twice', () => {
+    const gone = (id: string) => ['r2', 'r8', 'r9'].includes(id)
+    const pendingRemoved = rows(10).filter((r) => gone(r.id))
+    const view = mergePage({ ...base, fetched: rows(3), total: 10, live: rows(10), isDeleted: gone, pendingRemoved })
+    expect(view.items.map((r) => r.id)).toEqual(['r1', 'r3'])
+    expect(view.total).toBe(7)
+  })
+
+  it('only takes off pending deletes the search and filters would have counted', () => {
+    const pendingRemoved = [
+      { ...rows(1, 8)[0], label: 'tumour edge', shape: 'line' },
+      { ...rows(1, 9)[0], label: 'stroma', shape: 'line' },
+      { ...rows(1, 10)[0], label: 'tumour core', shape: 'polygon' },
+    ]
+    const gone = (id: string) => pendingRemoved.some((r) => r.id === id)
+    const view = mergePage({
+      ...base,
+      search: 'TUMOUR',
+      filters: { ...NO_FILTERS, shapes: ['line'] },
+      fetched: rows(3),
+      total: 5,
+      live: rows(3),
+      isDeleted: gone,
+      pendingRemoved,
+    })
+    expect(view.total).toBe(4)
+  })
 })

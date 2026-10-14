@@ -94,6 +94,7 @@ if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Databas
 }
 
 app.MapCollectionEndpoints();
+app.MapAnnotationGroupEndpoints();
 
 // Annotation endpoints
 
@@ -141,6 +142,7 @@ app.MapGet("/annotations/facets", async (Guid collectionId, ClaimsPrincipal user
 app.MapPost("/annotations", async (Annotation annotation, ClaimsPrincipal user, AnnotationDbContext db) =>
 {
     if (await db.RequireAsync(annotation.CollectionId, user, CollectionRole.Editor) is { } denied) return denied;
+    if (!await db.GroupIsInAsync(annotation.GroupId, annotation.CollectionId)) return Results.BadRequest("That group isn't in this collection");
     var collection = await db.Collections.FirstAsync(c => c.CollectionId == annotation.CollectionId);
 
     if (annotation.Id == Guid.Empty) annotation.Id = Guid.NewGuid();

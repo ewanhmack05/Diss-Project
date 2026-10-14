@@ -185,6 +185,12 @@
   background: rgba(var(--accent-rgb), 0.22);
 }
 
+/* "No group" - not a group itself, so set apart a little. */
+.saved-filter-chip--plain:not(.saved-filter-chip--on) {
+  font-style: italic;
+  color: var(--chrome-text-secondary);
+}
+
 .saved-filter-count {
   font-size: 0.85em;
   color: var(--chrome-text-secondary);

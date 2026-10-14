@@ -15,6 +15,8 @@ public class Annotation
     public string LineStyle { get; set; } = "";
     public int LineThickness { get; set; }
     public string GeoJson { get; set; } = "";
+    // The AnnotationGroup it's in, if any - always one in the same collection.
+    public Guid? GroupId { get; set; }
     public DateTimeOffset Created { get; set; }
     // Who saved it - their Keycloak id and name, set server-side on POST from
     // the token, like SlideId. Empty for rows from before sign-in.

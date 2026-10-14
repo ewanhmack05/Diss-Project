@@ -9,6 +9,7 @@ namespace AnnotationStore.Annotations;
 public class AnnotationDbContext(DbContextOptions<AnnotationDbContext> options) : DbContext(options)
 {
     public DbSet<Annotation> Annotations => Set<Annotation>();
+    public DbSet<AnnotationGroup> AnnotationGroups => Set<AnnotationGroup>();
     public DbSet<CellCount> CellCounts => Set<CellCount>();
     public DbSet<RegionOfInterest> RegionsOfInterest => Set<RegionOfInterest>();
     public DbSet<ImageAdjustments.ImageAdjustments> ImageAdjustments => Set<ImageAdjustments.ImageAdjustments>();
@@ -77,6 +78,20 @@ public class AnnotationDbContext(DbContextOptions<AnnotationDbContext> options) 
             .WithOne()
             .HasForeignKey(a => a.CollectionId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<AnnotationGroup>().HasIndex(g => g.CollectionId);
+        modelBuilder.Entity<Collections.Collections>()
+            .HasMany(c => c.Groups)
+            .WithOne()
+            .HasForeignKey(g => g.CollectionId)
+            .OnDelete(DeleteBehavior.Cascade);
+        // Deleting a group ungroups what was in it, rather than deleting it.
+        modelBuilder.Entity<Annotation>().HasIndex(a => a.GroupId);
+        modelBuilder.Entity<Annotation>()
+            .HasOne<AnnotationGroup>()
+            .WithMany()
+            .HasForeignKey(a => a.GroupId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         modelBuilder.Entity<CellCount>().HasIndex(c => c.SlideId);
         modelBuilder.Entity<CellCount>().HasIndex(c => c.CollectionId);

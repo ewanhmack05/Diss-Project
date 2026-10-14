@@ -1,4 +1,4 @@
-import { NO_FILTERS, filterParams, passes, activeFilterCount, type Filterable, type SavedFilters } from './filters'
+import { NO_FILTERS, filterParams, passes, matchesSearch, activeFilterCount, type Filterable, type SavedFilters } from './filters'
 
 // How many rows a Saved list shows per page - change it here for both the
 // annotations and cell counts lists. annotation-store caps a page at 500.
@@ -63,12 +63,15 @@ interface PageView<T> {
 //   first page - newest first means that's where the server will put it.
 //   Only if it gets past the filters, and only without a search, since
 //   whether that matches is the server's call.
+// - things deleted here that the fetch still counted come off the total
+//   too, page or not - a bulk delete waits out its undo before it's sent
 // The next fetch, once the save settles, puts it all back in step.
 function mergePage<T extends Saved>({
   fetched,
   total,
   live,
   isDeleted,
+  pendingRemoved = [],
   page,
   search,
   filters = NO_FILTERS,
@@ -78,6 +81,8 @@ function mergePage<T extends Saved>({
   total: number
   live: T[]
   isDeleted: (id: string) => boolean
+  // Gone here, but in the server's total when this page was fetched.
+  pendingRemoved?: T[]
   page: number
   search: string
   filters?: SavedFilters
@@ -85,7 +90,12 @@ function mergePage<T extends Saved>({
 }): PageView<T> {
   const liveById = new Map(live.map((item) => [item.id, item]))
   const kept = fetched.filter((item) => !isDeleted(item.id)).map((item) => liveById.get(item.id) ?? item)
-  const removed = fetched.length - kept.length
+  // On the page, or elsewhere but matching the same search and filters.
+  const onPage = new Set(fetched.map((item) => item.id))
+  const removed =
+    fetched.length -
+    kept.length +
+    pendingRemoved.filter((item) => !onPage.has(item.id) && passes(item, filters) && matchesSearch(item, search)).length
 
   let added: T[] = []
   if (page === 0 && !search.trim()) {

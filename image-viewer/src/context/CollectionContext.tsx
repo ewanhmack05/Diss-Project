@@ -29,8 +29,15 @@ interface Collection {
   kind: CollectionKind
   // Sessions only - once ended it's read-only and has no room.
   ended: string | null
+  // Personal only - the owner letting anyone signed in look at it. Someone
+  // else's shared one comes in the list too, with myRole viewer.
+  shared: boolean
   myRole: CollectionRole
   members: CollectionMember[]
+  // What's in it, from the list - for the Collections tab.
+  annotationCount: number
+  cellCountCount: number
+  lastAdded: string | null
 }
 
 interface Invite {
@@ -93,6 +100,13 @@ interface CollectionContextValue {
   acceptInvite: (code: string) => Promise<void>
   setMemberRole: (userId: string, role: CollectionRole) => Promise<void>
   removeMember: (userId: string) => Promise<void>
+  // Your own collection - letting others look at it, and its name.
+  setShared: (shared: boolean) => Promise<void>
+  renameCollection: (collectionId: string, name: string) => Promise<void>
+  // From the Collections tab, for any session you're in - not just the
+  // active one. Leaving takes you out for good; deleting is host only.
+  leaveForGood: (collectionId: string) => Promise<void>
+  deleteSession: (collectionId: string) => Promise<void>
 }
 
 const CollectionContext = createContext<CollectionContextValue | null>(null)
@@ -130,7 +144,7 @@ function CollectionContextProvider({ baseUrl, children }: CollectionContextProvi
   const { source } = useImageViewerContext()
   const { slideId } = source
   const emit = useEmitEvent()
-  const { authFetch } = useAuthContext()
+  const { authFetch, user } = useAuthContext()
   const { showDialog } = useDialogContext()
   const { addToast } = useToastContext()
 
@@ -168,6 +182,9 @@ function CollectionContextProvider({ baseUrl, children }: CollectionContextProvi
 
   const setActive = useCallback(
     (id: string | null) => {
+      // Straight away, not after the render, so a list load right after
+      // this knows it's moved on.
+      activeIdRef.current = id
       setActiveId(id)
       storeActive(slideId, id)
     },
@@ -200,8 +217,18 @@ function CollectionContextProvider({ baseUrl, children }: CollectionContextProvi
     // Taken out of the session you were in - back to your own.
     const current = activeIdRef.current
     if (current && !list.some((c) => c.collectionId === current)) {
-      emit('session:removed', { collectionId: current })
       setActive(null)
+      // Someone else's you were looking at, and they've stopped sharing it.
+      if (before?.kind === 'personal') {
+        emit('collection:unshared', { collectionId: current })
+        showDialog({
+          title: `${before.collectionName} isn't shared any more`,
+          message: `${hostName(before)} stopped sharing it, so you're back in your own collection.`,
+          actions: [{ label: 'OK' }],
+        })
+        return
+      }
+      emit('session:removed', { collectionId: current })
       showDialog({
         title: before ? `You've been removed from ${before.collectionName}` : "You're no longer in that session",
         message: `${before ? hostName(before) : 'The host'} took you out of the session. You're back working on your own - anything you added there stays with the session.`,
@@ -338,6 +365,43 @@ function CollectionContextProvider({ baseUrl, children }: CollectionContextProvi
     [send, sessionId, loadCollections]
   )
 
+  const setShared = useCallback(
+    async (shared: boolean) => {
+      if (!personalCollectionId) return
+      await send(`/collections/${personalCollectionId}/sharing`, 'PUT', { shared })
+      await loadCollections()
+    },
+    [send, personalCollectionId, loadCollections]
+  )
+
+  const renameCollection = useCallback(
+    async (id: string, name: string) => {
+      await send(`/collections/${id}`, 'PUT', { collectionName: name })
+      await loadCollections()
+    },
+    [send, loadCollections]
+  )
+
+  // Out of the one you're in first, so the list coming back without it
+  // isn't taken as being removed.
+  const leaveForGood = useCallback(
+    async (id: string) => {
+      if (activeIdRef.current === id) setActive(null)
+      await send(`/collections/${id}/members/${encodeURIComponent(user.id)}`, 'DELETE')
+      await loadCollections()
+    },
+    [send, user.id, setActive, loadCollections]
+  )
+
+  const deleteSession = useCallback(
+    async (id: string) => {
+      if (activeIdRef.current === id) setActive(null)
+      await send(`/collections/${id}`, 'DELETE')
+      await loadCollections()
+    },
+    [send, setActive, loadCollections]
+  )
+
   const refresh = useCallback(() => loadCollections().catch(() => {}), [loadCollections])
 
   return (
@@ -366,6 +430,10 @@ function CollectionContextProvider({ baseUrl, children }: CollectionContextProvi
         acceptInvite,
         setMemberRole,
         removeMember,
+        setShared,
+        renameCollection,
+        leaveForGood,
+        deleteSession,
       }}
     >
       {children}

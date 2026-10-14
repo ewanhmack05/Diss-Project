@@ -65,6 +65,14 @@ public static class SavedPaging
         else if (otherThan.Length > 0)
             query = query.Where(a => !otherThan.Contains(a.Colour.ToLower()));
         if (filter.HasNotes is { } hasNotes) query = query.Where(a => (a.Notes != "") == hasNotes);
+        if (filter.Group is { Length: > 0 } groups)
+        {
+            // Group ids, and "none" for ones not in a group. Anything that
+            // isn't either matches nothing.
+            var ids = groups.Select(g => Guid.TryParse(g, out var id) ? id : (Guid?)null).OfType<Guid>().ToList();
+            var ungrouped = groups.Contains(SavedFilter.NoGroup);
+            query = query.Where(a => (a.GroupId != null && ids.Contains(a.GroupId.Value)) || (ungrouped && a.GroupId == null));
+        }
         if (filter.From is { } from) query = query.Where(a => a.Created >= from);
         if (filter.To is { } to) query = query.Where(a => a.Created < to);
         return query;
@@ -112,8 +120,9 @@ public static class SavedPaging
 // What the Saved lists can be filtered by, from the query string -
 // createdBy, shape and colour can each be given more than once and match
 // any of them. otherThan matches any colour not in it, alongside colour. From is inclusive and To exclusive, so the viewer sends the
-// start of the first day and the start of the day after the last. Shape and
-// colour are annotations only, withRoi cell counts only.
+// start of the first day and the start of the day after the last. Shape,
+// colour and group are annotations only, withRoi cell counts only. Group is
+// group ids, or "none" for ones not in a group, and can be repeated too.
 public record SavedFilter(
     string[]? CreatedBy,
     string[]? Shape,
@@ -122,7 +131,11 @@ public record SavedFilter(
     bool? HasNotes,
     bool? WithRoi,
     DateTimeOffset? From,
-    DateTimeOffset? To);
+    DateTimeOffset? To,
+    string[]? Group = null)
+{
+    public const string NoGroup = "none";
+}
 
 // Someone who's saved something in a collection, for the "Saved by" filter.
 // Rows from before sign-in have no id and aren't listed.

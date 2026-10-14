@@ -25,6 +25,9 @@ public class Collections
     // Sessions only - once ended it's read-only for everyone and its links
     // stop working, but it's kept so people can look back at it.
     public DateTimeOffset? Ended { get; set; }
+    // Personal only - the owner letting anyone signed in look at it,
+    // read-only. Off until they turn it on. See CollectionAccess.
+    public bool Shared { get; set; }
 
     public List<CollectionMember> Members { get; set; } = [];
     public List<CollectionInvite> Invites { get; set; } = [];
@@ -35,6 +38,7 @@ public class Collections
     // already has real rows - those endpoints only ever need the collection
     // itself, not a hydrated read of its contents).
     public List<Annotation> Annotations { get; set; } = [];
+    public List<AnnotationGroup> Groups { get; set; } = [];
     public List<CellCount> CellCounts { get; set; } = [];
     public List<ImageAdjustments.ImageAdjustments> ImageAdjustments { get; set; } = [];
 }

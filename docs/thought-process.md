@@ -72,8 +72,9 @@ Image adjustments always stay in the personal collection.
 Built - the RealTime tab holds it:
 
 - **Working alone** - your personal collection, no room, no connection to
-  the hub. The tab offers "Start a session" and lists your sessions on the
-  slide to rejoin.
+  the hub. The tab offers "Start a session" and Join with a code. Your
+  sessions on the slide, to rejoin or look back at, are in the Collections
+  tab, next to other people's shared personal collections.
 - **Hosting** - one invite link at a time: copy it, choose whether people
   who join can edit or only view, and how long it lasts (1 hour, a day, a
   week). Making a new link stops the old one, and it can be stopped any

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { NO_FILTERS, PALETTE, activeFilterCount, filterKey, filterParams, passes, toggled, type SavedFilters } from './filters'
+import { NO_FILTERS, PALETTE, activeFilterCount, filterKey, filterParams, matchesSearch, passes, toggled, type SavedFilters } from './filters'
 
 function params(filters: SavedFilters): URLSearchParams {
   const query = new URLSearchParams()
@@ -29,6 +29,22 @@ describe('filterParams', () => {
   })
 
   it('sends with/without as true/false', () => {
+    const query = params({ ...NO_FILTERS, groups: ['g1', 'none'] })
+    expect(query.getAll('group')).toEqual(['g1', 'none'])
+  })
+
+  it('narrows by group, with none for ones not in a group', () => {
+    const item = { created: '2026-10-14T12:00:00Z' }
+    const filters = { ...NO_FILTERS, groups: ['g1', 'none'] }
+    expect(passes({ ...item, groupId: 'g1' }, filters)).toBe(true)
+    expect(passes({ ...item, groupId: null }, filters)).toBe(true)
+    expect(passes(item, filters)).toBe(true)
+    expect(passes({ ...item, groupId: 'g2' }, filters)).toBe(false)
+    expect(passes({ ...item, groupId: 'g2' }, { ...NO_FILTERS, groups: ['g1'] })).toBe(false)
+    expect(activeFilterCount(filters)).toBe(1)
+  })
+
+  it('sends notes and roi as true/false', () => {
     const query = params({ ...NO_FILTERS, notes: 'yes', roi: 'no' })
     expect(query.get('hasNotes')).toBe('true')
     expect(query.get('withRoi')).toBe('false')
@@ -106,5 +122,17 @@ describe('toggled', () => {
   it('adds or takes away one value', () => {
     expect(toggled(['a'], 'b')).toEqual(['a', 'b'])
     expect(toggled(['a', 'b'], 'a')).toEqual(['b'])
+  })
+})
+
+describe('matchesSearch', () => {
+  const item = { created: '2026-10-14T12:00:00Z', label: 'Tumour edge', notes: 'check mitoses', shape: 'polygon' }
+
+  it('matches label, notes or shape, ignoring case and spaces round it', () => {
+    expect(matchesSearch(item, '')).toBe(true)
+    expect(matchesSearch(item, '  TUMOUR ')).toBe(true)
+    expect(matchesSearch(item, 'mitoses')).toBe(true)
+    expect(matchesSearch(item, 'poly')).toBe(true)
+    expect(matchesSearch(item, 'stroma')).toBe(false)
   })
 })

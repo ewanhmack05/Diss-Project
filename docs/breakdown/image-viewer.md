@@ -76,14 +76,15 @@ src/
   App.tsx            the provider tree, then the shell: map, panels, docking, toolbar
   newId.ts           UUIDs that work over plain http too
   interfaces/        Annotation, CellCount, ImageAdjustment, ImageSource
-  context/           19 providers, one per concern (section 3)
+  context/           21 providers, one per concern (section 3)
   components/
     MapNode.tsx      the OpenLayers map and everything drawn on it (~1500 lines)
     open-layers/     map, view, tile layer, overview, scale bar, styles, GeoJSON
-    annotation/      Free Form tab (tool picker, name form) and Saved tab
+    annotation/      Free Form tab (tool picker, name form), Select tab (picking, groups) and Saved tab
     cell-count/      counter, saved counts, comparison/, shared/
     saved/           paging, search, filters - shared by both Saved lists
     realtime/        RealTime panel, invite gate, sketches, shared text, autosave
+    collections/     Collections panel - yours, sessions, shared ones, GeoJSON in and out
     users/           Users tab, presence state, join with a code
     presence/        who's here, top left
     rotation/ ruler/ adjustments/   one panel each, plus their maths
@@ -112,7 +113,7 @@ flowchart TD
   C --> G["InviteGate<br/>?invite= handled before the viewer opens"]
   G --> P["Presence<br/>who's online, always connected"]
   P --> R["Realtime<br/>the session's room, only in a session"]
-  R --> S["AnnotationStore · CellCountStore<br/>load, save, mirror others' ops"]
+  R --> S["AnnotationStore · AnnotationGroup · AnnotationSelect · CellCountStore<br/>load, save, mirror others' ops"]
   S --> D["CellCountDraw · Draw · Rotation · Ruler · Adjustments<br/>tool state"]
   D --> N["Toolbar · Navigation · Comparison · SharedCount"]
   N --> V["ViewerShell<br/>MapNode, panels, toolbar"]
@@ -125,7 +126,9 @@ flowchart TD
 | `Collection` | Your collections on this slide, which one is active, sessions, invites, roles |
 | `Presence` | Everyone with an account, who's online and what they're doing |
 | `Realtime` | The SignalR connection to the session's room - see [realtime-hub.md](realtime-hub.md#10-viewer-side) |
-| `AnnotationStore` | Every annotation in the collection, plus the OpenLayers source they're drawn from |
+| `AnnotationStore` | Every annotation in the collection, plus the OpenLayers source they're drawn from. Bulk updates and deletes, the waiting deletes undo can still stop, and the Saved list's filter the map draws by |
+| `AnnotationGroup` | The collection's groups, and which are hidden on the map while the Select tab's open |
+| `AnnotationSelect` | What's picked on the Select tab, and box or lasso. Your own, not shared |
 | `CellCountStore` | Counts loaded so far (not all - see [section 11](#11-the-saved-lists)) |
 | `Draw` | Selected shape tool, colour, thickness, line style, the shape waiting to be named, quick draw |
 | `CellCountDraw` | Whether you're counting, the tally, dot size, colour, ROI settings, the count waiting to be saved |
@@ -201,6 +204,42 @@ decides where everything is read from and saved to.
 - **Being taken out or the session ending** - someone in the room tells
   everyone to refetch, and if you're no longer in it (or it's ended) you get
   a popup and go back to your own collection.
+- **Shared personal collections.** The owner can turn on "Let others view"
+  for their own collection. It then comes back in everyone's
+  `GET /collections` on that slide with `myRole: viewer`, so it opens the
+  same way an ended session does - read-only. If they turn it off while
+  you're looking, the next list load sends you back to your own with a popup.
+
+### The Collections panel
+
+[CollectionsPanel.tsx](../../image-viewer/src/components/collections/CollectionsPanel.tsx)
+lists every collection you can see on the slide, each with how many
+annotations and cell counts it has and when something was last added. It has
+two tabs, kept in the panel itself so Present doesn't follow the host's:
+
+- **Mine** - your own. Rename it, turn sharing on or off, export, import.
+- **Shared** - two lists:
+  - **Sessions** - the ones you host or joined, moved here from RealTime.
+    Rejoin or view, export, import (if you can edit and it hasn't ended),
+    leave for good, or delete one you host once it's ended.
+  - **Shared with everyone** - other people's shared collections. View and
+    export only.
+
+The counts reload whenever an annotation or cell count is added or deleted.
+
+**Export** fetches `GET /collections/{id}/export` and writes a FeatureCollection
+([collectionGeoJson.ts](../../image-viewer/src/components/collections/collectionGeoJson.ts)):
+annotations as their line or polygon, cell counts as one MultiPoint of their
+dots with each dot's colour alongside, and the ROI box in the properties.
+Coordinates are slide pixels from the top left with y going down - what
+QuPath and most slide tools use - so y is flipped from the map's.
+
+**Import** reads a file, shows what it found and what it can't use, then
+sends everything to `POST /collections/{id}/import` in one go. Lines and
+polygons become annotations (each part of a Multi- one on its own), points
+become cell counts. Names and colours are taken from `label`/`name`/QuPath's
+`classification` and `colour`/`color`. A file where nothing has y above 0
+is taken to be in the map's own space already and isn't flipped.
 
 ### The invite gate
 
@@ -254,7 +293,8 @@ line's end, style functions) stay on canvas.
 | Layer | Renderer | Shows |
 | ----- | -------- | ----- |
 | Slide tiles | WebGL | The image. Brightness, contrast, gamma and colour gains run in its shader |
-| Saved annotations | WebGL | Every annotation in the collection |
+| Saved annotations | WebGL | Every annotation in the collection - minus hidden groups, and anything the open Saved list's search and filters leave out |
+| Selected annotations | Canvas | A teal halo round what's picked on the Select tab |
 | Arrowheads | Canvas | The heads of arrow annotations |
 | Viewed annotation | Canvas | A halo round the one picked with View on map |
 | Draw | Canvas | The shape being drawn or waiting to be named |
@@ -320,6 +360,40 @@ sequenceDiagram
   and everything autosaves 500ms after you stop. Colour changes show live on
   the map as you drag the picker.
 
+### The Select tab - many at once
+
+[SelectTab.tsx](../../image-viewer/src/components/annotation/Select/SelectTab.tsx)
+picks annotations on the map to change together. The map side is
+[useMapSelection.ts](../../image-viewer/src/components/annotation/Select/useMapSelection.ts),
+which MapNode calls; what's picked is in `AnnotationSelectContext`, your own
+and not shared.
+
+- **Picking.** Drag a box (OpenLayers' `DragBox`) or draw a lasso (a
+  freehand `Draw`) - everything *fully* inside it is picked
+  ([selection.ts](../../image-viewer/src/components/annotation/Select/selection.ts)).
+  Shift adds to what's picked. Clicking a shape puts it in or takes it out,
+  the smallest one under the click winning. Esc or clicking empty space
+  clears. Picked shapes get a teal halo on a canvas layer under the
+  annotations. Only while the tab's open and you're not counting cells.
+- **Recolour** and **group** go to `PUT /annotations/bulk` in one request,
+  with an update op per annotation for everyone else.
+- **Delete** asks first, then takes them off the map straight away with an
+  Undo toast. Nothing's deleted in annotation-store until the undo time
+  (8s) is up - undoing just puts them back, same ids and authors. Leaving
+  the page sends anything still waiting, with `keepalive`.
+- **Groups** (`AnnotationGroupContext`) - named sets of annotations in the
+  collection, one level. Make one from what's picked, move things between
+  them or out, rename (double-click), delete (the annotations stay), pick
+  everything in one, or hide one from the map - hiding is just for you, and
+  only lasts while the tab's open. Clicking a group's name opens its page
+  ([GroupPage.tsx](../../image-viewer/src/components/annotation/Select/GroupPage.tsx)):
+  rename it, notes (saved as you type), recolour everything in it, pick it
+  on the map, merge it into another group, delete its annotations (with
+  Undo), or delete the group and keep them. Viewers see the name and notes.
+  Viewers get the tab as **Groups**, to show and hide only. Group changes
+  go out as `annotationGroup` ops. The Saved list's filter has a **Group**
+  section too - any of the groups, and **No group** - sent as `group`.
+
 ## 8. Counting cells
 
 A cell count is a tally of clicks, one per cell. Its state is in
@@ -373,6 +447,7 @@ happen in the viewer.
 | **Image adjustments** | Brightness, contrast, gamma and red/green/blue gain. Sliders update WebGL style variables on the tile layer - no shader rebuild, so dragging is smooth. Settings can be saved as named presets in your personal collection. |
 | **Fullscreen** | The browser's Fullscreen API. |
 | **RealTime** | Session and Users tabs - see [section 12](#12-working-together). |
+| **Collections** | Yours, your sessions and other people's shared ones, GeoJSON export and import - see [section 5](#the-collections-panel). |
 
 Which tools show is set by `index.tsx`'s `tools` list.
 
@@ -406,6 +481,10 @@ flowchart LR
   dropped rather than sent to something that's gone.
 - **Updates send label, notes and colour together**, because
   annotation-store's `PUT` replaces all three.
+- **Bulk changes** from the Select tab go in one request
+  (`PUT /annotations/bulk`), with an op per annotation for everyone else. A
+  bulk delete is shown straight away but only sent once its undo time is up -
+  see [the Select tab](#the-select-tab---many-at-once).
 
 `newId()` uses `crypto.randomUUID()` where it exists and builds a v4 UUID
 from `getRandomValues` where it doesn't (plain http from another machine).
@@ -420,13 +499,27 @@ rather than loading everything. The shared code is in
 - **Search and filters run on the server**, across every row, not just the
   page. Typing waits 250ms after the last key before asking.
 - **Filters** - who saved it, shape, colour (palette colours or Custom),
-  has notes, has an ROI, date range. The Filter button shows how many are on.
+  group (or No group), has notes, has an ROI, date range. The Filter button
+  shows how many are on.
+- **The tab's count follows the list.** While the Saved tab is open its
+  label is the list's own count - so it follows the search and filters, and
+  says `Saved (0)` when they find nothing. On other tabs it's the whole
+  collection's.
+- **The map follows the list too.** While the annotations Saved tab is open,
+  the map only draws what its search and filters let through
+  (`mapFilter` in `AnnotationStoreContext`, checked with the same `passes`
+  and `matchesSearch`). Leaving the tab draws everything again.
 - **Live changes merge into the page** (`mergePage`) until the next fetch:
   an edit shows straight away, a delete drops out, and something new goes to
   the top of page 1 if it passes the filters (and there's no search, since
   whether that matches is the server's call).
 - **Refetch on `revision`.** The stores bump it each time a create or delete
   settles, and a burst of them turns into one refetch.
+- **Deletes come off the counts straight away.** Each fetch remembers the
+  revision it was made at. A bulk delete that hasn't been sent yet (or was
+  sent after that fetch) is taken off its count, if it would have matched
+  the search and filters, until a fetch arrives that already leaves it out -
+  so nothing's taken off twice.
 - **Page kept in range.** Deleting the last row on the last page moves you
   back a page rather than leaving you on an empty one.
 
@@ -456,7 +549,8 @@ Three providers deal with other people. The hub side is in
 [RealTimePanel.tsx](../../image-viewer/src/components/realtime/RealTimePanel.tsx)
 shows one of four things on its Session tab:
 
-- **Working alone** - start a session, rejoin one of yours, join with a code.
+- **Working alone** - start a session, or join with a code. Rejoining one
+  you're already in is in the Collections panel.
 - **Hosting** - the invite link and code, who can join as editor or viewer,
   how long it lasts, the people list with role changes and remove, end the
   session, and navigation controls.
@@ -528,7 +622,7 @@ all tested without a browser.
 
 ## 15. Tests
 
-26 test files, 331 tests, run with Vitest (`npm test`). They sit next to
+28 test files, 352 tests, run with Vitest (`npm test`). They sit next to
 the code they cover and test the plain `.ts` logic, not React components or
 a live map.
 
@@ -537,7 +631,9 @@ a live map.
 | open-layers | OpenLayers, Styles, GeoJSON | Zoom ladder, styles, GeoJSON round trips |
 | realtime | realtime, sharedFields, sketch, autosave | `applyOp`, caret moves, Yjs merges, sketch simplifying, what to autosave |
 | cell-count | CellCountDots, CellCountView, compare, sharedCount | Dot parsing, view extent, comparison matching, double counts |
-| saved | paging, filters, savedBy, savedDates, sheetPlacement, useSavedTotal | Page maths, `mergePage`, filter query strings, live filtering |
+| saved | paging, filters, savedBy, savedDates, sheetPlacement, useSavedTotal | Page maths, `mergePage` (pending deletes too), filter query strings, live filtering, search matching, the tab label |
+| annotation | selection | Fully inside a box or lasso, which shape a click is on |
+| collections | collectionGeoJson | Export and import, y flipping, QuPath-style files, groups, what's skipped |
 | toolbar | dock, focusOrder, panelPlacement | Docking, splitting, stacking, placing |
 | other | adjustments, rotation, ruler, popupPosition, presence, newId | Clamping, angles, distances, out-of-order presence |
 
@@ -579,6 +675,9 @@ build on every push that touches the viewer.
 | View on map | Picking a saved annotation or count to fly to and highlight |
 | Optimistic write | Showing a change before the server has confirmed it |
 | Revision | A counter the stores bump when a save settles, so the Saved list knows to refetch |
+| Shared collection | Someone's own collection they've let anyone signed in look at, read-only |
+| Group | A named set of annotations in a collection, with notes - made and managed on the Select tab |
+| Picked | Annotations selected on the Select tab, to change together |
 | OIDC / PKCE | The sign-in standard Keycloak speaks, and the extra check that makes it safe in a browser |
 | Present / Follow | Navigation modes where your view follows the host's |
 | Dock | Snapping a panel to an edge of the screen |

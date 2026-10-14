@@ -1,0 +1,282 @@
+/* The box while dragging on the Select tab - OpenLayers draws it as a div. */
+.select-dragbox {
+  border: 2px dashed var(--accent);
+  background: rgba(var(--accent-rgb), 0.12);
+}
+
+.select-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
+}
+
+.select-hint {
+  margin: 0;
+  font-size: 0.82em;
+  line-height: 1.45;
+  color: var(--chrome-text-secondary);
+}
+
+.select-segmented {
+  display: flex;
+  padding: 0.15em;
+  background: var(--white-06);
+  border-radius: 0.4em;
+}
+
+.select-segment {
+  flex: 1;
+  padding: 0.4em;
+  font-family: var(--sans);
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--chrome-text-secondary);
+  background: none;
+  border: none;
+  border-radius: 0.3125rem;
+  cursor: pointer;
+}
+
+.select-segment--active {
+  color: var(--white);
+  background: var(--accent-active);
+}
+
+.select-count-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.select-count {
+  flex: 1;
+  font-weight: 600;
+}
+
+.select-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45em;
+}
+
+.select-heading {
+  margin: 0;
+  font-size: 0.72em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--chrome-text-secondary);
+}
+
+.select-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.select-row > select,
+.select-row > input {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0.4em 0.45em;
+  font-family: var(--sans);
+  font-size: 0.85em;
+  color: var(--chrome-text);
+  background: var(--white-06);
+  border: 1px solid transparent;
+  border-radius: 0.3125rem;
+}
+
+.select-row > input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.select-row > select option {
+  color: var(--chrome-text);
+  background: var(--chrome-bg-solid);
+}
+
+.select-button {
+  flex-shrink: 0;
+  padding: 0.4em 0.7em;
+  font-family: var(--sans);
+  font-size: 0.82em;
+  font-weight: 600;
+  color: var(--chrome-text);
+  background: var(--white-08);
+  border: none;
+  border-radius: 0.3125rem;
+  cursor: pointer;
+  transition: color 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.select-button:hover:not(:disabled) {
+  color: var(--accent);
+}
+
+.select-button:disabled {
+  color: var(--disabled);
+  cursor: not-allowed;
+}
+
+.select-button--accent {
+  color: var(--accent);
+}
+
+.select-button--danger,
+.select-button--danger:hover:not(:disabled) {
+  color: #e87c7c;
+}
+
+.select-button--wide {
+  padding: 0.55em;
+  font-size: 0.9em;
+}
+
+/* Groups - each with how many are in it, and what can be done to it. */
+.select-groups {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.select-group {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  min-height: 2.1em;
+  border-bottom: 1px solid var(--white-06);
+}
+
+/* A button - opens the group's page. */
+.select-group-name {
+  flex: 1;
+  min-width: 0;
+  padding: 0.3em 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--sans);
+  font-size: 0.92em;
+  text-align: left;
+  color: var(--chrome-text);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.select-group-name:hover {
+  color: var(--accent);
+}
+
+.select-group-name--hidden {
+  color: var(--chrome-text-secondary);
+  text-decoration: line-through;
+}
+
+.select-group-count {
+  flex-shrink: 0;
+  font-size: 0.78em;
+  color: var(--chrome-text-secondary);
+}
+
+.select-group-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.25em 0.4em;
+  font-family: var(--sans);
+  font-size: 0.9em;
+  color: var(--chrome-text);
+  background: var(--white-06);
+  border: 1px solid var(--accent);
+  border-radius: 0.3125rem;
+}
+
+.select-icon-button {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 1.7em;
+  height: 1.7em;
+  padding: 0;
+  color: var(--chrome-text-secondary);
+  background: none;
+  border: none;
+  border-radius: 0.3125rem;
+  cursor: pointer;
+}
+
+.select-icon-button:hover {
+  color: var(--accent);
+  background: var(--white-06);
+}
+
+.select-icon-button--danger:hover {
+  color: #e87c7c;
+}
+
+/* A group's own page. */
+.select-back {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 0.35em;
+  padding: 0;
+  font-family: var(--sans);
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--chrome-text-secondary);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.select-back:hover {
+  color: var(--accent);
+}
+
+.select-page-title {
+  margin: 0;
+  font-size: 1.1em;
+  font-weight: 700;
+}
+
+.select-page-name,
+.select-notes {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.35em 0.45em;
+  font-family: var(--sans);
+  color: var(--chrome-text);
+  background: var(--white-06);
+  border: 1px solid transparent;
+  border-radius: 0.3125rem;
+}
+
+.select-page-name {
+  font-size: 1.05em;
+  font-weight: 700;
+  background: none;
+}
+
+.select-page-name:hover {
+  background: var(--white-06);
+}
+
+.select-notes {
+  font-size: 0.88em;
+  line-height: 1.4;
+  resize: vertical;
+}
+
+.select-page-name:focus,
+.select-notes:focus {
+  outline: none;
+  background: var(--white-06);
+  border-color: var(--accent);
+}

@@ -148,7 +148,8 @@ interface ViewportUpdate {
 
 type OpKind = 'create' | 'update' | 'delete'
 // collection is a nudge that someone's membership changed - see CollectionContext.
-type OpEntity = 'annotation' | 'cellCount' | 'collection'
+// annotationGroup is a group being made, renamed or deleted - see AnnotationGroupContext.
+type OpEntity = 'annotation' | 'cellCount' | 'collection' | 'annotationGroup'
 
 interface AnnotationOp {
   kind: OpKind
@@ -364,8 +365,8 @@ function sameView(a: ViewState, b: ViewState): boolean {
   )
 }
 
-// Panels that never follow the host - the RealTime panel is everyone's own.
-const UNSHARED_PANELS = ['realtime']
+// Panels that never follow the host - RealTime and Collections are everyone's own.
+const UNSHARED_PANELS = ['realtime', 'collections']
 
 // What changed between two lists of the host's open panels.
 function panelChanges(before: string[], after: string[]): { open: string[]; close: string[] } {

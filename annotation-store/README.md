@@ -47,14 +47,21 @@ There are two kinds of collection:
   through an invite link. Ending one makes it read-only and stops its links,
   but keeps it so people can look back at it.
 
+A personal collection can be **shared** by its owner. Anyone signed in then
+sees it in their list for that slide and can read everything in it, as a
+viewer, without being a member.
+
 | Endpoint | Who | What |
 | --- | --- | --- |
-| `GET /collections?slideId=` | anyone | Collections on the slide you're in - your own, then sessions still going, then ended ones - with your role and the members |
+| `GET /collections?slideId=` | anyone | Collections on the slide you're in - your own, then sessions still going, then ended ones, then other people's shared ones - with your role, the members, how many annotations and cell counts each has, and when one was last added |
 | `GET /collections/{id}` | members | Everything in it - annotations, cell counts, presets |
+| `GET /collections/{id}/export` | members, or anyone if shared | Its annotations and cell counts (dots and ROI included), oldest first - what the viewer's GeoJSON export reads |
 | `GET /collections/{id}/membership` | members | Your role, its kind and whether it's ended - what the realtime hub checks before letting you into a session's room |
 | `POST /collections/ensure` | anyone | Get or create your own for `{ slideId }` |
 | `POST /sessions` | anyone | Start a session on `{ slideId, collectionName? }`, hosted by you |
 | `PUT /collections/{id}` | owner | Rename |
+| `PUT /collections/{id}/sharing` | owner | Personal only - `{ shared }`. Lets anyone signed in view it, read-only |
+| `POST /collections/{id}/import` | editor, owner | `{ annotations, cellCounts }` from a GeoJSON import, saved together and stamped as you |
 | `DELETE /collections/{id}` | owner | Delete, with everything in it |
 | `POST /collections/{id}/end` | host | End a session |
 | `PUT /collections/{id}/members/{userId}` | host | Change someone's role - `{ displayName, role: "editor" \| "viewer" }` |
@@ -117,6 +124,8 @@ editor or owner.
   - `otherThan` - any colour but these, alongside `colour` - the viewer's
     Custom sends its palette here
   - `hasNotes` - `true` or `false`
+  - `group` - group ids, or `none` for ones not in a group, repeat for
+    more than one
   - `from` / `to` - when it was saved, `from` included and `to` not
 - `GET /annotations/total?collectionId=&search=` plus filters - how many
   there are, or how many match - for the page count
@@ -127,6 +136,28 @@ editor or owner.
   both are assigned server-side if omitted)
 - `PUT /annotations/{id}` - update `label`/`notes`/`colour`
 - `DELETE /annotations/{id}` - delete
+- `PUT /annotations/bulk` - many at once, from the viewer's Select tab:
+  `{ collectionId, ids, colour?, setGroup, groupId? }`. `colour` recolours
+  them all; `setGroup` moves them all into `groupId`, or out of any group
+  when it's null. Ids not in the collection are skipped - `{ count }` says
+  how many changed. Up to 20,000 ids
+- `POST /annotations/bulk-delete` - `{ collectionId, ids }`, same rules
+- `GET /annotationgroups?collectionId=` - the collection's groups, by name,
+  each with how many annotations are in it
+- `POST /annotationgroups` - `{ collectionId, name, annotationIds? }` - a new
+  group, with those annotations put straight in it
+- `PUT /annotationgroups/{id}` - `{ name?, notes? }` - either or both
+- `POST /annotationgroups/{id}/merge` - `{ intoId }` - moves everything into
+  that group and deletes this one, in one transaction. Notes are joined
+- `DELETE /annotationgroups/{id}` - delete it. Its annotations stay,
+  ungrouped
+
+A group (`Annotations/AnnotationGroup.cs`) is a named set of annotations in
+one collection, one level deep - an annotation's `GroupId` is the one it's
+in, if any, and always one in the same collection (a 400 otherwise). Groups
+go out in a GeoJSON export by name, with their notes, and an import puts
+annotations into the collection's group of that name, making it if there
+isn't one and adding the file's notes for it.
 
 - `GET /cellcounts?collectionId=&skip=&take=&search=` plus filters - same
   as annotations, but `withRoi` (`true`/`false`) instead of `shape` and
@@ -163,6 +194,7 @@ ties, so no row turns up on two pages.
 | `LineStyle`     | text          | `solid` / `dashed`                                                                                  |
 | `LineThickness` | int           |                                                                                                     |
 | `GeoJson`       | text          | the drawn feature, as written by `image-viewer`'s `featureToGeoJson`                                |
+| `GroupId`       | uuid, null    | the `AnnotationGroup` it's in, if any - always one in the same collection                           |
 | `Created`       | timestamptz   | server-assigned                                                                                     |
 
 `CellCounts/CellCount.cs` - a user-placed dot marker for manually counting
@@ -182,3 +214,14 @@ cells (e.g. mitotic figures) within a region:
 | `LocationX`      | double, null  | where the count was taken (slide pixel space), fixed at creation - null for a count with no recorded location |
 | `LocationY`      | double, null  | see `LocationX`                                                |
 | `Created`        | timestamptz   | server-assigned                                               |
+
+`Annotations/AnnotationGroup.cs` - a named set of annotations in one
+collection:
+
+| field          | type     | notes                                             |
+| -------------- | -------- | ------------------------------------------------- |
+| `Id`           | uuid, PK | server-assigned                                   |
+| `CollectionId` | uuid     | which collection it's in - deleting that deletes it |
+| `Name`         | text     | up to 64 characters                               |
+| `Notes`        | text     | up to 10,000 characters                           |
+| `Created`      | timestamptz | server-assigned                                |
