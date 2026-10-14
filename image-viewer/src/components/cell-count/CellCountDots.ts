@@ -1,6 +1,6 @@
 import type Feature from 'ol/Feature'
 import type Point from 'ol/geom/Point'
-import type { CellCountDot, CellCountColourCount, DotPlacer } from '../../interfaces/CellCount'
+import type { CellCount, CellCountDot, CellCountColourCount, PlacedByCount } from '../../interfaces/CellCount'
 
 const NO_COLOUR = 'var(--chrome-text-secondary)'
 
@@ -20,7 +20,10 @@ function dotsFromHistory(history: (Feature<Point> | null)[]): CellCountDot[] {
     })
 }
 
-function parseCellCountDots(json: string): CellCountDot[] {
+// Null (dots not loaded) reads as none - check cellCount.dots first where
+// that difference matters, e.g. before drawing them.
+function parseCellCountDots(json: string | null): CellCountDot[] {
+  if (json === null) return []
   try {
     const parsed = JSON.parse(json)
     return Array.isArray(parsed) ? parsed : []
@@ -61,8 +64,8 @@ function colourBreakdownBackground(breakdown: CellCountColourCount[]): string {
 
 // How many dots each person placed, in the order they first appear. Empty
 // for a count with nobody recorded (anything but a shared count).
-function placedByBreakdown(dots: CellCountDot[]): (DotPlacer & { count: number })[] {
-  const byUser = new Map<string, DotPlacer & { count: number }>()
+function placedByBreakdown(dots: CellCountDot[]): PlacedByCount[] {
+  const byUser = new Map<string, PlacedByCount>()
   for (const { placedBy } of dots) {
     if (!placedBy) continue
     const entry = byUser.get(placedBy.userId)
@@ -72,4 +75,19 @@ function placedByBreakdown(dots: CellCountDot[]): (DotPlacer & { count: number }
   return Array.from(byUser.values())
 }
 
-export { parseCellCountDots, colourBreakdownFromDots, colourBreakdownBackground, dotsFromHistory, placedByBreakdown }
+// A count's colour and placed-by counts, without parsing its dots when the
+// list has already sent them - annotation-store works them out on save.
+// From the dots otherwise: a count you've just saved, or one that arrived
+// live from someone else.
+function countSummary(cellCount: Pick<CellCount, 'dots' | 'colourCounts' | 'placedByCounts'>): {
+  colours: CellCountColourCount[]
+  people: PlacedByCount[]
+} {
+  if (cellCount.colourCounts && cellCount.placedByCounts) {
+    return { colours: cellCount.colourCounts, people: cellCount.placedByCounts }
+  }
+  const dots = parseCellCountDots(cellCount.dots)
+  return { colours: colourBreakdownFromDots(dots), people: placedByBreakdown(dots) }
+}
+
+export { parseCellCountDots, colourBreakdownFromDots, colourBreakdownBackground, dotsFromHistory, placedByBreakdown, countSummary }

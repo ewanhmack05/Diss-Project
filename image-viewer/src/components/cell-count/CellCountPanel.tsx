@@ -3,6 +3,7 @@ import { useCellCountDrawContext } from '../../context/CellCountDrawContext'
 import { useCollectionContext } from '../../context/CollectionContext'
 import { useToolbarContext } from '../../context/ToolbarContext'
 import PresenterNote from '../realtime/PresenterNote'
+import { savedTabLabel } from '../saved/useSavedTotal'
 import CellCounter from './CellCounter/CellCounter'
 import SavedCountList from './Saved/SavedCountList'
 import './CellCountPanel.css'
@@ -10,7 +11,7 @@ import './CellCountPanel.css'
 type CellCountTab = 'new' | 'saved'
 
 function CellCountPanel() {
-  const { cellCounts, setSelectedCellCountId, setViewedCellCountId } = useCellCountStoreContext()
+  const { total, setSelectedCellCountId, setViewedCellCountId } = useCellCountStoreContext()
   const { canEdit } = useCollectionContext()
   // In the toolbar's context so Present can follow the host's tab.
   const { panelTabs, setPanelTab } = useToolbarContext()
@@ -43,7 +44,7 @@ function CellCountPanel() {
           disabled={!!pending}
           onClick={() => setTab('saved')}
         >
-          Saved{cellCounts.length > 0 ? ` (${cellCounts.length})` : ''}
+          {savedTabLabel(total)}
         </button>
       </div>
 

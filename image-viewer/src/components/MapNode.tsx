@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Collection, Feature, type Map, type MapBrowserEvent } from 'ol'
 import type Geometry from 'ol/geom/Geometry'
 import type LineString from 'ol/geom/LineString'
@@ -26,6 +26,7 @@ import {
   annotationStyle,
   annotationFlatStyle,
   annotationArrowHeadStyle,
+  viewedAnnotationStyle,
   setAnnotationRenderProperties,
   sketchStyle,
   cellCountDotFlatStyle,
@@ -121,7 +122,7 @@ function sharedDotOf(feature: Feature<Point>): Omit<SharedDot, 'connectionId'> {
 
 function MapNode() {
   const { source } = useImageViewerContext()
-  const { annotations, selectedAnnotationId, annotationsSource, addAnnotation } =
+  const { annotations, selectedAnnotationId, viewedAnnotationId, setViewedAnnotationId, annotationsSource, addAnnotation } =
     useAnnotationStoreContext()
   const {
     activeTool,
@@ -154,7 +155,7 @@ function MapNode() {
     redoSignal,
     cancelling,
   } = useCellCountDrawContext()
-  const { cellCounts, viewedCellCountId } = useCellCountStoreContext()
+  const { cellCounts, viewedCellCountId, setViewedCellCountId } = useCellCountStoreContext()
   const { activeTools } = useToolbarContext()
   const { me, others, sendViewport, sendSketch, clearSketch, addSharedDot, removeSharedDot } = useRealtimeContext()
   const { following, leader, mode: navigationMode, breakAway, lookAt } = useNavigationContext()
@@ -206,6 +207,8 @@ function MapNode() {
   // Same as viewedDotsSourceRef, but for a saved count's ROI box - keeps
   // it separate from any live counting session's own box.
   const viewedRoiSourceRef = useRef(new VectorSource())
+  // A copy of the annotation picked with View on map, for its halo.
+  const viewedAnnotationSourceRef = useRef(new VectorSource())
   // Everyone's dots once a comparison is revealed, plus rings round the
   // cells not everyone found.
   const comparisonSourceRef = useRef(new VectorSource())
@@ -234,6 +237,7 @@ function MapNode() {
   const rulerSentRef = useRef(false)
   const annotationsLayerRef = useRef<WebGLVectorLayer<VectorSource> | null>(null)
   const annotationArrowsLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
+  const viewedAnnotationLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const drawLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const cellCountDotsLayerRef = useRef<WebGLVectorLayer<VectorSource> | null>(null)
   const roiLayerRef = useRef<WebGLVectorLayer<VectorSource> | null>(null)
@@ -297,6 +301,13 @@ function MapNode() {
         const annotationArrowsLayer = new VectorLayer({
           source: annotationsSource,
           style: annotationArrowHeadStyle,
+          visible: annotationsVisible,
+        })
+        // Canvas, and under the annotations layer so the halo sits behind
+        // the shape. Only ever one feature.
+        const viewedAnnotationLayer = new VectorLayer({
+          source: viewedAnnotationSourceRef.current,
+          style: viewedAnnotationStyle,
           visible: annotationsVisible,
         })
         const drawLayer = new VectorLayer({
@@ -374,6 +385,7 @@ function MapNode() {
         })
         annotationsLayerRef.current = annotationsLayer
         annotationArrowsLayerRef.current = annotationArrowsLayer
+        viewedAnnotationLayerRef.current = viewedAnnotationLayer
         drawLayerRef.current = drawLayer
         cellCountDotsLayerRef.current = cellCountDotsLayer
         roiLayerRef.current = roiLayer
@@ -386,7 +398,7 @@ function MapNode() {
           { baseUrl: `${slideUrl}/`, tileSize: metadata.tileSize },
           metadata.objectivePower,
           metadata.mppX,
-          [annotationsLayer, annotationArrowsLayer, drawLayer, cellCountDotsLayer, roiLayer, viewedDotsLayer, viewedRoiLayer, comparisonLayer, doubleCountLayer, sharedDotsLayer, rulerLayer, remoteCountsLayer, remoteSketchesLayer, remoteRulersLayer, remoteViewportsLayer]
+          [viewedAnnotationLayer, annotationsLayer, annotationArrowsLayer, drawLayer, cellCountDotsLayer, roiLayer, viewedDotsLayer, viewedRoiLayer, comparisonLayer, doubleCountLayer, sharedDotsLayer, rulerLayer, remoteCountsLayer, remoteSketchesLayer, remoteRulersLayer, remoteViewportsLayer]
         )
         overviewMap.addLayer(
           new VectorLayer({
@@ -396,6 +408,24 @@ function MapNode() {
         )
         mapRef.current = map
         baseLayerRef.current = baseLayer
+        // For scripts/map_bench.js, which turns layers off one at a time to
+        // see what each costs. Dev server only.
+        if (import.meta.env.DEV) {
+          Object.assign(window, {
+            viewerMap: {
+              map,
+              layers: {
+                tiles: baseLayer,
+                annotations: annotationsLayer,
+                arrowheads: annotationArrowsLayer,
+                dots: cellCountDotsLayer,
+                roi: roiLayer,
+                viewedDots: viewedDotsLayer,
+                viewedRoi: viewedRoiLayer,
+              },
+            },
+          })
+        }
         setMapVersion((version) => version + 1)
       })
       .catch(() => {
@@ -589,9 +619,18 @@ function MapNode() {
   useEffect(() => {
     annotationsLayerRef.current?.setVisible(annotationsVisible)
     annotationArrowsLayerRef.current?.setVisible(annotationsVisible)
+    viewedAnnotationLayerRef.current?.setVisible(annotationsVisible)
     drawLayerRef.current?.setVisible(annotationsVisible)
     remoteSketchesLayerRef.current?.setVisible(annotationsVisible)
   }, [annotationsVisible])
+
+  // Closing the Annotations panel, however it's closed, drops what was
+  // picked with View on map - opening it again doesn't bring the halo back.
+  // Off the panel being open rather than it unmounting, since docking it
+  // somewhere else remounts it.
+  useEffect(() => {
+    if (!annotationsVisible) setViewedAnnotationId(null)
+  }, [annotationsVisible, setViewedAnnotationId])
 
   // Same idea as the annotations layer above, for the cell-count panel.
   // Your own dots hide behind comparison results or a shared count while
@@ -605,6 +644,12 @@ function MapNode() {
     viewedDotsLayerRef.current?.setVisible(cellCountVisible)
     viewedRoiLayerRef.current?.setVisible(cellCountVisible)
   }, [cellCountVisible, comparisonResults, sharedCounting])
+
+  // Same as annotations: closing the Cell Count panel takes the viewed count
+  // off the map for good, rather than it coming back on reopening.
+  useEffect(() => {
+    if (!cellCountVisible) setViewedCellCountId(null)
+  }, [cellCountVisible, setViewedCellCountId])
 
   // Same idea again, for the ruler - and since a measurement is a one-off
   // scratch reading rather than something saved, closing the tool clears it
@@ -787,25 +832,47 @@ function MapNode() {
     })
   }, [adjustmentValues, mapVersion])
 
-  // Bring a saved annotation into view when it's selected for editing -
-  // reads the already-built feature straight off the annotations source
-  // rather than re-parsing geoJson, since the sync effect below keeps it
-  // current with the store.
+  // Bring a saved annotation into view when it's selected for editing or
+  // picked with View on map - reads the already-built feature straight off
+  // the annotations source rather than re-parsing geoJson, since the sync
+  // effect below keeps it current with the store.
+  const flyToAnnotation = useCallback(
+    (id: string) => {
+      const map = mapRef.current
+      const extent = annotationsSource.getFeatureById(id)?.getGeometry()?.getExtent()
+      if (!map || !extent) return
+      map.getView().fit(extent, {
+        size: map.getSize(),
+        padding: [80, 80, 80, 80],
+        minResolution: 1,
+        duration: 400,
+      })
+    },
+    [annotationsSource]
+  )
+
   useEffect(() => {
-    const map = mapRef.current
-    if (!map || !selectedAnnotationId) return
+    if (selectedAnnotationId) flyToAnnotation(selectedAnnotationId)
+  }, [selectedAnnotationId, flyToAnnotation])
 
-    const feature = annotationsSource.getFeatureById(selectedAnnotationId)
-    const extent = feature?.getGeometry()?.getExtent()
-    if (!extent) return
+  // Only when the pick changes - an edit to its colour or label shouldn't
+  // pull the map back to it.
+  useEffect(() => {
+    if (viewedAnnotationId) flyToAnnotation(viewedAnnotationId)
+  }, [viewedAnnotationId, flyToAnnotation, mapVersion])
 
-    map.getView().fit(extent, {
-      size: map.getSize(),
-      padding: [80, 80, 80, 80],
-      minResolution: 1,
-      duration: 400,
-    })
-  }, [selectedAnnotationId, annotationsSource])
+  // The halo follows the annotation's current shape and line thickness.
+  useEffect(() => {
+    const source = viewedAnnotationSourceRef.current
+    source.clear()
+    if (!viewedAnnotationId) return
+    const feature = annotationsSource.getFeatureById(viewedAnnotationId)
+    if (!feature) return
+    // clone() leaves the id behind.
+    const halo = feature.clone()
+    halo.setId(viewedAnnotationId)
+    source.addFeature(halo)
+  }, [viewedAnnotationId, annotations, annotationsSource, mapVersion])
 
   // Once a pending (just-drawn, unsaved) feature is cleared - by saving or
   // discarding - clear it from the scratch draw source too.
@@ -1241,7 +1308,10 @@ function MapNode() {
     if (!map) return
 
     const cellCountToView = viewedCellCountId ? cellCounts.find((c) => c.id === viewedCellCountId) : undefined
-    if (!cellCountToView) {
+    // Not there yet, or there without its dots - the store is fetching them
+    // (see CellCountStoreContext's ensureCellCountDots), and this runs again
+    // when they land.
+    if (!cellCountToView || cellCountToView.dots === null) {
       viewedDotsSourceRef.current.clear()
       viewedRoiSourceRef.current.clear()
       return

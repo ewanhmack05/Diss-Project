@@ -1,0 +1,342 @@
+/* The search box and the Filter button side by side, above a Saved list. */
+.saved-search-row {
+  flex-shrink: 0;
+  display: flex;
+  gap: 0.4em;
+  margin-bottom: 0.5em;
+}
+
+.saved-search-row input[type='search'] {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.saved-filter-toggle {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  padding: 0 0.7em;
+  font-family: var(--sans);
+  font-size: 0.9em;
+  color: var(--chrome-text);
+  background: var(--white-06);
+  border: 1px solid transparent;
+  border-radius: 0.3125rem;
+  cursor: pointer;
+}
+
+.saved-filter-toggle:hover {
+  background: var(--white-10);
+}
+
+.saved-filter-toggle:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.saved-filter-toggle--active {
+  border-color: var(--accent);
+}
+
+.saved-filter-toggle[aria-expanded='true'] {
+  background: rgba(var(--accent-rgb), 0.15);
+}
+
+.saved-filter-badge {
+  min-width: 1.4em;
+  padding: 0 0.3em;
+  box-sizing: border-box;
+  font-size: 0.8em;
+  font-weight: 600;
+  line-height: 1.4em;
+  text-align: center;
+  color: var(--chrome-bg-solid);
+  background: var(--accent);
+  border-radius: 0.7em;
+}
+
+/* Portaled to body and placed by sheetPlacement - against the panel's side,
+   as tall as the panel, or under the Filter button when the panel's docked
+   across the top or bottom. Its text size comes from the panel. */
+.saved-filter-popup {
+  position: fixed;
+  z-index: 50;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--sans);
+  color: var(--chrome-text);
+  background: var(--chrome-bg-solid);
+  border: 1px solid var(--white-10);
+  border-radius: 0.5rem;
+  box-shadow: 0 0.5em 1.5em var(--black-35);
+}
+
+/* Joined to the panel on the side they meet. */
+.saved-filter-popup--right {
+  border-left-color: var(--white-06);
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+
+.saved-filter-popup--left {
+  border-right-color: var(--white-06);
+  border-radius: 0.5rem 0 0 0.5rem;
+}
+
+.saved-filter-popup-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55em 0.6em 0.2em;
+  font-size: 0.95em;
+  font-weight: 600;
+}
+
+.saved-filter-popup-close {
+  display: inline-flex;
+  padding: 0.2em;
+  color: var(--chrome-text-secondary);
+  background: none;
+  border: none;
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+
+.saved-filter-popup-close:hover {
+  color: var(--chrome-text);
+  background: var(--white-06);
+}
+
+.saved-filter-popup-close:focus-visible {
+  outline: 1px solid var(--accent);
+}
+
+.saved-filter-popup-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.6em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+}
+
+.saved-filter-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+}
+
+.saved-filter-section-title {
+  margin: 0;
+  font-size: 0.7em;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--chrome-text-secondary);
+}
+
+.saved-filter-empty {
+  margin: 0;
+  font-size: 0.85em;
+  color: var(--chrome-text-secondary);
+}
+
+.saved-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25em;
+}
+
+.saved-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3em;
+  padding: 0.2em 0.5em;
+  font-family: var(--sans);
+  font-size: 0.85em;
+  color: var(--chrome-text);
+  background: var(--white-06);
+  border: 1px solid transparent;
+  border-radius: 0.4em;
+  cursor: pointer;
+}
+
+.saved-filter-chip:hover {
+  background: var(--white-10);
+}
+
+.saved-filter-chip:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.saved-filter-chip--on {
+  color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.15);
+  border-color: var(--accent);
+}
+
+.saved-filter-chip--on:hover {
+  background: rgba(var(--accent-rgb), 0.22);
+}
+
+.saved-filter-count {
+  font-size: 0.85em;
+  color: var(--chrome-text-secondary);
+}
+
+/* Icon-only, one row of six - the name is in the tooltip. */
+.saved-filter-shapes {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 0.25em;
+}
+
+.saved-filter-chip--icon {
+  padding: 0.3em 0;
+  border-radius: 0.3125rem;
+  --shape-glyph-size: 1.2em;
+}
+
+/* The palette in one row, then Custom. */
+.saved-filter-swatches {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 0.3em;
+  padding: 0.15em;
+}
+
+.saved-filter-swatch {
+  aspect-ratio: 1;
+  width: 100%;
+  max-width: 1.5em;
+  padding: 0;
+  border: 1px solid var(--white-22);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.saved-filter-swatch--unused {
+  opacity: 0.35;
+}
+
+.saved-filter-swatch--custom {
+  background: conic-gradient(#fb0909, #f9e006, #168304, #06eaf9, #0913fb, #fb09fb, #fb0909);
+}
+
+.saved-filter-swatch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.saved-filter-swatch--on {
+  opacity: 1;
+  box-shadow: 0 0 0 2px var(--chrome-bg-solid), 0 0 0 3.5px var(--accent);
+}
+
+/* Any / With / Without joined into one control. */
+.saved-filter-either {
+  display: flex;
+  padding: 0.15em;
+  background: var(--white-06);
+  border-radius: 0.3125rem;
+}
+
+.saved-filter-either-option {
+  flex: 1;
+  padding: 0.25em 0;
+  font-family: var(--sans);
+  font-size: 0.85em;
+  color: var(--chrome-text-secondary);
+  background: none;
+  border: none;
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+
+.saved-filter-either-option:hover {
+  color: var(--chrome-text);
+}
+
+.saved-filter-either-option:focus-visible {
+  outline: 1px solid var(--accent);
+}
+
+.saved-filter-either-option--on {
+  color: var(--chrome-text);
+  background: var(--white-10);
+}
+
+/* From and To on their own lines - side by side, two date inputs don't fit
+   in a floating panel's width. */
+.saved-filter-dates {
+  display: grid;
+  gap: 0.25em;
+}
+
+.saved-filter-dates label {
+  display: grid;
+  grid-template-columns: 2.6em 1fr;
+  align-items: center;
+  font-size: 0.85em;
+  color: var(--chrome-text-secondary);
+}
+
+.saved-filter-dates input {
+  min-width: 0;
+  padding: 0.25em 0.35em;
+  font-family: var(--sans);
+  font-size: 1em;
+  color: var(--chrome-text);
+  color-scheme: dark;
+  background: var(--white-06);
+  border: 1px solid transparent;
+  border-radius: 0.3125rem;
+}
+
+.saved-filter-dates input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.saved-filter-popup-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5em;
+  padding: 0.45em 0.6em;
+  border-top: 1px solid var(--white-08);
+}
+
+.saved-filter-footer-button {
+  padding: 0.3em 0.8em;
+  font-family: var(--sans);
+  font-size: 0.85em;
+  color: var(--chrome-text);
+  background: var(--white-06);
+  border: none;
+  border-radius: 0.3125rem;
+  cursor: pointer;
+}
+
+.saved-filter-footer-button:hover:not(:disabled) {
+  background: var(--white-10);
+}
+
+.saved-filter-footer-button:disabled {
+  color: var(--disabled);
+  cursor: default;
+}
+
+.saved-filter-footer-button--primary {
+  color: var(--chrome-bg-solid);
+  background: var(--accent);
+}
+
+.saved-filter-footer-button--primary:hover:not(:disabled) {
+  background: var(--accent-active);
+}

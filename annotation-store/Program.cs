@@ -6,7 +6,9 @@ using AnnotationStore.Auth;
 using AnnotationStore.CellCounts;
 using AnnotationStore.Collections;
 using AnnotationStore.ImageAdjustments;
+using AnnotationStore.Paging;
 using DotNetEnv;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
@@ -95,14 +97,46 @@ app.MapCollectionEndpoints();
 
 // Annotation endpoints
 
-// Newest first. Sorted after loading rather than in SQL - the tests run on
-// SQLite, which can't order by DateTimeOffset, and one collection's list is small.
+// Newest first. Without skip/take/search/filters it's every annotation in
+// the collection - what the map loads. The Saved list asks for a page at a
+// time (see Paging/Paging.cs), with /total giving the count for the same
+// search and filters, and /facets the people and colours to filter by.
 // Anyone in the collection can read. Adding, changing and deleting need
 // editor or owner - see Collections/CollectionAccess.cs.
-app.MapGet("/annotations", async (Guid collectionId, ClaimsPrincipal user, AnnotationDbContext db) =>
+app.MapGet("/annotations", async (Guid collectionId, int? skip, int? take, string? search, [AsParameters] SavedFilter filter, ClaimsPrincipal user, AnnotationDbContext db) =>
+    SavedPaging.Invalid(skip, take)
+    ?? await db.RequireAsync(collectionId, user, CollectionRole.Viewer)
+    ?? Results.Ok(await db.Annotations
+        .Where(a => a.CollectionId == collectionId)
+        .Matching(search)
+        .Filtered(filter)
+        .NewestFirst()
+        .Page(skip, take)
+        .ToListAsync()));
+
+app.MapGet("/annotations/total", async (Guid collectionId, string? search, [AsParameters] SavedFilter filter, ClaimsPrincipal user, AnnotationDbContext db) =>
     await db.RequireAsync(collectionId, user, CollectionRole.Viewer)
-    ?? Results.Ok((await db.Annotations.Where(a => a.CollectionId == collectionId).ToListAsync())
-        .OrderByDescending(a => a.Created)));
+    ?? Results.Ok(await db.Annotations
+        .Where(a => a.CollectionId == collectionId)
+        .Matching(search)
+        .Filtered(filter)
+        .CountAsync()));
+
+app.MapGet("/annotations/facets", async (Guid collectionId, ClaimsPrincipal user, AnnotationDbContext db) =>
+{
+    if (await db.RequireAsync(collectionId, user, CollectionRole.Viewer) is { } denied) return denied;
+    var inCollection = db.Annotations.Where(a => a.CollectionId == collectionId);
+    var authors = await inCollection
+        .Where(a => a.CreatedById != "")
+        .GroupBy(a => new { a.CreatedById, a.CreatedByName })
+        .Select(g => new SavedAuthor(g.Key.CreatedById, g.Key.CreatedByName, g.Count()))
+        .ToListAsync();
+    var colours = await inCollection
+        .GroupBy(a => a.Colour)
+        .Select(g => new SavedColour(g.Key, g.Count()))
+        .ToListAsync();
+    return Results.Ok(new SavedFacets(SavedPaging.Authors(authors), SavedPaging.Colours(colours)));
+});
 
 app.MapPost("/annotations", async (Annotation annotation, ClaimsPrincipal user, AnnotationDbContext db) =>
 {
@@ -145,16 +179,98 @@ app.MapDelete("/annotations/{id:guid}", async (Guid id, ClaimsPrincipal user, An
 
 // Cell count endpoints
 
-// Newest first, same as annotations.
-app.MapGet("/cellcounts", async (Guid collectionId, ClaimsPrincipal user, AnnotationDbContext db) =>
-    await db.RequireAsync(collectionId, user, CollectionRole.Viewer)
-    ?? Results.Ok((await db.CellCounts
-        .Where(c => c.CollectionId == collectionId)
-        .Include(c => c.RegionOfInterest)
-        .ToListAsync())
-        .OrderByDescending(c => c.Created)));
+// Newest first, paged, searched and filtered the same way as annotations. Without
+// the dots - each list item has their colour and placed-by counts instead
+// (CellCounts/CellCountSummary.cs), and GET /cellcounts/{id} has the dots
+// for the one the viewer actually draws.
+app.MapGet("/cellcounts", async (Guid collectionId, int? skip, int? take, string? search, [AsParameters] SavedFilter filter, ClaimsPrincipal user, AnnotationDbContext db) =>
+{
+    if (SavedPaging.Invalid(skip, take) is { } invalid) return invalid;
+    if (await db.RequireAsync(collectionId, user, CollectionRole.Viewer) is { } denied) return denied;
 
-app.MapPost("/cellcounts", async (CellCount cellCount, ClaimsPrincipal user, AnnotationDbContext db) =>
+    // Every column but Dots, so the database never reads them for a list.
+    var rows = await db.CellCounts
+        .Where(c => c.CollectionId == collectionId)
+        .Matching(search)
+        .Filtered(filter)
+        .NewestFirst()
+        .Page(skip, take)
+        .Select(c => new
+        {
+            c.Id,
+            c.CollectionId,
+            c.SlideId,
+            c.Label,
+            c.Notes,
+            c.WithAnnotation,
+            c.WithRoi,
+            c.Count,
+            c.DotSize,
+            c.LocationX,
+            c.LocationY,
+            c.Created,
+            c.CreatedById,
+            c.CreatedByName,
+            c.RegionOfInterest,
+            c.ColourCountsJson,
+            c.PlacedByCountsJson,
+        })
+        .ToListAsync();
+
+    // Counts saved before the summary existed get it worked out once, the
+    // first time they're listed, and kept.
+    var unsummarised = rows.Where(r => r.ColourCountsJson is null || r.PlacedByCountsJson is null).Select(r => r.Id).ToList();
+    var filledIn = new Dictionary<Guid, (string Colours, string PlacedBy)>();
+    if (unsummarised.Count > 0)
+    {
+        foreach (var cellCount in await db.CellCounts.Where(c => unsummarised.Contains(c.Id)).ToListAsync())
+        {
+            CellCountSummary.Stamp(cellCount);
+            filledIn[cellCount.Id] = (cellCount.ColourCountsJson!, cellCount.PlacedByCountsJson!);
+        }
+        await db.SaveChangesAsync();
+    }
+
+    return Results.Ok(rows.Select(r =>
+    {
+        var (colours, placedBy) = filledIn.TryGetValue(r.Id, out var stamped) ? stamped : (r.ColourCountsJson, r.PlacedByCountsJson);
+        return new CellCountListItem(
+            r.Id, r.CollectionId, r.SlideId, r.Label, r.Notes, r.WithAnnotation, r.WithRoi, r.Count, r.DotSize,
+            r.LocationX, r.LocationY, r.Created, r.CreatedById, r.CreatedByName, r.RegionOfInterest,
+            CellCountSummary.Read<ColourCount>(colours), CellCountSummary.Read<PlacedByCount>(placedBy));
+    }));
+});
+
+app.MapGet("/cellcounts/total", async (Guid collectionId, string? search, [AsParameters] SavedFilter filter, ClaimsPrincipal user, AnnotationDbContext db) =>
+    await db.RequireAsync(collectionId, user, CollectionRole.Viewer)
+    ?? Results.Ok(await db.CellCounts
+        .Where(c => c.CollectionId == collectionId)
+        .Matching(search)
+        .Filtered(filter)
+        .CountAsync()));
+
+app.MapGet("/cellcounts/facets", async (Guid collectionId, ClaimsPrincipal user, AnnotationDbContext db) =>
+    await db.RequireAsync(collectionId, user, CollectionRole.Viewer)
+    ?? Results.Ok(new SavedFacets(
+        SavedPaging.Authors(await db.CellCounts
+            .Where(c => c.CollectionId == collectionId && c.CreatedById != "")
+            .GroupBy(c => new { c.CreatedById, c.CreatedByName })
+            .Select(g => new SavedAuthor(g.Key.CreatedById, g.Key.CreatedByName, g.Count()))
+            .ToListAsync()),
+        [])));
+
+// One count on its own - for when the viewer needs a count that isn't on
+// the page it has loaded, e.g. the one a session's host is editing.
+app.MapGet("/cellcounts/{id:guid}", async (Guid id, ClaimsPrincipal user, AnnotationDbContext db) =>
+{
+    var cellCount = await db.CellCounts.Include(c => c.RegionOfInterest).FirstOrDefaultAsync(c => c.Id == id);
+    if (cellCount is null) return Results.NotFound();
+    return await db.RequireAsync(cellCount.CollectionId, user, CollectionRole.Viewer) ?? Results.Ok(cellCount);
+});
+
+// Every dot goes in the one request, at about 60 bytes a dot, so the 30 MB
+// default only took counts up to ~495k. This takes a million with room spare.
+app.MapPost("/cellcounts", [RequestSizeLimit(CellCountLimits.MaxRequestBytes)] async (CellCount cellCount, ClaimsPrincipal user, AnnotationDbContext db) =>
 {
     if (await db.RequireAsync(cellCount.CollectionId, user, CollectionRole.Editor) is { } denied) return denied;
     var collection = await db.Collections.FirstAsync(c => c.CollectionId == cellCount.CollectionId);
@@ -162,6 +278,7 @@ app.MapPost("/cellcounts", async (CellCount cellCount, ClaimsPrincipal user, Ann
     if (cellCount.Id == Guid.Empty) cellCount.Id = Guid.NewGuid();
     cellCount.SlideId = collection.SlideId;
     cellCount.Created = DateTimeOffset.UtcNow;
+    CellCountSummary.Stamp(cellCount);
     cellCount.CreatedById = user.UserId();
     cellCount.CreatedByName = user.DisplayName();
     if (cellCount.RegionOfInterest is not null)

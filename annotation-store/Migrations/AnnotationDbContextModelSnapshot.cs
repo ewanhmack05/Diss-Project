@@ -91,6 +91,9 @@ namespace AnnotationStore.Migrations
                     b.Property<Guid>("CollectionId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ColourCountsJson")
+                        .HasColumnType("text");
+
                     b.Property<int>("Count")
                         .HasColumnType("integer");
 
@@ -124,6 +127,9 @@ namespace AnnotationStore.Migrations
 
                     b.Property<string>("Notes")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("PlacedByCountsJson")
                         .HasColumnType("text");
 
                     b.Property<string>("SlideId")

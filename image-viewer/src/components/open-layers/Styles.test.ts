@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import Feature from 'ol/Feature'
 import { fromExtent } from 'ol/geom/Polygon'
-import { arrowHeadRadius, dashPattern, OVERVIEW_LABEL_MIN_PX, remoteViewportOverviewStyle } from './Styles'
+import { arrowHeadRadius, dashPattern, OVERVIEW_LABEL_MIN_PX, remoteViewportOverviewStyle, viewedAnnotationStyle } from './Styles'
 
 // segmentLength here is already in screen pixels at the current zoom (see
 // Styles.ts's arrowHeadStyle) - not raw map units.
@@ -74,5 +74,30 @@ describe('remoteViewportOverviewStyle', () => {
   it('stays an outline when expanded but there is no name to show', () => {
     const unnamed = new Feature({ geometry: fromExtent([0, -100, 200, 0]), colour: '#4c8bf5' })
     expect(remoteViewportOverviewStyle(unnamed, 384)).toHaveLength(1)
+  })
+})
+
+describe('viewedAnnotationStyle', () => {
+  const widths = (lineThickness?: number) => {
+    const feature = new Feature(fromExtent([0, 0, 10, 10]))
+    if (lineThickness !== undefined) feature.set('lineThickness', lineThickness)
+    return viewedAnnotationStyle(feature).map((style) => style.getStroke()?.getWidth())
+  }
+
+  it('is a dark edge under a light band, both wider than the line', () => {
+    expect(widths(2)).toEqual([16, 10])
+  })
+
+  it('grows with the line, so a thick line still has a halo round it', () => {
+    expect(widths(6)).toEqual([20, 14])
+  })
+
+  it('assumes the default 2px line when the feature has none', () => {
+    expect(widths()).toEqual([16, 10])
+  })
+
+  it('has no fill, so the shape and the slide inside it show through', () => {
+    const feature = new Feature(fromExtent([0, 0, 10, 10]))
+    expect(viewedAnnotationStyle(feature).every((style) => style.getFill() === null)).toBe(true)
   })
 })

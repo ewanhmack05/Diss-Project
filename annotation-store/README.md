@@ -102,18 +102,51 @@ by default for Postgres' `postgres` superuser) as well as the schema.
 
 ## API
 
-- `GET /annotations?slideId=000` - all annotations for a slide
+Everything is per collection - reading needs you in it, writing needs
+editor or owner.
+
+- `GET /annotations?collectionId=` - every annotation in the collection,
+  newest first. What the map loads
+- `GET /annotations?collectionId=&skip=&take=&search=` plus filters - one
+  page of them, for the viewer's Saved list. All optional; `take` is 1-500.
+  `search` matches label, notes or shape, ignoring case. The filters (see
+  `SavedFilter` in `Paging/Paging.cs`):
+  - `createdBy` - Keycloak user ids, repeat for more than one
+  - `shape` - `rectangle`, `line`..., repeat for more than one
+  - `colour` - hex, ignoring case, repeat for more than one
+  - `otherThan` - any colour but these, alongside `colour` - the viewer's
+    Custom sends its palette here
+  - `hasNotes` - `true` or `false`
+  - `from` / `to` - when it was saved, `from` included and `to` not
+- `GET /annotations/total?collectionId=&search=` plus filters - how many
+  there are, or how many match - for the page count
+- `GET /annotations/facets?collectionId=` - what there is to filter by:
+  `authors` (`{ id, name, count }` by name - rows from before sign-in aren't
+  included) and `colours` (`{ colour, count }`, most used first)
 - `POST /annotations` - create one (body: `Annotation` minus `id`/`created`,
   both are assigned server-side if omitted)
 - `PUT /annotations/{id}` - update `label`/`notes`/`colour`
 - `DELETE /annotations/{id}` - delete
 
-- `GET /cellcounts?slideId=000` - all cell counts for a slide
+- `GET /cellcounts?collectionId=&skip=&take=&search=` plus filters - same
+  as annotations, but `withRoi` (`true`/`false`) instead of `shape` and
+  `colour`; `search` matches label or notes. Without the dots (`dots` is null) - each
+  count has `colourCounts` and `placedByCounts` instead, worked out when
+  it's saved and kept on the row (`CellCounts/CellCountSummary.cs`). Counts
+  from before that get them the first time they're listed
+- `GET /cellcounts/total?collectionId=&search=` plus filters - same as annotations
+- `GET /cellcounts/facets?collectionId=` - same as annotations, with
+  `colours` always empty
+- `GET /cellcounts/{id}` - one count, dots and ROI box included
 - `POST /cellcounts` - create one (body: `CellCount` minus `id`/`created`,
-  both are assigned server-side if omitted)
+  both are assigned server-side if omitted). Takes up to 80 MiB, room for a
+  million dots - everything else has Kestrel's 30 MB default
 - `PUT /cellcounts/{id}` - update `label`/`notes`/`withAnnotation`/`withRoi`/
   `count`/`dotSize`
 - `DELETE /cellcounts/{id}` - delete
+
+Bad `skip`/`take` is a 400. Paging is newest first with the id breaking
+ties, so no row turns up on two pages.
 
 ## Schema
 

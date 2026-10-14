@@ -7,6 +7,7 @@ import {
   colourBreakdownBackground,
   dotsFromHistory,
   placedByBreakdown,
+  countSummary,
 } from './CellCountDots'
 
 function dotFeature(x: number, y: number, colour: string): Feature<Point> {
@@ -112,5 +113,63 @@ describe('placedByBreakdown', () => {
 
   it('is empty for a count nobody was recorded on', () => {
     expect(placedByBreakdown([{ x: 0, y: 0, colour: '#fff' }])).toEqual([])
+  })
+})
+
+describe('parseCellCountDots with dots not loaded', () => {
+  it('reads null - a count from the list, dots not fetched - as no dots', () => {
+    expect(parseCellCountDots(null)).toEqual([])
+  })
+})
+
+describe('countSummary', () => {
+  const dots = JSON.stringify([
+    { x: 1, y: 1, colour: '#ff0000', placedBy: { userId: 'u1', name: 'Alice' } },
+    { x: 2, y: 2, colour: '#0000ff', placedBy: { userId: 'u2', name: 'Bob' } },
+    { x: 3, y: 3, colour: '#ff0000', placedBy: { userId: 'u1', name: 'Alice' } },
+  ])
+
+  it("uses the list's summary, without touching the dots", () => {
+    const summary = countSummary({
+      dots: null,
+      colourCounts: [{ colour: '#00ff00', count: 7 }],
+      placedByCounts: [{ userId: 'u3', name: 'Carol', count: 7 }],
+    })
+    expect(summary).toEqual({
+      colours: [{ colour: '#00ff00', count: 7 }],
+      people: [{ userId: 'u3', name: 'Carol', count: 7 }],
+    })
+  })
+
+  it('prefers the summary even once the dots have loaded', () => {
+    const summary = countSummary({ dots, colourCounts: [{ colour: '#00ff00', count: 7 }], placedByCounts: [] })
+    expect(summary.colours).toEqual([{ colour: '#00ff00', count: 7 }])
+  })
+
+  it('works it out from the dots for a count with no summary - one just saved', () => {
+    expect(countSummary({ dots })).toEqual({
+      colours: [{ colour: '#ff0000', count: 2 }, { colour: '#0000ff', count: 1 }],
+      people: [{ userId: 'u1', name: 'Alice', count: 2 }, { userId: 'u2', name: 'Bob', count: 1 }],
+    })
+  })
+
+  it("matches what annotation-store's summary gives for the same dots", () => {
+    // Same dots and expected counts as annotation-store's
+    // CellCountSummaryTests.FromDots_CountsColoursAndPeople_InTheOrderTheyFirstTurnUp,
+    // so the list and a fresh save show the same thing.
+    const shared = JSON.stringify([
+      { x: 1, y: 1, colour: '#ff0000', placedBy: { userId: 'u1', name: 'Alice' } },
+      { x: 2, y: 2, colour: '#0000ff', placedBy: { userId: 'u2', name: 'Bob' } },
+      { x: 3, y: 3, colour: '#ff0000', placedBy: { userId: 'u1', name: 'Alice' } },
+      { x: 4, y: 4, colour: '#ff0000' },
+    ])
+    expect(countSummary({ dots: shared })).toEqual({
+      colours: [{ colour: '#ff0000', count: 3 }, { colour: '#0000ff', count: 1 }],
+      people: [{ userId: 'u1', name: 'Alice', count: 2 }, { userId: 'u2', name: 'Bob', count: 1 }],
+    })
+  })
+
+  it('is empty with neither summary nor dots', () => {
+    expect(countSummary({ dots: null })).toEqual({ colours: [], people: [] })
   })
 })

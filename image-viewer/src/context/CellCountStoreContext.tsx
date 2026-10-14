@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { CellCount } from '../interfaces/CellCount'
 import { useImageViewerContext } from './ImageViewerContext'
 import { useEmitEvent } from './EventContext'
@@ -6,6 +6,7 @@ import { useCollectionContext } from './CollectionContext'
 import { useRealtimeContext } from './RealtimeContext'
 import { useAuthContext } from './AuthContext'
 import { applyOp } from '../components/realtime/realtime'
+import { useSavedTotal } from '../components/saved/useSavedTotal'
 
 type Status = 'loading' | 'ready' | 'error'
 
@@ -13,8 +14,23 @@ type Status = 'loading' | 'ready' | 'error'
 type CellCountEdit = Pick<CellCount, 'label' | 'notes' | 'withAnnotation' | 'withRoi' | 'count' | 'dotSize'>
 
 interface CellCountStoreContextValue {
+  // Not every saved count - only the ones loaded so far: the newest, the
+  // Saved list's pages as you go through them, your own new ones and
+  // anything arriving live. Ones from annotation-store's list come without
+  // their dots (dots: null) - those load only for the count viewed on the
+  // map. A count's dots can run to megabytes.
   cellCounts: CellCount[]
   status: Status
+  // Same as AnnotationStoreContext's - the Saved list refetches its page on it.
+  revision: number
+  // How many cell counts the collection has, from annotation-store - null until
+  // it's known. For the Saved tab's label.
+  total: number | null
+  wasDeleted: (id: string) => boolean
+  // annotation-store's address, for the Saved list's own paged reads.
+  baseUrl: string
+  // Adds a page's counts to cellCounts, so viewing or editing one finds it.
+  rememberCellCounts: (cellCounts: CellCount[]) => void
   selectedCellCountId: string | null
   viewedCellCountId: string | null
   addCellCount: (cellCount: CellCount) => void
@@ -31,11 +47,12 @@ interface CellCountStoreContextProviderProps {
   children: ReactNode
 }
 
-// Mirrors AnnotationStoreContext - same slide-scoped load/optimistic-write
+// Mirrors AnnotationStoreContext - same slide-scoped optimistic-write
 // pattern against the same annotation-store service, just a different
-// endpoint. No OL feature source here (unlike annotations, cell counts
-// aren't drawn on the map), so there's nothing to keep in sync beyond this
-// state itself.
+// endpoint. Unlike annotations it doesn't load everything up front - only
+// the newest count, then whatever's paged through or asked for. No OL
+// feature source here (unlike annotations, cell counts aren't drawn on the
+// map), so there's nothing to keep in sync beyond this state itself.
 function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreContextProviderProps) {
   const { source } = useImageViewerContext()
   const { slideId } = source
@@ -48,9 +65,16 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
   const [status, setStatus] = useState<Status>('loading')
   const [selectedCellCountId, setSelectedCellCountId] = useState<string | null>(null)
   const [viewedCellCountId, setViewedCellCountId] = useState<string | null>(null)
+  const [revision, setRevision] = useState(0)
+  const total = useSavedTotal(baseUrl, 'cellcounts', collectionId, revision)
+  const bumpRevision = () => setRevision((current) => current + 1)
+  const wasDeleted = useCallback((id: string) => deletedIdsRef.current.has(id), [])
+  // Ids being fetched by ensureCellCountDots, so asking twice fetches once.
+  const ensuringRef = useRef(new Set<string>())
   // Same as AnnotationStoreContext - a form closing because its count was
   // deleted mustn't then PUT its last autosave to something that's gone.
   const deletedIdsRef = useRef(new Set<string>())
+  const loadedForRef = useRef<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -58,19 +82,30 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
     if (collectionId === null) {
       setStatus(collectionStatus === 'error' ? 'error' : 'loading')
       setCellCounts([])
+      loadedForRef.current = null
       return
     }
 
+    // Another collection's counts don't carry over. Only on an actual
+    // change - this also reruns when sign-in hands out a new authFetch.
+    if (loadedForRef.current !== collectionId) {
+      setCellCounts([])
+      loadedForRef.current = collectionId
+    }
     setStatus('loading')
 
-    authFetch(`${baseUrl}/cellcounts?collectionId=${encodeURIComponent(collectionId)}`)
+    // Just the newest, for the counter's "Recent" card. The Saved list loads
+    // its own pages.
+    authFetch(`${baseUrl}/cellcounts?collectionId=${encodeURIComponent(collectionId)}&take=1`)
       .then((response) => {
         if (!response.ok) throw new Error(String(response.status))
         return response.json() as Promise<CellCount[]>
       })
       .then((data) => {
         if (cancelled) return
-        setCellCounts(data)
+        // Merged rather than set - the Saved list may have loaded a page
+        // already.
+        setCellCounts((current) => [...current, ...data.filter((c) => !current.some((known) => known.id === c.id))])
         setStatus('ready')
       })
       .catch(() => {
@@ -96,6 +131,7 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
           setSelectedCellCountId((current) => (current === op.id ? null : current))
           setViewedCellCountId((current) => (current === op.id ? null : current))
         }
+        if (op.kind !== 'update') setRevision((current) => current + 1)
       }),
     [onOp]
   )
@@ -131,6 +167,7 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
         setStatus('error')
         emit('cellcount:created:error', cellCount)
       })
+      .finally(bumpRevision)
   }
 
   // annotation-store's PUT replaces all of these together, so pass them all.
@@ -166,13 +203,71 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
         setStatus('error')
         emit('cellcount:deleted:error', { id })
       })
+      .finally(bumpRevision)
   }
+
+  // Counts already here keep their own copy - it has any edit made since
+  // the page was fetched.
+  const rememberCellCounts = useCallback((fetched: CellCount[]) => {
+    setCellCounts((current) => {
+      const known = new Set(current.map((c) => c.id))
+      const fresh = fetched.filter((c) => !known.has(c.id) && !deletedIdsRef.current.has(c.id))
+      return fresh.length === 0 ? current : [...current, ...fresh]
+    })
+  }, [])
+
+  // Runs from an effect and needs what's loaded right now, without changing
+  // identity every time a count is added.
+  const cellCountsRef = useRef(cellCounts)
+  useEffect(() => {
+    cellCountsRef.current = cellCounts
+  }, [cellCounts])
+  // A count's dots, fetched by id if they aren't here - the whole count,
+  // if you've never paged to it, e.g. following a host who's viewing it.
+  // The fetched count takes the place of the dot-less one from the list,
+  // keeping any edit made since.
+  const ensureCellCountDots = useCallback(
+    (id: string) => {
+      const known = cellCountsRef.current.find((c) => c.id === id)
+      if (known && known.dots !== null) return
+      if (deletedIdsRef.current.has(id) || ensuringRef.current.has(id)) return
+      ensuringRef.current.add(id)
+      authFetch(`${baseUrl}/cellcounts/${encodeURIComponent(id)}`)
+        .then((response) => {
+          if (!response.ok) throw new Error(String(response.status))
+          return response.json() as Promise<CellCount>
+        })
+        .then((full) => {
+          if (deletedIdsRef.current.has(id)) return
+          setCellCounts((current) =>
+            current.some((c) => c.id === id)
+              ? current.map((c) => (c.id === id ? { ...full, ...c, dots: full.dots } : c))
+              : [...current, full]
+          )
+        })
+        .catch(() => emit('cellcount:load-error', { id }))
+        .finally(() => ensuringRef.current.delete(id))
+    },
+    [authFetch, baseUrl, emit]
+  )
+
+  // Only the count on the map needs its dots - the list and the edit form
+  // make do with the summary. Whoever picked it: following a host can land
+  // on a count you've never paged to.
+  useEffect(() => {
+    if (viewedCellCountId) ensureCellCountDots(viewedCellCountId)
+  }, [viewedCellCountId, ensureCellCountDots])
 
   return (
     <CellCountStoreContext.Provider
       value={{
         cellCounts,
         status,
+        revision,
+        wasDeleted,
+        baseUrl,
+        total,
+        rememberCellCounts,
         selectedCellCountId,
         viewedCellCountId,
         addCellCount,

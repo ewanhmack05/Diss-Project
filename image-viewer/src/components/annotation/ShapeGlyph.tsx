@@ -1,27 +1,32 @@
 import type { LineStyleName, ShapeTool } from './Tools'
+import arrowIconSvg from '../../icons/shapes/arrow.svg?raw'
+import circleIconSvg from '../../icons/shapes/circle.svg?raw'
+import freehandIconSvg from '../../icons/shapes/freehand.svg?raw'
+import lineIconSvg from '../../icons/shapes/line.svg?raw'
+import polygonIconSvg from '../../icons/shapes/polygon.svg?raw'
+import rectangleIconSvg from '../../icons/shapes/rectangle.svg?raw'
+import './ShapeGlyph.css'
 
-// A tiny drawing of each shape, for lists - drawn in the annotation's colour.
-const SHAPE_PATHS: Record<ShapeTool, string> = {
-  line: 'M3 13 L13 3',
-  arrow: 'M3 13 L13 3 M7.5 3 L13 3 L13 8.5',
-  freehand: 'M2 11 C4 4, 7 14, 9 7 S13 4, 14 9',
-  polygon: 'M3 12 L2 6 L8 2 L14 5 L12 13 Z',
-  rectangle: 'M2.5 4 H13.5 V12 H2.5 Z',
-  circle: 'M8 2.5 A5.5 5.5 0 1 1 7.99 2.5 Z',
+// A tiny drawing of each shape, from icons/shapes - drawn in the
+// annotation's colour, or the text colour around it when there isn't one
+// (the shape buttons, the filter's shape chips).
+const SHAPE_ICONS: Record<ShapeTool, string> = {
+  line: lineIconSvg,
+  arrow: arrowIconSvg,
+  freehand: freehandIconSvg,
+  polygon: polygonIconSvg,
+  rectangle: rectangleIconSvg,
+  circle: circleIconSvg,
 }
 
-function ShapeGlyph({ shape, colour }: { shape: ShapeTool; colour: string }) {
+function ShapeGlyph({ shape, colour }: { shape: ShapeTool; colour?: string }) {
   return (
-    <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
-      <path
-        d={SHAPE_PATHS[shape]}
-        fill="none"
-        stroke={colour}
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+    <span
+      className="shape-glyph"
+      style={colour ? { color: colour } : undefined}
+      aria-hidden="true"
+      dangerouslySetInnerHTML={{ __html: SHAPE_ICONS[shape] }}
+    />
   )
 }
 

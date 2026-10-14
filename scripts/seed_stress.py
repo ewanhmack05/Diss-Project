@@ -3,7 +3,9 @@ testing how the viewer copes with a heavy load (the WebGL layers in
 particular). Everything added has its notes set to "stress-test", so
 clean_stress.py can remove exactly these and nothing else.
 
-Needs annotation-store running. Standard library only - no pip install.
+Needs annotation-store, tiler and Keycloak (auth/) running. Signs in as a
+test user (alice by default) and adds to their own collection for the
+slide. Standard library only - no pip install.
 
     python scripts/seed_stress.py
     python scripts/seed_stress.py --annotations 5000 --dots 1000 10000 100000
@@ -16,10 +18,28 @@ import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
+from keycloak_login import access_token, add_login_args
+
 TAG = "stress-test"
-COLOURS = ["#ff0000", "#0000ff", "#ff00ff", "#000000", "#008000", "#00e5ff", "#fff614", "#ffffff"]
+# annotation-store's POST /cellcounts takes up to 80 MiB (CellCountLimits in
+# annotation-store/CellCounts/CellCount.cs) and a dot is about 60 bytes once
+# sent. Far over the limit Kestrel drops the connection instead of
+# answering 413, so it's checked here rather than left to fail mid-upload.
+STORE_LIMIT_BYTES = 80 * 1024 * 1024
+MAX_DOTS = 1_000_000
+# The viewer's palette (PreDefinedColours in image-viewer/src/components/annotation/Tools.ts),
+# so seeded annotations filter by colour like drawn ones.
+COLOURS = ["#FB0909", "#0913FB", "#FB09FB", "#000000", "#168304", "#06EAF9", "#F9E006", "#FFFFFF"]
 SHAPES = ["polygon", "rectangle", "circle", "line", "arrow", "freehand"]
 SHAPE_WEIGHTS = [3, 2, 2, 1, 1, 2]
+
+
+def dots_problem(dots_per_count):
+    too_big = [dots for dots in dots_per_count if dots > MAX_DOTS]
+    if not too_big:
+        return None
+    return (f"--dots {too_big[0]:,} is too many for one cell count - annotation-store takes up to "
+            f"{MAX_DOTS:,} (its 80 MiB request limit). Split it, e.g. --dots {MAX_DOTS} {MAX_DOTS}")
 
 
 def parse_args():
@@ -27,16 +47,17 @@ def parse_args():
     parser.add_argument("--store", default="http://localhost:5252", help="annotation-store URL (default: %(default)s)")
     parser.add_argument("--tiler", default="http://localhost:5095", help="tiler URL, used to look up the slide's size (default: %(default)s)")
     parser.add_argument("--slide", default="003", help="slide id (default: %(default)s)")
-    parser.add_argument("--user", default="001", help="user id - the viewer's placeholder user (default: %(default)s)")
     parser.add_argument("--annotations", type=int, default=2000, help="how many annotations to add (default: %(default)s)")
     parser.add_argument("--dots", type=int, nargs="*", default=[1_000, 10_000, 50_000],
                         help="one cell count per value, with that many dots (default: 1000 10000 50000)")
     parser.add_argument("--seed", type=int, default=42, help="random seed, so runs are repeatable (default: %(default)s)")
+    add_login_args(parser)
     return parser.parse_args()
 
 
-def post(store, path, body):
-    req = urllib.request.Request(store + path, json.dumps(body).encode(), {"Content-Type": "application/json"})
+def post(store, token, path, body):
+    req = urllib.request.Request(store + path, json.dumps(body).encode(),
+                                 {"Content-Type": "application/json", "Authorization": f"Bearer {token}"})
     with urllib.request.urlopen(req) as response:
         return json.load(response)
 
@@ -87,9 +108,9 @@ def random_shape(bounds):
     return kind, geojson("LineString", points)
 
 
-def add_annotation(store, collection_id, bounds, index):
+def add_annotation(store, token, collection_id, bounds, index):
     kind, shape_geojson = random_shape(bounds)
-    return post(store, "/annotations", {
+    return post(store, token, "/annotations", {
         "collectionId": collection_id,
         "label": f"Stress {index + 1}",
         "notes": TAG,
@@ -101,7 +122,7 @@ def add_annotation(store, collection_id, bounds, index):
     })
 
 
-def add_cell_count(store, collection_id, bounds, dots, with_roi):
+def add_cell_count(store, token, collection_id, bounds, dots, with_roi):
     # Dots clustered in blobs, like cells in tissue, around a random centre
     # in the middle half of the slide.
     x0, x1, y0, y1 = bounds
@@ -121,7 +142,7 @@ def add_cell_count(store, collection_id, bounds, dots, with_roi):
         r = half * 1.3
         roi = {"geoJson": geojson("Polygon", [[[cx - r, cy - r], [cx + r, cy - r], [cx + r, cy + r], [cx - r, cy + r], [cx - r, cy - r]]])}
 
-    return post(store, "/cellcounts", {
+    return post(store, token, "/cellcounts", {
         "collectionId": collection_id,
         "label": f"Stress {dots:,} dots",
         "notes": TAG,
@@ -138,19 +159,22 @@ def add_cell_count(store, collection_id, bounds, dots, with_roi):
 
 def main():
     args = parse_args()
+    if problem := dots_problem(args.dots):
+        raise SystemExit(problem)
     random.seed(args.seed)
     bounds = slide_bounds(args.tiler, args.slide)
-    collection_id = post(args.store, "/collections/ensure", {"slideId": args.slide, "userId": args.user})["collectionId"]
-    print(f"Slide {args.slide}, user {args.user}, collection {collection_id}")
+    token = access_token(args.keycloak, args.realm, args.username, args.password)
+    collection_id = post(args.store, token, "/collections/ensure", {"slideId": args.slide})["collectionId"]
+    print(f"Slide {args.slide}, user {args.username}, collection {collection_id}")
 
     start = time.time()
     with ThreadPoolExecutor(8) as pool:
-        added = list(pool.map(lambda i: add_annotation(args.store, collection_id, bounds, i), range(args.annotations)))
+        added = list(pool.map(lambda i: add_annotation(args.store, token, collection_id, bounds, i), range(args.annotations)))
     print(f"  {len(added)} annotations added in {time.time() - start:.1f}s")
 
     # Every second count gets an ROI box, so both kinds are covered.
     for i, dots in enumerate(args.dots):
-        add_cell_count(args.store, collection_id, bounds, dots, with_roi=i % 2 == 1)
+        add_cell_count(args.store, token, collection_id, bounds, dots, with_roi=i % 2 == 1)
         print(f"  cell count with {dots:,} dots added" + (" (with ROI)" if i % 2 == 1 else ""))
 
     print("Done. Remove it all again with: python scripts/clean_stress.py")

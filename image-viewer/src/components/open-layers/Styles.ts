@@ -7,7 +7,7 @@ import type Feature from "ol/Feature";
 import type { FeatureLike } from "ol/Feature";
 import type { FlatStyle, Rule } from "ol/style/flat";
 import { asArray } from "ol/color";
-import { ShapeTools, type LineStyleName, type ShapeTool } from "../annotation/Tools";
+import { DefaultColour, ShapeTools, type LineStyleName, type ShapeTool } from "../annotation/Tools";
 import { pixelDistance, physicalDistanceMicrons, formatDistanceMicrons, formatDistancePixels } from "../ruler/ruler";
 
 // Sum of consecutive-point distances - LinearRing has no built-in
@@ -154,7 +154,7 @@ function sketchStyle(shape: ShapeTool, colour: string, lineThickness: number, li
 // Finished features (both the just-drawn pending one and saved ones) carry
 // colour/lineThickness/lineStyle/shape as feature properties.
 function annotationStyle(feature: FeatureLike, resolution: number): Style[] {
-	const colour = (feature.get("colour") as string | undefined) ?? "#fff614";
+	const colour = (feature.get("colour") as string | undefined) ?? DefaultColour;
 	const lineThickness = (feature.get("lineThickness") as number | undefined) ?? 2;
 	const lineStyle = (feature.get("lineStyle") as LineStyleName | undefined) ?? "solid";
 	const shape = feature.get("shape") as ShapeTool | undefined;
@@ -163,12 +163,24 @@ function annotationStyle(feature: FeatureLike, resolution: number): Style[] {
 	return withArrowHead([baseStyle(colour, lineThickness, lineStyle, geometry, resolution)], shape, colour, lineThickness, geometry, resolution);
 }
 
+// The halo behind a saved annotation picked with View on map, so it stands
+// out from every other shape on the slide. Drawn on a layer under the
+// annotations, so the shape itself still shows on top in its own colour:
+// a dark edge and a light band, which shows on pale and dark tissue alike.
+function viewedAnnotationStyle(feature: FeatureLike): Style[] {
+	const lineThickness = (feature.get("lineThickness") as number | undefined) ?? 2;
+	return [
+		new Style({ stroke: new Stroke({ color: "rgba(0, 0, 0, 0.55)", width: lineThickness + 14, lineJoin: "round", lineCap: "round" }) }),
+		new Style({ stroke: new Stroke({ color: "rgba(255, 255, 255, 0.9)", width: lineThickness + 8, lineJoin: "round", lineCap: "round" }) }),
+	];
+}
+
 // Saved annotations render on the GPU (WebGLVectorLayer), which only takes
 // flat styles - no style functions, so anything annotationStyle works out
 // per render has to be baked onto the feature up front instead. Call this
 // whenever a saved annotation's feature is built.
 function setAnnotationRenderProperties(feature: Feature<Geometry>): void {
-	const colour = (feature.get("colour") as string | undefined) ?? "#fff614";
+	const colour = (feature.get("colour") as string | undefined) ?? DefaultColour;
 	const lineThickness = (feature.get("lineThickness") as number | undefined) ?? 2;
 	const lineStyle = (feature.get("lineStyle") as LineStyleName | undefined) ?? "solid";
 	const [red, green, blue] = asArray(colour);
@@ -217,7 +229,7 @@ function annotationArrowHeadStyle(feature: FeatureLike, resolution: number): Sty
 	if (feature.get("shape") !== "arrow") return undefined;
 	const geometry = feature.getGeometry();
 	if (!(geometry instanceof LineString)) return undefined;
-	const colour = (feature.get("colour") as string | undefined) ?? "#fff614";
+	const colour = (feature.get("colour") as string | undefined) ?? DefaultColour;
 	const lineThickness = (feature.get("lineThickness") as number | undefined) ?? 2;
 	return arrowHeadStyle(colour, lineThickness, geometry, resolution) ?? undefined;
 }
@@ -244,7 +256,7 @@ const sharedDotFlatStyle: FlatStyle = {
 // One placed cell-count dot - colour/dotSize carried as feature properties,
 // same convention as annotationStyle.
 function cellCountDotStyle(feature: FeatureLike): Style {
-	const colour = (feature.get("colour") as string | undefined) ?? "#fff614";
+	const colour = (feature.get("colour") as string | undefined) ?? DefaultColour;
 	const dotSize = (feature.get("dotSize") as number | undefined) ?? 6;
 	return new Style({
 		image: new CircleStyle({
@@ -504,6 +516,7 @@ export {
 	annotationStyle,
 	annotationFlatStyle,
 	annotationArrowHeadStyle,
+	viewedAnnotationStyle,
 	setAnnotationRenderProperties,
 	sketchStyle,
 	cellCountDotStyle,

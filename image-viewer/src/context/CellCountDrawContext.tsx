@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { CellCountDot } from '../interfaces/CellCount'
+import { DefaultColour } from '../components/annotation/Tools'
 
 interface CellCountLocation {
   x: number
@@ -88,7 +89,7 @@ const DEFAULT_BOX_SIZE_MICRONS = 500
 // placing the box would itself register as clicks.
 function CellCountDrawContextProvider({ children }: { children: ReactNode }) {
   const [counting, setCounting] = useState(false)
-  const [colour, setColour] = useState('#fff614')
+  const [colour, setColour] = useState(DefaultColour)
   const [dotSize, setDotSize] = useState(6)
   const [count, setCount] = useState(0)
   const [withAnnotation, setWithAnnotation] = useState(true)

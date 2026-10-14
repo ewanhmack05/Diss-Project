@@ -2,6 +2,7 @@ using AnnotationStore.CellCounts;
 using AnnotationStore.Collections;
 using AnnotationStore.ImageAdjustments;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace AnnotationStore.Annotations;
 
@@ -14,6 +15,21 @@ public class AnnotationDbContext(DbContextOptions<AnnotationDbContext> options) 
     public DbSet<Collections.Collections> Collections => Set<Collections.Collections>();
     public DbSet<CollectionMember> CollectionMembers => Set<CollectionMember>();
     public DbSet<CollectionInvite> CollectionInvites => Set<CollectionInvite>();
+
+    // The tests run on SQLite, which can't sort DateTimeOffset - and the lists
+    // are sorted and paged in SQL, newest first. Stored there as UTC ticks
+    // instead, which sort and round-trip exactly (EF's own binary converter
+    // drops the last few digits). Postgres keeps its own timestamptz.
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        if (Database.ProviderName != "Microsoft.EntityFrameworkCore.Sqlite") return;
+        configurationBuilder.Properties<DateTimeOffset>().HaveConversion<UtcTicksConverter>();
+        configurationBuilder.Properties<DateTimeOffset?>().HaveConversion<UtcTicksConverter>();
+    }
+
+    private class UtcTicksConverter() : ValueConverter<DateTimeOffset, long>(
+        value => value.UtcTicks,
+        ticks => new DateTimeOffset(ticks, TimeSpan.Zero));
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

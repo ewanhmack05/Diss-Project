@@ -11,6 +11,11 @@
 }
 
 .free-form-tool-picker-shape {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35em;
+  --shape-glyph-size: 1.15em;
   padding: 0.5em 0.25em;
   font-family: var(--sans);
   font-size: 0.9em;

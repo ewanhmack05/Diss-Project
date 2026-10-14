@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
 import type Feature from 'ol/Feature'
 import type Geometry from 'ol/geom/Geometry'
-import type { ShapeTool, LineStyleName } from '../components/annotation/Tools'
+import { DefaultColour, type ShapeTool, type LineStyleName } from '../components/annotation/Tools'
 
 interface PendingAnnotation {
   feature: Feature<Geometry>
@@ -35,7 +35,7 @@ const DrawContext = createContext<DrawContextValue | null>(null)
 
 function DrawContextProvider({ children }: { children: ReactNode }) {
   const [activeTool, setActiveTool] = useState<ShapeTool | null>(null)
-  const [colour, setColour] = useState('#fff614')
+  const [colour, setColour] = useState(DefaultColour)
   const [lineThickness, setLineThickness] = useState(2)
   const [lineStyle, setLineStyle] = useState<LineStyleName>('solid')
   const [pending, setPending] = useState<PendingAnnotation | null>(null)

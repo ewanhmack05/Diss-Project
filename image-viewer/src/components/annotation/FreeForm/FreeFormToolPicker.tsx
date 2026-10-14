@@ -2,6 +2,7 @@ import { useDrawContext } from '../../../context/DrawContext'
 import { useCellCountDrawContext } from '../../../context/CellCountDrawContext'
 import { ShapeOrder, ShapeTools, LineThicknessOptions, type LineStyleName } from '../Tools'
 import ColourPicker from '../../colour-picker/ColourPicker'
+import { ShapeGlyph } from '../ShapeGlyph'
 import DockedCard from '../../toolbar/DockedCard'
 import './FreeFormToolPicker.css'
 
@@ -36,6 +37,7 @@ function FreeFormToolPicker() {
               disabled={counting}
               onClick={() => setActiveTool(activeTool === shape ? null : shape)}
             >
+              <ShapeGlyph shape={shape} />
               {ShapeTools[shape].label}
             </button>
           ))}
