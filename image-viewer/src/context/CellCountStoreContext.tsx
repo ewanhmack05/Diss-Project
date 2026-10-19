@@ -6,7 +6,7 @@ import { useCollectionContext } from './CollectionContext'
 import { useRealtimeContext } from './RealtimeContext'
 import { useAuthContext } from './AuthContext'
 import { applyOp } from '../components/realtime/realtime'
-import { useSavedTotal } from '../components/saved/useSavedTotal'
+import { useSavedTotalAt } from '../components/saved/useSavedTotal'
 
 type Status = 'loading' | 'ready' | 'error'
 
@@ -26,6 +26,9 @@ interface CellCountStoreContextValue {
   // How many cell counts the collection has, from annotation-store - null until
   // it's known. For the Saved tab's label.
   total: number | null
+  // The Saved list's own unfiltered /total, so the label keeps up with
+  // anything that wrote to annotation-store without telling realtime.
+  seenTotal: (total: number, at: number, asked: number) => void
   wasDeleted: (id: string) => boolean
   // annotation-store's address, for the Saved list's own paged reads.
   baseUrl: string
@@ -68,7 +71,7 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
   const [selectedCellCountId, setSelectedCellCountId] = useState<string | null>(null)
   const [viewedCellCountId, setViewedCellCountId] = useState<string | null>(null)
   const [revision, setRevision] = useState(0)
-  const total = useSavedTotal(baseUrl, 'cellcounts', collectionId, revision)
+  const { total, seen: seenTotal } = useSavedTotalAt(baseUrl, 'cellcounts', collectionId, revision)
   const bumpRevision = () => setRevision((current) => current + 1)
   const wasDeleted = useCallback((id: string) => deletedIdsRef.current.has(id), [])
   // Ids being fetched by ensureCellCountDots, so asking twice fetches once.
@@ -278,6 +281,7 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
         wasDeleted,
         baseUrl,
         total,
+        seenTotal,
         rememberCellCounts,
         selectedCellCountId,
         viewedCellCountId,

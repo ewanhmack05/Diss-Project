@@ -1,5 +1,29 @@
 import { describe, expect, it } from 'vitest'
-import { savedTabLabel } from './useSavedTotal'
+import { fresherTotal, savedTabLabel, type FetchedTotal } from './useSavedTotal'
+
+const at = (total: number, asked: number, collectionId = 'c1'): FetchedTotal => ({ collectionId, total, at: 0, asked })
+
+describe('fresherTotal', () => {
+  it("takes the Saved list's newer count over the store's older one", () => {
+    // seed_stress.py added 30k straight to annotation-store. The store's
+    // total was from page load; opening Saved asked again and got the real
+    // number, but leaving Saved went back to the old one.
+    expect(fresherTotal(at(20_998, 100), at(50_998, 200)).total).toBe(50_998)
+  })
+
+  it('keeps the newer ask when an older one lands after it', () => {
+    expect(fresherTotal(at(50_998, 200), at(20_998, 100)).total).toBe(50_998)
+  })
+
+  it('takes the first answer, and any answer for another collection', () => {
+    expect(fresherTotal(null, at(5, 1)).total).toBe(5)
+    expect(fresherTotal(at(5, 999), at(7, 1, 'c2'))).toEqual(at(7, 1, 'c2'))
+  })
+
+  it('takes a later answer to the same ask time', () => {
+    expect(fresherTotal(at(5, 100), at(6, 100)).total).toBe(6)
+  })
+})
 
 describe('savedTabLabel', () => {
   it('is just "Saved" until the total is known, or while there is nothing', () => {

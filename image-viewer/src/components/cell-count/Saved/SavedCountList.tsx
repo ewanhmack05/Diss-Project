@@ -175,6 +175,7 @@ function SavedCountList({ onTotal }: { onTotal?: (total: ListTotal | null) => vo
     rememberCellCounts,
     selectedCellCountId,
     setSelectedCellCountId,
+    seenTotal,
   } = useCellCountStoreContext();
   const { canEdit, collectionId } = useCollectionContext();
   const { user } = useAuthContext();
@@ -200,6 +201,11 @@ function SavedCountList({ onTotal }: { onTotal?: (total: ListTotal | null) => vo
     revision,
   });
   const facets = useSavedFacets(baseUrl, "cellcounts", collectionId, revision);
+  // An unfiltered page knows the whole collection's total - pass it on, so
+  // the tab still says it once the list's closed.
+  useEffect(() => {
+    if (savedPage.status === "ready" && !savedPage.filtered) seenTotal(savedPage.total, savedPage.at, savedPage.asked);
+  }, [savedPage.status, savedPage.filtered, savedPage.total, savedPage.at, savedPage.asked, seenTotal]);
   // So View and Edit find a count from this page in the store.
   useEffect(() => {
     rememberCellCounts(savedPage.fetched);

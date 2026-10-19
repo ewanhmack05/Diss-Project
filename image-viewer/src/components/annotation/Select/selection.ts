@@ -5,6 +5,19 @@ import SimpleGeometry from 'ol/geom/SimpleGeometry'
 import type { Coordinate } from 'ol/coordinate'
 import { containsExtent } from 'ol/extent'
 
+const TYPING_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
+
+function isTyping(tagName: string | undefined): boolean {
+  return TYPING_TAGS.has(tagName ?? '')
+}
+
+// Space moves the map instead of picking, but only with the pointer over
+// the map - anywhere else it's left alone, so it still presses a focused
+// button or types a space.
+function isPanKey(code: string, tagName: string | undefined, overMap: boolean): boolean {
+  return code === 'Space' && overMap && !isTyping(tagName)
+}
+
 function allCoordinates(geometry: Geometry): Coordinate[] {
   if (!(geometry instanceof SimpleGeometry)) return []
   const flat = geometry.getFlatCoordinates()
@@ -63,4 +76,4 @@ function featureAt(features: Feature<Geometry>[], coordinate: Coordinate, tolera
   return best
 }
 
-export { isInside, idsInside, featureAt }
+export { isInside, idsInside, featureAt, isTyping, isPanKey }
