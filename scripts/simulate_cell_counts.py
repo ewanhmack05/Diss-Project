@@ -20,7 +20,17 @@ import json
 import time
 import uuid
 
-from simulate_session import SIM_TAG, add_session_args, call, editor_token, now_iso, run, send_op, tagged_ids, tell_deleted
+from simulate_session import (
+    SIM_TAG,
+    add_session_args,
+    call,
+    editor_token,
+    now_iso,
+    run,
+    send_op,
+    tagged_ids,
+    tell_deleted,
+)
 
 # The viewer's palette (image-viewer/src/components/annotation/Tools.ts) and
 # its starting dot size (CellCountDrawContext).

@@ -7,7 +7,14 @@ import json
 import random
 import unittest
 
-from simulate_annotations import SHAPES, drawing_frames, feature, geometry, inner, shape_in_view
+from simulate_annotations import (
+    SHAPES,
+    drawing_frames,
+    feature,
+    geometry,
+    inner,
+    shape_in_view,
+)
 from simulate_cell_counts import box_geojson, cell_dots, roi_box
 
 # A view in map units - slide pixels, y going down from 0.
@@ -45,7 +52,7 @@ class Shapes(unittest.TestCase):
         self.assertEqual(len(shape_in_view("line", VIEW, rng)), 2)
 
     def test_margin_keeps_them_off_the_edge(self):
-        x0, y0, x1, y1 = inner(VIEW)
+        x0, _, _, y1 = inner(VIEW)
         self.assertAlmostEqual(x0 - VIEW[0], 0.15 * (VIEW[2] - VIEW[0]))
         self.assertAlmostEqual(VIEW[3] - y1, 0.15 * (VIEW[3] - VIEW[1]))
 

@@ -20,7 +20,17 @@ import math
 import time
 import uuid
 
-from simulate_session import SIM_TAG, add_session_args, call, editor_token, now_iso, run, send_op, tagged_ids, tell_deleted
+from simulate_session import (
+    SIM_TAG,
+    add_session_args,
+    call,
+    editor_token,
+    now_iso,
+    run,
+    send_op,
+    tagged_ids,
+    tell_deleted,
+)
 
 # The viewer's palette and tools (image-viewer/src/components/annotation/Tools.ts).
 COLOURS = ["#FB0909", "#0913FB", "#FB09FB", "#000000", "#168304", "#06EAF9", "#F9E006", "#FFFFFF"]

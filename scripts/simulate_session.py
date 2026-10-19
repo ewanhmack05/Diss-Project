@@ -27,7 +27,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from keycloak_admin import add_admin_args, admin_token, create_user
 from keycloak_login import access_token
@@ -300,7 +300,7 @@ SIM_TAG = "sim-session"
 
 
 def now_iso():
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def send_op(hub, kind, entity, item_id, data=None):
