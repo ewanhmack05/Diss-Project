@@ -11,9 +11,15 @@ an afternoon, medium a few days, large a week or more.
 - **Collab tab** - split into sub tabs, a lot less text
 - **Viewport boxes per person** - click someone's chip to switch their box
   on or off, hover to see it picked out even when it's off. On by default
-  with 6 or fewer people here, off past that (`VIEWPORTS_ON_UP_TO` in
-  [realtime.ts](../image-viewer/src/components/realtime/realtime.ts)).
-  Your choice only, nobody else sees it
+  in a small session, off in a large one. Your choice only, nobody else
+  sees it
+- **Small vs large sessions** - a session has at most `maxEditors` people
+  editing, the host included (set in the viewer's
+  [index.tsx](../image-viewer/src/index.tsx), 6 by default, 1 to 50, saved
+  on the session when it starts). Past that, anyone joining comes in view
+  only, even on an edit link. Nobody already editing is moved down, and
+  when an editor leaves or is made view only there's room again. Rules in
+  [SessionSize.cs](../annotation-store/Collections/SessionSize.cs)
 - **Stress testing** - [seed_stress.py](../scripts/README.md), OpenLayers vs
   WebGL numbers in [rendering.md](rendering.md), OpenTelemetry into the
   Grafana [dashboard](../dashboard/README.md)
@@ -143,21 +149,16 @@ adding with links:
   sizes), the Grafana [dashboard](../dashboard/README.md),
   `scripts/seed_stress.py`
 
-## 3. Guest accounts and small vs large sessions
+## 3. Guest accounts
 
-Needs decisions before any code.
-
-**The idea:**
-
-- Small and large sessions as their own area
-- **Small** - works as now: everyone signed in, everyone can edit, no
-  guests. Capped at about 6 people
-- **Large** - past the cap, it turns into a large session. Extra people,
-  and any guests, are view only
+Small vs large sessions are done (see Done) - guests are what's left of
+this. Needs decisions before any code.
 
 **Already there:** `CollectionRole { Viewer, Editor, Owner }` in
 [CollectionMember.cs](../annotation-store/Collections/CollectionMember.cs),
-so read only exists. Nothing for guests yet (see [auth.md](auth.md)).
+so read only exists, and the editor cap means a guest joining a session
+that's full is view only anyway. Nothing for guests yet (see
+[auth.md](auth.md)).
 
 **Guest identity - leaning towards:**
 
@@ -170,19 +171,14 @@ so read only exists. Nothing for guests yet (see [auth.md](auth.md)).
 
 - Do guests get a Keycloak account, or a short-lived token from our own
   service? Ask before building
-- Does a large session ever go back to small?
-- When it turns large, which 6 stay editors - the first 6 in, or the host
-  picks?
-- Can the host make a guest an editor?
-- Is 6 the right cap? Measure it rather than guess
+- Can the host make a guest an editor, or are guests always view only?
+- Is 6 the right default cap? Measure it rather than guess - it's one
+  number in index.tsx now
 
 ## 4. Viewport boxes - what's left
 
 The per-person on/off is done (see Done). Still open:
 
-- The 6 is a guess, and the same number as the small session cap in
-  section 3. Once small vs large sessions exist, tie the default to the
-  session's size rather than a count of its own
 - Switching boxes on or off from the Realtime panel's People list too -
   it only previews on hover for now
 - What you picked isn't kept past a reload

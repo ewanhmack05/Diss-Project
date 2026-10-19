@@ -14,6 +14,7 @@ import { useComparisonContext } from '../../context/ComparisonContext'
 import { useSharedCountContext } from '../../context/SharedCountContext'
 import { formatLongDate } from '../saved/savedDates'
 import type { NavigationMode } from './realtime'
+import { sessionSize } from './sessionSize'
 import './RealTimePanel.css'
 
 const ROLE_TEXT: Record<CollectionRole, string> = {
@@ -49,13 +50,20 @@ function PeopleList({ session, controls }: { session: Collection; controls: bool
   const emit = useEmitEvent()
   const tellEveryone = useTellEveryone()
   const online = new Set([me?.userId, ...others.map((p) => p.userId)])
+  const size = sessionSize(session.members, session.maxEditors)
 
   const change = (action: Promise<void>) =>
     action.then(tellEveryone).catch(() => emit('session:error'))
 
   return (
     <section className="realtime-section">
-      <h3 className="realtime-heading">People ({session.members.length})</h3>
+      <h3 className="realtime-heading">
+        People ({session.members.length}) · {size.large ? 'large' : 'small'} session
+      </h3>
+      <p className="realtime-note">
+        {size.editors} of {size.maxEditors} editing
+        {size.full && ' - anyone else joins view only'}
+      </p>
       <ul className="realtime-people">
         {session.members.map((member) => {
           const here = online.has(member.userId)
@@ -84,7 +92,13 @@ function PeopleList({ session, controls }: { session: Collection; controls: bool
                     value={member.role}
                     onChange={(e) => change(setMemberRole(member.userId, e.target.value as CollectionRole))}
                   >
-                    <option value="editor">Can edit</option>
+                    <option
+                      value="editor"
+                      disabled={member.role === 'viewer' && size.full}
+                      title={member.role === 'viewer' && size.full ? `${size.maxEditors} people are editing already` : undefined}
+                    >
+                      Can edit
+                    </option>
                     <option value="viewer">Can view</option>
                   </select>
                   <button

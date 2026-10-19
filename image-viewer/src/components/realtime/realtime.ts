@@ -286,23 +286,11 @@ function viewportRing({ center, rotation, extent }: Viewport): Coord[] {
   return [topLeft, turn([maxX, maxY]), turn([maxX, minY]), turn([minX, minY]), topLeft]
 }
 
-// Up to this many people here, you included, everyone's viewport box is on
-// to start with - a small session. Past it there'd be a box per person all
-// over the slide, so they start off and you switch on the ones you want.
-const VIEWPORTS_ON_UP_TO = 6
-
-// Different people, not connections - someone in two tabs counts once, and
-// so do you if you've another tab open.
-function peopleHere(myUserId: string | null, others: Participant[]): number {
-  const ids = new Set(others.map((p) => p.userId))
-  if (myUserId !== null) ids.add(myUserId)
-  return ids.size
-}
-
 // Whether someone's box is on: what you picked for them, otherwise on in a
-// small session and off in a big one.
-function viewportShown(userId: string, shown: Record<string, boolean>, myUserId: string | null, others: Participant[]): boolean {
-  return shown[userId] ?? peopleHere(myUserId, others) <= VIEWPORTS_ON_UP_TO
+// small session and off in a large one (see sessionSize.ts) - past the
+// editor places there'd be a box per person all over the slide.
+function viewportShown(userId: string, shown: Record<string, boolean>, large: boolean): boolean {
+  return shown[userId] ?? !large
 }
 
 // How someone's box is drawn. Pointing at a name shows that person's box
@@ -315,10 +303,10 @@ function viewportDisplay(
   userId: string,
   pointedAt: string | null,
   shown: Record<string, boolean>,
-  myUserId: string | null,
+  large: boolean,
   others: Participant[]
 ): ViewportDisplay {
-  const on = viewportShown(userId, shown, myUserId, others)
+  const on = viewportShown(userId, shown, large)
   const pointing = pointedAt !== null && others.some((p) => p.userId === pointedAt && p.viewport)
   if (!pointing) return on ? 'normal' : 'hidden'
   if (userId === pointedAt) return 'pointed'
@@ -497,8 +485,6 @@ export {
   tabChanges,
   applyOp,
   viewportRing,
-  VIEWPORTS_ON_UP_TO,
-  peopleHere,
   viewportShown,
   viewportDisplay,
   viewportFrom,

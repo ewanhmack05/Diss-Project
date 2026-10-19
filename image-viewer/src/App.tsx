@@ -103,6 +103,7 @@ function dockEdgeStackKey(side: DockSide): string {
 interface AppOptions {
   fontSize?: string
   tools?: ToolName[]
+  maxEditors?: number
 }
 
 interface AppProps {
@@ -130,7 +131,7 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, auth
               realtime room - working alone there's no room at all. An
               invite link is dealt with before the viewer opens. Presence
               (who's online) is connected the whole time, room or not. */}
-          <CollectionContextProvider baseUrl={annotationStoreUrl}>
+          <CollectionContextProvider baseUrl={annotationStoreUrl} maxEditors={options?.maxEditors}>
             <InviteGate>
             <PresenceContextProvider hubUrl={realtimeHubUrl}>
             <RealtimeContextProvider hubUrl={realtimeHubUrl}>

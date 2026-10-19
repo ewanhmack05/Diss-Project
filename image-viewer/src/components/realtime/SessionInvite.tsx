@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useCollectionContext, type CollectionRole, type Invite } from '../../context/CollectionContext'
 import { useEmitEvent } from '../../context/EventContext'
 import { formatLongDate } from '../saved/savedDates'
+import { sessionSize } from './sessionSize'
 
 const HOURS = [
   { hours: 1, label: 'in 1 hour' },
@@ -195,6 +196,11 @@ function SessionInvite() {
           ))}
         </select>
       </label>
+      {role === 'editor' && session && sessionSize(session.members, session.maxEditors).full && (
+        <p className="realtime-note">
+          {session.maxEditors} people can edit at once, and that's full - anyone joining now comes in view only.
+        </p>
+      )}
       <button type="button" className="realtime-button realtime-button--accent realtime-button--wide" disabled={busy} onClick={make}>
         {invite ? 'Make a new link' : 'Make a link'}
       </button>

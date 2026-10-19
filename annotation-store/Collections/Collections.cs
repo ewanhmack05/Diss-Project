@@ -28,6 +28,9 @@ public class Collections
     // Personal only - the owner letting anyone signed in look at it,
     // read-only. Off until they turn it on. See CollectionAccess.
     public bool Shared { get; set; }
+    // Sessions only - how many people can edit at once, set by whoever
+    // started it (the viewer's maxEditors option). See SessionSize.
+    public int MaxEditors { get; set; } = SessionSize.DefaultMaxEditors;
 
     public List<CollectionMember> Members { get; set; } = [];
     public List<CollectionInvite> Invites { get; set; } = [];

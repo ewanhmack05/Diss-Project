@@ -159,11 +159,17 @@ function InviteGate({ children }: { children: ReactNode }) {
         <dt>Slide</dt>
         <dd>{preview.slideId}</dd>
         <dt>You'll be able to</dt>
-        <dd>{ROLE_TEXT[preview.role]}</dd>
+        <dd>{ROLE_TEXT[preview.joinsAs]}</dd>
         <dt>In it now</dt>
         <dd>{preview.people.length > 0 ? preview.people.join(', ') : 'Nobody else yet'}</dd>
       </dl>
       {preview.alreadyMember && <p className="invite-note">You're already in this session.</p>}
+      {preview.joinsAs !== preview.role && (
+        <p className="invite-note">
+          Everyone who can edit this session is already in it, so you'll join view only. The host can let you edit
+          once there's room.
+        </p>
+      )}
       {otherSlide && (
         <p className="invite-note invite-note--warning">
           This session is on slide {preview.slideId}, but this viewer has slide {source.slideId} open.

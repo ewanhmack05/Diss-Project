@@ -38,6 +38,9 @@ interface Collection {
   annotationCount: number
   cellCountCount: number
   lastAdded: string | null
+  // How many can edit at once - past it, people join view only (see
+  // components/realtime/sessionSize.ts).
+  maxEditors: number
 }
 
 interface Invite {
@@ -60,6 +63,9 @@ interface InvitePreview {
   status: 'open' | 'expired' | 'stopped' | 'ended'
   alreadyMember: boolean
   people: string[]
+  // What joining now would give you - view only on an edit link once the
+  // session's editors are full.
+  joinsAs: CollectionRole
 }
 
 interface CollectionContextValue {
@@ -122,6 +128,9 @@ const CollectionContext = createContext<CollectionContextValue | null>(null)
 interface CollectionContextProviderProps {
   baseUrl: string
   children: ReactNode
+  // How many can edit a session this viewer starts - see App's maxEditors
+  // option. Sessions keep the number they started with.
+  maxEditors?: number
 }
 
 // Remembered per tab, so a reload stays in the same session - and still
@@ -152,7 +161,7 @@ function hostName(session: Collection): string {
   return session.members.find((m) => m.role === 'owner')?.displayName || 'The host'
 }
 
-function CollectionContextProvider({ baseUrl, children }: CollectionContextProviderProps) {
+function CollectionContextProvider({ baseUrl, maxEditors, children }: CollectionContextProviderProps) {
   const { source } = useImageViewerContext()
   const { slideId } = source
   const emit = useEmitEvent()
@@ -293,14 +302,14 @@ function CollectionContextProvider({ baseUrl, children }: CollectionContextProvi
       const response = await authFetch(`${baseUrl}/sessions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slideId, collectionName: name }),
+        body: JSON.stringify({ slideId, collectionName: name, maxEditors }),
       })
       if (!response.ok && response.status !== 409) throw new Error(String(response.status))
       const session = (await response.json()) as Collection
       await loadCollections()
       setActive(session.collectionId)
     },
-    [authFetch, baseUrl, slideId, loadCollections, setActive]
+    [authFetch, baseUrl, slideId, maxEditors, loadCollections, setActive]
   )
 
   const endOther = useCallback(

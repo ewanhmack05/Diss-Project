@@ -1,0 +1,35 @@
+import { describe, expect, it } from 'vitest'
+import type { CollectionRole } from '../../context/CollectionContext'
+import { sessionSize } from './sessionSize'
+
+const members = (...roles: CollectionRole[]) => roles.map((role) => ({ role }))
+const editors = (n: number) => members('owner', ...Array<CollectionRole>(n - 1).fill('editor'))
+
+describe('sessionSize', () => {
+  it('counts the host as one of the editors', () => {
+    expect(sessionSize(members('owner', 'editor', 'viewer'), 6).editors).toBe(2)
+  })
+
+  it('is small and has room while everyone could edit', () => {
+    expect(sessionSize(editors(5), 6)).toEqual({ editors: 5, maxEditors: 6, full: false, large: false })
+  })
+
+  it('is full but still small with every place taken and nobody watching', () => {
+    expect(sessionSize(editors(6), 6)).toEqual({ editors: 6, maxEditors: 6, full: true, large: false })
+  })
+
+  it('is large once there are more people than editor places', () => {
+    expect(sessionSize([...editors(6), ...members('viewer')], 6)).toMatchObject({ full: true, large: true })
+  })
+
+  it('goes back to small when people leave, and has room again when an editor steps down', () => {
+    const big = [...editors(6), ...members('viewer')]
+    expect(sessionSize(big.slice(0, 6), 6).large).toBe(false)
+    const steppedDown = [...editors(5), ...members('viewer', 'viewer')]
+    expect(sessionSize(steppedDown, 6)).toMatchObject({ editors: 5, full: false, large: true })
+  })
+
+  it('counts viewers in the size, not the editors - stored text order has no say here', () => {
+    expect(sessionSize(members('viewer', 'viewer', 'viewer', 'viewer', 'viewer', 'viewer', 'owner'), 6)).toMatchObject({ editors: 1, full: false, large: true })
+  })
+})

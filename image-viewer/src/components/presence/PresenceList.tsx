@@ -3,6 +3,8 @@ import { useRealtimeContext } from '../../context/RealtimeContext'
 import { useNavigationContext } from '../../context/NavigationContext'
 import { useEmitEvent } from '../../context/EventContext'
 import { pointerProps, useViewportsContext } from '../../context/ViewportsContext'
+import { useCollectionContext } from '../../context/CollectionContext'
+import { sessionSize } from '../realtime/sessionSize'
 import { sketchFor, viewportShown } from '../realtime/realtime'
 import './PresenceList.css'
 
@@ -75,6 +77,8 @@ function NavigationChip() {
 function PresenceList() {
   const { status, me, others } = useRealtimeContext()
   const { pointedAt, pointAt, shown, setShown } = useViewportsContext()
+  const { session } = useCollectionContext()
+  const large = session ? sessionSize(session.members, session.maxEditors).large : false
   // Someone leaving while their name's under the pointer never gets a
   // mouseleave - let go of them so they aren't picked out if they come back.
   useEffect(() => {
@@ -93,7 +97,7 @@ function PresenceList() {
         </span>
       )}
       {others.map((participant) => {
-        const on = viewportShown(participant.userId, shown, me?.userId ?? null, others)
+        const on = viewportShown(participant.userId, shown, large)
         return (
           <button
             type="button"
