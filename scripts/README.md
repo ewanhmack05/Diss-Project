@@ -16,7 +16,10 @@ layers for annotations and cell-count dots.
 | `seed_stress.py`    | Adds lots of annotations and cell counts to a slide's collection      |
 | `clean_stress.py`   | Removes exactly what `seed_stress.py` added, and nothing else         |
 | `map_bench.js`      | Measures the viewer's frame rate while panning and zooming            |
-| `keycloak_login.py` | Signs the two Python scripts in - not run on its own                  |
+| `simulate_session.py` | Fills a session with simulated people who move round live - see [below](#simulated-people-in-a-session) |
+| `teardown_users.py` | Removes test users from Keycloak, and from the sessions they joined - see [below](#removing-test-users) |
+| `keycloak_login.py` | Signs the Python scripts in - not run on its own                      |
+| `keycloak_admin.py` | Keycloak's admin API for the two above - not run on its own          |
 
 Both Python scripts need `annotation-store` and Keycloak (`auth/`) running.
 `seed_stress.py` also needs `tiler`, to look up the slide's size so shapes
@@ -97,9 +100,80 @@ python -m unittest discover -s scripts
 ```
 
 Covers the parts of `keycloak_login.py` that don't need Keycloak (reading
-the sign-in form and the redirect) and `seed_stress.py`'s dot limit,
-including that the largest count it allows really fits under 80 MiB. CI
-runs them with ruff.
+the sign-in form and the redirect), `seed_stress.py`'s dot limit,
+including that the largest count it allows really fits under 80 MiB, and
+`simulate_session.py`'s link parsing, made up people, viewport maths and
+SignalR message framing, and who `teardown_users.py` removes and protects.
+CI runs them with ruff.
+
+## Simulated people in a session
+
+`simulate_session.py` fills a session with made up people, for trying out
+large sessions, the editor cap and viewport boxes without a room full of
+laptops. It needs Keycloak, annotation-store, realtime-hub and tiler
+running.
+
+1. In the viewer, start a session and make a link (Realtime > Session >
+   Make a link). An edit link shows the cap at work; a view only one lets
+   everyone in view only.
+2. Give the script the link, or just its code:
+
+```bash
+python scripts/simulate_session.py "https://localhost:5173/?invite=juyhsUFHC4gB"
+python scripts/simulate_session.py juyhsUFHC4gB --people 12 --seconds 60
+python scripts/simulate_session.py juyhsUFHC4gB --no-hub     # join, but don't show up live
+python scripts/simulate_session.py juyhsUFHC4gB --leave      # take them out of the session again
+```
+
+Each one opens the link like a real person would, so annotation-store
+decides their role - past the session's editor cap they come in view only.
+It prints who got what:
+
+```
+Joining through the link (editor)
+  Dana Price           editor
+  ...
+  Ivo Novak            viewer
+9 people in it, 6 of 6 editing, 3 view only - a large session
+```
+
+Then they connect to realtime-hub and look round the slide until Ctrl+C
+(or `--seconds`), so they show up as chips in the viewer with viewport
+boxes that move. In a large session the boxes start off - click a chip to
+see one. Stopping leaves them in the session; `--leave` takes them out.
+
+The people are Keycloak users `sim1`, `sim2`, ... (password `password`),
+up to 40. The script makes any that don't exist yet through Keycloak's
+admin API, signed in as the dev admin from `auth/docker-compose.yml`
+(`--admin-user` / `--admin-password` to change it). Their names are made
+up. They talk to realtime-hub over SignalR long polling, since the
+standard library has no WebSocket client and the hub takes either.
+
+## Removing test users
+
+`teardown_users.py` removes users from Keycloak - the sim users, or anyone
+else added while testing. Before removing each one it signs in as them and
+takes them out of every session they joined, on every slide, so they don't
+stay behind in People lists.
+
+**alice, bob and carol are never removed**, and nor are Keycloak's service
+accounts (realtime-hub signs in with one). `--keep` protects more.
+
+```bash
+python scripts/teardown_users.py                     # who would go - changes nothing
+python scripts/teardown_users.py --yes               # remove everyone but the protected ones
+python scripts/teardown_users.py --sim-only --yes    # just sim1, sim2, ...
+python scripts/teardown_users.py --keep dave --yes   # everyone but the protected ones and dave
+```
+
+Without `--yes` it only lists who would go. Signing in as them uses
+`--password` (the test users' `password` by default) - anyone it can't sign
+in as is still removed from Keycloak, and the output says they're still
+listed in their sessions. Collections and sessions they own are left alone
+and listed, since other people's work can be in them; `--delete-owned`
+deletes those too. `--keycloak-only` skips the sessions and just removes
+the accounts. Needs Keycloak, and annotation-store and tiler for leaving
+sessions.
 
 ## SQL
 

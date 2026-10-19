@@ -67,6 +67,7 @@
 }
 
 .presence-dot {
+  flex-shrink: 0;
   width: 0.6em;
   height: 0.6em;
   border-radius: 50%;
@@ -110,4 +111,151 @@
 .presence-look:disabled {
   color: var(--disabled);
   cursor: not-allowed;
+}
+
+/* "+N more" in a large session, and the people list it opens. */
+.presence-more {
+  position: relative;
+  pointer-events: auto;
+}
+
+.presence-more-button {
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+}
+
+.presence-more-button:hover,
+.presence-more-button:focus-visible,
+.presence-more-button--open {
+  color: var(--accent);
+  outline: none;
+}
+
+.presence-more-panel {
+  position: absolute;
+  top: calc(100% + 0.35em);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  width: 18em;
+  max-height: min(60vh, 32em);
+  padding: 0.5em;
+  background: var(--chrome-bg-solid);
+  border-radius: 0.4em;
+  box-shadow: 0 0.5em 1.5em rgba(0, 0, 0, 0.45);
+}
+
+.presence-more-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  padding-bottom: 0.4em;
+  border-bottom: 1px solid var(--white-06);
+}
+
+.presence-more-search {
+  padding: 0.4em 0.55em;
+  font-family: var(--sans);
+  font-size: 0.9em;
+  color: var(--chrome-text);
+  background: var(--white-06);
+  border: 1px solid transparent;
+  border-radius: 0.3125rem;
+  outline: none;
+}
+
+.presence-more-search:focus {
+  border-color: var(--accent);
+}
+
+.presence-more-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  font-size: 0.82em;
+}
+
+.presence-more-count {
+  flex: 1;
+  color: var(--chrome-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.presence-more-action {
+  padding: 0.2em 0.45em;
+  font-family: var(--sans);
+  font-size: 1em;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--white-06);
+  border: none;
+  border-radius: 0.25em;
+  cursor: pointer;
+}
+
+.presence-more-action:hover,
+.presence-more-action:focus-visible {
+  background: var(--white-10);
+  outline: none;
+}
+
+.presence-more-list {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0.3em 0 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.presence-more-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  width: 100%;
+  padding: 0.35em 0.4em;
+  font-family: var(--sans);
+  font-size: 0.9em;
+  color: var(--chrome-text);
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 0.25em;
+  cursor: pointer;
+}
+
+.presence-more-row:hover,
+.presence-more-row:focus-visible,
+.presence-more-row--pointed {
+  background: var(--white-06);
+  outline: none;
+}
+
+.presence-more-row--off {
+  color: var(--chrome-text-secondary);
+}
+
+.presence-more-row--off .presence-dot--toggle {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px currentColor;
+}
+
+.presence-more-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presence-more-role {
+  font-size: 0.85em;
+  color: var(--chrome-text-secondary);
+}
+
+.presence-more-empty {
+  margin: 0.6em 0.2em 0.2em;
+  font-size: 0.85em;
+  color: var(--chrome-text-secondary);
 }

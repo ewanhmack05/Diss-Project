@@ -20,6 +20,10 @@ an afternoon, medium a few days, large a week or more.
   only, even on an edit link. Nobody already editing is moved down, and
   when an editor leaves or is made view only there's room again. Rules in
   [SessionSize.cs](../annotation-store/Collections/SessionSize.cs)
+- **Simulated people** - `scripts/simulate_session.py <invite link>` joins
+  made up people to a session and has them move round live, for testing
+  large sessions without other people (see the
+  [scripts README](../scripts/README.md#simulated-people-in-a-session))
 - **Stress testing** - [seed_stress.py](../scripts/README.md), OpenLayers vs
   WebGL numbers in [rendering.md](rendering.md), OpenTelemetry into the
   Grafana [dashboard](../dashboard/README.md)

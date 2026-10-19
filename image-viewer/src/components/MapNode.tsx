@@ -379,16 +379,25 @@ function MapNode() {
           visible: cellCountVisible,
         })
         doubleCountLayerRef.current = doubleCountLayer
+        // Other people's sketches, rulers and viewports keep changing while
+        // you pan or zoom. By default OL doesn't redraw a vector layer until
+        // you stop, so they'd freeze, and anything outside where you started
+        // from would be cut off. A few features each, so redrawing every
+        // frame costs nothing - unlike the host's count, which can be
+        // thousands of dots and is left to catch up when you stop.
+        const live = { updateWhileInteracting: true, updateWhileAnimating: true }
         const remoteSketchesLayer = new VectorLayer({
           source: remoteSketchesSourceRef.current,
           style: remoteSketchStyle,
           visible: annotationsVisible,
+          ...live,
         })
         remoteSketchesLayerRef.current = remoteSketchesLayer
         // Shown whatever you have open - someone measuring is worth seeing.
         const remoteRulersLayer = new VectorLayer({
           source: remoteRulersSourceRef.current,
           style: remoteRulerStyle(metadata.mppX, metadata.mppY),
+          ...live,
         })
         // The host's count while they present - shown whatever you have open.
         const remoteCountsLayer = new VectorLayer({
@@ -398,6 +407,7 @@ function MapNode() {
         const remoteViewportsLayer = new VectorLayer({
           source: remoteViewportsSourceRef.current,
           style: remoteViewportStyle,
+          ...live,
         })
         annotationsLayerRef.current = annotationsLayer
         annotationArrowsLayerRef.current = annotationArrowsLayer

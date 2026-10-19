@@ -5,6 +5,8 @@ import { useEmitEvent } from '../../context/EventContext'
 import { pointerProps, useViewportsContext } from '../../context/ViewportsContext'
 import { useCollectionContext } from '../../context/CollectionContext'
 import { sessionSize } from '../realtime/sessionSize'
+import { splitChips } from './chips'
+import MorePeople from './MorePeople'
 import { sketchFor, viewportShown } from '../realtime/realtime'
 import './PresenceList.css'
 
@@ -72,8 +74,9 @@ function NavigationChip() {
 
 // Who else is in the session - a chip each, in the same colour as their
 // viewport outline on the map. Clicking one switches their outline on or
-// off, pointing at one shows it picked out. Hidden working alone, or with
-// realtime off.
+// off, pointing at one shows it picked out. A large session shows just its
+// editors, then "+N more" for everyone (see splitChips). Hidden
+// working alone, or with realtime off.
 function PresenceList() {
   const { status, me, others } = useRealtimeContext()
   const { pointedAt, pointAt, shown, setShown } = useViewportsContext()
@@ -86,6 +89,7 @@ function PresenceList() {
   }, [others, pointedAt, pointAt])
 
   if (status === 'off' || status === 'alone') return null
+  const { visible, more } = splitChips(others, large)
 
   return (
     <div className="presence-list" aria-label="People in this session">
@@ -96,7 +100,7 @@ function PresenceList() {
           {me.displayName} (you)
         </span>
       )}
-      {others.map((participant) => {
+      {visible.map((participant) => {
         const on = viewportShown(participant.userId, shown, large)
         return (
           <button
@@ -113,6 +117,7 @@ function PresenceList() {
           </button>
         )
       })}
+      {more.length > 0 && <MorePeople others={others} hiddenCount={more.length} large={large} />}
       <NavigationChip />
       <LookHereButton />
     </div>
