@@ -38,8 +38,8 @@ interface Collection {
   annotationCount: number
   cellCountCount: number
   lastAdded: string | null
-  // How many can edit at once - past it, people join view only (see
-  // components/realtime/sessionSize.ts).
+  // How many editors an edit link lets in - anyone after joins view only,
+  // though the host can make more (see components/realtime/sessionSize.ts).
   maxEditors: number
 }
 
@@ -128,8 +128,8 @@ const CollectionContext = createContext<CollectionContextValue | null>(null)
 interface CollectionContextProviderProps {
   baseUrl: string
   children: ReactNode
-  // How many can edit a session this viewer starts - see App's maxEditors
-  // option. Sessions keep the number they started with.
+  // How many editors an edit link lets into a session this viewer starts -
+  // anyone after joins view only. Sessions keep the number they started with.
   maxEditors?: number
 }
 

@@ -61,8 +61,10 @@ function PeopleList({ session, controls }: { session: Collection; controls: bool
         People ({session.members.length}) · {size.large ? 'large' : 'small'} session
       </h3>
       <p className="realtime-note">
-        {size.editors} of {size.maxEditors} editing
-        {size.full && ' - anyone else joins view only'}
+        {size.editors} editing
+        {size.full
+          ? ' - anyone joining now comes in view only'
+          : ` - the next ${size.maxEditors - size.editors} through an edit link can edit`}
       </p>
       <ul className="realtime-people">
         {session.members.map((member) => {
@@ -92,13 +94,7 @@ function PeopleList({ session, controls }: { session: Collection; controls: bool
                     value={member.role}
                     onChange={(e) => change(setMemberRole(member.userId, e.target.value as CollectionRole))}
                   >
-                    <option
-                      value="editor"
-                      disabled={member.role === 'viewer' && size.full}
-                      title={member.role === 'viewer' && size.full ? `${size.maxEditors} people are editing already` : undefined}
-                    >
-                      Can edit
-                    </option>
+                    <option value="editor">Can edit</option>
                     <option value="viewer">Can view</option>
                   </select>
                   <button

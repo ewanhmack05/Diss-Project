@@ -24,7 +24,7 @@ createRoot(document.getElementById('root')!).render(
       auth={{ authority: `${backend}/auth/realms/diss`, clientId: 'image-viewer' }}
       options={{
         fontSize: '11px',
-        maxEditors: 6,
+        maxEditors: 40,
         tools: [
           'fullscreen',
           'annotations',

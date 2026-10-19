@@ -1,14 +1,16 @@
 import type { CollectionMember } from '../../context/CollectionContext'
 
 // Small vs large sessions, worked out the same way as annotation-store's
-// SessionSize: at most maxEditors people editing, the host included. Past
-// that, people joining come in view only, and the session is "large".
+// SessionSize: an edit link lets in maxEditors editors, the host included,
+// and anyone after that joins view only. The host can still make more. The
+// session is "large" once it has more people than that.
 interface SessionSize {
   editors: number
   maxEditors: number
-  // No editor places left - an edit link lets people in view only.
+  // As many editors as an edit link lets in - anyone joining now is view
+  // only. Can be more than maxEditors if the host made more.
   full: boolean
-  // More people than could all edit.
+  // More people than an edit link lets in as editors.
   large: boolean
 }
 

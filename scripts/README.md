@@ -17,6 +17,8 @@ layers for annotations and cell-count dots.
 | `clean_stress.py`   | Removes exactly what `seed_stress.py` added, and nothing else         |
 | `map_bench.js`      | Measures the viewer's frame rate while panning and zooming            |
 | `simulate_session.py` | Fills a session with simulated people who move round live - see [below](#simulated-people-in-a-session) |
+| `simulate_annotations.py` | Same, and the editors draw shapes live in what they're looking at - see [below](#drawing-and-counting) |
+| `simulate_cell_counts.py` | Same, and the editors count cells live in what they're looking at - see [below](#drawing-and-counting) |
 | `teardown_users.py` | Removes test users from Keycloak, and from the sessions they joined - see [below](#removing-test-users) |
 | `keycloak_login.py` | Signs the Python scripts in - not run on its own                      |
 | `keycloak_admin.py` | Keycloak's admin API for the two above - not run on its own          |
@@ -103,18 +105,20 @@ Covers the parts of `keycloak_login.py` that don't need Keycloak (reading
 the sign-in form and the redirect), `seed_stress.py`'s dot limit,
 including that the largest count it allows really fits under 80 MiB, and
 `simulate_session.py`'s link parsing, made up people, viewport maths and
-SignalR message framing, and who `teardown_users.py` removes and protects.
+SignalR message framing, the shapes and dots the drawing and counting
+scripts make (all inside the view, valid part way through), and who
+`teardown_users.py` removes and protects.
 CI runs them with ruff.
 
 ## Simulated people in a session
 
 `simulate_session.py` fills a session with made up people, for trying out
-large sessions, the editor cap and viewport boxes without a room full of
+large sessions, who joins as an editor and viewport boxes without a room full of
 laptops. It needs Keycloak, annotation-store, realtime-hub and tiler
 running.
 
 1. In the viewer, start a session and make a link (Realtime > Session >
-   Make a link). An edit link shows the cap at work; a view only one lets
+   Make a link). An edit link shows the first few joining as editors; a view only one lets
    everyone in view only.
 2. Give the script the link, or just its code:
 
@@ -126,7 +130,7 @@ python scripts/simulate_session.py juyhsUFHC4gB --leave      # take them out of 
 ```
 
 Each one opens the link like a real person would, so annotation-store
-decides their role - past the session's editor cap they come in view only.
+decides their role - once the link has let its editors in, the rest come in view only.
 It prints who got what:
 
 ```
@@ -134,7 +138,7 @@ Joining through the link (editor)
   Dana Price           editor
   ...
   Ivo Novak            viewer
-9 people in it, 6 of 6 editing, 3 view only - a large session
+9 people in it, 6 editing, 3 view only - a large session (an edit link lets in 6 editors)
 ```
 
 Then they connect to realtime-hub and look round the slide until Ctrl+C
@@ -148,6 +152,38 @@ admin API, signed in as the dev admin from `auth/docker-compose.yml`
 (`--admin-user` / `--admin-password` to change it). Their names are made
 up. They talk to realtime-hub over SignalR long polling, since the
 standard library has no WebSocket client and the hub takes either.
+
+### Drawing and counting
+
+Two more do the same as `simulate_session.py`, and also have the people who
+can edit do something every so often - in what they're looking at, holding
+their view still while they do, like a real person. View-only people just
+watch.
+
+| Script | Editors... | Everyone sees |
+|--------|-----------|---------------|
+| `simulate_annotations.py` | draw a shape (polygon, rectangle, circle, line, arrow or freehand) and save it | it grow as it's drawn, then saved |
+| `simulate_cell_counts.py` | click dots a few a second, sometimes inside a region of interest box, and save the count | the dots and tally go up as they click, then saved |
+
+Both send what the viewer sends - sketches while drawing or counting, then
+an op to everyone and the save to annotation-store - so the viewer can't
+tell them from real people.
+
+```bash
+python scripts/simulate_annotations.py juyhsUFHC4gB                    # a shape each every 8s or so
+python scripts/simulate_annotations.py juyhsUFHC4gB --draw-every 3 --seconds 120
+python scripts/simulate_cell_counts.py juyhsUFHC4gB                    # a count each every 20s or so
+python scripts/simulate_cell_counts.py juyhsUFHC4gB --dots 50 150 --clicks-per-second 5 --roi 1
+
+python scripts/simulate_annotations.py juyhsUFHC4gB --clean            # remove what they drew
+python scripts/simulate_cell_counts.py juyhsUFHC4gB --clean            # remove their counts
+```
+
+Everything they make has its notes set to `sim-session`. `--clean` finds
+those in the session, deletes them as one of the sim editors, and tells
+anyone watching so it goes from their map too. It needs a sim person who
+can still edit the session, so run it before `--leave`. Saved annotations
+only show in the viewer with the Annotations panel open, like any others.
 
 ## Removing test users
 

@@ -288,7 +288,7 @@ function viewportRing({ center, rotation, extent }: Viewport): Coord[] {
 
 // Whether someone's box is on: what you picked for them, otherwise on in a
 // small session and off in a large one (see sessionSize.ts) - past the
-// editor places there'd be a box per person all over the slide.
+// editors there'd be a box per person all over the slide.
 function viewportShown(userId: string, shown: Record<string, boolean>, large: boolean): boolean {
   return shown[userId] ?? !large
 }

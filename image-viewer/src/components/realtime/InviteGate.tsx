@@ -166,8 +166,8 @@ function InviteGate({ children }: { children: ReactNode }) {
       {preview.alreadyMember && <p className="invite-note">You're already in this session.</p>}
       {preview.joinsAs !== preview.role && (
         <p className="invite-note">
-          Everyone who can edit this session is already in it, so you'll join view only. The host can let you edit
-          once there's room.
+          This session has as many editors as it lets in, so you'll join view only. The host can still let you
+          edit.
         </p>
       )}
       {otherSlide && (

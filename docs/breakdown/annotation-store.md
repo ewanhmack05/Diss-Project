@@ -281,15 +281,16 @@ sequenceDiagram
   `stopped` (host stopped it), `expired`, else `open`. Accepting anything but
   `open` is a 410 Gone.
 - **Can't invite an owner.** Links are viewer or editor only.
-- **Editor places are capped.** A session has at most `MaxEditors` people
-  who can edit, the host included - 6 unless the viewer that started it
-  asked for another number (1 to 50, `POST /sessions { maxEditors }`), saved
-  on the session's row. Once they're full, an edit link lets people in view
-  only, the preview's `joinsAs` says so before they accept, and the host
-  can't make anyone else an editor (409). Nobody already editing is moved
-  down, and someone leaving or being made view only frees a place. Joins
-  and role changes take a row lock on the session first, so two people
-  can't both take the last place. Rules in
+- **An edit link lets in a few editors.** The first `MaxEditors` people
+  who can edit, the host included, are all an edit link lets in as editors
+  - 6 unless the viewer that started it asked for another number (1 to 50,
+  `POST /sessions { maxEditors }`), saved on the session's row. After that
+  it lets people in view only, and the preview's `joinsAs` says so before
+  they accept. It only limits joining: the host can still make anyone an
+  editor, and nobody already editing is moved down. Someone leaving or
+  being made view only lets the next person through the link edit again.
+  Joins take a row lock on the session first, so two people can't both
+  take the last place. Rules in
   [SessionSize.cs](../../annotation-store/Collections/SessionSize.cs).
 - **Accepting twice is fine.** Someone already in keeps whichever role is
   higher.

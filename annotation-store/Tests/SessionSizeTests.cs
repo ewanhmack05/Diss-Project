@@ -5,8 +5,8 @@ using AnnotationStore.Collections;
 
 namespace AnnotationStore.Tests;
 
-// Small vs large sessions - at most Max people editing,
-// anyone past that joins view only.
+// Small vs large sessions - an edit link lets in the first Max as editors,
+// anyone after that joins view only. The host can still make more.
 public class SessionSizeTests : IClassFixture<CellCountApiFactory>
 {
     private static readonly System.Text.Json.JsonSerializerOptions Json = TestJson.Options;
@@ -83,16 +83,6 @@ public class SessionSizeTests : IClassFixture<CellCountApiFactory>
     }
 
     [Fact]
-    public void HasRoomFor_OnlyStopsANewEditor_WhenFull()
-    {
-        Assert.False(SessionSize.HasRoomFor(Viewer, Editor, Max, Max));
-        Assert.True(SessionSize.HasRoomFor(Viewer, Editor, Max - 1, Max));
-        Assert.True(SessionSize.HasRoomFor(Editor, Viewer, Max, Max));
-        Assert.True(SessionSize.HasRoomFor(Editor, Editor, Max, Max));
-        Assert.True(SessionSize.HasRoomFor(Viewer, Viewer, Max, Max));
-    }
-
-    [Fact]
     public void IsLarge_OncePeopleOutnumberTheEditorPlaces()
     {
         CollectionMember M(CollectionRole role) => new() { Role = role };
@@ -132,12 +122,21 @@ public class SessionSizeTests : IClassFixture<CellCountApiFactory>
     }
 
     [Fact]
-    public async Task TheHost_CantMakeASeventhEditor()
+    public async Task TheHost_CanStillMakeMoreEditors_ButTheLinkDoesnt()
     {
-        var (id, code, host) = await FullAsync(nameof(TheHost_CantMakeASeventhEditor));
+        // The cap only limits joining - the host deciding someone should
+        // edit isn't stopped by it.
+        var (id, code, host) = await FullAsync(nameof(TheHost_CanStillMakeMoreEditors_ButTheLinkDoesnt));
         await JoinAsync(As("hopeful"), code);
 
-        Assert.Equal(HttpStatusCode.Conflict, (await SetRoleAsync(host, id, "hopeful", Editor)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await SetRoleAsync(host, id, "hopeful", Editor)).StatusCode);
+        var view = (await host.GetFromJsonAsync<CollectionView>($"/collections/{id}", Json))!;
+        Assert.Equal(Max + 1, view.Members.Count(m => m.Role >= Editor));
+        var annotation = await As("hopeful").PostAsJsonAsync("/annotations", new Annotation { CollectionId = id, Label = "a" });
+        Assert.Equal(HttpStatusCode.Created, annotation.StatusCode);
+
+        // Someone new through the edit link still comes in view only.
+        Assert.Equal(Viewer, await JoinAsync(As("after-hopeful"), code));
     }
 
     [Fact]
@@ -145,19 +144,18 @@ public class SessionSizeTests : IClassFixture<CellCountApiFactory>
     {
         var test = nameof(AnEditorSteppingDownOrLeaving_MakesRoomAgain);
         var (id, code, host) = await FullAsync(test);
-        await JoinAsync(As("waiting-1"), code);
-        await JoinAsync(As("waiting-2"), code);
+        Assert.Equal(Viewer, await JoinAsync(As("waiting-1"), code));
 
-        // Made view only - the host can give the place to someone watching.
+        // Made view only - the next person through the link can edit.
         (await SetRoleAsync(host, id, Someone(test, 1), Viewer)).EnsureSuccessStatusCode();
-        (await SetRoleAsync(host, id, "waiting-1", Editor)).EnsureSuccessStatusCode();
+        Assert.Equal(Editor, await JoinAsync(As("next-1"), code));
 
-        // Leaving frees one too - and the next person through the link gets it.
+        // Leaving frees one too.
         Assert.Equal(HttpStatusCode.NoContent, (await As(Someone(test, 2)).DeleteAsync($"/collections/{id}/members/{Someone(test, 2)}")).StatusCode);
-        Assert.Equal(Editor, await JoinAsync(As("next"), code));
+        Assert.Equal(Editor, await JoinAsync(As("next-2"), code));
 
         // And full again.
-        Assert.Equal(HttpStatusCode.Conflict, (await SetRoleAsync(host, id, "waiting-2", Editor)).StatusCode);
+        Assert.Equal(Viewer, await JoinAsync(As("next-3"), code));
     }
 
     [Fact]

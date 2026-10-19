@@ -116,7 +116,8 @@ class HubFraming(unittest.TestCase):
 class RoleSummary(unittest.TestCase):
     def test_says_how_the_cap_played_out(self):
         joined = [("Alice", "owner")] + [(f"E{i}", "editor") for i in range(5)] + [("V1", "viewer"), ("V2", "viewer")]
-        self.assertEqual(role_summary(joined, 6), "8 people in it, 6 of 6 editing, 2 view only - a large session")
+        self.assertEqual(role_summary(joined, 6),
+                         "8 people in it, 6 editing, 2 view only - a large session (an edit link lets in 6 editors)")
 
     def test_small_while_everyone_could_edit(self):
         self.assertIn("a small session", role_summary([("Alice", "owner"), ("Bob", "editor")], 6))

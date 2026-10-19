@@ -27,7 +27,7 @@ public record CollectionView(
     int AnnotationCount = 0,
     int CellCountCount = 0,
     DateTimeOffset? LastAdded = null,
-    // How many can edit at once - see SessionSize.
+    // How many editors an edit link lets in before others join view only - see SessionSize.
     int MaxEditors = SessionSize.DefaultMaxEditors);
 
 // MaxEditors is for POST /sessions only - see SessionSize. Null is the default.
@@ -364,20 +364,13 @@ public static class CollectionEndpoints
                 if (userId == user.UserId()) return Results.BadRequest("You're the owner already");
                 if (!await IsSessionAsync(db, id)) return Results.BadRequest("Only a session can have other people in it");
 
-                await using var transaction = await db.Database.BeginTransactionAsync();
-                await LockSessionAsync(db, id);
+                // Not limited by MaxEditors - that's only how many an edit
+                // link lets in. The host can make anyone an editor.
                 var member = await db.CollectionMembers.FindAsync(id, userId);
                 if (member is null) return Results.NotFound();
-                var maxEditors = await db.Collections.Where(c => c.CollectionId == id).Select(c => c.MaxEditors).FirstAsync();
-                // Counted here, not in SQL - roles are stored as text, where
-                // "Viewer" sorts after "Editor".
-                var editors = SessionSize.Editors(await db.CollectionMembers.Where(m => m.CollectionId == id).ToListAsync());
-                if (!SessionSize.HasRoomFor(member.Role, request.Role, editors, maxEditors))
-                    return Results.Conflict($"This session can have {maxEditors} people editing at once");
                 member.Role = request.Role;
                 if (!string.IsNullOrWhiteSpace(request.DisplayName)) member.DisplayName = request.DisplayName;
                 await db.SaveChangesAsync();
-                await transaction.CommitAsync();
 
                 var collection = await db.Collections.Include(c => c.Members).FirstAsync(c => c.CollectionId == id);
                 return Results.Ok(View(collection, user.UserId()));
@@ -547,7 +540,7 @@ public static class CollectionEndpoints
     private static string OwnerName(Collections collection) =>
         collection.Members.FirstOrDefault(m => m.Role == CollectionRole.Owner)?.DisplayName ?? "";
 
-    // Holds the session's row until the transaction ends, so changes that
+    // Holds the session's row until the transaction ends, so joins that
     // count its editors happen one at a time. Postgres only - the tests run
     // on SQLite, which has no row locks and runs one write at a time anyway.
     private static async Task LockSessionAsync(AnnotationDbContext db, Guid id)

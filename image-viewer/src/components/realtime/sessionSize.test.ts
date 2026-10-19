@@ -29,6 +29,10 @@ describe('sessionSize', () => {
     expect(sessionSize(steppedDown, 6)).toMatchObject({ editors: 5, full: false, large: true })
   })
 
+  it('stays full when the host has made more editors than the link lets in', () => {
+    expect(sessionSize([...editors(8), ...members('viewer')], 6)).toMatchObject({ editors: 8, full: true, large: true })
+  })
+
   it('counts viewers in the size, not the editors - stored text order has no say here', () => {
     expect(sessionSize(members('viewer', 'viewer', 'viewer', 'viewer', 'viewer', 'viewer', 'owner'), 6)).toMatchObject({ editors: 1, full: false, large: true })
   })

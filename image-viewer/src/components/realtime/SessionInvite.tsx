@@ -198,7 +198,8 @@ function SessionInvite() {
       </label>
       {role === 'editor' && session && sessionSize(session.members, session.maxEditors).full && (
         <p className="realtime-note">
-          {session.maxEditors} people can edit at once, and that's full - anyone joining now comes in view only.
+          {session.maxEditors} people are editing already, so anyone joining now comes in view only. You can still
+          make them editors from People.
         </p>
       )}
       <button type="button" className="realtime-button realtime-button--accent realtime-button--wide" disabled={busy} onClick={make}>

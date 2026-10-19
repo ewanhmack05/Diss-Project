@@ -1,12 +1,12 @@
 namespace AnnotationStore.Collections;
 
-// Small vs large sessions. A session can have at most its MaxEditors people
-// who can change things, the host included - set when it's started, from
-// the viewer's maxEditors option. Anyone joining once that's full comes in
-// view only, even on an edit link, so a big audience can watch without
-// everyone drawing over each other. Nobody already editing is moved down,
-// and when an editor leaves or is made view only, there's room again - the
-// session is "small" again as soon as everyone in it could edit.
+// Small vs large sessions. The first MaxEditors people who can edit (the
+// host included) are all an edit link lets in as editors - set when the
+// session's started, from the viewer's maxEditors option. Anyone joining
+// after that comes in view only, so a big audience can watch without
+// everyone drawing over each other. It only limits joining: the host can
+// still make anyone an editor, and nobody already editing is moved down.
+// The session is "large" once it has more people than that.
 public static class SessionSize
 {
     public const int DefaultMaxEditors = 6;
@@ -19,8 +19,7 @@ public static class SessionSize
     public static int Editors(IEnumerable<CollectionMember> members) =>
         members.Count(m => m.Role >= CollectionRole.Editor);
 
-    // More people than could all edit - some of them are only watching
-    // because of the cap.
+    // More people than an edit link lets in as editors.
     public static bool IsLarge(IEnumerable<CollectionMember> members, int maxEditors) => members.Count() > maxEditors;
 
     // The role someone gets for an invite. `current` is their role if
@@ -31,8 +30,4 @@ public static class SessionSize
         if (wanted < CollectionRole.Editor || current >= CollectionRole.Editor) return wanted;
         return editors >= maxEditors ? current ?? CollectionRole.Viewer : wanted;
     }
-
-    // Whether the host can make someone an editor right now.
-    public static bool HasRoomFor(CollectionRole from, CollectionRole to, int editors, int maxEditors) =>
-        to < CollectionRole.Editor || from >= CollectionRole.Editor || editors < maxEditors;
 }

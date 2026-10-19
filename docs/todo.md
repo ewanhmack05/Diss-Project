@@ -13,12 +13,13 @@ an afternoon, medium a few days, large a week or more.
   on or off, hover to see it picked out even when it's off. On by default
   in a small session, off in a large one. Your choice only, nobody else
   sees it
-- **Small vs large sessions** - a session has at most `maxEditors` people
-  editing, the host included (set in the viewer's
+- **Small vs large sessions** - an edit link lets in the first `maxEditors`
+  editors, the host included (set in the viewer's
   [index.tsx](../image-viewer/src/index.tsx), 6 by default, 1 to 50, saved
-  on the session when it starts). Past that, anyone joining comes in view
-  only, even on an edit link. Nobody already editing is moved down, and
-  when an editor leaves or is made view only there's room again. Rules in
+  on the session when it starts). Anyone joining after that comes in view
+  only. It only limits joining - the host can still make anyone an editor.
+  When an editor leaves or is made view only, the next person through the
+  link can edit again. Rules in
   [SessionSize.cs](../annotation-store/Collections/SessionSize.cs)
 - **Simulated people** - `scripts/simulate_session.py <invite link>` joins
   made up people to a session and has them move round live, for testing
@@ -160,8 +161,8 @@ this. Needs decisions before any code.
 
 **Already there:** `CollectionRole { Viewer, Editor, Owner }` in
 [CollectionMember.cs](../annotation-store/Collections/CollectionMember.cs),
-so read only exists, and the editor cap means a guest joining a session
-that's full is view only anyway. Nothing for guests yet (see
+so read only exists, and a guest joining once an edit link has let its
+editors in is view only anyway. Nothing for guests yet (see
 [auth.md](auth.md)).
 
 **Guest identity - leaning towards:**
