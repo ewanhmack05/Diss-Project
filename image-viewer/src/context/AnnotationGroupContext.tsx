@@ -5,6 +5,7 @@ import { useCollectionContext } from './CollectionContext'
 import { useEmitEvent } from './EventContext'
 import { useRealtimeContext } from './RealtimeContext'
 import { useAnnotationStoreContext } from './AnnotationStoreContext'
+import { inBatches } from '../components/annotation/bulk'
 
 interface AnnotationGroupContextValue {
   // The active collection's groups, by name.
@@ -92,12 +93,21 @@ function AnnotationGroupContextProvider({ baseUrl, children }: { baseUrl: string
 
   const createGroup = async (name: string, annotationIds: string[]) => {
     if (collectionId === null) throw new Error('No collection')
-    const response = await send('/annotationgroups', 'POST', { collectionId, name, annotationIds })
+    const [first = [], ...rest] = inBatches(annotationIds)
+    const response = await send('/annotationgroups', 'POST', { collectionId, name, annotationIds: first })
     const { count: _count, ...group } = (await response.json()) as AnnotationGroup & { count: number }
     group.notes ??= ''
     setGroups((current) => [...current, group].sort(byName))
     sendOp({ kind: 'create', entity: 'annotationGroup', id: group.id, data: group })
-    markGrouped(annotationIds, group.id)
+    markGrouped(first, group.id)
+    // The group's made by now, so a batch that fails after this still
+    // leaves it listed with whatever got in.
+    await Promise.all(
+      rest.map(async (ids) => {
+        await send('/annotations/bulk', 'PUT', { collectionId, ids, setGroup: true, groupId: group.id })
+        markGrouped(ids, group.id)
+      })
+    )
     return group
   }
 

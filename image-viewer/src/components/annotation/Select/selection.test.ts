@@ -2,7 +2,7 @@ import Feature from 'ol/Feature'
 import LineString from 'ol/geom/LineString'
 import Polygon, { fromExtent } from 'ol/geom/Polygon'
 import { describe, expect, it } from 'vitest'
-import { featureAt, idsInside, isInside } from './selection'
+import { featureAt, idsInside, isInside, isPanKey, isTyping } from './selection'
 
 const feature = (id: string, geometry: LineString | Polygon) => {
   const f = new Feature({ geometry })
@@ -54,5 +54,37 @@ describe('featureAt', () => {
   it('picks a line within the tolerance', () => {
     expect(featureAt([line], [250, -53], 5)?.getId()).toBe('line')
     expect(featureAt([line], [250, -60], 5)).toBeNull()
+  })
+})
+
+describe('isPanKey', () => {
+  it('is Space with the pointer over the map', () => {
+    // Box and lasso took every drag, so there was no way to move the map
+    // with the Select tab open.
+    expect(isPanKey('Space', 'BODY', true)).toBe(true)
+    expect(isPanKey('Space', 'BUTTON', true)).toBe(true)
+  })
+
+  it("leaves Space alone off the map, so a focused button still works", () => {
+    expect(isPanKey('Space', 'BUTTON', false)).toBe(false)
+  })
+
+  it('never takes a space being typed', () => {
+    expect(isPanKey('Space', 'INPUT', true)).toBe(false)
+    expect(isPanKey('Space', 'TEXTAREA', true)).toBe(false)
+  })
+
+  it('is only Space', () => {
+    expect(isPanKey('KeyA', 'BODY', true)).toBe(false)
+    expect(isPanKey('ShiftLeft', 'BODY', true)).toBe(false)
+  })
+})
+
+describe('isTyping', () => {
+  it('is a text field, not anything else', () => {
+    expect(isTyping('INPUT')).toBe(true)
+    expect(isTyping('SELECT')).toBe(true)
+    expect(isTyping('DIV')).toBe(false)
+    expect(isTyping(undefined)).toBe(false)
   })
 })

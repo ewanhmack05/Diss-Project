@@ -13,6 +13,7 @@ import { ToolbarContextProvider, useToolbarContext, type ToolId } from './contex
 import { NavigationContextProvider } from './context/NavigationContext'
 import { CollectionContextProvider } from './context/CollectionContext'
 import { RealtimeContextProvider } from './context/RealtimeContext'
+import { ViewportsContextProvider } from './context/ViewportsContext'
 import { PresenceContextProvider } from './context/PresenceContext'
 import { AnnotationStoreContextProvider } from './context/AnnotationStoreContext'
 import { CellCountStoreContextProvider } from './context/CellCountStoreContext'
@@ -133,6 +134,7 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, auth
             <InviteGate>
             <PresenceContextProvider hubUrl={realtimeHubUrl}>
             <RealtimeContextProvider hubUrl={realtimeHubUrl}>
+            <ViewportsContextProvider>
               <AnnotationStoreContextProvider baseUrl={annotationStoreUrl}>
                 <AnnotationGroupContextProvider baseUrl={annotationStoreUrl}>
                 <AnnotationSelectContextProvider>
@@ -160,6 +162,7 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, auth
                 </AnnotationSelectContextProvider>
                 </AnnotationGroupContextProvider>
               </AnnotationStoreContextProvider>
+            </ViewportsContextProvider>
             </RealtimeContextProvider>
             </PresenceContextProvider>
             </InviteGate>

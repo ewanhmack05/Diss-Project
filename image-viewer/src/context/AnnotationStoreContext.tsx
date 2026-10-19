@@ -9,6 +9,7 @@ import { useAuthContext } from './AuthContext'
 import { applyOp } from '../components/realtime/realtime'
 import { useSavedTotalAt } from '../components/saved/useSavedTotal'
 import type { SavedFilters } from '../components/saved/filters'
+import { inBatches } from '../components/annotation/bulk'
 
 type Status = 'loading' | 'ready' | 'error'
 
@@ -43,6 +44,9 @@ interface AnnotationStoreContextValue {
   // it's known. For the Saved tab's label. Takes off a bulk delete straight
   // away, though annotation-store only hears about it after the undo.
   total: number | null
+  // The Saved list's own unfiltered /total, so the label keeps up with
+  // anything that wrote to annotation-store without telling realtime.
+  seenTotal: (total: number, at: number, asked: number) => void
   // Deleted here but not yet out of a fetch made at revision `at` - for the
   // Saved list, which fetches separately, to take off its own count.
   pendingRemoved: (at: number) => Annotation[]
@@ -238,19 +242,24 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
     const wanted = new Set(ids)
     setAnnotations((current) => current.map((a) => (wanted.has(a.id) ? { ...a, ...patch } : a)))
     for (const id of ids) sendOp({ kind: 'update', entity: 'annotation', id, data: patch })
-    authFetch(`${baseUrl}/annotations/bulk`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        collectionId,
-        ids,
-        colour: patch.colour,
-        setGroup: 'groupId' in patch,
-        groupId: patch.groupId ?? null,
-      }),
-    })
-      .then((response) => {
-        if (!response.ok) throw new Error(String(response.status))
+    Promise.all(
+      inBatches(ids).map((batch) =>
+        authFetch(`${baseUrl}/annotations/bulk`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            collectionId,
+            ids: batch,
+            colour: patch.colour,
+            setGroup: 'groupId' in patch,
+            groupId: patch.groupId ?? null,
+          }),
+        }).then((response) => {
+          if (!response.ok) throw new Error(String(response.status))
+        })
+      )
+    )
+      .then(() => {
         emit('annotations:updated', { count: ids.length })
         if ('groupId' in patch) bumpRevision()
       })
@@ -268,15 +277,18 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
       const pending = pendingDeletesRef.current.get(key)
       if (!pending) return
       pendingDeletesRef.current.delete(key)
-      authFetch(`${baseUrl}/annotations/bulk-delete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(pending),
-        keepalive,
-      })
-        .then((response) => {
-          if (!response.ok) throw new Error(String(response.status))
-        })
+      Promise.all(
+        inBatches(pending.ids).map((ids) =>
+          authFetch(`${baseUrl}/annotations/bulk-delete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ collectionId: pending.collectionId, ids }),
+            keepalive,
+          }).then((response) => {
+            if (!response.ok) throw new Error(String(response.status))
+          })
+        )
+      )
         .catch(() => emit('annotations:deleted:error', { count: pending.ids.length }))
         .finally(() => {
           bumpRevision()
@@ -395,6 +407,7 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
         wasDeleted,
         baseUrl,
         total,
+        seenTotal: fetchedTotal.seen,
         pendingRemoved,
         mapFilter,
         setMapFilter,

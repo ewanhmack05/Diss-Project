@@ -43,6 +43,7 @@ function SavedAnnotationList({ onTotal }: { onTotal?: (total: ListTotal | null) 
     setViewedAnnotationId,
     pendingRemoved,
     setMapFilter,
+    seenTotal,
   } = useAnnotationStoreContext()
   const { canEdit, collectionId } = useCollectionContext()
   const { user } = useAuthContext()
@@ -70,6 +71,11 @@ function SavedAnnotationList({ onTotal }: { onTotal?: (total: ListTotal | null) 
     revision,
   })
   const facets = useSavedFacets(baseUrl, 'annotations', collectionId, revision)
+  // An unfiltered page knows the whole collection's total - pass it on, so
+  // the tab still says it once the list's closed.
+  useEffect(() => {
+    if (savedPage.status === 'ready' && !savedPage.filtered) seenTotal(savedPage.total, savedPage.at, savedPage.asked)
+  }, [savedPage.status, savedPage.filtered, savedPage.total, savedPage.at, savedPage.asked, seenTotal])
   // Counted from the map's copy, which has every annotation. A group picked
   // and then deleted is still listed, so it can be unpicked.
   const inGroup = new Map<string, number>()

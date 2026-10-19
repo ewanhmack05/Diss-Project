@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SAVED_PAGE_SIZE, clampPage, isFiltered, mergePage, pageCount, pageUrls } from './paging'
+import { SAVED_PAGE_SIZE, clampPage, isFiltered, mergePage, pageCount, pageUrls, typedPage } from './paging'
 import { NO_FILTERS } from './filters'
 
 interface Row {
@@ -225,5 +225,31 @@ describe('mergePage', () => {
       pendingRemoved,
     })
     expect(view.total).toBe(4)
+  })
+})
+
+describe('typedPage', () => {
+  it('turns the number people see into the page index', () => {
+    // 51k annotations is 1,021 pages - typing one beats a thousand clicks.
+    expect(typedPage('1', 1021)).toBe(0)
+    expect(typedPage('500', 1021)).toBe(499)
+    expect(typedPage(' 1021 ', 1021)).toBe(1020)
+  })
+
+  it('takes a thousands separator', () => {
+    expect(typedPage('1,021', 1021)).toBe(1020)
+    expect(typedPage('1 000', 1021)).toBe(999)
+  })
+
+  it('goes to the nearest end when past either one', () => {
+    expect(typedPage('0', 1021)).toBe(0)
+    expect(typedPage('99999', 1021)).toBe(1020)
+  })
+
+  it("is null for anything that isn't a page number", () => {
+    expect(typedPage('', 10)).toBeNull()
+    expect(typedPage('abc', 10)).toBeNull()
+    expect(typedPage('-3', 10)).toBeNull()
+    expect(typedPage('2.5x', 10)).toBeNull()
   })
 })

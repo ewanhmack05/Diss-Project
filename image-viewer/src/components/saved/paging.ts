@@ -26,6 +26,16 @@ function clampPage(page: number, total: number, pageSize: number): number {
   return Math.min(Math.max(0, page), pageCount(total, pageSize) - 1)
 }
 
+// A page number typed into the pager, as a 0-based page. People type the
+// 1-based number they see, maybe with a thousands separator ("1,021").
+// Past either end goes to that end; anything that isn't a number is null,
+// so the box goes back to the page you're on.
+function typedPage(text: string, pages: number): number | null {
+  const digits = text.trim().replace(/[,\s]/g, '')
+  if (!/^\d+$/.test(digits)) return null
+  return Math.min(Math.max(1, Number(digits)), pages) - 1
+}
+
 // GET /annotations or /cellcounts for one page, and /total for the same
 // search and filters, so the page count matches what they find.
 function pageUrls(
@@ -124,5 +134,5 @@ function isFiltered(search: string, filters: SavedFilters): boolean {
   return search.trim() !== '' || activeFilterCount(filters) > 0
 }
 
-export { SAVED_PAGE_SIZE, pageCount, clampPage, pageUrls, mergePage, isFiltered }
+export { SAVED_PAGE_SIZE, pageCount, clampPage, typedPage, pageUrls, mergePage, isFiltered }
 export type { PageView }

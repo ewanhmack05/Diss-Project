@@ -123,7 +123,7 @@ function SelectTab() {
         <p className="select-hint">
           {counting
             ? 'Finish counting to pick annotations on the map.'
-            : `${hint} to pick everything fully inside it. Hold Shift to add to what's picked, click a shape to put it in or take it out, Esc to clear.`}
+            : `${hint} to pick everything fully inside it. Hold Shift to add to what's picked, click a shape to put it in or take it out, Esc to clear. Hold Space or drag with the middle button to move the map.`}
         </p>
       </section>
 
