@@ -9,6 +9,7 @@ import type { FlatStyle, Rule } from "ol/style/flat";
 import { asArray } from "ol/color";
 import { DefaultColour, ShapeTools, type LineStyleName, type ShapeTool } from "../annotation/Tools";
 import { pixelDistance, physicalDistanceMicrons, formatDistanceMicrons, formatDistancePixels } from "../ruler/ruler";
+import type { ViewportDisplay } from "../realtime/realtime";
 
 // Sum of consecutive-point distances - LinearRing has no built-in
 // getLength() (only getArea()), unlike LineString.
@@ -366,22 +367,42 @@ function remoteViewportStyle(feature: FeatureLike): Style[] {
 	return labelledViewportStyle(feature, 2, 12);
 }
 
-function labelledViewportStyle(feature: FeatureLike, outlineWidth: number, fontSize: number): Style[] {
+// Faded boxes keep this much of their colour - still there, just not in
+// the way of the one being looked for.
+const FADED_VIEWPORT_ALPHA = 0.25;
+
+function withAlpha(colour: string, alpha: number): number[] {
+	const [red, green, blue] = asArray(colour);
+	return [red, green, blue, alpha];
+}
+
+// "emphasis" is set from who's pointed at (see viewportDisplay): theirs
+// gets a thicker outline, a light tint and goes on top, the rest fade.
+function labelledViewportStyle(feature: FeatureLike, outlineWidth: number, fontSize: number, labelled = true): Style[] {
 	const colour = feature.get("colour") as string;
-	const label = feature.get("label") as string | undefined;
+	const label = labelled ? (feature.get("label") as string | undefined) : undefined;
+	const emphasis = (feature.get("emphasis") as ViewportDisplay | undefined) ?? "normal";
 	const geometry = feature.getGeometry();
-	const outline = new Style({ stroke: new Stroke({ color: colour, width: outlineWidth }) });
+	const pointed = emphasis === "pointed";
+	const strokeColour = emphasis === "faded" ? withAlpha(colour, FADED_VIEWPORT_ALPHA) : colour;
+	const zIndex = pointed ? 1 : 0;
+	const outline = new Style({
+		stroke: new Stroke({ color: strokeColour, width: pointed ? outlineWidth * 2 : outlineWidth }),
+		fill: pointed ? new Fill({ color: withAlpha(colour, 0.12) }) : undefined,
+		zIndex,
+	});
 	if (!label || !(geometry instanceof Polygon)) return [outline];
 	const corner = geometry.getCoordinates()[0][0];
 	return [
 		outline,
 		new Style({
 			geometry: new Point(corner),
+			zIndex,
 			text: new Text({
 				text: label,
 				font: `600 ${fontSize}px 'Source Sans Pro', Arial, sans-serif`,
-				fill: new Fill({ color: "#fff" }),
-				backgroundFill: new Fill({ color: colour }),
+				fill: new Fill({ color: emphasis === "faded" ? "rgba(255, 255, 255, 0.6)" : "#fff" }),
+				backgroundFill: new Fill({ color: strokeColour }),
 				padding: [1, 4, 1, 4],
 				textAlign: "left",
 				textBaseline: "top",
@@ -522,10 +543,7 @@ const OVERVIEW_LABEL_MIN_PX = 240;
 // Same outline on the overview map, thinner. Names only once it's been
 // expanded, they'd cover most of it otherwise.
 function remoteViewportOverviewStyle(feature: FeatureLike, overviewWidth: number): Style[] {
-	if (overviewWidth < OVERVIEW_LABEL_MIN_PX) {
-		return [new Style({ stroke: new Stroke({ color: feature.get("colour") as string, width: 1.5 }) })];
-	}
-	return labelledViewportStyle(feature, 1.5, 11);
+	return labelledViewportStyle(feature, 1.5, 11, overviewWidth >= OVERVIEW_LABEL_MIN_PX);
 }
 
 export {

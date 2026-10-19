@@ -9,6 +9,11 @@ an afternoon, medium a few days, large a week or more.
 - **Pagination** - annotations and cell counts, with first/last and a
   page number you can type (51k annotations is 1,021 pages)
 - **Collab tab** - split into sub tabs, a lot less text
+- **Viewport boxes per person** - click someone's chip to switch their box
+  on or off, hover to see it picked out even when it's off. On by default
+  with 6 or fewer people here, off past that (`VIEWPORTS_ON_UP_TO` in
+  [realtime.ts](../image-viewer/src/components/realtime/realtime.ts)).
+  Your choice only, nobody else sees it
 - **Stress testing** - [seed_stress.py](../scripts/README.md), OpenLayers vs
   WebGL numbers in [rendering.md](rendering.md), OpenTelemetry into the
   Grafana [dashboard](../dashboard/README.md)
@@ -171,15 +176,18 @@ so read only exists. Nothing for guests yet (see [auth.md](auth.md)).
 - Can the host make a guest an editor?
 - Is 6 the right cap? Measure it rather than guess
 
-## 4. Showing other people's viewports on hover
+## 4. Viewport boxes - what's left
 
-Everyone's viewport box is already drawn all the time
-([MapNode.tsx](../image-viewer/src/components/MapNode.tsx), from the hub's
-`Viewport` in
-[Messages.cs](../realtime-hub/Slides/Messages.cs)). With a large session
-that's a lot of boxes. Instead: show a person's box when you hover their
-name in the people list, and maybe keep "always show" as a toggle. Small to
-medium. Games parallel: a minimap showing where your teammates are.
+The per-person on/off is done (see Done). Still open:
+
+- The 6 is a guess, and the same number as the small session cap in
+  section 3. Once small vs large sessions exist, tie the default to the
+  session's size rather than a count of its own
+- Switching boxes on or off from the Realtime panel's People list too -
+  it only previews on hover for now
+- What you picked isn't kept past a reload
+- Games parallel for the write up: a minimap showing where your teammates
+  are, and spectator views you pick from
 
 ## 5. Rendering
 
@@ -224,10 +232,3 @@ medium. Games parallel: a minimap showing where your teammates are.
 - Guest identity - Keycloak or our own tokens (section 3)
 
 ## Suggested order
-
-1. Ask the questions in section 9 - free, and unblocks section 3
-2. Soft delete, then the history log
-3. Hover viewports - quick and visible
-4. Guests and small vs large sessions, once the answers are in
-5. History view, rollback, then the editing policy and its evaluation
-6. Own WebGL drawing and dark mode if there's time

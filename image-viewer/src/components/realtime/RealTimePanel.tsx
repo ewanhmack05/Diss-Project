@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useRealtimeContext } from '../../context/RealtimeContext'
+import { pointerProps, useViewportsContext } from '../../context/ViewportsContext'
 import { useCollectionContext, type Collection, type CollectionRole } from '../../context/CollectionContext'
 import { useAuthContext } from '../../context/AuthContext'
 import { useEmitEvent } from '../../context/EventContext'
@@ -44,6 +45,7 @@ function PeopleList({ session, controls }: { session: Collection; controls: bool
   const { me, others } = useRealtimeContext()
   const { setMemberRole, removeMember } = useCollectionContext()
   const { user } = useAuthContext()
+  const { pointedAt, pointAt } = useViewportsContext()
   const emit = useEmitEvent()
   const tellEveryone = useTellEveryone()
   const online = new Set([me?.userId, ...others.map((p) => p.userId)])
@@ -57,8 +59,15 @@ function PeopleList({ session, controls }: { session: Collection; controls: bool
       <ul className="realtime-people">
         {session.members.map((member) => {
           const here = online.has(member.userId)
+          // Only someone else who's here has a viewport on the map to show.
+          const pointable = here && member.userId !== user.id
           return (
-            <li key={member.userId} className="realtime-person" title={member.userId}>
+            <li
+              key={member.userId}
+              className={`realtime-person${pointedAt === member.userId && pointable ? ' realtime-person--pointed' : ''}`}
+              title={pointable ? `Show where ${member.displayName} is looking` : member.userId}
+              {...(pointable ? pointerProps(member.userId, pointAt) : {})}
+            >
               <span
                 className={`realtime-presence${here ? ' realtime-presence--here' : ''}`}
                 aria-label={here ? 'Here now' : 'Away'}

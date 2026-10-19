@@ -118,6 +118,10 @@
   min-height: 2em;
 }
 
+.realtime-person--pointed .realtime-person-name {
+  color: var(--accent);
+}
+
 .realtime-person-name {
   flex: 1;
   min-width: 0;

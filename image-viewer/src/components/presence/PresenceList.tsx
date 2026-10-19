@@ -1,7 +1,9 @@
+import { useEffect } from 'react'
 import { useRealtimeContext } from '../../context/RealtimeContext'
 import { useNavigationContext } from '../../context/NavigationContext'
 import { useEmitEvent } from '../../context/EventContext'
-import { sketchFor } from '../realtime/realtime'
+import { pointerProps, useViewportsContext } from '../../context/ViewportsContext'
+import { sketchFor, viewportShown } from '../realtime/realtime'
 import './PresenceList.css'
 
 const STATUS_TEXT = {
@@ -67,9 +69,17 @@ function NavigationChip() {
 }
 
 // Who else is in the session - a chip each, in the same colour as their
-// viewport outline on the map. Hidden working alone, or with realtime off.
+// viewport outline on the map. Clicking one switches their outline on or
+// off, pointing at one shows it picked out. Hidden working alone, or with
+// realtime off.
 function PresenceList() {
   const { status, me, others } = useRealtimeContext()
+  const { pointedAt, pointAt, shown, setShown } = useViewportsContext()
+  // Someone leaving while their name's under the pointer never gets a
+  // mouseleave - let go of them so they aren't picked out if they come back.
+  useEffect(() => {
+    if (pointedAt !== null && !others.some((p) => p.userId === pointedAt)) pointAt(null)
+  }, [others, pointedAt, pointAt])
 
   if (status === 'off' || status === 'alone') return null
 
@@ -82,12 +92,23 @@ function PresenceList() {
           {me.displayName} (you)
         </span>
       )}
-      {others.map((participant) => (
-        <span key={participant.connectionId} className="presence-chip" title={participant.userId}>
-          <span className="presence-dot" style={{ background: participant.colour }} />
-          {participant.displayName}
-        </span>
-      ))}
+      {others.map((participant) => {
+        const on = viewportShown(participant.userId, shown, me?.userId ?? null, others)
+        return (
+          <button
+            type="button"
+            key={participant.connectionId}
+            className={`presence-chip presence-chip--other${on ? '' : ' presence-chip--off'}${pointedAt === participant.userId ? ' presence-chip--pointed' : ''}`}
+            title={on ? `Hide where ${participant.displayName} is looking` : `Show where ${participant.displayName} is looking`}
+            aria-pressed={on}
+            onClick={() => setShown(participant.userId, !on)}
+            {...pointerProps(participant.userId, pointAt)}
+          >
+            <span className="presence-dot presence-dot--toggle" style={{ color: participant.colour }} />
+            {participant.displayName}
+          </button>
+        )
+      })}
       <NavigationChip />
       <LookHereButton />
     </div>

@@ -50,7 +50,7 @@ import { pixelDistance, physicalDistanceMicrons, formatDistanceMicrons, formatDi
 import { parseCellCountDots, dotsFromHistory } from './cell-count/CellCountDots'
 import { computeViewedCellCountExtent } from './cell-count/CellCountView'
 import { compareCounts } from './cell-count/comparison/compare'
-import { followView, sameView, viewportFrom, viewportRing, watchView, type ViewState } from './realtime/realtime'
+import { followView, sameView, viewportDisplay, viewportFrom, viewportRing, watchView, type ViewState } from './realtime/realtime'
 import {
   annotationSketch,
   remoteSketchFeatures,
@@ -70,6 +70,7 @@ import { useCellCountDrawContext } from '../context/CellCountDrawContext'
 import { useCellCountStoreContext } from '../context/CellCountStoreContext'
 import { useToolbarContext } from '../context/ToolbarContext'
 import { useRealtimeContext } from '../context/RealtimeContext'
+import { useViewportsContext } from '../context/ViewportsContext'
 import { useNavigationContext } from '../context/NavigationContext'
 import { useComparisonContext } from '../context/ComparisonContext'
 import { useSharedCountContext } from '../context/SharedCountContext'
@@ -169,6 +170,7 @@ function MapNode() {
   const { activeTools } = useToolbarContext()
   const { hiddenGroupIds } = useAnnotationGroupContext()
   const { me, others, sendViewport, sendSketch, clearSketch, addSharedDot, removeSharedDot } = useRealtimeContext()
+  const { pointedAt, shown: viewportsShown } = useViewportsContext()
   const { following, leader, mode: navigationMode, breakAway, lookAt } = useNavigationContext()
   const {
     stage: comparisonStage,
@@ -567,21 +569,24 @@ function MapNode() {
     })
   }, [locked, mapVersion])
 
-  // Redraw everyone else's viewport whenever one moves or someone comes/goes.
+  // Redraw everyone else's viewport whenever one moves, someone comes or
+  // goes, a name's pointed at, or a box is switched on or off.
+  const myUserId = me?.userId ?? null
   useEffect(() => {
     const source = remoteViewportsSourceRef.current
     source.clear()
     source.addFeatures(
-      others
-        .filter((participant) => participant.viewport)
-        .map((participant) => {
-          const feature = new Feature({ geometry: new Polygon([viewportRing(participant.viewport!)]) })
-          feature.set('colour', participant.colour)
-          feature.set('label', participant.displayName)
-          return feature
-        })
+      others.flatMap((participant) => {
+        const display = viewportDisplay(participant.userId, pointedAt, viewportsShown, myUserId, others)
+        if (!participant.viewport || display === 'hidden') return []
+        const feature = new Feature({ geometry: new Polygon([viewportRing(participant.viewport)]) })
+        feature.set('colour', participant.colour)
+        feature.set('label', participant.displayName)
+        feature.set('emphasis', display)
+        return [feature]
+      })
     )
-  }, [others])
+  }, [others, myUserId, pointedAt, viewportsShown])
 
   // Redraw what everyone else is mid-drawing whenever it changes.
   useEffect(() => {

@@ -286,6 +286,45 @@ function viewportRing({ center, rotation, extent }: Viewport): Coord[] {
   return [topLeft, turn([maxX, maxY]), turn([maxX, minY]), turn([minX, minY]), topLeft]
 }
 
+// Up to this many people here, you included, everyone's viewport box is on
+// to start with - a small session. Past it there'd be a box per person all
+// over the slide, so they start off and you switch on the ones you want.
+const VIEWPORTS_ON_UP_TO = 6
+
+// Different people, not connections - someone in two tabs counts once, and
+// so do you if you've another tab open.
+function peopleHere(myUserId: string | null, others: Participant[]): number {
+  const ids = new Set(others.map((p) => p.userId))
+  if (myUserId !== null) ids.add(myUserId)
+  return ids.size
+}
+
+// Whether someone's box is on: what you picked for them, otherwise on in a
+// small session and off in a big one.
+function viewportShown(userId: string, shown: Record<string, boolean>, myUserId: string | null, others: Participant[]): boolean {
+  return shown[userId] ?? peopleHere(myUserId, others) <= VIEWPORTS_ON_UP_TO
+}
+
+// How someone's box is drawn. Pointing at a name shows that person's box
+// picked out - even if it's off - and fades everyone else's. Pointing at
+// someone with no box on the map (gone since, or not sent one yet) changes
+// nothing.
+type ViewportDisplay = 'hidden' | 'normal' | 'pointed' | 'faded'
+
+function viewportDisplay(
+  userId: string,
+  pointedAt: string | null,
+  shown: Record<string, boolean>,
+  myUserId: string | null,
+  others: Participant[]
+): ViewportDisplay {
+  const on = viewportShown(userId, shown, myUserId, others)
+  const pointing = pointedAt !== null && others.some((p) => p.userId === pointedAt && p.viewport)
+  if (!pointing) return on ? 'normal' : 'hidden'
+  if (userId === pointedAt) return 'pointed'
+  return on ? 'faded' : 'hidden'
+}
+
 // Builds a Viewport from an OL view's state and the map's pixel size.
 function viewportFrom(center: Coord, resolution: number, rotation: number, size: Coord): Viewport {
   const halfWidth = (size[0] * resolution) / 2
@@ -458,6 +497,10 @@ export {
   tabChanges,
   applyOp,
   viewportRing,
+  VIEWPORTS_ON_UP_TO,
+  peopleHere,
+  viewportShown,
+  viewportDisplay,
   viewportFrom,
   watchView,
   throttle,
@@ -468,6 +511,7 @@ export {
 }
 export type {
   Viewport,
+  ViewportDisplay,
   ViewState,
   Participant,
   NavigationMode,
