@@ -14,7 +14,8 @@ import { useComparisonContext } from '../../context/ComparisonContext'
 import { useSharedCountContext } from '../../context/SharedCountContext'
 import { formatLongDate } from '../saved/savedDates'
 import type { NavigationMode } from './realtime'
-import { sessionSize } from './sessionSize'
+import { LEAST_MAX_EDITORS, MOST_MAX_EDITORS, readMaxEditors, sessionSize } from './sessionSize'
+import { activeUsers, splitActive, type ActiveKind, type ActiveUser } from './activeUsers'
 import './RealTimePanel.css'
 
 const ROLE_TEXT: Record<CollectionRole, string> = {
@@ -24,7 +25,7 @@ const ROLE_TEXT: Record<CollectionRole, string> = {
 }
 
 const CONNECTION_TEXT = {
-  off: 'Realtime is off',
+  off: 'Collaboration is off',
   alone: '',
   connecting: 'Connecting…',
   connected: 'Live',
@@ -58,7 +59,7 @@ function PeopleList({ session, controls }: { session: Collection; controls: bool
   return (
     <section className="realtime-section">
       <h3 className="realtime-heading">
-        People ({session.members.length}) · {size.large ? 'large' : 'small'} session
+        Members ({session.members.length}) · {size.large ? 'large' : 'small'} session
       </h3>
       <p className="realtime-note">
         {size.editors} editing
@@ -117,6 +118,90 @@ function PeopleList({ session, controls }: { session: Collection; controls: bool
   )
 }
 
+const ACTIVE_TEXT: Record<ActiveKind, string> = {
+  host: 'Host',
+  editor: 'Can edit',
+  viewer: 'Can view',
+  guest: 'Guest',
+}
+
+// Everyone in the session right now, from the hub - members who are
+// connected, and guests, who aren't members so aren't in PeopleList. Hover
+// someone to pick out where they're looking. The host can ask a guest to
+// make an account, to be let edit.
+function ActiveUsers({ controls }: { controls: boolean }) {
+  const { me, others, status, askToEdit } = useRealtimeContext()
+  const { pointedAt, pointAt } = useViewportsContext()
+  const emit = useEmitEvent()
+  const [asked, setAsked] = useState<Set<string>>(() => new Set())
+  const users = activeUsers(me, others)
+  // Still connecting, or the hub's away.
+  if (users.length === 0) return <p className="realtime-note">Nobody's connected yet.</p>
+  const { signedIn, guests } = splitActive(users)
+
+  const ask = (user: ActiveUser) =>
+    Promise.all(user.connectionIds.map(askToEdit))
+      .then(() => {
+        setAsked((current) => new Set(current).add(user.userId))
+        emit('request:sent')
+      })
+      .catch(() => emit('request:error'))
+
+  const row = (user: ActiveUser) => (
+    <li
+      key={user.userId}
+      className={`realtime-person${pointedAt === user.userId && !user.me ? ' realtime-person--pointed' : ''}`}
+      title={user.me ? undefined : `Show where ${user.name} is looking`}
+      {...(user.me ? {} : pointerProps(user.userId, pointAt))}
+    >
+      <span className="realtime-active-colour" style={{ background: user.colour }} aria-hidden="true" />
+      <span className="realtime-person-name">
+        {user.name}
+        {user.me && ' (you)'}
+      </span>
+      {user.kind !== 'guest' ? (
+        <span className="realtime-person-role">{ACTIVE_TEXT[user.kind]}</span>
+      ) : (
+        controls && (
+          <button
+            type="button"
+            className="realtime-button"
+            disabled={status !== 'connected' || asked.has(user.userId)}
+            aria-label={`Ask ${user.name} to make an account so they can edit`}
+            onClick={() => ask(user)}
+          >
+            {asked.has(user.userId) ? 'Asked' : 'Ask to edit'}
+          </button>
+        )
+      )}
+    </li>
+  )
+
+  return (
+    <>
+      <section className="realtime-section">
+        <h3 className="realtime-heading">Signed in ({signedIn.length})</h3>
+        {signedIn.length > 0 ? (
+          <ul className="realtime-people">{signedIn.map(row)}</ul>
+        ) : (
+          <p className="realtime-note">Nobody with an account is here right now.</p>
+        )}
+      </section>
+      <section className="realtime-section">
+        <h3 className="realtime-heading">Guests ({guests.length})</h3>
+        {guests.length > 0 ? (
+          <>
+            <p className="realtime-note">No account, so view only. Their names go when they leave.</p>
+            <ul className="realtime-people">{guests.map(row)}</ul>
+          </>
+        ) : (
+          <p className="realtime-note">No guests. Anyone who opens the invite link without an account comes in here.</p>
+        )}
+      </section>
+    </>
+  )
+}
+
 // Comparison and shared count invites and progress - these only happen in a session.
 function CountActivity() {
   const { comparison, myCounter } = useComparisonContext()
@@ -142,18 +227,22 @@ function CountActivity() {
 }
 
 function WorkingAlone() {
-  const { collections, startSession, open } = useCollectionContext()
+  const { collections, startSession, open, defaultMaxEditors } = useCollectionContext()
   const { user } = useAuthContext()
   const { activeTools, toggleTool } = useToolbarContext()
   const emit = useEmitEvent()
   const [starting, setStarting] = useState(false)
+  // Typed, so it can be empty part way through changing it.
+  const [maxText, setMaxText] = useState(() => String(defaultMaxEditors))
+  const chosenMax = readMaxEditors(maxText)
   const sessions = collections.filter((c) => c.kind === 'session').length
   // One per slide - the newest you host that hasn't ended. The list is newest first.
   const mine = collections.find((c) => c.kind === 'session' && !c.ended && c.ownerId === user.id)
 
   const start = () => {
+    if (chosenMax === null) return
     setStarting(true)
-    startSession()
+    startSession(undefined, chosenMax)
       .catch(() => emit('session:error'))
       .finally(() => setStarting(false))
   }
@@ -182,7 +271,31 @@ function WorkingAlone() {
               Start a session to work on this slide with other people. You'll get an invite link and code to send them, or
               invite anyone online from Users - nobody can join without one.
             </p>
-            <button type="button" className="realtime-button realtime-button--accent realtime-button--wide" disabled={starting} onClick={start}>
+            <label className="realtime-field realtime-field--row">
+              <span className="realtime-field-label">Editors through the link</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={LEAST_MAX_EDITORS}
+                max={MOST_MAX_EDITORS}
+                step={1}
+                value={maxText}
+                aria-invalid={chosenMax === null}
+                aria-describedby="max-editors-note"
+                onChange={(e) => setMaxText(e.target.value)}
+              />
+            </label>
+            <p id="max-editors-note" className={`realtime-note${chosenMax === null ? ' realtime-note--warning' : ''}`}>
+              {chosenMax === null
+                ? `A whole number from ${LEAST_MAX_EDITORS} to ${MOST_MAX_EDITORS}.`
+                : `The first ${chosenMax === 1 ? 'person' : `${chosenMax} people`} through an edit link can edit, you included. Anyone after that joins view only - you can still let them edit.`}
+            </p>
+            <button
+              type="button"
+              className="realtime-button realtime-button--accent realtime-button--wide"
+              disabled={starting || chosenMax === null}
+              onClick={start}
+            >
               {starting ? 'Starting…' : 'Start a session'}
             </button>
           </>
@@ -429,6 +542,7 @@ function Hosting({ session }: { session: Collection }) {
 
 function Joined({ session }: { session: Collection }) {
   const { leaveSession } = useCollectionContext()
+  const { user, signIn } = useAuthContext()
   const host = session.members.find((m) => m.role === 'owner')
 
   return (
@@ -436,8 +550,21 @@ function Joined({ session }: { session: Collection }) {
       <section className="realtime-section realtime-section--tight">
         <SessionTitle session={session} editable={false} />
         <LiveLine text={`Live · hosted by ${host?.displayName ?? 'someone'}`} />
-        <span className="realtime-badge">{session.myRole === 'viewer' ? 'You can view' : 'You can edit'}</span>
+        <span className="realtime-badge">
+          {user.guest ? "You're a guest - you can view" : session.myRole === 'viewer' ? 'You can view' : 'You can edit'}
+        </span>
       </section>
+      {user.guest && (
+        <section className="realtime-section">
+          <p className="realtime-note">
+            To add or change anything you need an account. Make one, or sign in, and you'll come back to this
+            session - then ask {host?.displayName ?? 'the host'} to let you edit.
+          </p>
+          <button type="button" className="realtime-button realtime-button--accent realtime-button--wide" onClick={() => signIn(true)}>
+            Make an account
+          </button>
+        </section>
+      )}
       <NavigationNote />
       <PeopleList session={session} controls={false} />
       <CountActivity />
@@ -450,6 +577,7 @@ function Joined({ session }: { session: Collection }) {
 
 function Ended({ session }: { session: Collection }) {
   const { leaveSession } = useCollectionContext()
+  const { user } = useAuthContext()
   return (
     <>
       <section className="realtime-section realtime-section--tight">
@@ -458,7 +586,7 @@ function Ended({ session }: { session: Collection }) {
       </section>
       <PeopleList session={session} controls={false} />
       <button type="button" className="realtime-button realtime-button--wide" onClick={leaveSession}>
-        Back to working on my own
+        {user.guest ? 'Leave' : 'Back to working on my own'}
       </button>
     </>
   )
@@ -499,8 +627,38 @@ function Dormant({ session }: { session: Collection }) {
   )
 }
 
+// The host deleted the session a guest was in - there's nothing else here for them.
+function GuestSessionGone() {
+  const { signOut } = useAuthContext()
+  return (
+    <>
+      <p className="realtime-note">This session isn't there any more.</p>
+      <button type="button" className="realtime-button realtime-button--wide" onClick={signOut}>
+        Leave
+      </button>
+    </>
+  )
+}
+
 function SignedIn() {
-  const { user, signOut, switchUser } = useAuthContext()
+  const { user, signOut, switchUser, signIn } = useAuthContext()
+  if (user.guest) {
+    return (
+      <section className="realtime-account">
+        <p className="realtime-signed-in">
+          Here as a guest - <strong>{user.name}</strong>
+        </p>
+        <div className="realtime-button-row">
+          <button type="button" className="realtime-button" onClick={() => signIn(false)}>
+            Sign in
+          </button>
+          <button type="button" className="realtime-button" onClick={signOut}>
+            Leave
+          </button>
+        </div>
+      </section>
+    )
+  }
   return (
     <section className="realtime-account">
       <p className="realtime-signed-in">
@@ -518,20 +676,44 @@ function SignedIn() {
   )
 }
 
-type RealTimeTab = 'session' | 'users'
+type RealTimeTab = 'session' | 'active' | 'users'
 
 // Session: working alone, hosting a session, in someone else's, or looking
-// back at one that's ended. Users: everyone with an account, online first. Both say who
-// you're signed in as. The tab is kept here rather than in the toolbar's
-// context - it's your own, so Present doesn't follow the host's.
+// back at one that's ended. Active: who's in the session right now, guests
+// included - only while you're in one. Users: everyone with an account,
+// online first. All say who you're signed in as. The tab is kept here rather
+// than in the toolbar's context - it's your own, so Present doesn't follow
+// the host's.
 function RealTimePanel() {
-  const { status, session, dormant } = useCollectionContext()
+  const { status, session, dormant, roomId } = useCollectionContext()
   const { onlineCount } = usePresenceContext()
-  const [tab, setTab] = useState<RealTimeTab>('session')
+  const { me, others } = useRealtimeContext()
+  const { user } = useAuthContext()
+  const [picked, setPicked] = useState<RealTimeTab>('session')
+  const inSession = !!roomId
+  const activeCount = inSession ? activeUsers(me, others).length : 0
+  // Users is everyone with an account - nothing a guest can use.
+  const tabs: RealTimeTab[] = [
+    'session',
+    ...(inSession ? (['active'] as const) : []),
+    ...(user.guest ? [] : (['users'] as const)),
+  ]
+  // Out of the session with Active picked - back to Session, and Active
+  // again if they go back in.
+  const tab = tabs.includes(picked) ? picked : 'session'
+
+  const label = (option: RealTimeTab) =>
+    option === 'session'
+      ? 'Session'
+      : option === 'active'
+        ? `Active${activeCount > 0 ? ` (${activeCount})` : ''}`
+        : `Users${onlineCount > 0 ? ` (${onlineCount} online)` : ''}`
 
   let body
   if (tab === 'users') body = <UsersList />
+  else if (tab === 'active') body = <ActiveUsers controls={session?.myRole === 'owner'} />
   else if (status !== 'ready') body = <p className="realtime-note">Loading…</p>
+  else if (!session && user.guest) body = <GuestSessionGone />
   else if (!session) body = <WorkingAlone />
   else if (session.ended) body = <Ended session={session} />
   else if (dormant) body = <Dormant session={session} />
@@ -540,17 +722,17 @@ function RealTimePanel() {
 
   return (
     <div className="realtime-panel-wrap">
-      <div className="realtime-tabs" role="tablist" aria-label="Real-time">
-        {(['session', 'users'] as const).map((option) => (
+      <div className="realtime-tabs" role="tablist" aria-label="Collaboration">
+        {tabs.map((option) => (
           <button
             key={option}
             type="button"
             role="tab"
             aria-selected={tab === option}
             className={`realtime-tab${tab === option ? ' realtime-tab--active' : ''}`}
-            onClick={() => setTab(option)}
+            onClick={() => setPicked(option)}
           >
-            {option === 'session' ? 'Session' : `Users${onlineCount > 0 ? ` (${onlineCount} online)` : ''}`}
+            {label(option)}
           </button>
         ))}
       </div>

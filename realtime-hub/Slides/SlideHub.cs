@@ -31,7 +31,8 @@ public interface ISlideClient
 // One SignalR group per room, and a room is a session - its collection's
 // id (see JoinSession). A connection is in at most one room at a
 // time - joining another just moves it. Everyone is signed in (see
-// Program.cs), and who they are comes from their Keycloak token.
+// Program.cs), and who they are comes from their Keycloak token, or for a
+// guest from an invite link, their guest token (see Auth/GuestTokens.cs).
 // Each open shared doc gets its own group inside the room. Shared count
 // methods are in SlideHub.SharedCount.cs.
 public partial class SlideHub(SlideRooms rooms, ISessionAccess sessions, ILogger<SlideHub> logger) : Hub<ISlideClient>
@@ -56,13 +57,46 @@ public partial class SlideHub(SlideRooms rooms, ISessionAccess sessions, ILogger
     {
         if (string.IsNullOrWhiteSpace(roomId)) throw new HubException("roomId is required");
         var user = Context.User ?? throw new HubException("Sign in first");
+        if (user.IsGuest()) throw new HubException("Guest links join with JoinAsGuest");
         var userId = user.UserId();
         var role = await sessions.RoleInAsync(roomId, userId, AccessToken(), Context.ConnectionAborted)
             ?? throw new HubException("You're not in that session, or it's ended");
 
+        var result = await EnterRoom(roomId, userId, user.DisplayName(), role, guest: false);
+        logger.LogInformation("{UserId} joined session {RoomId} ({Count} others)",
+            userId, roomId, result.Others.Count);
+        return result;
+    }
+
+    // Someone from an invite link without an account (see docs/guests.md).
+    // Only into the session their token is for, and always view only. The
+    // name is only kept in the room, so it's never logged - just the guest id.
+    public async Task<JoinResult> JoinAsGuest(string roomId, string name)
+    {
+        if (string.IsNullOrWhiteSpace(roomId)) throw new HubException("roomId is required");
+        var user = Context.User;
+        if (user is null || !user.IsGuest()) throw new HubException("JoinAsGuest is for guest links - use JoinSession");
+        if (roomId != user.GuestSessionId()) throw new HubException("Your link is for a different session");
+        var (displayName, problem) = GuestName.Check(name);
+        if (problem is not null) throw new HubException(problem);
+
+        // annotation-store says viewer for a guest's own session, so this is
+        // just to turn them away once it's ended.
+        var guestId = user.UserId();
+        if (await sessions.RoleInAsync(roomId, guestId, AccessToken(), Context.ConnectionAborted) is null)
+            throw new HubException("That session has ended");
+
+        var result = await EnterRoom(roomId, guestId, displayName!, SessionRole.Viewer, guest: true);
+        logger.LogInformation("{UserId} joined session {RoomId} as a guest ({Count} others)",
+            guestId, roomId, result.Others.Count);
+        return result;
+    }
+
+    private async Task<JoinResult> EnterRoom(string roomId, string userId, string displayName, SessionRole role, bool guest)
+    {
         await LeaveCurrentRoom();
 
-        var result = rooms.Join(roomId, Context.ConnectionId, userId, user.DisplayName(), role);
+        var result = rooms.Join(roomId, Context.ConnectionId, userId, displayName, role, guest);
         await Groups.AddToGroupAsync(Context.ConnectionId, GroupName(roomId));
         await Clients.OthersInGroup(GroupName(roomId)).UserJoined(result.Me);
         // They've just been added to it as invited, so everyone else's list is out of date.
@@ -70,9 +104,6 @@ public partial class SlideHub(SlideRooms rooms, ISessionAccess sessions, ILogger
             await Clients.OthersInGroup(GroupName(roomId)).ComparisonChanged(result.Comparison);
         if (result.SharedCount is not null)
             await Clients.OthersInGroup(GroupName(roomId)).SharedCountChanged(result.SharedCount);
-
-        logger.LogInformation("{UserId} joined session {RoomId} ({Count} others)",
-            userId, roomId, result.Others.Count);
         return result;
     }
 
@@ -134,9 +165,11 @@ public partial class SlideHub(SlideRooms rooms, ISessionAccess sessions, ILogger
     // After the host changes your role - checked with annotation-store, not
     // taken from the client. Going view only takes you out of any count.
     // Taken out of the session altogether is left to the client, which
-    // leaves the room once it sees that.
+    // leaves the room once it sees that. A guest is always view only, so
+    // there's nothing to check.
     public async Task RefreshRole()
     {
+        if (Context.User?.IsGuest() == true) return;
         var me = rooms.Get(Context.ConnectionId) ?? throw NotJoined();
         var role = await sessions.RoleInAsync(me.RoomId, me.UserId, AccessToken(), Context.ConnectionAborted);
         if (role is null) return;
@@ -173,7 +206,7 @@ public partial class SlideHub(SlideRooms rooms, ISessionAccess sessions, ILogger
     }
 
     // Relay only - the sender still saves to annotation-store itself for now.
-    // Returns the stamped op so the sender knows its seq too.
+    // Returns the stamped op so the sender knows its seq too. Not from view only.
     public async Task<StampedOp> SendAnnotationOp(AnnotationOp op)
     {
         if (op.Id == Guid.Empty) throw new HubException("op.id is required");
@@ -182,7 +215,7 @@ public partial class SlideHub(SlideRooms rooms, ISessionAccess sessions, ILogger
             throw new HubException("op.data is required for create/update");
 
         var me = rooms.Get(Context.ConnectionId) ?? throw NotJoined();
-        var stamped = rooms.Stamp(Context.ConnectionId, op) ?? throw NotJoined();
+        var stamped = Counting(() => rooms.Stamp(Context.ConnectionId, op)) ?? throw NotJoined();
         await Clients.OthersInGroup(GroupName(me.RoomId)).AnnotationOp(stamped);
         return stamped;
     }
@@ -253,11 +286,12 @@ public partial class SlideHub(SlideRooms rooms, ISessionAccess sessions, ILogger
         return state;
     }
 
+    // Not from view only - they can open a doc to watch it, that's all.
     public async Task SendDocUpdate(string docId, byte[] update)
     {
         ValidateUpdate(update, "update");
         var me = rooms.Get(Context.ConnectionId) ?? throw NotJoined();
-        if (docId is null || !rooms.AppendDocUpdate(Context.ConnectionId, me.RoomId, docId, update))
+        if (docId is null || !Counting(() => rooms.AppendDocUpdate(Context.ConnectionId, me.RoomId, docId, update)))
             throw new HubException("Open the doc first");
 
         await Clients.OthersInGroup(DocGroupName(me.RoomId, docId))
@@ -312,7 +346,7 @@ public partial class SlideHub(SlideRooms rooms, ISessionAccess sessions, ILogger
         Clients.Group(GroupName(change.RoomId)).ComparisonChanged(change.Comparison?.Blind());
 
     // Turns the rooms' CountException into a HubException, so the reason
-    // gets back to the caller.
+    // gets back to the caller. Used for view only refusals too.
     private static T Counting<T>(Func<T> call)
     {
         try

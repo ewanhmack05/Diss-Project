@@ -29,8 +29,8 @@ public record LeaveResult(
     SharedCountChange? SharedCount);
 
 // Thrown for comparison or shared count calls that don't fit its current
-// state, e.g. joining one that's already revealed. The message goes back
-// to the client.
+// state, e.g. joining one that's already revealed, or for view only trying
+// to change something. The message goes back to the client.
 public class CountException(string message) : Exception(message);
 
 public record DocSummary(string DocId, Guid InstanceId, int Editors, int Updates, long Bytes);
@@ -48,6 +48,7 @@ public partial class SlideRooms
     ];
 
     private const string ViewOnly = "You can only view this session, so you can't start a count";
+    private const string ViewOnlyEdit = "You can only view this session, so you can't change anything in it";
 
     private readonly Lock _lock = new();
     private readonly Dictionary<string, Room> _rooms = new();
@@ -72,7 +73,7 @@ public partial class SlideRooms
         public List<string> Editors { get; } = new();
     }
 
-    public JoinResult Join(string roomId, string connectionId, string userId, string displayName, SessionRole role)
+    public JoinResult Join(string roomId, string connectionId, string userId, string displayName, SessionRole role, bool guest = false)
     {
         lock (_lock)
         {
@@ -83,7 +84,7 @@ public partial class SlideRooms
             }
 
             var me = new Participant(connectionId, roomId, userId, displayName,
-                PickColour(room), DateTimeOffset.UtcNow, role == SessionRole.Owner, role != SessionRole.Viewer);
+                PickColour(room), DateTimeOffset.UtcNow, role == SessionRole.Owner, role != SessionRole.Viewer, Guest: guest);
             var others = room.Participants.Values.ToList();
 
             room.Participants[connectionId] = me;
@@ -259,13 +260,16 @@ public partial class SlideRooms
         }
     }
 
-    // False if the connection doesn't have this doc open.
+    // False if the connection doesn't have this doc open. View only can
+    // open a doc to see it change, but not change it.
     public bool AppendDocUpdate(string connectionId, string roomId, string docId, byte[] update)
     {
         lock (_lock)
         {
             if (!_roomByConnection.TryGetValue(connectionId, out var current) || current != roomId) return false;
-            if (!_rooms[roomId].Docs.TryGetValue(docId, out var doc) || !doc.Editors.Contains(connectionId)) return false;
+            var room = _rooms[roomId];
+            if (!room.Participants[connectionId].CanEdit) throw new CountException(ViewOnlyEdit);
+            if (!room.Docs.TryGetValue(docId, out var doc) || !doc.Editors.Contains(connectionId)) return false;
             doc.Updates.Add(update);
             return true;
         }
@@ -368,6 +372,8 @@ public partial class SlideRooms
         }
     }
 
+    // Null if they're not in a room. View only can't send ops - before this
+    // was checked, a viewer's op still went out to everyone else.
     public StampedOp? Stamp(string connectionId, AnnotationOp op)
     {
         lock (_lock)
@@ -375,6 +381,7 @@ public partial class SlideRooms
             if (!_roomByConnection.TryGetValue(connectionId, out var roomId)) return null;
             var room = _rooms[roomId];
             var sender = room.Participants[connectionId];
+            if (!sender.CanEdit) throw new CountException(ViewOnlyEdit);
             return new StampedOp(++room.Seq, DateTimeOffset.UtcNow, connectionId, sender.UserId, op);
         }
     }

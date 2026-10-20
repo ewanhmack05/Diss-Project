@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CollectionRole } from '../../context/CollectionContext'
-import { sessionSize } from './sessionSize'
+import { defaultMaxEditors, readMaxEditors, sessionSize } from './sessionSize'
 
 const members = (...roles: CollectionRole[]) => roles.map((role) => ({ role }))
 const editors = (n: number) => members('owner', ...Array<CollectionRole>(n - 1).fill('editor'))
@@ -36,4 +36,35 @@ describe('sessionSize', () => {
   it('counts viewers in the size, not the editors - stored text order has no say here', () => {
     expect(sessionSize(members('viewer', 'viewer', 'viewer', 'viewer', 'viewer', 'viewer', 'owner'), 6)).toMatchObject({ editors: 1, full: false, large: true })
   })
+})
+
+describe('defaultMaxEditors', () => {
+  it('starts the box at the viewer option', () => {
+    expect(defaultMaxEditors(40)).toBe(40)
+  })
+
+  it('falls back to 6 without one, the same as annotation-store', () => {
+    expect(defaultMaxEditors(undefined)).toBe(6)
+    expect(defaultMaxEditors(Number.NaN)).toBe(6)
+  })
+
+  it('keeps an option outside 1 to 50 inside it', () => {
+    expect(defaultMaxEditors(0)).toBe(1)
+    expect(defaultMaxEditors(-3)).toBe(1)
+    expect(defaultMaxEditors(80)).toBe(50)
+    expect(defaultMaxEditors(4.6)).toBe(5)
+  })
+})
+
+describe('readMaxEditors', () => {
+  it.each([
+    ['1', 1],
+    ['6', 6],
+    [' 12 ', 12],
+    ['50', 50],
+  ])('takes %j as %i', (text, value) => expect(readMaxEditors(text)).toBe(value))
+
+  it.each(['', ' ', '0', '51', '-2', '2.5', '1e1', 'six', '3 4'])('turns down %j', (text) =>
+    expect(readMaxEditors(text)).toBeNull()
+  )
 })

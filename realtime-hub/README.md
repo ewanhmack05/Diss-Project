@@ -16,7 +16,9 @@ alone, the viewer doesn't join a room - it only connects to
 Everyone signs in with Keycloak (see [auth/](../auth)). The hub checks the
 access token when a connection opens - browsers send it as
 `?access_token=`, since a WebSocket can't carry the usual header - and who
-someone is (`userId`, `displayName`) comes from the token.
+someone is (`userId`, `displayName`) comes from the token. People without
+an account can join a session as view only [guests](#guests), from its
+invite link.
 
 ## Running
 
@@ -49,18 +51,19 @@ Connect to `/hubs/slides`. Enums go over the wire as camelCase strings
 
 | Method             | Args                                | Returns      | Notes                                                    |
 | ------------------ | ----------------------------------- | ------------ | -------------------------------------------------------- |
-| `JoinSession`      | `roomId` (the session's collection id) | `JoinResult` | Only if annotation-store says you're in the session and it hasn't ended. Leaves any room you were already in, closing its docs. You're whoever the token says |
+| `JoinSession`      | `roomId` (the session's collection id) | `JoinResult` | Only if annotation-store says you're in the session and it hasn't ended. Leaves any room you were already in, closing its docs. You're whoever the token says. Not with a guest token |
+| `JoinAsGuest`      | `roomId`, `name`                    | `JoinResult` | Guest tokens only, and only the session in the token. Always view only. `name` is tidied and checked (see [Guests](#guests)) |
 | `LeaveSession`     | -                                   | -            | Closes any docs you had open                             |
 | `UpdateViewport`   | `Viewport`                          | -            | Throttle to ~10/sec on the client                        |
 | `UpdateSketch`     | `Sketch`                            | -            | One per tool - replaces that tool's last one. `tool` and `data` are required. Max 8 tools at once |
 | `ClearSketch`      | `tool`                              | -            | Done or given up with that tool. Other tools' sketches stay |
 | `UpdateScreen`     | `Screen`                            | -            | What's on screen besides the map, for Present. Any object, max 4KB |
 | `SendRequest`      | `to` (connection ids, or `null` for everyone), `kind`, `data` | - | Host only. Asks people to do something, e.g. `look` (data: `Viewport`) or `openPanel` (data: `{ panel }`) |
-| `RefreshRole`      | -                                   | -            | After the host changes your role. Checked with annotation-store; going view only takes you out of any count |
+| `RefreshRole`      | -                                   | -            | After the host changes your role. Checked with annotation-store; going view only takes you out of any count. Does nothing for a guest |
 | `SetNavigation`    | `'free' \| 'follow' \| 'present'`   | -            | Host only. Goes to everyone, host included               |
-| `SendAnnotationOp` | `AnnotationOp`                      | `StampedOp`  | Relay only - still save to annotation-store as normal    |
-| `OpenDoc`          | `docId`, `seed` (base64)            | `DocState`   | Seed only used if the doc isn't open yet. Safe to repeat |
-| `SendDocUpdate`    | `docId`, `update` (base64)          | -            | Open the doc first. Max 64KB                             |
+| `SendAnnotationOp` | `AnnotationOp`                      | `StampedOp`  | Relay only - still save to annotation-store as normal. Not from view only |
+| `OpenDoc`          | `docId`, `seed` (base64)            | `DocState`   | Seed only used if the doc isn't open yet. Safe to repeat. View only can open one to watch it |
+| `SendDocUpdate`    | `docId`, `update` (base64)          | -            | Open the doc first. Max 64KB. Not from view only         |
 | `CloseDoc`         | `docId`                             | -            | No-op if it isn't open                                   |
 | `StartComparison`  | `ComparisonSettings`                | `Comparison` | Invites everyone else who can edit. View only can't start one. Fails if one is still running |
 | `JoinComparison`   | `comparisonId`                      | -            | Only from `invited`, before the reveal                   |
@@ -106,6 +109,7 @@ type Participant = {
   colour: string; joined: string; host: boolean; canEdit: boolean; viewport: Viewport | null;
   sketches: Record<string, Sketch> | null;  // by tool
   screen: Screen | null;
+  guest: boolean;  // from an invite link without an account - always view only
 };
 type NavigationMode = 'free' | 'follow' | 'present';
 // The hub doesn't look inside - this is what the viewer sends.
@@ -160,6 +164,9 @@ type DocEditors = { docId: string; editors: string[] };
   `AnnotationStore:BaseUrl` in `appsettings.json`.
 - **Participants are per connection** - one user in two tabs is two
   participants.
+- **View only** - `SendAnnotationOp` and `SendDocUpdate` are refused for
+  anyone with `canEdit: false`, guest or not. Before, the hub passed them on
+  from anyone in the room.
 - **Colour** - each participant gets one from a fixed palette, unique in the
   room until it runs out.
 - **`seq`** - per room, only goes up. Lets clients spot a missed op or order
@@ -200,6 +207,48 @@ type DocEditors = { docId: string; editors: string[] };
     annotation-store as a normal cell count from their own copy.
 - **Message size** - the hub accepts messages up to 1MB (SignalR's default
   of 32KB dropped long freehand annotations).
+
+## Guests
+
+People without an account join from a session's invite link, view only,
+under a name they type. The contract shared with annotation-store and the
+viewer is [docs/guests.md](../docs/guests.md). The name they type is never
+saved anywhere on the server:
+
+- It isn't in the guest token. It comes once, in `JoinAsGuest`, and only
+  the room (in memory) holds it, so it's gone when they disconnect.
+- Logs only ever have the guest id (`guest-...`). Logs go to Grafana, which
+  keeps them. At Debug, SignalR's `DefaultHubDispatcher` logs every hub
+  call's arguments, name included, so that one logger is held at
+  Information whatever the config says
+  ([Slides/HubCallLogging.cs](Slides/HubCallLogging.cs), tested with every
+  level turned up to Trace in `Tests/GuestLoggingTests.cs`).
+
+`POST /guests` with `{ inviteCode }` asks annotation-store's
+`GET /invites/{code}/guest` and gives back
+`{ token, guestId, sessionId, slideId, expires }`. 404 for an unknown code,
+410 with `{ status }` if it isn't open, 400 with no code, 502 if
+annotation-store can't be reached. At most 60 a minute from one address,
+failed ones included, then 429.
+
+The token is HS256, signed with `GuestTokens:SigningKey` (base64, 32 bytes,
+the same value as annotation-store's). `iss` is `realtime-hub`, `aud` is
+`diss-guest`, `sub` is the guest id and `guest_session` the session's
+collection id. It runs out with the invite, or after 4 hours if that's
+sooner. **The key in `appsettings.json` is a dev one - replace it (in both
+services) before deploying**, with `GuestTokens__SigningKey`.
+
+- `/hubs/slides` takes a Keycloak or a guest token, picked by the token's
+  issuer. `/hubs/presence` and everything else is Keycloak only.
+- `JoinAsGuest` still asks annotation-store (with the guest token) so an
+  ended session turns them away, but joins as Viewer whatever it says.
+- Names: NFC, trimmed, runs of whitespace made one space, 2 to 24
+  characters, letters, marks and numbers in any script plus space `.` `_`
+  `'` `-`, and at least one letter or number. The same rules as the
+  viewer's `textFilter.ts`. The swear check is only in the viewer.
+- The rate limit is per client address. Behind a proxy every guest shares
+  the proxy's address, so it needs forwarded headers set up before it's
+  per person there.
 
 ## Presence
 
@@ -267,6 +316,7 @@ type DirectoryUser = { userId: string; username: string; displayName: string };
 
 | Endpoint                   | Returns                                                          |
 | -------------------------- | ---------------------------------------------------------------- |
+| `POST /guests`             | a guest token for an invite code - see [Guests](#guests). The only one outside Development |
 | `GET /rooms`               | slide id → number of people connected                            |
 | `GET /rooms/{roomId}`     | participants in that room                                        |
 | `GET /rooms/{roomId}/docs`| open docs: `docId`, `instanceId`, `editors`, `updates`, `bytes`  |
@@ -274,6 +324,8 @@ type DirectoryUser = { userId: string; username: string; displayName: string };
 | `GET /rooms/{roomId}/sharedcount` | the running shared count, dots included, 204 if none |
 | `GET /online`              | who's online (`OnlineSnapshot`)                                  |
 | `GET /users`               | everyone with an account, from Keycloak (`DirectoryUser[]`)      |
+
+The rest are Development only, and open.
 
 ## Notes
 

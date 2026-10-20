@@ -29,6 +29,9 @@ interface Participant {
   // only they get asked into counts.
   host: boolean
   canEdit: boolean
+  // Joined from an invite link without an account - always view only, and
+  // their name isn't kept anywhere once they leave (see docs/guests.md).
+  guest?: boolean
   viewport: Viewport | null
   // What they're part way through, one per tool - see sketchFor.
   sketches: Partial<Record<SketchTool, Sketch>> | null
@@ -57,6 +60,8 @@ type NavigationMode = 'free' | 'follow' | 'present'
 type HostRequest = { fromConnectionId: string; fromName: string } & (
   | { kind: 'look'; data: Viewport }
   | { kind: 'openPanel'; data: { panel: string } }
+  // To a guest - make an account to be able to edit.
+  | { kind: 'edit'; data: null }
 )
 
 interface ScreenUpdate {

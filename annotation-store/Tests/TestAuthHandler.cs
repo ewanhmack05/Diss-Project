@@ -7,7 +7,8 @@ using Microsoft.Extensions.Options;
 namespace AnnotationStore.Tests;
 
 // Stands in for Keycloak in tests: whoever the X-Test-User header says, or
-// "001" with no header. X-Test-Name sets their display name.
+// "001" with no header. X-Test-Name sets their display name. Anything with
+// an Authorization header goes through the real schemes instead.
 public class TestAuthHandler(
     IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
     : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
@@ -17,6 +18,10 @@ public class TestAuthHandler(
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
+        // A real token is a guest's (see GuestTokens) - Keycloak would turn it
+        // down, so this does too, and only the Guest scheme can let it in.
+        if (Request.Headers.Authorization.Count > 0) return Task.FromResult(AuthenticateResult.NoResult());
+
         var userId = Request.Headers["X-Test-User"].FirstOrDefault() ?? DefaultUser;
         var name = Request.Headers["X-Test-Name"].FirstOrDefault() ?? $"User {userId}";
         var identity = new ClaimsIdentity([new Claim("sub", userId), new Claim("name", name)], Scheme);

@@ -12,8 +12,11 @@ is kept in sync through `realtime-hub` - annotation and cell count changes
 show up for others straight away, shapes show up while they're still being
 drawn, an annotation's label and notes can be typed in by several people at
 once, other people's viewports are drawn as coloured outlines (main map and
-overview), and who's on the slide shows top-left. No accounts yet, each tab
-is a made-up guest.
+overview), and who's on the slide shows top-left. Everyone signs in with
+Keycloak, apart from guests - someone opening an invite link without an
+account can join view only under a name they type, which isn't saved
+anywhere (see [docs/guests.md](../docs/guests.md)). Guest code is in
+`src/components/guest/`.
 
 ## Tools
 
@@ -155,9 +158,33 @@ src/
                             DockEdge, DockPreview, DockedCard)
     toast/                toast notifications
   icons/                  toolbar SVGs
+  textFilter.ts           name rules and the profanity check (obscenity)
 ```
 
 Tests (`*.test.ts`) sit next to the code they cover.
+
+## Text filter
+
+[`src/textFilter.ts`](src/textFilter.ts) checks names people type in, using
+[obscenity](https://github.com/jo3-l/obscenity)'s English list. Picked over
+allprofanity for its use (1.5M downloads a month against 5k) and for
+catching leetspeak, lookalike letters and stretched words.
+
+- `nameProblem(name)` - null if the name is fine, otherwise the message to
+  show. 2 to 24 characters after trimming, letters and numbers in any
+  script plus space `-` `_` `.` `'`, and nothing rude.
+- `isClean(text)` / `censorText(text)` - for other text later (labels,
+  notes). `isClean` also catches spaced-out letters ("f u c k");
+  `censorText` doesn't, since it can only hide the exact spans it found.
+
+Real names the list blocks (Dickinson, Cumming, Fukuda, Penistone...) are
+let through by `REAL_NAMES` in the same file.
+[`textFilter.names.test.ts`](src/textFilter.names.test.ts) holds the names
+that must get through, and the ones still blocked on purpose ("Dick",
+"Tit"). A new false positive goes in that test first, then in `REAL_NAMES`.
+
+This only runs in the viewer, so someone sending a name straight to the
+backend skips it. The backend only checks for SQL and special characters.
 
 ## Not yet implemented
 

@@ -54,7 +54,12 @@ function InviteGate({ children }: { children: ReactNode }) {
   const { status, previewInvite, acceptInvite } = useCollectionContext()
   const { source } = useImageViewerContext()
   const { user, switchUser } = useAuthContext()
-  const [code, setCode] = useState<string | null>(inviteCode)
+  // A guest's link was used to get them in (see AuthContext), so there's
+  // nothing to ask.
+  const [code, setCode] = useState<string | null>(() => (user.guest ? null : inviteCode()))
+  useEffect(() => {
+    if (user.guest) forgetInvite()
+  }, [user.guest])
   // Over the viewer rather than instead of it.
   const [overlay, setOverlay] = useState(false)
   const [state, setState] = useState<State>(() => (code ? { kind: 'loading' } : { kind: 'none' }))

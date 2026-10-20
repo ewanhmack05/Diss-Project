@@ -83,7 +83,7 @@ src/
     annotation/      Free Form tab (tool picker, name form), Select tab (picking, groups) and Saved tab
     cell-count/      counter, saved counts, comparison/, shared/
     saved/           paging, search, filters - shared by both Saved lists
-    realtime/        RealTime panel, invite gate, sketches, shared text, autosave
+    realtime/        Collaboration panel, invite gate, sketches, shared text, autosave
     collections/     Collections panel - yours, sessions, shared ones, GeoJSON in and out
     users/           Users tab, presence state, join with a code
     presence/        who's here, top left
@@ -253,7 +253,7 @@ sits above the realtime providers. If the address has `?invite=code` it:
 3. if it's expired, stopped or ended, says which
 4. takes `?invite=` out of the address so a reload doesn't ask again
 
-Working alone, **Join with a code** in the RealTime tab takes either the code
+Working alone, **Join with a code** in the Collaboration tab takes either the code
 or the whole link and brings up the same card over the viewer.
 
 The server side is in
@@ -544,7 +544,7 @@ Three providers deal with other people. The hub side is in
 | `Realtime` | Only in a session | The room: viewports, sketches, ops, shared text, comparison and shared counts |
 | `Navigation` | Uses `Realtime` | Follow and Present |
 
-### The RealTime panel
+### The Collaboration panel
 
 [RealTimePanel.tsx](../../image-viewer/src/components/realtime/RealTimePanel.tsx)
 shows one of four things on its Session tab:
@@ -656,7 +656,9 @@ build on every push that touches the viewer.
   (see [azure.md](../azure.md)).
 - **One slide, set in code.** `index.tsx` picks it (`003`); there's no slide
   picker.
-- **No guest links** - everyone needs a Keycloak account.
+- **Guests only look.** Someone joining from a link without an account is
+  view only, and has no collection of their own - see
+  [guests.md](../guests.md).
 - **No component tests.** Logic is well covered; the React side and the map
   are checked by hand and by `scripts/map_bench.js`.
 

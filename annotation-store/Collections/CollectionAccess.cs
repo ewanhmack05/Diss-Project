@@ -9,9 +9,19 @@ namespace AnnotationStore.Collections;
 public static class CollectionAccess
 {
     // Null if they aren't a member (or the collection doesn't exist). Someone
-    // else's personal collection they've shared counts as Viewer.
-    public static async Task<CollectionRole?> RoleAsync(this AnnotationDbContext db, Guid collectionId, string userId)
+    // else's personal collection they've shared counts as Viewer. A guest is
+    // Viewer on the session in their token and nothing else - never looked
+    // up in CollectionMembers, since guests are never in it.
+    public static async Task<CollectionRole?> RoleAsync(this AnnotationDbContext db, Guid collectionId, ClaimsPrincipal user)
     {
+        if (user.IsGuest())
+        {
+            var isTheirs = user.GuestSessionId() == collectionId && await db.Collections.AnyAsync(c =>
+                c.CollectionId == collectionId && c.Kind == CollectionKind.Session);
+            return isTheirs ? CollectionRole.Viewer : null;
+        }
+
+        var userId = user.UserId();
         var role = await db.CollectionMembers
             .Where(m => m.CollectionId == collectionId && m.UserId == userId)
             .Select(m => (CollectionRole?)m.Role)
@@ -28,7 +38,7 @@ public static class CollectionAccess
     public static async Task<IResult?> RequireAsync(
         this AnnotationDbContext db, Guid collectionId, ClaimsPrincipal user, CollectionRole atLeast)
     {
-        var role = await db.RoleAsync(collectionId, user.UserId());
+        var role = await db.RoleAsync(collectionId, user);
         if (role is null) return Results.NotFound();
         if (role < atLeast) return Results.Forbid();
         if (atLeast > CollectionRole.Viewer && await db.HasEndedAsync(collectionId))

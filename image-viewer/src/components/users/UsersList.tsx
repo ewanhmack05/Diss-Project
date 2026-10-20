@@ -7,7 +7,7 @@ import { describeUser, whyCantInvite, type ListedUser } from './presence'
 import './Users.css'
 
 const STATUS_TEXT = {
-  off: "Realtime is off, so nobody's online status can be seen.",
+  off: "Collaboration is off, so nobody's online status can be seen.",
   connecting: 'Connecting…',
   offline: "Can't reach the real-time hub - trying again.",
 } as const

@@ -37,7 +37,9 @@ in the container.
 
 Every endpoint needs a Keycloak access token (see [auth/](../auth)), checked
 in `Auth/KeycloakAuth.cs` - settings under `Auth` in `appsettings.json`. The
-user always comes from the token's `sub`, never from the request.
+user always comes from the token's `sub`, never from the request. The only
+exceptions are guests, below, and `GET /invites/{code}/guest`, which needs no
+sign-in at all.
 
 There are two kinds of collection:
 
@@ -71,11 +73,41 @@ viewer, without being a member.
 | `DELETE /collections/{id}/invites/{code}` | host | Stop a link |
 | `GET /invites/{code}` | anyone with the code | What it's for - session, host, role, who's in it, and whether it's `open`, `expired`, `stopped` or `ended` |
 | `POST /invites/{code}/accept` | anyone with the code | Join with the link's role. 410 if it's run out |
+| `GET /invites/{code}/guest` | anyone, no sign-in | For joining as a guest - `{ collectionId, slideId, collectionName, hostName, status, expires }`. 404 for an unknown code |
 
 Annotations, cell counts and image adjustments check the same membership:
 any member can read, `editor` and `owner` can add, change and delete. Not
 being a member gets a 404, so it doesn't give away whether it exists. Nothing
 in an ended session can change (409).
+
+### Guests
+
+Someone without an account can open an invite link as a guest, view only.
+realtime-hub gives them a guest token (contract in
+[docs/guests.md](../docs/guests.md)), checked here in `Auth/GuestAuth.cs`:
+HS256, signed with `GuestTokens:SigningKey` (base64, 32 bytes, the same value
+as the hub's), issuer `realtime-hub`, audience `diss-guest`, and it has to be
+in date. Its `sub` is a `guest-` id and `guest_session` is the one session
+it's for. There's no name in it, so the name a guest types never reaches this
+service.
+
+A guest token only works on these, and is a 401 everywhere else:
+
+- `GET /collections?slideId=` - just their session, with `myRole: viewer`,
+  if it's on that slide. Otherwise `[]`
+- `GET /collections/{id}/membership` - `role: viewer` for their session
+- `GET /annotations`, `/annotations/total`, `/annotations/facets`
+- `GET /cellcounts`, `/cellcounts/total`, `/cellcounts/facets`,
+  `/cellcounts/{id}`
+- `GET /annotationgroups`
+
+On those a guest is a viewer of their own session (ended or not) and gets a
+404 for anything else, a personal collection included, even a shared one.
+Guests never get a row in `CollectionMembers` - nothing they can call writes
+anything - so a session's member list is only ever people with accounts.
+
+The key in `appsettings.json` is a dev key. Replace it before deploying
+(`GuestTokens__SigningKey`), with the same value in realtime-hub.
 
 ## Pointing it at your database
 

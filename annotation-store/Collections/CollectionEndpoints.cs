@@ -76,6 +76,11 @@ public record InvitePreview(
     // session's editors are full (see SessionSize).
     CollectionRole JoinsAs);
 
+// GET /invites/{code}/guest - see docs/guests.md. Status is the same as
+// InvitePreview's.
+public record GuestInvitePreview(
+    Guid CollectionId, string SlideId, string CollectionName, string HostName, string Status, DateTimeOffset Expires);
+
 // Just enough for the realtime hub to decide whether someone can join a
 // session's room - see realtime-hub's SessionAccess.
 public record MembershipView(Guid CollectionId, string SlideId, CollectionKind Kind, CollectionRole Role, DateTimeOffset? Ended);
@@ -94,12 +99,15 @@ public static class CollectionEndpoints
         // then sessions still going, newest first, then ended ones - and
         // last, anyone else's they've shared, by owner. Each with how many
         // annotations and cell counts it has, and when the last was added.
+        // A guest only ever gets their own session, if it's on this slide.
         app.MapGet("/collections", async (string slideId, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
             var me = user.UserId();
-            var collections = await db.Collections
-                .Where(c => c.SlideId == slideId && (c.Members.Any(m => m.UserId == me)
-                    || (c.Kind == CollectionKind.Personal && c.Shared)))
+            var guestSession = user.GuestSessionId();
+            var onSlide = db.Collections.Where(c => c.SlideId == slideId);
+            var collections = await (user.IsGuest()
+                    ? onSlide.Where(c => c.CollectionId == guestSession && c.Kind == CollectionKind.Session)
+                    : onSlide.Where(c => c.Members.Any(m => m.UserId == me) || (c.Kind == CollectionKind.Personal && c.Shared)))
                 .Include(c => c.Members)
                 .ToListAsync();
 
@@ -132,7 +140,7 @@ public static class CollectionEndpoints
                         LastAdded = last,
                     };
                 }));
-        });
+        }).AllowGuests();
 
         // Everything in one collection in one go - for Scalar, curl or an
         // export. The viewer reads and writes through the flat endpoints.
@@ -171,14 +179,22 @@ public static class CollectionEndpoints
         });
 
         // For the realtime hub, checking someone's allowed in a session's room.
+        // A guest is a viewer of their own session, without being a member.
         app.MapGet("/collections/{id:guid}/membership", async (Guid id, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
+            if (user.IsGuest())
+            {
+                if (await db.RoleAsync(id, user) is not { } guestRole) return Results.NotFound();
+                var session = await db.Collections.FirstAsync(c => c.CollectionId == id);
+                return Results.Ok(new MembershipView(session.CollectionId, session.SlideId, session.Kind, guestRole, session.Ended));
+            }
+
             var me = user.UserId();
             var collection = await db.Collections.Include(c => c.Members).FirstOrDefaultAsync(c => c.CollectionId == id);
             var member = collection?.Members.FirstOrDefault(m => m.UserId == me);
             if (collection is null || member is null) return Results.NotFound();
             return Results.Ok(new MembershipView(collection.CollectionId, collection.SlideId, collection.Kind, member.Role, collection.Ended));
-        });
+        }).AllowGuests();
 
         // Get-or-create the user's own collection for a slide - what the
         // viewer calls on load. Keeps their name up to date while it's there.
@@ -331,7 +347,7 @@ public static class CollectionEndpoints
 
         app.MapDelete("/collections/{id:guid}", async (Guid id, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
-            var role = await db.RoleAsync(id, user.UserId());
+            var role = await db.RoleAsync(id, user);
             if (role is null) return Results.NotFound();
             if (role != CollectionRole.Owner) return Results.Forbid();
             db.Collections.Remove(await db.Collections.FirstAsync(c => c.CollectionId == id));
@@ -381,7 +397,7 @@ public static class CollectionEndpoints
             async (Guid id, string userId, ClaimsPrincipal user, AnnotationDbContext db) =>
             {
                 var me = user.UserId();
-                var myRole = await db.RoleAsync(id, me);
+                var myRole = await db.RoleAsync(id, user);
                 if (myRole is null) return Results.NotFound();
                 if (myRole != CollectionRole.Owner && userId != me) return Results.Forbid();
 
@@ -483,6 +499,23 @@ public static class CollectionEndpoints
                 collection.Members.Where(m => m.UserId != me).Select(m => m.DisplayName).ToList(),
                 SessionSize.RoleOnJoin(invite.Role, current, SessionSize.Editors(collection.Members), collection.MaxEditors)));
         });
+
+        // What someone without an account sees before joining as a guest, and
+        // what realtime-hub asks before making them a guest token. No sign-in,
+        // so no more than the code already gets you - no role, no people.
+        app.MapGet("/invites/{code}/guest", async (string code, AnnotationDbContext db) =>
+        {
+            var found = await FindInviteAsync(db, code);
+            if (found is null) return Results.NotFound();
+            var (invite, collection) = found.Value;
+            return Results.Ok(new GuestInvitePreview(
+                collection.CollectionId,
+                collection.SlideId,
+                collection.CollectionName,
+                OwnerName(collection),
+                StatusOf(invite, collection),
+                invite.Expires));
+        }).AllowAnonymous();
 
         // Joins the session with the invite's role, or view only once its
         // editors are full (see SessionSize). Someone already in it keeps

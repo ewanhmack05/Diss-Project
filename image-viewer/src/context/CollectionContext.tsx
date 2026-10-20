@@ -4,6 +4,7 @@ import { useEmitEvent } from './EventContext'
 import { useAuthContext } from './AuthContext'
 import { useDialogContext } from './DialogContext'
 import { useToastContext } from './ToastContext'
+import { defaultMaxEditors } from '../components/realtime/sessionSize'
 
 type Status = 'loading' | 'ready' | 'error'
 
@@ -96,7 +97,11 @@ interface CollectionContextValue {
   // These reject if annotation-store says no. endSession needs a refresh
   // after - see it below.
   // One per slide - with one already going, that's the one you go into.
-  startSession: (name?: string) => Promise<void>
+  // maxEditors is what the host picked - see defaultMaxEditors.
+  startSession: (name?: string, maxEditors?: number) => Promise<void>
+  // What the start box begins at - the viewer's maxEditors option, inside
+  // annotation-store's limits.
+  defaultMaxEditors: number
   renameSession: (name: string) => Promise<void>
   endSession: () => Promise<void>
   // Ends one you host that you're not in - an older one from before only one
@@ -128,8 +133,9 @@ const CollectionContext = createContext<CollectionContextValue | null>(null)
 interface CollectionContextProviderProps {
   baseUrl: string
   children: ReactNode
-  // How many editors an edit link lets into a session this viewer starts -
-  // anyone after joins view only. Sessions keep the number they started with.
+  // What the host's "editors through the link" box starts at - they can
+  // change it when they start a session. Anyone after that many joins view
+  // only. Sessions keep the number they started with.
   maxEditors?: number
 }
 
@@ -165,7 +171,9 @@ function CollectionContextProvider({ baseUrl, maxEditors, children }: Collection
   const { source } = useImageViewerContext()
   const { slideId } = source
   const emit = useEmitEvent()
-  const { authFetch, user } = useAuthContext()
+  const { authFetch, user, signOut } = useAuthContext()
+  // A guest only ever has the one session, and no collection of their own.
+  const guestSessionId = user.guest?.sessionId ?? null
   const { showDialog } = useDialogContext()
   const { addToast } = useToastContext()
 
@@ -220,11 +228,19 @@ function CollectionContextProvider({ baseUrl, maxEditors, children }: Collection
     const after = list.find((c) => c.collectionId === activeIdRef.current)
     if (before?.kind === 'session' && !before.ended && after?.ended && after.myRole !== 'owner') {
       emit('session:ended', { collectionId: after.collectionId })
-      showDialog({
-        title: `${after.collectionName} has ended`,
-        message: `${hostName(after)} ended the session. It's read-only now - you can stay and look back at it, or go back to your own work.`,
-        actions: [{ label: 'Back to my own work', onClick: () => setActive(null) }, { label: 'Stay and look' }],
-      })
+      showDialog(
+        guestSessionId
+          ? {
+              title: `${after.collectionName} has ended`,
+              message: `${hostName(after)} ended the session. It's read-only now - you can keep looking until your guest pass runs out.`,
+              actions: [{ label: 'OK' }],
+            }
+          : {
+              title: `${after.collectionName} has ended`,
+              message: `${hostName(after)} ended the session. It's read-only now - you can stay and look back at it, or go back to your own work.`,
+              actions: [{ label: 'Back to my own work', onClick: () => setActive(null) }, { label: 'Stay and look' }],
+            }
+      )
     }
     // The host changed what you can do.
     if (before?.kind === 'session' && after && !after.ended && before.myRole !== after.myRole && after.myRole !== 'owner') {
@@ -258,7 +274,7 @@ function CollectionContextProvider({ baseUrl, maxEditors, children }: Collection
         actions: [{ label: 'OK' }],
       })
     }
-  }, [request, slideId, emit, setActive, showDialog, addToast])
+  }, [request, slideId, emit, setActive, showDialog, addToast, guestSessionId])
 
   useEffect(() => {
     let cancelled = false
@@ -266,14 +282,20 @@ function CollectionContextProvider({ baseUrl, maxEditors, children }: Collection
     setPersonalCollectionId(null)
     setCollections([])
     const stored = readStoredActive(slideId)
-    setActiveId(stored.id)
-    setViewOnly(!!stored.id && stored.viewOnly)
+    activeIdRef.current = guestSessionId ?? stored.id
+    setActiveId(guestSessionId ?? stored.id)
+    setViewOnly(!guestSessionId && !!stored.id && stored.viewOnly)
 
-    send<Collection>('/collections/ensure', 'POST', { slideId })
-      .then(async (own) => {
-        if (cancelled) return
-        setPersonalCollectionId(own.collectionId)
-        await loadCollections()
+    // A guest can't have a collection of their own - straight into the session.
+    const ready = guestSessionId
+      ? loadCollections()
+      : send<Collection>('/collections/ensure', 'POST', { slideId }).then(async (own) => {
+          if (cancelled) return
+          setPersonalCollectionId(own.collectionId)
+          await loadCollections()
+        })
+    ready
+      .then(() => {
         if (!cancelled) setStatus('ready')
       })
       .catch(() => {
@@ -286,7 +308,7 @@ function CollectionContextProvider({ baseUrl, maxEditors, children }: Collection
     return () => {
       cancelled = true
     }
-  }, [slideId, send, loadCollections, emit])
+  }, [slideId, send, loadCollections, emit, guestSessionId])
 
   const active =
     collections.find((c) => c.collectionId === activeId) ??
@@ -296,20 +318,22 @@ function CollectionContextProvider({ baseUrl, maxEditors, children }: Collection
   const collectionId = status === 'ready' ? (active?.collectionId ?? personalCollectionId) : null
   const sessionId = session?.collectionId ?? null
 
+  const startingMax = defaultMaxEditors(maxEditors)
+
   const startSession = useCallback(
-    async (name?: string) => {
+    async (name?: string, chosenMax?: number) => {
       // 409 is annotation-store handing back the one you've already got.
       const response = await authFetch(`${baseUrl}/sessions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slideId, collectionName: name, maxEditors }),
+        body: JSON.stringify({ slideId, collectionName: name, maxEditors: chosenMax ?? startingMax }),
       })
       if (!response.ok && response.status !== 409) throw new Error(String(response.status))
       const session = (await response.json()) as Collection
       await loadCollections()
       setActive(session.collectionId)
     },
-    [authFetch, baseUrl, slideId, maxEditors, loadCollections, setActive]
+    [authFetch, baseUrl, slideId, startingMax, loadCollections, setActive]
   )
 
   const endOther = useCallback(
@@ -461,8 +485,10 @@ function CollectionContextProvider({ baseUrl, maxEditors, children }: Collection
         reopen: () => {
           if (activeIdRef.current) setActive(activeIdRef.current, false)
         },
-        leaveSession: () => setActive(null),
+        // There's nowhere else for a guest to go, so leaving is them going.
+        leaveSession: () => (guestSessionId ? signOut() : setActive(null)),
         startSession,
+        defaultMaxEditors: startingMax,
         renameSession,
         endSession,
         endOther,

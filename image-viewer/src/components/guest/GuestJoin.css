@@ -1,0 +1,27 @@
+/* The name box on the guest join card - the rest is InviteGate.css. */
+.guest-join-label {
+  margin-bottom: -0.6em;
+  font-size: 0.9em;
+  font-weight: 600;
+}
+
+.guest-join-input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.6em 0.7em;
+  font-family: var(--sans);
+  font-size: 1em;
+  color: var(--chrome-text);
+  background: var(--white-05);
+  border: 1px solid var(--white-08);
+  border-radius: 0.4em;
+}
+
+.guest-join-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.guest-join-input[aria-invalid='true'] {
+  border-color: #e8a87c;
+}

@@ -36,6 +36,9 @@ services:
       # Keycloak's address inside compose, for its signing keys. Tokens still
       # name whatever address the browser used, which is fine - see Auth/.
       Auth__MetadataAddress: http://keycloak:8080/auth/realms/diss/.well-known/openid-configuration
+      # Checks the hub's guest tokens, so it has to match the hub's. Dev key,
+      # the same as both appsettings.json - see docs/guests.md.
+      GuestTokens__SigningKey: iJWOQqjfKuNRYB3XfFx7ey9INaa9WbEvvZHK43y9Roo=
       # Grafana's OTLP port on the machine, if dashboard/ is running.
       OTEL_EXPORTER_OTLP_ENDPOINT: http://host.docker.internal:4317
     ports:
@@ -55,6 +58,8 @@ services:
     environment:
       AnnotationStore__BaseUrl: http://annotation-store:8080/
       Auth__MetadataAddress: http://keycloak:8080/auth/realms/diss/.well-known/openid-configuration
+      # Signs guest tokens - has to match annotation-store's.
+      GuestTokens__SigningKey: iJWOQqjfKuNRYB3XfFx7ey9INaa9WbEvvZHK43y9Roo=
       OTEL_EXPORTER_OTLP_ENDPOINT: http://host.docker.internal:4317
     ports:
       - "${REALTIME_HUB_PORT:-5180}:8080"

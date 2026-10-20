@@ -12,7 +12,9 @@ function to(target: string, prefix: string, ws = false): ProxyOptions {
 const proxy: Record<string, ProxyOptions> = {
   '/tiler': to('http://localhost:5095', '/tiler'),
   '/store': to('http://localhost:5252', '/store'),
-  '/hub': to('http://localhost:5180', '/hub', true),
+  // xfwd - the hub limits guest passes per browser, so it needs to know
+  // which one it is rather than seeing this server for everyone.
+  '/hub': { ...to('http://localhost:5180', '/hub', true), xfwd: true },
   // Keycloak (see auth/) - already served under /auth, so no rewrite. The
   // Host and X-Forwarded-* headers go through as the browser sent them, so
   // Keycloak's links and token issuer use the address the viewer was

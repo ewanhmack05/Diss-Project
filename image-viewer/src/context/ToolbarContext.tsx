@@ -9,7 +9,7 @@ const TOOL_NAMES: Record<ToolId, string> = {
   rotate: 'Rotate',
   ruler: 'Ruler',
   adjustments: 'Adjustments',
-  realtime: 'RealTime',
+  realtime: 'Collaboration',
   collections: 'Collections',
 }
 

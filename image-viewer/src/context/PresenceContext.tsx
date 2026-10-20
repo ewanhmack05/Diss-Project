@@ -80,7 +80,8 @@ function PresenceContextProvider({ hubUrl, children }: { hubUrl?: string; childr
   })
 
   useEffect(() => {
-    if (!hubUrl) return
+    // Presence is for people with accounts - a guest isn't on the Users tab.
+    if (!hubUrl || user.guest) return
 
     const connection = new HubConnectionBuilder()
       .withUrl(`${hubUrl}/hubs/presence`, { accessTokenFactory: getAccessToken })
@@ -164,7 +165,7 @@ function PresenceContextProvider({ hubUrl, children }: { hubUrl?: string; childr
       setState({})
       connection.stop()
     }
-  }, [hubUrl, getAccessToken])
+  }, [hubUrl, getAccessToken, user.guest])
 
   // Tell everyone when you move - another session, hosting, back on your own.
   useEffect(() => {
@@ -181,7 +182,7 @@ function PresenceContextProvider({ hubUrl, children }: { hubUrl?: string; childr
   return (
     <PresenceContext.Provider
       value={{
-        status: hubUrl ? status : 'off',
+        status: hubUrl && !user.guest ? status : 'off',
         users: listUsers(directory, state, user.id),
         onlineCount: onlineUsers(state, user.id).length,
         everyoneLoaded: directory !== null,
