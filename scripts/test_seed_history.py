@@ -51,8 +51,8 @@ class BackdateSql(unittest.TestCase):
 
     def test_moves_each_change_set_back_by_its_hours(self):
         sql = self.sql()
-        self.assertIn('UPDATE "ChangeSets" SET "Created" = \'2026-10-16T22:00:00+00:00\'::timestamptz WHERE "Id" = \'cs-old\';', sql)
-        self.assertIn('UPDATE "ChangeSets" SET "Created" = \'2026-10-21T10:30:00+00:00\'::timestamptz WHERE "Id" = \'cs-new\';', sql)
+        self.assertIn('UPDATE history."ChangeSets" SET "Created" = \'2026-10-16T22:00:00+00:00\'::timestamptz WHERE "Id" = \'cs-old\';', sql)
+        self.assertIn('UPDATE history."ChangeSets" SET "Created" = \'2026-10-21T10:30:00+00:00\'::timestamptz WHERE "Id" = \'cs-new\';', sql)
 
     def test_moves_the_rows_made_back_with_them(self):
         sql = self.sql()
@@ -65,11 +65,17 @@ class BackdateSql(unittest.TestCase):
         self.assertIn('UPDATE "Collections" SET "Created" = \'2026-10-16T21:00:00+00:00\'::timestamptz', sql)
         self.assertIn('"Added" = \'2026-10-16T21:30:00+00:00\'::timestamptz WHERE "CollectionId" = \'c-1\' AND "UserId" = \'bob-id\'', sql)
 
-    def test_deleted_rows_take_their_deleting_changes_time_in_this_collection_only(self):
+    def test_a_row_deleted_since_has_its_copy_in_the_history_moved_back_too(self):
         sql = self.sql()
-        for table in ("Annotations", "AnnotationGroups", "CellCounts"):
-            self.assertIn(f'UPDATE "{table}" t SET "Deleted" = c."Created" FROM "ChangeSets" c '
-                          f'WHERE t."DeletedIn" = c."Id" AND t."CollectionId" = \'c-1\';', sql)
+        self.assertIn('UPDATE history."Entries" SET "Before" = jsonb_set("Before", \'{Created}\', '
+                      'to_jsonb(\'2026-10-16T22:00:00+00:00\'::timestamptz)) '
+                      'WHERE "EntityId" = \'a-1\' AND "Op" = \'Delete\' AND "CollectionId" = \'c-1\';', sql)
+
+    def test_nothing_reaches_for_the_old_soft_delete_columns(self):
+        sql = self.sql()
+        self.assertNotIn('"DeletedIn"', sql)
+        self.assertNotIn('"Deleted" =', sql)
+        self.assertNotIn('UPDATE "ChangeSets"', sql)
 
 
 class Connection(unittest.TestCase):

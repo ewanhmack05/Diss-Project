@@ -1,3 +1,9 @@
+/* Filter and order, above the list. */
+.history-tools {
+  display: flex;
+  gap: 0.4em;
+}
+
 /* One line a change, under day headings. */
 .history-days {
   display: flex;
@@ -146,4 +152,118 @@
 .history-id {
   font-family: ui-monospace, Consolas, monospace;
   color: var(--chrome-text-secondary);
+}
+
+/* What changed, from and to. */
+.history-changes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+}
+
+.history-changes-heading {
+  margin: 0;
+  font-size: 0.72em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--chrome-text-secondary);
+}
+
+.history-change-on {
+  margin: 0;
+  font-size: 0.85em;
+  color: var(--chrome-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.history-change-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55em;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.history-change {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+  font-size: 0.85em;
+}
+
+.history-change-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+  min-width: 0;
+}
+
+.history-change-field {
+  flex-shrink: 0;
+  font-weight: 600;
+}
+
+.history-change-rows {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9em;
+  color: var(--chrome-text-secondary);
+}
+
+.history-change-values {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35em 0.45em;
+  min-width: 0;
+}
+
+/* Text runs to three lines before it's cut - the whole of it is on hover. */
+.history-change-value {
+  display: -webkit-box;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
+  padding: 0.1em 0.4em;
+  background: var(--white-06);
+  border-radius: 0.3125rem;
+}
+
+.history-change-values--colour .history-change-value,
+.history-change-values--group .history-change-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+}
+
+.history-change-value--empty {
+  font-style: italic;
+  color: var(--chrome-text-secondary);
+}
+
+.history-change-froms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3em;
+  min-width: 0;
+}
+
+.history-change-arrow {
+  color: var(--chrome-text-secondary);
+}
+
+.history-swatch {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 0.85em;
+  height: 0.85em;
+  border: 1px solid var(--white-30);
+  border-radius: 0.2em;
 }

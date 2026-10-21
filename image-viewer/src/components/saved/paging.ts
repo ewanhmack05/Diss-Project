@@ -50,6 +50,8 @@ function pageUrls(
   pageSize: number,
   search: string,
   filters: SavedFilters = NO_FILTERS,
+  // The History list can go oldest first. Only the page needs it.
+  order: 'newest' | 'oldest' = 'newest',
 ): { page: string; total: string } {
   const query = new URLSearchParams({ collectionId })
   const term = search.trim()
@@ -58,6 +60,7 @@ function pageUrls(
   const paged = new URLSearchParams(query)
   paged.set('skip', String(page * pageSize))
   paged.set('take', String(pageSize))
+  if (order === 'oldest') paged.set('order', 'oldest')
   return {
     page: `${baseUrl}/${path}?${paged}`,
     total: `${baseUrl}/${path}/total?${query}`,

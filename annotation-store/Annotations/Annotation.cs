@@ -1,9 +1,6 @@
-using System.Text.Json.Serialization;
-using AnnotationStore.ChangeSets;
-
 namespace AnnotationStore.Annotations;
 
-public class Annotation : ISoftDeletable, IInCollection
+public class Annotation
 {
     public Guid Id { get; set; }
     public Guid CollectionId { get; set; }
@@ -25,8 +22,4 @@ public class Annotation : ISoftDeletable, IInCollection
     // the token, like SlideId. Empty for rows from before sign-in.
     public string CreatedById { get; set; } = "";
     public string CreatedByName { get; set; } = "";
-    // Set when it's deleted - see ChangeSets/ChangeSet.cs. Never sent or taken
-    // over JSON, so a POST can't make a hidden row.
-    [JsonIgnore] public DateTimeOffset? Deleted { get; set; }
-    [JsonIgnore] public Guid? DeletedIn { get; set; }
 }

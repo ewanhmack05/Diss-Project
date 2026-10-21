@@ -70,8 +70,9 @@ interface AnnotationStoreContextValue {
   addAnnotation: (annotation: Annotation) => void
   // Already saved by a GeoJSON import - see collections/useCollectionFiles.
   addImported: (annotations: Annotation[]) => void
-  // Put back by a restore - shown again, here only. Whoever restored them
-  // tells everyone else.
+  // Put back by a restore - shown again, or replaced with how they are now
+  // if they're already here. Here only - whoever restored them tells
+  // everyone else.
   addRestored: (annotations: Annotation[]) => void
   // Many at once, from the Select tab - one request, one toast.
   updateMany: (ids: string[], patch: BulkPatch) => void
@@ -247,7 +248,11 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
     for (const id of ids) deletedIdsRef.current.delete(id)
     // Not taken off the count any more, if it was a delete from just now.
     setRemovals((current) => current.map((r) => ({ ...r, items: r.items.filter((a) => !ids.has(a.id)) })))
-    setAnnotations((current) => [...current, ...restored.filter((a) => !current.some((c) => c.id === a.id))])
+    const byId = new Map(restored.map((a) => [a.id, a]))
+    setAnnotations((current) => [
+      ...current.map((a) => byId.get(a.id) ?? a),
+      ...restored.filter((a) => !current.some((c) => c.id === a.id)),
+    ])
     bumpRevision()
   }
 

@@ -31,6 +31,9 @@ interface SavedFilters {
   // ends included.
   from: string | null
   to: string | null
+  // The History list only - kinds of change, "add", "delete" and so on (see
+  // collections/history/history.ts changeKind).
+  kinds: string[]
 }
 
 const NO_FILTERS: SavedFilters = {
@@ -43,6 +46,7 @@ const NO_FILTERS: SavedFilters = {
   roi: 'any',
   from: null,
   to: null,
+  kinds: [],
 }
 
 // The fields a live save is checked against - what both annotations and
@@ -112,6 +116,7 @@ function filterParams(filters: SavedFilters, query: URLSearchParams): void {
   if (filters.roi !== 'any') query.set('withRoi', String(filters.roi === 'yes'))
   if (filters.from) query.set('from', dayStart(filters.from).toISOString())
   if (filters.to) query.set('to', dayEnd(filters.to).toISOString())
+  filters.kinds.forEach((kind) => query.append('kind', kind))
 }
 
 // How many filters are narrowing things, for the badge on the Filter button.
@@ -124,7 +129,8 @@ function activeFilterCount(filters: SavedFilters): number {
     (filters.groups.length > 0 ? 1 : 0) +
     (filters.notes !== 'any' ? 1 : 0) +
     (filters.roi !== 'any' ? 1 : 0) +
-    (filters.from || filters.to ? 1 : 0)
+    (filters.from || filters.to ? 1 : 0) +
+    (filters.kinds.length > 0 ? 1 : 0)
   )
 }
 

@@ -73,6 +73,13 @@ describe('pageUrls', () => {
     expect(urls.total).toBe('/store/annotations/total?collectionId=c-1&search=box&createdBy=bob&shape=rectangle')
   })
 
+  it('turns the History list round with order, on the page only', () => {
+    const urls = pageUrls('/store', 'changesets', 'c-1', 0, 50, '', { ...NO_FILTERS, kinds: ['delete'] }, 'oldest')
+    expect(urls.page).toBe('/store/changesets?collectionId=c-1&kind=delete&skip=0&take=50&order=oldest')
+    expect(urls.total).toBe('/store/changesets/total?collectionId=c-1&kind=delete')
+    expect(pageUrls('/store', 'changesets', 'c-1', 0, 50, '', NO_FILTERS, 'newest').page).not.toContain('order')
+  })
+
   it('pages the History list the same way, with nothing but the collection', () => {
     const urls = pageUrls('/store', 'changesets', 'c-1', 1, 50, '')
     expect(urls.page).toBe('/store/changesets?collectionId=c-1&skip=50&take=50')

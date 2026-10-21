@@ -266,7 +266,11 @@ lists `GET /changesets?collectionId=` for the collection you're in, a page of
 50 at a time with the Saved lists' pager (`useSavedPage` with path
 `changesets`, and `GET /changesets/total` for the page count). It's kept
 compact - one line a change, under day headings (Today, Yesterday, then the
-date - `dayHeading` in savedDates):
+date - `dayHeading` in savedDates). Above it, the Saved lists' **Filter**
+popout (`SavedFilterMenu` with a Kind section, "Made by" and "When", and no
+Notes), with `kinds` in `SavedFilters` sent as `kind`, and **Newest first /
+Oldest first**, sent as `order` on the page only. Changing either goes back
+to the first page. Each row:
 
 - An icon for the kind of change (`changeKind` in
   [history.ts](../../image-viewer/src/components/collections/history/history.ts),
@@ -287,10 +291,22 @@ in place of the list, with a way back:
 - What's still deleted ("300 annotations still deleted", or "Already put
   back") - `restoreStatus`.
 - The change set's id, shortened, with the whole id on hover.
+- **What changed**
+  ([ChangeList.tsx](../../image-viewer/src/components/collections/history/ChangeList.tsx)),
+  loaded when it's opened from `GET /changesets/{id}/changes`, and turned
+  into lines by [changes.ts](../../image-viewer/src/components/collections/history/changes.ts):
+  each field from and to - "Label  Region 4 -> Region 4 (checked)", nothing
+  as *(empty)*, colours as swatches, groups by name, yes or no, an image
+  adjustment's settings one by one. Rows that all went to the same thing are
+  one line ("10 annotations", the colours they started as -> the one they
+  went to). One row's name is said once at the top. What it deleted is named
+  ("Region 15, Region 11 ... and 20 more"). A change from before history was
+  kept says nothing was recorded for it.
 - **Put back** and **Cancel**, for editors and the owner, when something's
   still deleted (`canRestore` - the one place that says who can, so it's one
   line to change if restore is narrowed to the author and the host). A line
-  above says what happens, and that a group comes back empty. This page is
+  above says what happens, and that a group comes back with what was in
+  it. This page is
   the confirm - there's no popup on top. Viewers and guests get the same
   page without the buttons.
 
@@ -302,11 +318,14 @@ again:
 1. Groups, annotations, cell counts (without dots) and image adjustments go
    back into their contexts with each one's `addRestored`, which also clears
    them from the deleted ids, so the Saved lists show them again, and bumps
-   the revisions so those lists refetch.
-2. Everyone else gets a create op per row (`restoredOps` - groups first, so
-   an annotation never arrives before its group). Image adjustments are
-   personal, so they're not sent. Receiving a create also clears that id
-   from the other person's deleted ids.
+   the revisions so those lists refetch. `changedAnnotations` - ones that
+   were already there and went back how they were, like being put back in a
+   group - replace the copy the annotation context has.
+2. Everyone else gets a create op per row and an update op for each changed
+   annotation (`restoredOps` - groups first, so an annotation never arrives
+   before its group). Image adjustments are personal, so they're not sent.
+   Receiving a create also clears that id from the other person's deleted
+   ids.
 3. A toast says what came back ("Put back 2,140 annotations"), or that
    someone else had already put it back. A failure is the usual
    `annotations:restored:error` toast.
@@ -462,7 +481,7 @@ and not shared.
   them back on the map and sends a create op each - same ids and authors.
   After the toast's gone it can be put back from the Collections panel's
   [History](#history---putting-deletes-back) tab. See
-  [annotation-store.md](annotation-store.md#11-deletes-and-change-sets).
+  [annotation-store.md](annotation-store.md#11-history-and-change-sets).
 - **Groups** (`AnnotationGroupContext`) - named sets of annotations in the
   collection, one level. Make one from what's picked, move things between
   them or out, rename (double-click), delete (the annotations stay), pick
