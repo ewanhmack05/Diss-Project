@@ -17,6 +17,8 @@ import type { NavigationMode } from './realtime'
 import { LEAST_MAX_EDITORS, MOST_MAX_EDITORS, readMaxEditors, sessionSize } from './sessionSize'
 import { activeUsers, splitActive, type ActiveKind, type ActiveUser } from './activeUsers'
 import './RealTimePanel.css'
+import Icon from '../../icons/Icon'
+import pencilSvg from '../../icons/pencil.svg?raw'
 
 const ROLE_TEXT: Record<CollectionRole, string> = {
   owner: 'Host',
@@ -371,9 +373,7 @@ function SessionTitle({ session, editable }: { session: Collection; editable: bo
             setEditing(true)
           }}
         >
-          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M11 2.5 L13.5 5 L5.5 13 L2.5 13.5 L3 10.5 Z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
-          </svg>
+          <Icon svg={pencilSvg} size={14} />
         </button>
       )}
     </div>

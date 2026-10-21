@@ -10,9 +10,10 @@ import { useCollectionFiles } from './useCollectionFiles'
 import ImportPreview from './ImportPreview'
 import UserCollection from './user-collection/UserCollection'
 import SharedCollectionList from './shared-collection/SharedCollectionList'
+import HistoryList from './history/HistoryList'
 import './CollectionsPanel.css'
 
-type CollectionsTab = 'mine' | 'shared'
+type CollectionsTab = 'mine' | 'shared' | 'history'
 
 interface PendingImport {
   target: Collection
@@ -47,6 +48,8 @@ function ShowingNote({ active }: { active: Collection }) {
 
 // Mine: your own collection on this slide. Shared: the sessions you're in,
 // and anyone else's they've shared - how much is in each, and moving between them.
+// History: every change made in the one you're in, and putting back what
+// a change deleted.
 // Any of them can be exported as GeoJSON, and a file imported into any you
 // can edit.
 function CollectionsPanel() {
@@ -112,6 +115,9 @@ function CollectionsPanel() {
         )}
       </section>
     )
+  } else if (tab === 'history') {
+    // Keyed so moving collection starts back on the first page.
+    body = active ? <HistoryList key={active.collectionId} collection={active} /> : null
   } else {
     body = (
       <>
@@ -151,7 +157,7 @@ function CollectionsPanel() {
         }}
       />
       <div className="collections-tabs" role="tablist" aria-label="Collections">
-        {(['mine', 'shared'] as const).map((option) => (
+        {(['mine', 'shared', 'history'] as const).map((option) => (
           <button
             key={option}
             type="button"
@@ -160,7 +166,7 @@ function CollectionsPanel() {
             className={`collections-tab${tab === option ? ' collections-tab--active' : ''}`}
             onClick={() => setTab(option)}
           >
-            {option === 'mine' ? 'Mine' : `Shared (${sessions.length + others.length})`}
+            {option === 'mine' ? 'Mine' : option === 'shared' ? `Shared (${sessions.length + others.length})` : 'History'}
           </button>
         ))}
       </div>

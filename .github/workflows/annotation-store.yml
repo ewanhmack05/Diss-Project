@@ -23,3 +23,37 @@ jobs:
       directory: annotation-store
       project: AnnotationStore.csproj
       tests: Tests/AnnotationStore.Tests.csproj
+
+  # The same tests on Postgres rather than SQLite - the migrations themselves,
+  # Npgsql's SQL, and the [PostgresFact] ones that need requests at the same
+  # moment. Each test class makes its own database and drops it.
+  postgres:
+    name: Tests on Postgres
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      ANNOTATION_STORE_TEST_POSTGRES: Host=localhost;Port=5432;Username=postgres;Password=postgres
+    defaults:
+      run:
+        working-directory: annotation-store
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Test
+        run: dotnet test Tests/AnnotationStore.Tests.csproj -c Release --logger "console;verbosity=normal"

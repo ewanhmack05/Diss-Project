@@ -1,11 +1,12 @@
 using System.Text.Json.Serialization;
+using AnnotationStore.ChangeSets;
 
 namespace AnnotationStore.CellCounts;
 
 // A user-placed dot marker for manually counting cells (e.g. mitotic
 // figures) within a region on a slide - optionally tied to a specific
 // drawn annotation, or to a broader region of interest.
-public class CellCount
+public class CellCount : ISoftDeletable, IInCollection
 {
     public Guid Id { get; set; }
     public Guid CollectionId { get; set; }
@@ -53,6 +54,10 @@ public class CellCount
     // Not sent as they are; the list sends them parsed.
     [JsonIgnore] public string? ColourCountsJson { get; set; }
     [JsonIgnore] public string? PlacedByCountsJson { get; set; }
+    // Set when it's deleted - see ChangeSets/ChangeSet.cs. Never sent or taken
+    // over JSON, so a POST can't make a hidden row.
+    [JsonIgnore] public DateTimeOffset? Deleted { get; set; }
+    [JsonIgnore] public Guid? DeletedIn { get; set; }
 }
 
 public static class CellCountLimits

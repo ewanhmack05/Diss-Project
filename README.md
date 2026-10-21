@@ -142,7 +142,7 @@ Todos and notes, split by area, in [docs/](docs):
 | [Thought process](docs/thought-process.md) | how users connect, guest vs authenticated, host controls, navigation modes        |
 | [Guests](docs/guests.md)                   | joining without an account - the token, what's never saved, the name filter      |
 | [Rendering](docs/rendering.md)             | WebGPU question, what's on WebGL now, what the panning delay turned out to be     |
-| [Breakdowns](docs/breakdown)               | per-service walkthroughs of how each one works - [realtime-hub](docs/breakdown/realtime-hub.md) so far |
+| [Breakdowns](docs/breakdown)               | how each service works, plus [version control](docs/breakdown/version-control.md) across all of them - change sets, putting things back, the History tab |
 
 ### Data
 All example slide data has been sourced from https://openslide.cs.cmu.edu/download/openslide-testdata/Mirax/

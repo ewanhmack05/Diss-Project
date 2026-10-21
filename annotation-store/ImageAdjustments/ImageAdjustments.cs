@@ -1,7 +1,10 @@
+using System.Text.Json.Serialization;
+using AnnotationStore.ChangeSets;
+
 namespace AnnotationStore.ImageAdjustments;
 
 // Per image adjustment presets for brightess, constrast, red, green, blue, gamma, etc. for a given slide
-public class ImageAdjustments
+public class ImageAdjustments : ISoftDeletable, IInCollection
 {
     public Guid ImageAdjustmentId { get; set; }
     public Guid CollectionId { get; set; }
@@ -12,4 +15,8 @@ public class ImageAdjustments
     public string Adjustments { get; set; } = "";
     public DateTimeOffset Created { get; set; }
     public string UserId { get; set; } = "";
+    // Set when it's deleted - see ChangeSets/ChangeSet.cs. Never sent or taken
+    // over JSON, so a POST can't make a hidden row.
+    [JsonIgnore] public DateTimeOffset? Deleted { get; set; }
+    [JsonIgnore] public Guid? DeletedIn { get; set; }
 }

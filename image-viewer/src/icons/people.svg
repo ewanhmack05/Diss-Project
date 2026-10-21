@@ -1,0 +1,6 @@
+<svg viewBox="0 0 14 12" fill="none" stroke="currentColor" stroke-width="1.2">
+  <circle cx="5" cy="3.5" r="2.2" />
+  <path d="M1 11 C1 8, 9 8, 9 11" />
+  <circle cx="10" cy="4" r="1.8" />
+  <path d="M10 7.8 C12 7.8, 13 9, 13 11" />
+</svg>

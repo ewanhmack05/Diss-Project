@@ -78,6 +78,7 @@ public class GuestAccessTests : IClassFixture<CellCountApiFactory>
         $"/cellcounts/facets?collectionId={collectionId}",
         $"/cellcounts/{cellCountId}",
         $"/annotationgroups?collectionId={collectionId}",
+        $"/changesets?collectionId={collectionId}",
     ];
 
     private async Task<List<CollectionMember>> MembersAsync()
@@ -261,6 +262,7 @@ public class GuestAccessTests : IClassFixture<CellCountApiFactory>
             (HttpMethod.Delete, $"/collections/{id}/invites/{seeded.InviteCode}"),
             (HttpMethod.Get, $"/invites/{seeded.InviteCode}"),
             (HttpMethod.Post, $"/invites/{seeded.InviteCode}/accept"),
+            (HttpMethod.Post, $"/changesets/{Guid.NewGuid()}/restore"),
         ];
 
         foreach (var (method, url) in refused)

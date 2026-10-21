@@ -9,7 +9,7 @@ import { useAuthContext } from './AuthContext'
 import { applyOp } from '../components/realtime/realtime'
 import { useSavedTotalAt } from '../components/saved/useSavedTotal'
 import type { SavedFilters } from '../components/saved/filters'
-import { inBatches } from '../components/annotation/bulk'
+import { changeSetHeaders, deleteAsOneChange, inBatches, newChangeSet } from '../components/annotation/bulk'
 
 type Status = 'loading' | 'ready' | 'error'
 
@@ -27,8 +27,10 @@ interface MapFilter {
   filters: SavedFilters
 }
 
-// How long a bulk delete can be undone. Nothing's deleted in annotation-store
-// until it's up, so undoing just puts them back.
+// How long the Undo on a bulk delete stays up. The delete goes to
+// annotation-store straight away - only hidden there, in one change set - and
+// Undo restores that change set. The change set can still be restored after
+// this, the toast just stops offering it.
 const UNDO_DELETE_MS = 8000
 // How long a sent bulk delete is still taken off counts fetched before it.
 const REMOVAL_KEEP_MS = 10000
@@ -42,7 +44,7 @@ interface AnnotationStoreContextValue {
   revision: number
   // How many annotations the collection has, from annotation-store - null until
   // it's known. For the Saved tab's label. Takes off a bulk delete straight
-  // away, though annotation-store only hears about it after the undo.
+  // away, before annotation-store has answered.
   total: number | null
   // The Saved list's own unfiltered /total, so the label keeps up with
   // anything that wrote to annotation-store without telling realtime.
@@ -68,10 +70,13 @@ interface AnnotationStoreContextValue {
   addAnnotation: (annotation: Annotation) => void
   // Already saved by a GeoJSON import - see collections/useCollectionFiles.
   addImported: (annotations: Annotation[]) => void
+  // Put back by a restore - shown again, here only. Whoever restored them
+  // tells everyone else.
+  addRestored: (annotations: Annotation[]) => void
   // Many at once, from the Select tab - one request, one toast.
   updateMany: (ids: string[], patch: BulkPatch) => void
-  // Gone straight away, but only deleted for real after UNDO_DELETE_MS.
-  // Returns the undo, or null if there was nothing to delete.
+  // Gone straight away and sent straight away, as one change set. Returns
+  // the undo, or null if there was nothing to delete.
   deleteMany: (ids: string[]) => (() => void) | null
   // Local only, no request - for groups. markGrouped also tells everyone
   // else, after annotation-store has already grouped them; forgetGroup is
@@ -111,8 +116,8 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
     revisionRef.current += 1
     setRevision(revisionRef.current)
   }, [])
-  // Bulk deletes - from when they're made until a fetch after they're sent.
-  // settledAt is the revision they were sent at, null while undo's open.
+  // Bulk deletes - from when they're made until a fetch after they're saved.
+  // settledAt is the revision they were saved at, null until then.
   const [removals, setRemovals] = useState<{ key: number; items: Annotation[]; settledAt: number | null }[]>([])
   const pendingRemoved = useCallback(
     (at: number) => removals.filter((r) => r.settledAt === null || r.settledAt > at).flatMap((r) => r.items),
@@ -121,6 +126,7 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
   const fetchedTotal = useSavedTotalAt(baseUrl, 'annotations', collectionId, revision)
   const total = fetchedTotal.total === null ? null : Math.max(0, fetchedTotal.total - pendingRemoved(fetchedTotal.at).length)
   const wasDeleted = useCallback((id: string) => deletedIdsRef.current.has(id), [])
+  const nextRemovalRef = useRef(0)
   const annotationsSourceRef = useRef(new VectorSource())
   // Anything deleted, by you or anyone else. An edit form that closes
   // because its annotation was deleted still flushes its last autosave,
@@ -169,6 +175,8 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
       onOp(({ op }) => {
         if (op.entity !== 'annotation') return
         if (op.kind === 'delete') deletedIdsRef.current.add(op.id)
+        // Put back by someone else.
+        if (op.kind === 'create') deletedIdsRef.current.delete(op.id)
         setAnnotations((current) => applyOp(current, op))
         if (op.kind === 'delete') {
           setSelectedAnnotationId((current) => (current === op.id ? null : current))
@@ -233,6 +241,16 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
     bumpRevision()
   }
 
+  const addRestored = (restored: Annotation[]) => {
+    if (restored.length === 0) return
+    const ids = new Set(restored.map((a) => a.id))
+    for (const id of ids) deletedIdsRef.current.delete(id)
+    // Not taken off the count any more, if it was a delete from just now.
+    setRemovals((current) => current.map((r) => ({ ...r, items: r.items.filter((a) => !ids.has(a.id)) })))
+    setAnnotations((current) => [...current, ...restored.filter((a) => !current.some((c) => c.id === a.id))])
+    bumpRevision()
+  }
+
   const updateMany = (ids: string[], patch: BulkPatch) => {
     if (!canEdit) {
       emit('collection:read-only')
@@ -242,11 +260,12 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
     const wanted = new Set(ids)
     setAnnotations((current) => current.map((a) => (wanted.has(a.id) ? { ...a, ...patch } : a)))
     for (const id of ids) sendOp({ kind: 'update', entity: 'annotation', id, data: patch })
+    const changeSet = newChangeSet()
     Promise.all(
       inBatches(ids).map((batch) =>
         authFetch(`${baseUrl}/annotations/bulk`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: changeSetHeaders(changeSet),
           body: JSON.stringify({
             collectionId,
             ids: batch,
@@ -269,56 +288,6 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
       })
   }
 
-  // Waiting deletes, so leaving the page still sends them.
-  const pendingDeletesRef = useRef(new Map<number, { collectionId: string; ids: string[] }>())
-  const nextDeleteRef = useRef(0)
-  const sendDelete = useCallback(
-    (key: number, keepalive = false) => {
-      const pending = pendingDeletesRef.current.get(key)
-      if (!pending) return
-      pendingDeletesRef.current.delete(key)
-      Promise.all(
-        inBatches(pending.ids).map((ids) =>
-          authFetch(`${baseUrl}/annotations/bulk-delete`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ collectionId: pending.collectionId, ids }),
-            keepalive,
-          }).then((response) => {
-            if (!response.ok) throw new Error(String(response.status))
-          })
-        )
-      )
-        .catch(() => emit('annotations:deleted:error', { count: pending.ids.length }))
-        .finally(() => {
-          bumpRevision()
-          const settledAt = revisionRef.current
-          setRemovals((current) => current.map((r) => (r.key === key ? { ...r, settledAt } : r)))
-          // Every fetch made since has caught up well before this.
-          setTimeout(() => setRemovals((current) => current.filter((r) => r.key !== key)), REMOVAL_KEEP_MS)
-        })
-    },
-    [authFetch, baseUrl, emit, bumpRevision]
-  )
-  const sendDeleteRef = useRef(sendDelete)
-  useEffect(() => {
-    sendDeleteRef.current = sendDelete
-  })
-
-  // Leaving the page, or the viewer closing, sends whatever's still
-  // waiting - keepalive lets it finish after the page has gone. Only on the
-  // way out, never on a re-render.
-  useEffect(() => {
-    const flush = () => {
-      for (const key of [...pendingDeletesRef.current.keys()]) sendDeleteRef.current(key, true)
-    }
-    window.addEventListener('pagehide', flush)
-    return () => {
-      window.removeEventListener('pagehide', flush)
-      flush()
-    }
-  }, [])
-
   const deleteMany = (ids: string[]) => {
     if (!canEdit) {
       emit('collection:read-only')
@@ -334,19 +303,39 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
     setViewedAnnotationId((current) => (current && wanted.has(current) ? null : current))
     for (const a of removed) sendOp({ kind: 'delete', entity: 'annotation', id: a.id })
 
-    const key = nextDeleteRef.current++
-    pendingDeletesRef.current.set(key, { collectionId, ids: removed.map((a) => a.id) })
+    const key = nextRemovalRef.current++
     setRemovals((current) => [...current, { key, items: removed, settledAt: null }])
-    const timer = setTimeout(() => sendDelete(key), UNDO_DELETE_MS)
+    const { deleted, undo } = deleteAsOneChange(
+      removed.map((a) => a.id),
+      (batch, headers) =>
+        authFetch(`${baseUrl}/annotations/bulk-delete`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ collectionId, ids: batch }),
+        }),
+      (path) => authFetch(`${baseUrl}${path}`, { method: 'POST' })
+    )
+    deleted
+      .catch(() => emit('annotations:deleted:error', { count: removed.length }))
+      .finally(() => {
+        bumpRevision()
+        const settledAt = revisionRef.current
+        setRemovals((current) => current.map((r) => (r.key === key ? { ...r, settledAt } : r)))
+        // Every fetch made since has caught up well before this.
+        setTimeout(() => setRemovals((current) => current.filter((r) => r.key !== key)), REMOVAL_KEEP_MS)
+      })
 
+    let undone = false
     return () => {
-      // Too late - it's gone already.
-      if (!pendingDeletesRef.current.delete(key)) return
-      clearTimeout(timer)
-      setRemovals((current) => current.filter((r) => r.key !== key))
-      for (const a of removed) deletedIdsRef.current.delete(a.id)
-      setAnnotations((current) => [...current, ...removed.filter((a) => !current.some((c) => c.id === a.id))])
-      for (const a of removed) sendOp({ kind: 'create', entity: 'annotation', id: a.id, data: a })
+      if (undone) return
+      undone = true
+      undo()
+        .then(() => {
+          setRemovals((current) => current.filter((r) => r.key !== key))
+          addRestored(removed)
+          for (const a of removed) sendOp({ kind: 'create', entity: 'annotation', id: a.id, data: a })
+        })
+        .catch(() => emit('annotations:restored:error', { count: removed.length }))
     }
   }
 
@@ -416,6 +405,7 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
         annotationsSource: annotationsSourceRef.current,
         addAnnotation,
         addImported,
+        addRestored,
         updateMany,
         deleteMany,
         markGrouped,

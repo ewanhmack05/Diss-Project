@@ -39,6 +39,9 @@ interface CellCountStoreContextValue {
   addCellCount: (cellCount: CellCount) => void
   // Already saved by a GeoJSON import - see collections/useCollectionFiles.
   addImported: (cellCounts: CellCount[]) => void
+  // Put back by a restore, without their dots - shown again, here only.
+  // Whoever restored them tells everyone else.
+  addRestored: (cellCounts: CellCount[]) => void
   updateCellCount: (id: string, patch: CellCountEdit) => void
   deleteCellCount: (id: string) => void
   setSelectedCellCountId: (id: string | null) => void
@@ -131,6 +134,8 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
       onOp(({ op }) => {
         if (op.entity !== 'cellCount') return
         if (op.kind === 'delete') deletedIdsRef.current.add(op.id)
+        // Put back by someone else.
+        if (op.kind === 'create') deletedIdsRef.current.delete(op.id)
         setCellCounts((current) => applyOp(current, op))
         if (op.kind === 'delete') {
           setSelectedCellCountId((current) => (current === op.id ? null : current))
@@ -181,6 +186,13 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
     if (imported.length === 0) return
     setCellCounts((current) => [...current, ...imported])
     for (const cellCount of imported) sendOp({ kind: 'create', entity: 'cellCount', id: cellCount.id, data: cellCount })
+    bumpRevision()
+  }
+
+  const addRestored = (restored: CellCount[]) => {
+    if (restored.length === 0) return
+    for (const c of restored) deletedIdsRef.current.delete(c.id)
+    setCellCounts((current) => [...current, ...restored.filter((c) => !current.some((known) => known.id === c.id))])
     bumpRevision()
   }
 
@@ -287,6 +299,7 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
         viewedCellCountId,
         addCellCount,
         addImported,
+        addRestored,
         updateCellCount,
         deleteCellCount,
         setSelectedCellCountId,

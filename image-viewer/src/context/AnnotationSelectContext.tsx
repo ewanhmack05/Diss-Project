@@ -33,6 +33,9 @@ function AnnotationSelectContextProvider({ children }: { children: ReactNode }) 
     const kept = [...picked].filter((id) => present.has(id))
     return kept.length === picked.size ? picked : new Set(kept)
   }, [annotations, picked])
+  // And forgotten, so putting them back later - from History, or by anyone
+  // else - doesn't pick them again.
+  if (selectedIds !== picked) setPicked(selectedIds)
 
   const select = useCallback(
     (ids: string[], add: boolean) => setPicked((current) => new Set(add ? [...current, ...ids] : ids)),

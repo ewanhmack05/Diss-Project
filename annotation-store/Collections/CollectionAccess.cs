@@ -8,8 +8,9 @@ namespace AnnotationStore.Collections;
 // Whether the signed-in user can see or change something in a collection.
 public static class CollectionAccess
 {
-    // Null if they aren't a member (or the collection doesn't exist). Someone
-    // else's personal collection they've shared counts as Viewer. A guest is
+    // Null if they aren't a member, or the collection doesn't exist or was
+    // deleted (its members are kept for a restore, but count for nothing).
+    // Someone else's personal collection they've shared counts as Viewer. A guest is
     // Viewer on the session in their token and nothing else - never looked
     // up in CollectionMembers, since guests are never in it.
     public static async Task<CollectionRole?> RoleAsync(this AnnotationDbContext db, Guid collectionId, ClaimsPrincipal user)
@@ -23,7 +24,7 @@ public static class CollectionAccess
 
         var userId = user.UserId();
         var role = await db.CollectionMembers
-            .Where(m => m.CollectionId == collectionId && m.UserId == userId)
+            .Where(m => m.CollectionId == collectionId && m.UserId == userId && db.Collections.Any(c => c.CollectionId == collectionId))
             .Select(m => (CollectionRole?)m.Role)
             .FirstOrDefaultAsync();
         if (role is not null) return role;

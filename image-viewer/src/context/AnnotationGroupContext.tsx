@@ -5,7 +5,7 @@ import { useCollectionContext } from './CollectionContext'
 import { useEmitEvent } from './EventContext'
 import { useRealtimeContext } from './RealtimeContext'
 import { useAnnotationStoreContext } from './AnnotationStoreContext'
-import { inBatches } from '../components/annotation/bulk'
+import { changeSetHeaders, inBatches, newChangeSet } from '../components/annotation/bulk'
 
 interface AnnotationGroupContextValue {
   // The active collection's groups, by name.
@@ -26,6 +26,9 @@ interface AnnotationGroupContextValue {
   deleteGroup: (groupId: string) => Promise<void>
   // Already saved, by a GeoJSON import - shown, and sent to everyone else.
   addImported: (groups: AnnotationGroup[]) => void
+  // Put back by a restore - shown again, here only. Whoever restored them
+  // tells everyone else.
+  addRestored: (groups: AnnotationGroup[]) => void
 }
 
 const AnnotationGroupContext = createContext<AnnotationGroupContextValue | null>(null)
@@ -79,10 +82,11 @@ function AnnotationGroupContextProvider({ baseUrl, children }: { baseUrl: string
   )
 
   const send = useCallback(
-    async (path: string, method: string, body?: unknown) => {
+    // changeSet puts several requests in one change set - see bulk.ts.
+    async (path: string, method: string, body?: unknown, changeSet?: string) => {
       const response = await authFetch(`${baseUrl}${path}`, {
         method,
-        headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+        headers: changeSet ? changeSetHeaders(changeSet) : body === undefined ? undefined : { 'Content-Type': 'application/json' },
         body: body === undefined ? undefined : JSON.stringify(body),
       })
       if (!response.ok) throw new Error(String(response.status))
@@ -94,7 +98,8 @@ function AnnotationGroupContextProvider({ baseUrl, children }: { baseUrl: string
   const createGroup = async (name: string, annotationIds: string[]) => {
     if (collectionId === null) throw new Error('No collection')
     const [first = [], ...rest] = inBatches(annotationIds)
-    const response = await send('/annotationgroups', 'POST', { collectionId, name, annotationIds: first })
+    const changeSet = newChangeSet()
+    const response = await send('/annotationgroups', 'POST', { collectionId, name, annotationIds: first }, changeSet)
     const { count: _count, ...group } = (await response.json()) as AnnotationGroup & { count: number }
     group.notes ??= ''
     setGroups((current) => [...current, group].sort(byName))
@@ -104,7 +109,7 @@ function AnnotationGroupContextProvider({ baseUrl, children }: { baseUrl: string
     // leaves it listed with whatever got in.
     await Promise.all(
       rest.map(async (ids) => {
-        await send('/annotations/bulk', 'PUT', { collectionId, ids, setGroup: true, groupId: group.id })
+        await send('/annotations/bulk', 'PUT', { collectionId, ids, setGroup: true, groupId: group.id }, changeSet)
         markGrouped(ids, group.id)
       })
     )
@@ -145,6 +150,13 @@ function AnnotationGroupContextProvider({ baseUrl, children }: { baseUrl: string
     for (const group of fresh) sendOp({ kind: 'create', entity: 'annotationGroup', id: group.id, data: group })
   }
 
+  const addRestored = (restored: AnnotationGroup[]) => {
+    if (restored.length === 0) return
+    // The store sends a member count too - not kept, same as a made one.
+    const tidy = restored.map(({ id, collectionId, name, notes, created }) => ({ id, collectionId, name, notes: notes ?? '', created }))
+    setGroups((current) => [...current, ...tidy.filter((g) => !current.some((c) => c.id === g.id))].sort(byName))
+  }
+
   const showAll = useCallback(() => setHiddenGroupIds((current) => (current.size === 0 ? current : new Set())), [])
 
   const toggleHidden = (groupId: string) =>
@@ -162,6 +174,7 @@ function AnnotationGroupContextProvider({ baseUrl, children }: { baseUrl: string
         toggleHidden,
         showAll,
         addImported,
+        addRestored,
         createGroup: (name, ids) =>
           createGroup(name, ids).catch((error: unknown) => {
             emit('annotationgroup:error')

@@ -22,6 +22,7 @@ const TOAST_MESSAGES: Record<string, { message: string; variant: 'success' | 'er
   'annotations:updated': { message: 'Annotations updated', variant: 'success' },
   'annotations:updated:error': { message: "Couldn't update those annotations", variant: 'error' },
   'annotations:deleted:error': { message: "Couldn't delete those annotations - reload to see what's there", variant: 'error' },
+  'annotations:restored:error': { message: "Couldn't bring those annotations back - reload to see what's there", variant: 'error' },
   'annotationgroup:error': { message: "Couldn't change that group - try again", variant: 'error' },
   'cellcount:created': { message: 'Cell count saved', variant: 'success' },
   'cellcount:created:error': { message: "Couldn't save cell count", variant: 'error' },

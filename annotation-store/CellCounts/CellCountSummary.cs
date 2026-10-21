@@ -1,4 +1,6 @@
 using System.Text.Json;
+using AnnotationStore.Annotations;
+using Microsoft.EntityFrameworkCore;
 
 namespace AnnotationStore.CellCounts;
 
@@ -80,6 +82,57 @@ public static class CellCountSummary
 
     public static List<T> Read<T>(string? json) =>
         string.IsNullOrEmpty(json) ? [] : JsonSerializer.Deserialize<List<T>>(json, Web) ?? [];
+
+    // The Saved list's rows for these counts, in the order given. Every
+    // column but Dots, so the database never reads them.
+    public static async Task<List<CellCountListItem>> ListItemsAsync(this IQueryable<CellCount> counts, AnnotationDbContext db)
+    {
+        var rows = await counts
+            .Select(c => new
+            {
+                c.Id,
+                c.CollectionId,
+                c.SlideId,
+                c.Label,
+                c.Notes,
+                c.WithAnnotation,
+                c.WithRoi,
+                c.Count,
+                c.DotSize,
+                c.LocationX,
+                c.LocationY,
+                c.Created,
+                c.CreatedById,
+                c.CreatedByName,
+                c.RegionOfInterest,
+                c.ColourCountsJson,
+                c.PlacedByCountsJson,
+            })
+            .ToListAsync();
+
+        // Counts saved before the summary existed get it worked out once, the
+        // first time they're listed, and kept.
+        var unsummarised = rows.Where(r => r.ColourCountsJson is null || r.PlacedByCountsJson is null).Select(r => r.Id).ToList();
+        var filledIn = new Dictionary<Guid, (string Colours, string PlacedBy)>();
+        if (unsummarised.Count > 0)
+        {
+            foreach (var cellCount in await db.CellCounts.Where(c => unsummarised.Contains(c.Id)).ToListAsync())
+            {
+                Stamp(cellCount);
+                filledIn[cellCount.Id] = (cellCount.ColourCountsJson!, cellCount.PlacedByCountsJson!);
+            }
+            await db.SaveChangesAsync();
+        }
+
+        return rows.Select(r =>
+        {
+            var (colours, placedBy) = filledIn.TryGetValue(r.Id, out var stamped) ? stamped : (r.ColourCountsJson, r.PlacedByCountsJson);
+            return new CellCountListItem(
+                r.Id, r.CollectionId, r.SlideId, r.Label, r.Notes, r.WithAnnotation, r.WithRoi, r.Count, r.DotSize,
+                r.LocationX, r.LocationY, r.Created, r.CreatedById, r.CreatedByName, r.RegionOfInterest,
+                Read<ColourCount>(colours), Read<PlacedByCount>(placedBy));
+        }).ToList();
+    }
 }
 
 // A count as the Saved list gets it - everything but the dots, which can

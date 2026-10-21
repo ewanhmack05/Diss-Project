@@ -162,9 +162,13 @@ loads every annotation and cell count in their collection on the slide,
 deletes the ones whose notes are `stress-test` (8 at a time), and says how
 many it removed and how many it left.
 
-Going through the API means each delete is checked like any other. For a
-faster clean that doesn't need annotation-store running,
-`sql/delete_stress_test.sql` does the same in two `DELETE`s.
+Going through the API means each delete is checked like any other - and,
+like any other, it only hides the row (annotation-store never removes
+anything - see
+[annotation-store.md](annotation-store.md#11-deletes-and-change-sets)). So
+the map and lists are clean afterwards but the table isn't. To really remove
+them, and faster, without annotation-store running,
+`sql/delete_stress_test.sql` does it in two `DELETE`s.
 
 ## 7. Measuring the map
 
@@ -200,14 +204,15 @@ runs in one transaction, so it either all happens or none of it does.
 
 | Script | Does | Scope |
 | ------ | ---- | ----- |
-| `counts.sql` | Rows per table, then per slide | Read-only |
+| `counts.sql` | Rows per table and how many are deleted (hidden), then per slide | Read-only |
 | `delete_stress_test.sql` | Annotations and counts with notes `stress-test` | Every user, every slide |
 | `delete_all_annotations.sql` | Every annotation | Everything |
 | `delete_all_cell_counts.sql` | Every cell count (ROI boxes cascade) | Everything |
 | `delete_all_image_adjustments.sql` | Every preset | Everything |
 | `delete_slide_data.sql` | Annotations, counts and presets for one slide - edit the id | One slide |
-| `reset_all.sql` | Empties the tables, collections included. Schema and migrations stay | Everything |
+| `reset_all.sql` | Empties every table - collections, members, links, groups, change sets. Schema and migrations stay | Everything |
 
+These remove rows for real, where annotation-store only ever hides them.
 Only `reset_all.sql` removes collections. The viewer copes with any of
 these while it's open, since annotation-store makes a new personal
 collection the next time a slide is opened - just reload.
@@ -229,10 +234,6 @@ with ruff.
 
 ## 10. Known gaps
 
-- **`reset_all.sql` misses two tables.** It truncates `Collections` but not
-  `CollectionMembers` or `CollectionInvites`, which reference it. Postgres
-  refuses to truncate a table other tables point at unless they're included
-  (or `CASCADE` is used), so it would fail as it stands.
 - **One user at a time.** Seeding fills one person's personal collection.
   There's nothing yet for seeding a session, or for load from several
   people at once.

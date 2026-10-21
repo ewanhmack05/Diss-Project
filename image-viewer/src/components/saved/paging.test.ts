@@ -72,6 +72,12 @@ describe('pageUrls', () => {
     expect(urls.page).toBe('/store/annotations?collectionId=c-1&search=box&createdBy=bob&shape=rectangle&skip=0&take=50')
     expect(urls.total).toBe('/store/annotations/total?collectionId=c-1&search=box&createdBy=bob&shape=rectangle')
   })
+
+  it('pages the History list the same way, with nothing but the collection', () => {
+    const urls = pageUrls('/store', 'changesets', 'c-1', 1, 50, '')
+    expect(urls.page).toBe('/store/changesets?collectionId=c-1&skip=50&take=50')
+    expect(urls.total).toBe('/store/changesets/total?collectionId=c-1')
+  })
 })
 
 describe('isFiltered', () => {

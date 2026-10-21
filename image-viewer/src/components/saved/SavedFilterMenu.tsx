@@ -4,6 +4,11 @@ import { placeSheet, samePlacement, type SheetPlacement } from './sheetPlacement
 import { NO_FILTERS, NO_GROUP, PALETTE, activeFilterCount, toggled, type Either, type SavedFilters } from './filters'
 import type { SavedFacets } from './useSavedFacets'
 import './SavedFilterMenu.css'
+import Icon from '../../icons/Icon'
+import chevronLeftSvg from '../../icons/chevron-left.svg?raw'
+import chevronRightSvg from '../../icons/chevron-right.svg?raw'
+import chevronUpSvg from '../../icons/chevron-up.svg?raw'
+import filterSvg from '../../icons/filter.svg?raw'
 
 interface ShapeChoice {
   value: string
@@ -205,9 +210,7 @@ function SavedFilterMenu({ filters, onChange, facets, myId, shapes, colours, gro
         aria-haspopup="dialog"
         onClick={() => (open ? close() : setFrame(frameFor(toggleRef.current!)))}
       >
-        <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M2 3 H14 L9.5 8.5 V13 L6.5 14.5 V8.5 Z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-        </svg>
+        <Icon svg={filterSvg} size={12} />
         Filter
         {active > 0 && <span className="saved-filter-badge">{active}</span>}
       </button>
@@ -224,16 +227,7 @@ function SavedFilterMenu({ filters, onChange, facets, myId, shapes, colours, gro
             <header className="saved-filter-popup-header">
               Filters
               <button type="button" className="saved-filter-popup-close" aria-label="Close filters" onClick={close}>
-                <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
-                  <path
-                    d={placement?.side === 'left' ? 'M6 3 L11 8 L6 13' : placement?.side === 'below' ? 'M3 10 L8 5 L13 10' : 'M10 3 L5 8 L10 13'}
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                <Icon svg={placement?.side === 'left' ? chevronRightSvg : placement?.side === 'below' ? chevronUpSvg : chevronLeftSvg} size={12} />
               </button>
             </header>
             <div className="saved-filter-popup-body themed-scroll">

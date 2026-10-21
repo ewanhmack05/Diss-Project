@@ -21,6 +21,21 @@ configured database automatically on startup - no manual
 `Database__MigrateOnStartup=true` does the same in any environment - the
 Docker image sets it.
 
+### Tests
+
+```bash
+dotnet test annotation-store/Tests
+```
+
+On in-memory SQLite, so nothing needs to be running. To run the same tests
+on Postgres - the migrations, Npgsql's SQL, and the `[PostgresFact]` ones
+that need requests at the same moment - point them at a server. Each test
+class makes a database of its own and drops it afterwards:
+
+```bash
+ANNOTATION_STORE_TEST_POSTGRES="Host=localhost;Port=5432;Username=postgres;Password=..." dotnet test annotation-store/Tests
+```
+
 ### In Docker
 
 ```bash
@@ -144,6 +159,36 @@ by default for Postgres' `postgres` superuser) as well as the schema.
 Everything is per collection - reading needs you in it, writing needs
 editor or owner.
 
+Every write to annotations, groups, cell counts, image adjustments, an
+import or a collection delete goes in a **change set** - who did it, what,
+and when. Send a `Change-Set-Id` header (a GUID) to choose it, so several
+requests count as one change - the viewer sends one id with every batch of a
+bulk change. Leave it out and the write gets a change set of its own. The
+response's `Change-Set-Id` header says which it went in. An id already used
+by someone else, or in another collection, is a 400.
+
+**Deletes only hide.** A deleted row gets `Deleted` and `DeletedIn` (its
+change set) set and drops out of every read, but stays in the table, so
+`POST /changesets/{id}/restore` can put it back. Nothing is purged.
+
+- `GET /changesets?collectionId=&skip=&take=` - the collection's change
+  sets, newest first: `{ id, collectionId, userId, userName, what, created,
+  deleted }`, `deleted` being how many rows it deleted that are still
+  deleted. Anyone who can read the collection, guests included
+- `GET /changesets/total?collectionId=` - how many change sets the
+  collection has, for the viewer's History pager. Same access as the list
+- `POST /changesets/{id}/restore` - puts back everything that change set
+  deleted, as a change of its own. Any editor, for anyone's change set -
+  except a deleted collection, which only its owner can bring back (and not
+  while they've a newer personal one for that slide - 409). Answers
+  `{ counts, annotations, groups, cellCounts, imageAdjustments }`: `counts`
+  is `{ annotations, groups, cellCounts, imageAdjustments, collection }`,
+  how many of each came back, and the rest are the rows themselves, as the
+  reads give them - groups with their member `count`, cell counts as the
+  Saved list has them (no `dots`). Restoring again answers zeros and empty
+  lists. A restored group comes back empty - deleting it ungrouped its
+  annotations
+
 - `GET /annotations?collectionId=` - every annotation in the collection,
   newest first. What the map loads
 - `GET /annotations?collectionId=&skip=&take=&search=` plus filters - one
@@ -167,7 +212,7 @@ editor or owner.
 - `POST /annotations` - create one (body: `Annotation` minus `id`/`created`,
   both are assigned server-side if omitted)
 - `PUT /annotations/{id}` - update `label`/`notes`/`colour`
-- `DELETE /annotations/{id}` - delete
+- `DELETE /annotations/{id}` - delete (hides it - see above)
 - `PUT /annotations/bulk` - many at once, from the viewer's Select tab:
   `{ collectionId, ids, colour?, setGroup, groupId? }`. `colour` recolours
   them all; `setGroup` moves them all into `groupId`, or out of any group
@@ -180,9 +225,11 @@ editor or owner.
   group, with those annotations put straight in it
 - `PUT /annotationgroups/{id}` - `{ name?, notes? }` - either or both
 - `POST /annotationgroups/{id}/merge` - `{ intoId }` - moves everything into
-  that group and deletes this one, in one transaction. Notes are joined
+  that group and deletes this one, in one transaction. Notes are joined.
+  Deleted annotations move too
 - `DELETE /annotationgroups/{id}` - delete it. Its annotations stay,
-  ungrouped
+  ungrouped - deleted ones too, so restoring one never puts it back in a
+  group that's gone
 
 A group (`Annotations/AnnotationGroup.cs`) is a named set of annotations in
 one collection, one level deep - an annotation's `GroupId` is the one it's
@@ -206,7 +253,8 @@ isn't one and adding the file's notes for it.
   million dots - everything else has Kestrel's 30 MB default
 - `PUT /cellcounts/{id}` - update `label`/`notes`/`withAnnotation`/`withRoi`/
   `count`/`dotSize`
-- `DELETE /cellcounts/{id}` - delete
+- `DELETE /cellcounts/{id}` - delete. Its ROI box is left as it is, so it
+  comes back with a restore
 
 Bad `skip`/`take` is a 400. Paging is newest first with the id breaking
 ties, so no row turns up on two pages.
@@ -247,13 +295,32 @@ cells (e.g. mitotic figures) within a region:
 | `LocationY`      | double, null  | see `LocationX`                                                |
 | `Created`        | timestamptz   | server-assigned                                               |
 
+Annotations, groups, cell counts, image adjustments and collections all
+also have:
+
+| field       | type             | notes                                                     |
+| ----------- | ---------------- | --------------------------------------------------------- |
+| `Deleted`   | timestamptz, null | when it was deleted - never in JSON either way           |
+| `DeletedIn` | uuid, null, indexed | the change set that deleted it                         |
+
+`ChangeSets/ChangeSet.cs` - one change, like a commit:
+
+| field          | type        | notes                                                  |
+| -------------- | ----------- | ------------------------------------------------------ |
+| `Id`           | uuid, PK    | from the `Change-Set-Id` header, or server-assigned    |
+| `CollectionId` | uuid        | the collection it changed - indexed with `Created`     |
+| `UserId`       | text        | who, from the token                                    |
+| `UserName`     | text        | their name then                                        |
+| `What`         | text        | what the first request in it did, e.g. `delete annotations` |
+| `Created`      | timestamptz | server-assigned                                        |
+
 `Annotations/AnnotationGroup.cs` - a named set of annotations in one
 collection:
 
 | field          | type     | notes                                             |
 | -------------- | -------- | ------------------------------------------------- |
 | `Id`           | uuid, PK | server-assigned                                   |
-| `CollectionId` | uuid     | which collection it's in - deleting that deletes it |
+| `CollectionId` | uuid     | which collection it's in                          |
 | `Name`         | text     | up to 64 characters                               |
 | `Notes`        | text     | up to 10,000 characters                           |
 | `Created`      | timestamptz | server-assigned                                |

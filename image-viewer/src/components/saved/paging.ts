@@ -36,11 +36,15 @@ function typedPage(text: string, pages: number): number | null {
   return Math.min(Math.max(1, Number(digits)), pages) - 1
 }
 
+// What a paged list reads. changesets is the History list - no search or
+// filters there, so it only ever gets the collection and the page.
+type SavedPath = 'annotations' | 'cellcounts' | 'changesets'
+
 // GET /annotations or /cellcounts for one page, and /total for the same
 // search and filters, so the page count matches what they find.
 function pageUrls(
   baseUrl: string,
-  path: 'annotations' | 'cellcounts',
+  path: SavedPath,
   collectionId: string,
   page: number,
   pageSize: number,
@@ -135,4 +139,4 @@ function isFiltered(search: string, filters: SavedFilters): boolean {
 }
 
 export { SAVED_PAGE_SIZE, pageCount, clampPage, typedPage, pageUrls, mergePage, isFiltered }
-export type { PageView }
+export type { PageView, SavedPath }

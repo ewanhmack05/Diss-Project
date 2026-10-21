@@ -1,5 +1,7 @@
 import { useId, type ReactNode } from 'react'
 import './SavedRow.css'
+import Icon from '../../icons/Icon'
+import chevronDownSvg from '../../icons/chevron-down.svg?raw'
 
 interface SavedRowProps {
   open: boolean
@@ -35,9 +37,7 @@ function SavedRow({ open, onToggle, leading, label, trailing, meta, notes, child
           <span className="saved-row-leading">{leading}</span>
           <span className="saved-row-label">{label}</span>
           <span className="saved-row-trailing">{trailing}</span>
-          <svg className="saved-row-chevron" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-            <path d="M2 3.5 L5 6.5 L8 3.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-          </svg>
+          <Icon svg={chevronDownSvg} size={10} className="saved-row-chevron" />
         </span>
         <span className="saved-row-meta">{meta}</span>
         {notes && <span className="saved-row-notes">{notes}</span>}

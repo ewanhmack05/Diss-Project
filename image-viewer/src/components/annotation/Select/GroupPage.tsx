@@ -8,6 +8,8 @@ import type { AnnotationGroup } from '../../../interfaces/AnnotationGroup'
 import ColourPicker from '../../colour-picker/ColourPicker'
 import { debounce } from '../../realtime/realtime'
 import { DefaultColour } from '../Tools'
+import Icon from '../../../icons/Icon'
+import chevronLeftSvg from '../../../icons/chevron-left.svg?raw'
 
 // Group notes save once you pause, like an annotation's.
 const NOTES_SAVE_MS = 500
@@ -123,9 +125,7 @@ function GroupPage({ group, editable, onBack }: GroupPageProps) {
   return (
     <div className="select-tab">
       <button type="button" className="select-back" onClick={onBack}>
-        <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M10 3 L5 8 L10 13" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        <Icon svg={chevronLeftSvg} size={12} />
         Groups
       </button>
 
