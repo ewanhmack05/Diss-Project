@@ -115,19 +115,22 @@ public static class ChangeSetChangesEndpoint
     private record Named(Guid EntityId, string? Name);
 
     // Names out of delete entries, read in the database so the whole row
-    // never comes back - by change set, or one row's latest delete.
+    // never comes back - by change set, or one row's latest delete. Only
+    // fixed column names and numbers are put in the SQL itself; the id goes
+    // in as a parameter ({0}).
     private static Task<List<Named>> NamesInHistoryAsync(AnnotationDbContext db, Guid? changeSetId, Guid? entityId, int take)
     {
         var postgres = HistoryLog.IsPostgres(db);
-        string Field(string name) => postgres ? $"\"Before\" ->> '{name}'" : $"json_extract(\"Before\", '$.{name}')";
+        string Field(string column) => postgres ? $"\"Before\" ->> '{column}'" : $"json_extract(\"Before\", '$.{column}')";
         var name = $"COALESCE({Field("Label")}, {Field("Name")}, {Field("AdjustmentName")})";
         var entries = postgres ? "history.\"Entries\"" : "\"Entries\"";
-        var where = changeSetId is not null ? "\"ChangeSetId\" = {0}" : "\"EntityId\" = {0}";
-        return db.Database.SqlQueryRaw<Named>($"""
-            SELECT "EntityId", {name} AS "Name" FROM {entries}
-            WHERE {where} AND "Op" = 'Delete' AND "Entity" <> 'regionOfInterest' AND "Entity" <> 'collection'
-            ORDER BY "Id" {(changeSetId is not null ? "" : "DESC")}
-            LIMIT {take}
-            """, changeSetId ?? entityId!.Value).ToListAsync();
+        var byChangeSet = changeSetId is not null;
+        var sql = string.Join(" ",
+            $"SELECT \"EntityId\", {name} AS \"Name\" FROM {entries}",
+            $"WHERE {(byChangeSet ? "\"ChangeSetId\"" : "\"EntityId\"")} = {{0}}",
+            "AND \"Op\" = 'Delete' AND \"Entity\" <> 'regionOfInterest' AND \"Entity\" <> 'collection'",
+            $"ORDER BY \"Id\" {(byChangeSet ? "" : "DESC")}",
+            $"LIMIT {take}");
+        return db.Database.SqlQueryRaw<Named>(sql, changeSetId ?? entityId!.Value).ToListAsync();
     }
 }

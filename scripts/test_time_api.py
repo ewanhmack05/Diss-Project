@@ -62,7 +62,7 @@ class Endpoints(unittest.TestCase):
         self.assertNotIn("biggest cell count (with dots)", names)
 
     def test_ids_go_in_the_path_escaped(self):
-        found = dict((name, path) for name, _, path, _ in endpoints("a b", "own id", None, None, []))
+        found = {name: path for name, _, path, _ in endpoints("a b", "own id", None, None, [])}
         self.assertEqual("/collections?slideId=a%20b", found["collections list"])
         self.assertEqual("/annotations?collectionId=own%20id", found["own: annotations (all, the map)"])
 

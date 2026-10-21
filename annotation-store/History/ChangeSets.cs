@@ -173,7 +173,12 @@ public static class ChangeSetEndpoints
                 .OrderByDescending(e => e.Id)
                 .Select(e => new HistoryEntry
                 {
-                    Id = e.Id, ChangeSetId = e.ChangeSetId, CollectionId = e.CollectionId, Entity = e.Entity, EntityId = e.EntityId, Op = e.Op,
+                    Id = e.Id,
+                    ChangeSetId = e.ChangeSetId,
+                    CollectionId = e.CollectionId,
+                    Entity = e.Entity,
+                    EntityId = e.EntityId,
+                    Op = e.Op,
                     Before = rebuiltThere && e.Entity == HistoryLog.Annotation && e.Op == HistoryOp.Delete ? null : e.Before,
                     After = e.After,
                 })

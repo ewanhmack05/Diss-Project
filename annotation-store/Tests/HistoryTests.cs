@@ -256,7 +256,7 @@ public class HistoryTests : IClassFixture<CellCountApiFactory>
         Assert.Equal([b.Id], (await AnnotationsAsync(alice, id)).Select(x => x.Id));
 
         Assert.Equal(1, (await CountsAsync(await RestoreAsync(alice, second))).Annotations);
-        Assert.Equal([a.Id, b.Id], (await AnnotationsAsync(alice, id)).Select(x => x.Id).Order());
+        Assert.Equal(new[] { a.Id, b.Id }.Order(), (await AnnotationsAsync(alice, id)).Select(x => x.Id).Order());
     }
 
     [Fact]
@@ -566,7 +566,10 @@ public class HistoryTests : IClassFixture<CellCountApiFactory>
         var id = (await OwnAsync(alice)).CollectionId;
         var post = await alice.PostAsJsonAsync("/cellcounts", new CellCount
         {
-            CollectionId = id, Label = "c", Count = 2, WithRoi = true,
+            CollectionId = id,
+            Label = "c",
+            Count = 2,
+            WithRoi = true,
             Dots = "[{\"x\":1,\"y\":2,\"colour\":\"#ff0000\"},{\"x\":3,\"y\":4,\"colour\":\"#00ff00\"}]",
             RegionOfInterest = new RegionOfInterest { GeoJson = "{\"type\":\"Polygon\"}" },
         });
