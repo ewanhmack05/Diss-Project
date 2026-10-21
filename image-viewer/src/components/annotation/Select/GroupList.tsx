@@ -3,6 +3,9 @@ import { useAnnotationSelectContext } from '../../../context/AnnotationSelectCon
 import { useAnnotationStoreContext } from '../../../context/AnnotationStoreContext'
 import { useDialogContext } from '../../../context/DialogContext'
 import type { AnnotationGroup } from '../../../interfaces/AnnotationGroup'
+import Icon from '../../../icons/Icon'
+import eyeSvg from '../../../icons/eye.svg?raw'
+import eyeOffSvg from '../../../icons/eye-off.svg?raw'
 
 interface GroupListProps {
   editable: boolean
@@ -63,10 +66,7 @@ function GroupList({ editable, onAdd, onOpen }: GroupListProps) {
                 toggleHidden(group.id)
               }}
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
-                {hidden ? <line x1="4" y1="4" x2="20" y2="20" /> : <circle cx="12" cy="12" r="3" />}
-              </svg>
+              <Icon svg={hidden ? eyeOffSvg : eyeSvg} size={15} />
             </button>
             <button
               type="button"

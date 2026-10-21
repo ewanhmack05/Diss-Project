@@ -1,6 +1,8 @@
 import { formatFullDate, timeAgo } from '../../saved/savedDates'
 import ChangeIcon from './ChangeIcon'
 import { canRestore, changeKind, changeLabel, initials, restoreNote, restoreStatus, shortId, wasPutBack, type ChangeSet } from './history'
+import Icon from '../../../icons/Icon'
+import chevronLeftSvg from '../../../icons/chevron-left.svg?raw'
 
 interface HistoryDetailProps {
   changeSet: ChangeSet
@@ -24,9 +26,7 @@ function HistoryDetail({ changeSet, canEdit, restoring, putBack, onRestore, onBa
   return (
     <section className="history-detail">
       <button type="button" className="history-back" onClick={onBack}>
-        <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M10 3 L5 8 L10 13" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        <Icon svg={chevronLeftSvg} size={12} />
         History
       </button>
 

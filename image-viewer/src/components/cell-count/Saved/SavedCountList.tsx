@@ -17,26 +17,20 @@ import { savedBy } from "../../saved/savedBy";
 import { useAuthContext } from "../../../context/AuthContext";
 import { useCollectionContext } from "../../../context/CollectionContext";
 import type { ListTotal } from "../../saved/useSavedTotal";
+import Icon from "../../../icons/Icon";
+import peopleSvg from "../../../icons/people.svg?raw";
+import roiSvg from "../../../icons/roi.svg?raw";
 import "./SavedCountList.css";
 
 function RoiIcon() {
   return (
-    <svg width="11" height="11" viewBox="0 0 11 11" aria-hidden="true">
-      <rect x="1" y="1" width="9" height="9" fill="none" stroke="#00e0ff" strokeWidth="1.3" strokeDasharray="2 1.5" />
-    </svg>
+    <Icon svg={roiSvg} size={11} />
   );
 }
 
 function PeopleIcon() {
   return (
-    <svg width="13" height="11" viewBox="0 0 14 12" aria-hidden="true">
-      <g fill="none" stroke="currentColor" strokeWidth="1.2">
-        <circle cx="5" cy="3.5" r="2.2" />
-        <path d="M1 11 C1 8, 9 8, 9 11" />
-        <circle cx="10" cy="4" r="1.8" />
-        <path d="M10 7.8 C12 7.8, 13 9, 13 11" />
-      </g>
-    </svg>
+    <Icon svg={peopleSvg} size={13} height={11} />
   );
 }
 

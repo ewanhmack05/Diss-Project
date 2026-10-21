@@ -91,8 +91,21 @@ src/
     toolbar/         toolbar, draggable panels, docking
     colour-picker/   wrapper round the vendored react-colour-palette
     toast/ dialog/   notifications and popups
-  icons/             toolbar SVGs
+  icons/             every fixed icon as an .svg file, and Icon.tsx to draw one
 ```
+
+**Icons are files, not inline SVG.** Each one in `icons/` (`shapes/` for the
+shape tools, `changes/` for the History list) draws in `currentColor` and
+carries only a `viewBox`. A component imports it as text and hands it to
+`Icon` with a size - `<Icon svg={pencilSvg} size={14} />`, after
+`import pencilSvg from '../icons/pencil.svg?raw'` - so it takes the colour
+of the text around it, hover included. The toolbar's own icons go through
+`Toolbar.tsx` the same way. Only two SVGs stay inline, because they're drawn
+from live values: `LinePreview` (the annotation's thickness, colour and
+dashes) and the rotation dial. `icons/icons.test.ts` fails if any other
+component draws an `<svg>` inline, or an icon file has no viewBox or a fixed
+colour (only `roi.svg` keeps its cyan, since that's what an ROI looks like
+on the map).
 
 The pattern throughout: **maths and rules in a plain `.ts` file with tests
 next to it, React in the `.tsx`**. `compare.ts`, `sharedFields.ts`,
@@ -691,7 +704,7 @@ all tested without a browser.
 
 ## 15. Tests
 
-36 test files, 577 tests, run with Vitest (`npm test`). They sit next to
+37 test files, 640 tests, run with Vitest (`npm test`). They sit next to
 the code they cover and test the plain `.ts` logic, not React components or
 a live map.
 
@@ -704,7 +717,7 @@ a live map.
 | annotation | selection, bulk | Fully inside a box or lasso, which shape a click is on; batches and one change set per bulk change |
 | collections | collectionGeoJson, history | Export and import, y flipping, QuPath-style files, groups, what's skipped; History labels, icons, initials, what's still deleted, day headings, who can put back, the ops sent |
 | toolbar | dock, focusOrder, panelPlacement | Docking, splitting, stacking, placing |
-| other | adjustments, rotation, ruler, popupPosition, presence, newId | Clamping, angles, distances, out-of-order presence |
+| other | adjustments, rotation, ruler, popupPosition, presence, newId, icons | Clamping, angles, distances, out-of-order presence, every icon is a file with a viewBox and no fixed colour |
 
 CI (`.github/workflows/image-viewer.yml`) runs lint (oxlint), tests and a
 build on every push that touches the viewer.
