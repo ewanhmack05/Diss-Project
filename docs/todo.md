@@ -11,9 +11,28 @@ an afternoon, medium a few days, large a week or more.
 - **Collab tab** - split into sub tabs, a lot less text
 - **Viewport boxes per person** - click someone's chip to switch their box
   on or off, hover to see it picked out even when it's off. On by default
-  with 6 or fewer people here, off past that (`VIEWPORTS_ON_UP_TO` in
-  [realtime.ts](../image-viewer/src/components/realtime/realtime.ts)).
-  Your choice only, nobody else sees it
+  in a small session, off in a large one. Your choice only, nobody else
+  sees it
+- **Small vs large sessions** - an edit link lets in the first `maxEditors`
+  editors, the host included. The host picks the number when they start
+  the session (1 to 50), starting from the viewer's `maxEditors` in
+  [index.tsx](../image-viewer/src/index.tsx) - 6 if that isn't set. It's
+  saved on the session and can't change after. Anyone joining after that comes in view
+  only. It only limits joining - the host can still make anyone an editor.
+  When an editor leaves or is made view only, the next person through the
+  link can edit again. Rules in
+  [SessionSize.cs](../annotation-store/Collections/SessionSize.cs)
+- **Guests** - an invite link opened without an account offers to join as
+  a guest under a typed name, view only. The hub mints a short-lived token
+  (guest id, session id, expiry - no name), annotation-store lets it read
+  that one session, and the name only lives in the hub's room. Names go
+  through obscenity in the viewer. Guests can make an account to edit,
+  from their own tab or when the host asks them. See
+  [guests.md](guests.md)
+- **Simulated people** - `scripts/simulate_session.py <invite link>` joins
+  made up people to a session and has them move round live, for testing
+  large sessions without other people (see the
+  [scripts README](../scripts/README.md#simulated-people-in-a-session))
 - **Stress testing** - [seed_stress.py](../scripts/README.md), OpenLayers vs
   WebGL numbers in [rendering.md](rendering.md), OpenTelemetry into the
   Grafana [dashboard](../dashboard/README.md)
@@ -143,47 +162,25 @@ adding with links:
   sizes), the Grafana [dashboard](../dashboard/README.md),
   `scripts/seed_stress.py`
 
-## 3. Guest accounts and small vs large sessions
+## 3. Guest accounts - what's left
 
-Needs decisions before any code.
+Guests are done (see Done). Still open:
 
-**The idea:**
-
-- Small and large sessions as their own area
-- **Small** - works as now: everyone signed in, everyone can edit, no
-  guests. Capped at about 6 people
-- **Large** - past the cap, it turns into a large session. Extra people,
-  and any guests, are view only
-
-**Already there:** `CollectionRole { Viewer, Editor, Owner }` in
-[CollectionMember.cs](../annotation-store/Collections/CollectionMember.cs),
-so read only exists. Nothing for guests yet (see [auth.md](auth.md)).
-
-**Guest identity - leaning towards:**
-
-- A random id and a made up name like "Guest 4821"
-- Not letting guests type their own name - avoids the ethics problem of
-  people putting in real names
-- Guests are always `Viewer`
-
-**Open questions:**
-
-- Do guests get a Keycloak account, or a short-lived token from our own
-  service? Ask before building
-- Does a large session ever go back to small?
-- When it turns large, which 6 stay editors - the first 6 in, or the host
-  picks?
-- Can the host make a guest an editor?
-- Is 6 the right cap? Measure it rather than guess
+- Letting guests in on one link but not another - every link lets them in
+  now. A flag on `CollectionInvites` and a switch in the invite UI
+- Running the name filter over the rest of what people type (labels,
+  notes, group and session names) - `isClean` and `censorText` are there
+- Typed names bring back the ethics question of people putting in real
+  names, even unsaved - needs a line in the write up
+- Is the default editor cap right? Hosts pick their own now, starting from
+  index.tsx's `maxEditors` (40 at the moment) - what they pick, saved as
+  `MaxEditors` on each session, is the data to measure it with
 
 ## 4. Viewport boxes - what's left
 
 The per-person on/off is done (see Done). Still open:
 
-- The 6 is a guess, and the same number as the small session cap in
-  section 3. Once small vs large sessions exist, tie the default to the
-  session's size rather than a count of its own
-- Switching boxes on or off from the Realtime panel's People list too -
+- Switching boxes on or off from the Collaboration panel's Active tab too -
   it only previews on hover for now
 - What you picked isn't kept past a reload
 - Games parallel for the write up: a minimap showing where your teammates
@@ -229,6 +226,5 @@ The per-person on/off is done (see Done). Still open:
 - Help from inside work, e.g. a UX review or a lab analyst trying it out
 - Does doing this dissertation with a company need declaring?
 - Is NHS ethical approval needed? Ask early - it takes a long time
-- Guest identity - Keycloak or our own tokens (section 3)
 
 ## Suggested order

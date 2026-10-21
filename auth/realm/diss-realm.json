@@ -3,7 +3,7 @@
   "displayName": "Diss Project",
   "enabled": true,
   "sslRequired": "external",
-  "registrationAllowed": false,
+  "registrationAllowed": true,
   "loginWithEmailAllowed": true,
   "resetPasswordAllowed": false,
   "accessTokenLifespan": 900,

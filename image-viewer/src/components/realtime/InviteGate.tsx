@@ -54,7 +54,12 @@ function InviteGate({ children }: { children: ReactNode }) {
   const { status, previewInvite, acceptInvite } = useCollectionContext()
   const { source } = useImageViewerContext()
   const { user, switchUser } = useAuthContext()
-  const [code, setCode] = useState<string | null>(inviteCode)
+  // A guest's link was used to get them in (see AuthContext), so there's
+  // nothing to ask.
+  const [code, setCode] = useState<string | null>(() => (user.guest ? null : inviteCode()))
+  useEffect(() => {
+    if (user.guest) forgetInvite()
+  }, [user.guest])
   // Over the viewer rather than instead of it.
   const [overlay, setOverlay] = useState(false)
   const [state, setState] = useState<State>(() => (code ? { kind: 'loading' } : { kind: 'none' }))
@@ -159,11 +164,17 @@ function InviteGate({ children }: { children: ReactNode }) {
         <dt>Slide</dt>
         <dd>{preview.slideId}</dd>
         <dt>You'll be able to</dt>
-        <dd>{ROLE_TEXT[preview.role]}</dd>
+        <dd>{ROLE_TEXT[preview.joinsAs]}</dd>
         <dt>In it now</dt>
         <dd>{preview.people.length > 0 ? preview.people.join(', ') : 'Nobody else yet'}</dd>
       </dl>
       {preview.alreadyMember && <p className="invite-note">You're already in this session.</p>}
+      {preview.joinsAs !== preview.role && (
+        <p className="invite-note">
+          This session has as many editors as it lets in, so you'll join view only. The host can still let you
+          edit.
+        </p>
+      )}
       {otherSlide && (
         <p className="invite-note invite-note--warning">
           This session is on slide {preview.slideId}, but this viewer has slide {source.slideId} open.

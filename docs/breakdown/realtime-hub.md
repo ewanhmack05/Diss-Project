@@ -56,10 +56,11 @@ flowchart LR
 
 Arrows show which way the data goes.
 
-The hub never talks to annotation-store. Each viewer saves its own changes
-over HTTP as normal, and also tells the hub so everyone else sees the change
-straight away. That keeps the hub simple, and it doesn't break when
-annotation-store's data model changes.
+The hub never saves anything to annotation-store. It only asks it who's in
+a session and whether an invite is open (for guests). Each viewer saves its
+own changes over HTTP as normal, and also tells the hub so everyone else
+sees the change straight away. That keeps the hub simple, and it doesn't
+break when annotation-store's data model changes.
 
 ## 2. Files
 
@@ -69,7 +70,9 @@ annotation-store's data model changes.
 | [Slides/SlideHub.cs](../../realtime-hub/Slides/SlideHub.cs), [SlideHub.SharedCount.cs](../../realtime-hub/Slides/SlideHub.SharedCount.cs) | The hub. Every method a browser can call lives here (`JoinSession`, `UpdateViewport`, `OpenDoc` ...). Validates input, updates the room state, then broadcasts to the right group.                                               |
 | [Slides/SlideRooms.cs](../../realtime-hub/Slides/SlideRooms.cs), [SharedCounts.cs](../../realtime-hub/Slides/SharedCounts.cs) | The in-memory state: which connections are in which slide, their viewports and sketches, the op counter, the shared text docs, the comparison count and the shared count. Everything goes through one lock, so it's thread safe.                                      |
 | [Slides/Messages.cs](../../realtime-hub/Slides/Messages.cs)       | The wire format. A C# record for every message shape, plus a JSON setting so enums go over the wire as `"create"` rather than `0`.                                                                                            |
-| [Tests/SlideHubTests.cs](../../realtime-hub/Tests/SlideHubTests.cs) | 29 integration tests. They boot the real app in memory and connect real SignalR clients to it.                                                                                                                              |
+| [Auth/GuestTokens.cs](../../realtime-hub/Auth/GuestTokens.cs), [GuestEndpoints.cs](../../realtime-hub/Auth/GuestEndpoints.cs), [GuestInvites.cs](../../realtime-hub/Auth/GuestInvites.cs) | Guests from an invite link. Mints and checks guest tokens, `POST /guests` and its rate limit, and asking annotation-store about an invite. |
+| [Slides/GuestName.cs](../../realtime-hub/Slides/GuestName.cs)     | Tidies and checks the name a guest types, with the same rules as the viewer.                                                                                                                                                  |
+| [Tests/SlideHubTests.cs](../../realtime-hub/Tests/SlideHubTests.cs), [GuestTests.cs](../../realtime-hub/Tests/GuestTests.cs) | Integration tests. They boot the real app in memory and connect real SignalR clients to it. Guest tokens are minted and checked by the real code.                                     |
 
 On the viewer side the matching code is
 [RealtimeContext.tsx](../../image-viewer/src/context/RealtimeContext.tsx)
@@ -188,6 +191,27 @@ sequenceDiagram
 4. When the connection closes (tab closed, Wi-Fi drops), SignalR calls
    `OnDisconnectedAsync`. The hub removes the participant, closes any text
    docs they had open, and tells the room `UserLeft`.
+
+### Guests
+
+Someone without an account can join from the session's invite link (the
+contract is [guests.md](../guests.md)). Their viewer swaps the invite code
+for a guest token with `POST /guests`, which asks annotation-store whether
+the invite is still open. The token is just a random guest id and the
+session id, signed by the hub, and lasts until the invite runs out or 4
+hours, whichever is sooner. At most 60 a minute from one address.
+
+They connect to `/hubs/slides` with that token and call
+`JoinAsGuest(roomId, name)` instead of `JoinSession`. The hub only lets
+them into the session in the token, checks the name again (the viewer
+already has), and always joins them as view only, with `guest: true` on
+their participant so the host's list doesn't offer to change their role.
+
+The name they type is never saved. It isn't in the token, annotation-store
+never sees it, and it only lives in the room's memory while they're
+connected. Logs only have the guest id, since logs go to Grafana and stay
+there. A test runs a guest through joining and the usual calls and checks
+their name isn't in anything logged.
 
 ## 6. Drawing an annotation
 
@@ -448,6 +472,9 @@ viewer through React context.
 | Required fields         | roomId, op id, op data (not delete), sketch tool/data          | A bad call throws a `HubException` back to the caller only, never to others |
 | Must join first         | Every method except `JoinSession`                              | "Join a session first"                                                      |
 | Must open doc first     | `SendDocUpdate`                                                | "Open the doc first"                                                        |
+| View only               | No `SendAnnotationOp` or `SendDocUpdate`. `OpenDoc` is fine, to watch | Before, the hub passed on ops and text edits from anyone in the room   |
+| Guest name              | 2 to 24 characters, letters, marks, numbers, space `. _ ' -`, NFC | Same rules as the viewer, in case something else calls the hub          |
+| `POST /guests`          | 60 a minute per address                                        | It's open to anyone, so this stops floods. Codes are too long to guess      |
 | Comparison ROI          | 16K chars                                                      | Only ever a box                                                             |
 | Comparison dots         | 10,000, finite x and y                                         | Far more than anyone clicks by hand                                         |
 | Shared count dots       | 10,000, finite x and y, a colour and a unique id               | Same reason                                                                 |
@@ -465,9 +492,15 @@ connections. If Grafana isn't running nothing breaks.
 
 ## 12. Known gaps
 
-- **No guest links yet.** Everyone signs in with Keycloak. Invite links
-  for people without an account, and host / editor / viewer roles for a
-  session, are next (see [thought-process.md](../thought-process.md)).
+- **Guests are view only, on every link.** A host can't keep guests off
+  one link but not another, and guests can't be made editors - their edits
+  would save their name with the annotation (see [guests.md](../guests.md)).
+- **Guest rate limit is per address.** Behind a proxy every guest shares
+  the proxy's address, so the limit needs forwarded headers set up before
+  it's per person there.
+- **Dev guest signing key.** `GuestTokens:SigningKey` in `appsettings.json`
+  is a dev key, shared with annotation-store. It has to be replaced in both
+  before deploying.
 - **One copy only.** State is in memory, so two copies of the hub would
   split users between them. Scaling out needs a Redis backplane or Azure
   SignalR Service.

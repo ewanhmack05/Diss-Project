@@ -71,6 +71,8 @@ import { useCellCountStoreContext } from '../context/CellCountStoreContext'
 import { useToolbarContext } from '../context/ToolbarContext'
 import { useRealtimeContext } from '../context/RealtimeContext'
 import { useViewportsContext } from '../context/ViewportsContext'
+import { useCollectionContext } from '../context/CollectionContext'
+import { sessionSize } from './realtime/sessionSize'
 import { useNavigationContext } from '../context/NavigationContext'
 import { useComparisonContext } from '../context/ComparisonContext'
 import { useSharedCountContext } from '../context/SharedCountContext'
@@ -171,6 +173,7 @@ function MapNode() {
   const { hiddenGroupIds } = useAnnotationGroupContext()
   const { me, others, sendViewport, sendSketch, clearSketch, addSharedDot, removeSharedDot } = useRealtimeContext()
   const { pointedAt, shown: viewportsShown } = useViewportsContext()
+  const { session } = useCollectionContext()
   const { following, leader, mode: navigationMode, breakAway, lookAt } = useNavigationContext()
   const {
     stage: comparisonStage,
@@ -376,16 +379,25 @@ function MapNode() {
           visible: cellCountVisible,
         })
         doubleCountLayerRef.current = doubleCountLayer
+        // Other people's sketches, rulers and viewports keep changing while
+        // you pan or zoom. By default OL doesn't redraw a vector layer until
+        // you stop, so they'd freeze, and anything outside where you started
+        // from would be cut off. A few features each, so redrawing every
+        // frame costs nothing - unlike the host's count, which can be
+        // thousands of dots and is left to catch up when you stop.
+        const live = { updateWhileInteracting: true, updateWhileAnimating: true }
         const remoteSketchesLayer = new VectorLayer({
           source: remoteSketchesSourceRef.current,
           style: remoteSketchStyle,
           visible: annotationsVisible,
+          ...live,
         })
         remoteSketchesLayerRef.current = remoteSketchesLayer
         // Shown whatever you have open - someone measuring is worth seeing.
         const remoteRulersLayer = new VectorLayer({
           source: remoteRulersSourceRef.current,
           style: remoteRulerStyle(metadata.mppX, metadata.mppY),
+          ...live,
         })
         // The host's count while they present - shown whatever you have open.
         const remoteCountsLayer = new VectorLayer({
@@ -395,6 +407,7 @@ function MapNode() {
         const remoteViewportsLayer = new VectorLayer({
           source: remoteViewportsSourceRef.current,
           style: remoteViewportStyle,
+          ...live,
         })
         annotationsLayerRef.current = annotationsLayer
         annotationArrowsLayerRef.current = annotationArrowsLayer
@@ -571,13 +584,13 @@ function MapNode() {
 
   // Redraw everyone else's viewport whenever one moves, someone comes or
   // goes, a name's pointed at, or a box is switched on or off.
-  const myUserId = me?.userId ?? null
+  const large = session ? sessionSize(session.members, session.maxEditors).large : false
   useEffect(() => {
     const source = remoteViewportsSourceRef.current
     source.clear()
     source.addFeatures(
       others.flatMap((participant) => {
-        const display = viewportDisplay(participant.userId, pointedAt, viewportsShown, myUserId, others)
+        const display = viewportDisplay(participant.userId, pointedAt, viewportsShown, large, others)
         if (!participant.viewport || display === 'hidden') return []
         const feature = new Feature({ geometry: new Polygon([viewportRing(participant.viewport)]) })
         feature.set('colour', participant.colour)
@@ -586,7 +599,7 @@ function MapNode() {
         return [feature]
       })
     )
-  }, [others, myUserId, pointedAt, viewportsShown])
+  }, [others, large, pointedAt, viewportsShown])
 
   // Redraw what everyone else is mid-drawing whenever it changes.
   useEffect(() => {

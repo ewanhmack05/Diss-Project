@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useToolbarContext } from '../../context/ToolbarContext'
+import { useAuthContext } from '../../context/AuthContext'
 import adjustmentsIconSvg from '../../icons/adjustments.svg?raw'
 import annotationsIconSvg from '../../icons/annotations.svg?raw'
 import cellcountIconSvg from '../../icons/cellcount.svg?raw'
@@ -32,8 +33,11 @@ interface ToolbarProps {
   tools?: ToolName[]
 }
 
-function Toolbar({ tools = DEFAULT_TOOLS }: ToolbarProps) {
+function Toolbar({ tools: wanted = DEFAULT_TOOLS }: ToolbarProps) {
   const { activeTools, toggleTool } = useToolbarContext()
+  const { user } = useAuthContext()
+  // A guest has no collections of their own - only the session they came in on.
+  const tools = user.guest ? wanted.filter((tool) => tool !== 'collections') : wanted
   const [isFullscreen, setIsFullscreen] = useState(false)
 
   const toggleFullscreen = () => {
@@ -127,7 +131,7 @@ function Toolbar({ tools = DEFAULT_TOOLS }: ToolbarProps) {
         <button
           type="button"
           className={`toolbar-button${activeTools.includes('realtime') ? ' toolbar-button--active' : ''}`}
-          title="Realtime"
+          title="Collaboration"
           onClick={() => toggleTool('realtime')}
         >
           <Icon svg={realtimeIconSvg} />

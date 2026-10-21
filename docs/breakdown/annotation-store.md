@@ -6,7 +6,7 @@ links all live here, in Postgres. Every other service is either stateless
 (tiler) or only holds things in memory (realtime-hub).
 
 .NET 10 · ASP.NET Core minimal API · EF Core + Npgsql · Postgres 17 ·
-Keycloak JWT · port 5252
+Keycloak JWT + guest JWT · port 5252
 
 Every endpoint and field is listed in
 [annotation-store/README.md](../../annotation-store/README.md). This page
@@ -42,14 +42,16 @@ flowchart LR
   V -- "token" --> K
   V -- "REST + Bearer token" --> A
   H -- "GET /collections/{id}/membership<br/>(with the user's token)" --> A
+  H -- "GET /invites/{code}/guest<br/>(no token)" --> A
   A --> P
   A -. "signing keys" .-> K
 ```
 
 - The **viewer** calls it directly for everything it loads and saves.
-- The **realtime hub** only asks one thing: is this person in this session,
-  and is it still going? It passes on the user's own token, so the store
-  answers exactly as it would for the viewer.
+- The **realtime hub** asks two things. Is this person in this session, and
+  is it still going? It passes on the user's own token (a guest's too), so
+  the store answers exactly as it would for the viewer. And, before making a
+  guest token, is this invite code still open?
 - **Keycloak** is only asked for its public signing keys. Tokens are checked
   locally after that.
 
@@ -73,8 +75,9 @@ here, then tells the hub (see
 | [ImageAdjustments/ImageAdjustments.cs](../../annotation-store/ImageAdjustments/ImageAdjustments.cs) | Saved brightness / contrast / colour presets. |
 | [Paging/Paging.cs](../../annotation-store/Paging/Paging.cs) | Paging, search, filters and facets for the viewer's Saved lists. |
 | [Auth/KeycloakAuth.cs](../../annotation-store/Auth/KeycloakAuth.cs) | JWT bearer setup, the issuer check, and `UserId()` / `DisplayName()` helpers. |
+| [Auth/GuestAuth.cs](../../annotation-store/Auth/GuestAuth.cs) | The second scheme, for guest tokens from realtime-hub, the policy that lets them onto a few reads, and `IsGuest()` / `GuestSessionId()`. |
 | [Migrations/](../../annotation-store/Migrations) | 17 EF Core migrations, from `InitialCreate` to `GroupNotes`. |
-| [Tests/](../../annotation-store/Tests) | 101 integration tests on in-memory SQLite (see [section 13](#13-tests)). |
+| [Tests/](../../annotation-store/Tests) | 161 tests, nearly all integration tests on in-memory SQLite (see [section 13](#13-tests)). |
 
 ## 3. The data model
 
@@ -253,6 +256,33 @@ Other rules from the endpoints:
 - Image adjustment presets are personal - the viewer keeps them in your own
   collection, not the session's.
 
+### Guests
+
+Someone without an account can join a session from its invite link as a
+guest - always view only. The name they type is never saved: it isn't in
+their token, and this service never sees it. The whole flow and contract is
+in [guests.md](../guests.md).
+
+- **A second scheme.** `Auth/GuestAuth.cs` adds a `Guest` JWT scheme
+  alongside Keycloak's: HS256, signed with `GuestTokens:SigningKey` (shared
+  with realtime-hub, which makes the tokens), issuer `realtime-hub`, audience
+  `diss-guest`, in date. It also turns down a token without a `guest-` id, a
+  `guest_session` guid, or with a `name` claim.
+- **Keycloak only by default.** The fallback policy only tries Keycloak, so a
+  guest token is a 401 on every endpoint unless it's marked `AllowGuests()`.
+  Only these are: `GET /collections?slideId=`, `/collections/{id}/membership`,
+  `/annotations` (and `/total`, `/facets`), `/cellcounts` (and `/total`,
+  `/facets`, `/{id}`) and `/annotationgroups`. Every write, presets, exports
+  and invites stay out of reach.
+- **Same check as everyone.** `RoleAsync` gives a guest Viewer on the session
+  in their token, if it's a session, and nothing on anything else - so
+  `RequireAsync` is still the one place access is decided. A personal
+  collection is a 404 for a guest, even a shared one.
+- **No member row, ever.** A guest is never looked up in or added to
+  `CollectionMembers`. `GET /collections` hands them their session with
+  `myRole: viewer` and the real members; `/membership` answers Viewer for the
+  hub.
+
 ## 6. Invite links
 
 ```mermaid
@@ -281,10 +311,26 @@ sequenceDiagram
   `stopped` (host stopped it), `expired`, else `open`. Accepting anything but
   `open` is a 410 Gone.
 - **Can't invite an owner.** Links are viewer or editor only.
+- **An edit link lets in a few editors.** The first `MaxEditors` people
+  who can edit, the host included, are all an edit link lets in as editors
+  - whatever the host picked when they started it (1 to 50,
+  `POST /sessions { maxEditors }`, the viewer's box starts at its
+  `maxEditors` option), or 6 if nothing was sent. Saved on the session's
+  row. After that
+  it lets people in view only, and the preview's `joinsAs` says so before
+  they accept. It only limits joining: the host can still make anyone an
+  editor, and nobody already editing is moved down. Someone leaving or
+  being made view only lets the next person through the link edit again.
+  Joins take a row lock on the session first, so two people can't both
+  take the last place. Rules in
+  [SessionSize.cs](../../annotation-store/Collections/SessionSize.cs).
 - **Accepting twice is fine.** Someone already in keeps whichever role is
   higher.
-- **Still needs signing in.** There are no guest accounts yet - see
-  [auth.md](../auth.md#invites).
+- **Or as a guest.** `GET /invites/{code}/guest` needs no sign-in. It's
+  what someone without an account sees first, and what realtime-hub checks
+  before making them a guest token: `{ collectionId, slideId,
+  collectionName, hostName, status, expires }` - no role, no people. See
+  [Guests](#guests).
 
 ## 7. Saving an annotation
 
@@ -447,25 +493,33 @@ sharing a personal collection, groups, and group notes.
   stores dates as UTC ticks there only. The partial unique index is plain
   SQL both databases accept.
 - **A fake auth handler instead of Keycloak.** Tests pick who they are with a
-  header.
+  header. Guest tests send real HS256 tokens (`Tests/GuestTokens.cs`) through
+  the real Guest scheme - the fake handler stands aside for any request with
+  an `Authorization` header, as Keycloak would for a guest token.
 
 | File | Tests | Covers |
 | ---- | ----- | ------ |
 | AnnotationsTests | 10 | CRUD, server-set fields, access |
 | AnnotationGroupsTests | 10 | Groups, bulk update and delete, merge, viewers turned down, import into groups |
 | CellCountRegionOfInterestTests | 10 | ROI saved with the count, 1:1, cascade |
-| CellCountSummaryTests | 9 | Colour and placed-by totals, old rows stamped on list |
+| CellCountSummaryTests | 14 | Colour and placed-by totals, old rows stamped on list |
 | CollectionsTests | 18 | Ensure, rename, delete, personal uniqueness, sharing, export, import |
-| SessionsTests | 14 | Start, invite, accept, roles, end, 404 vs 403 vs 409 |
+| SessionsTests | 15 | Start, invite, accept, roles, end, 404 vs 403 vs 409 |
+| SessionSizeTests | 15 | How many editors an edit link lets in |
+| GuestAccessTests | 24 | Guests read their session, 404 elsewhere, 401 on every write and bad token, no member rows, the guest invite preview |
+| GuestAuthTests | 7 | Signing key checks, what counts as a guest token |
 | ImageAdjustmentsTests | 10 | Presets CRUD and access |
-| PagingTests | 18 | Skip/take, tie-breaking, search, every filter, facets |
-| KeycloakAuthTests | 2 | Issuer check accepts any host, only the right realm |
+| PagingTests | 21 | Skip/take, tie-breaking, search, every filter, facets |
+| KeycloakAuthTests | 7 | Issuer check accepts any host, only the right realm |
 
 ## 14. Known gaps
 
 - **CORS allows any origin.** Same as the other services - needs a real
   list before deploying.
-- **No guest access.** Invite links still need a Keycloak account.
+- **The guest signing key is a dev key.** It's in `appsettings.json` and
+  realtime-hub's. Replace it in both before deploying.
+- **Guests can't be stopped on one link.** Every invite link lets guests in -
+  see [guests.md](../guests.md#not-done).
 - **Search is a table scan.** `LOWER(...) LIKE` style matching can't use an
   index. Fine at stress-test sizes so far; a trigram index would be the fix.
 - **No history.** Updates overwrite. There's no audit trail of who changed
@@ -488,6 +542,7 @@ sharing a personal collection, groups, and group notes.
 | Group | A named set of annotations in one collection, with notes |
 | Host | The owner of a session |
 | Member | Someone in a collection, with a role |
+| Guest | Someone without an account viewing a session from its invite link. Never a member |
 | Role | Viewer (read), Editor (read and write) or Owner (everything) |
 | Invite link | A random code that adds whoever opens it to a session with a set role |
 | Ended | A session the host has finished - read-only, links stopped, kept |

@@ -64,6 +64,8 @@ interface RealtimeContextValue {
   // where you are now.
   askToLook: (to: string[] | null) => Promise<void>
   askToOpen: (to: string[] | null, panel: string) => Promise<void>
+  // Host to a guest - they can only look, so it asks them to make an account.
+  askToEdit: (connectionId: string) => Promise<void>
   // Returns an unsubscribe, like onOp.
   onRequest: (handler: RequestHandler) => () => void
   // Returns an unsubscribe, so it drops straight into a useEffect.
@@ -112,8 +114,10 @@ interface RealtimeContextProviderProps {
 // alone there's no connection at all.
 function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderProps) {
   const emit = useEmitEvent()
-  const { getAccessToken } = useAuthContext()
+  const { getAccessToken, user } = useAuthContext()
   const { roomId, session, refresh: refreshCollections } = useCollectionContext()
+  // A guest joins under the name they typed, which only the hub's room keeps.
+  const guestName = user.guest ? user.name : null
   // Read from the connection's handlers, which shouldn't reconnect when it changes.
   const refreshRef = useRef(refreshCollections)
   useEffect(() => {
@@ -204,7 +208,9 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
     // Also used after a reconnect - that's a new connection id as far as
     // the hub is concerned, so it has to join again.
     const join = async () => {
-      const result = await connection.invoke<JoinResult>('JoinSession', roomId)
+      const result = guestName
+        ? await connection.invoke<JoinResult>('JoinAsGuest', roomId, guestName)
+        : await connection.invoke<JoinResult>('JoinSession', roomId)
       if (stopped) return
       joinedRef.current = true
       setMe(result.me)
@@ -335,7 +341,7 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
       connectionRef.current = null
       connection.stop()
     }
-  }, [hubUrl, roomId, emit, getAccessToken])
+  }, [hubUrl, roomId, emit, getAccessToken, guestName])
 
   const sendOp = useCallback((op: AnnotationOp) => {
     const connection = connectionRef.current
@@ -401,6 +407,8 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
   )
 
   const askToOpen = useCallback((to: string[] | null, panel: string) => sendRequest(to, 'openPanel', { panel }), [sendRequest])
+
+  const askToEdit = useCallback((connectionId: string) => sendRequest([connectionId], 'edit', null), [sendRequest])
 
   const onRequest = useCallback((handler: RequestHandler) => {
     requestHandlersRef.current.add(handler)
@@ -517,6 +525,7 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
         setNavigation,
         askToLook,
         askToOpen,
+        askToEdit,
         onRequest,
         onOp,
         openDoc,

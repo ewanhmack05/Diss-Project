@@ -62,6 +62,7 @@ import { clampToBounds, placeInColumns, type Bounds, type Rect } from './compone
 import ToastStack from './components/toast/ToastStack'
 import DialogHost from './components/dialog/DialogHost'
 import PresenceList from './components/presence/PresenceList'
+import GuestEditPrompt from './components/guest/GuestEditPrompt'
 import type { ImageSource } from './interfaces/ImageSource'
 import './App.css'
 
@@ -103,6 +104,7 @@ function dockEdgeStackKey(side: DockSide): string {
 interface AppOptions {
   fontSize?: string
   tools?: ToolName[]
+  maxEditors?: number
 }
 
 interface AppProps {
@@ -111,7 +113,8 @@ interface AppProps {
   annotationStoreUrl: string
   // Optional - without it the viewer works on its own, just not live.
   realtimeHubUrl?: string
-  // Keycloak - everything needs a signed-in user (see AuthContext).
+  // Keycloak - everything needs a signed-in user, or a guest from an invite
+  // link (see AuthContext and docs/guests.md).
   auth: AuthOptions
   options?: AppOptions
   on?: (event: string, payload: unknown) => void
@@ -124,13 +127,13 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, auth
     <ToastContextProvider>
       <DialogContextProvider>
       <EventContextProvider on={on}>
-        <AuthContextProvider auth={auth}>
+        <AuthContextProvider auth={auth} storeUrl={annotationStoreUrl} hubUrl={realtimeHubUrl}>
         <ImageViewerContextProvider source={imageSource}>
           {/* Collections decide which session you're in, and so which
               realtime room - working alone there's no room at all. An
               invite link is dealt with before the viewer opens. Presence
               (who's online) is connected the whole time, room or not. */}
-          <CollectionContextProvider baseUrl={annotationStoreUrl}>
+          <CollectionContextProvider baseUrl={annotationStoreUrl} maxEditors={options?.maxEditors}>
             <InviteGate>
             <PresenceContextProvider hubUrl={realtimeHubUrl}>
             <RealtimeContextProvider hubUrl={realtimeHubUrl}>
@@ -239,7 +242,7 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
     { id: 'rotation-panel', title: 'Rotate', tool: 'rotate', content: <RotationPanel /> },
     { id: 'ruler-panel', title: 'Ruler', tool: 'ruler', content: <RulerPanel /> },
     { id: 'adjustments-panel', title: 'Adjustments', tool: 'adjustments', content: <AdjustmentsPanel /> },
-    { id: 'realtime', title: 'RealTime', tool: 'realtime', content: <RealTimePanel /> },
+    { id: 'realtime', title: 'Collaboration', tool: 'realtime', content: <RealTimePanel /> },
     { id: 'collections', title: 'Collections', tool: 'collections', content: <CollectionsPanel /> },
   ]
 
@@ -543,6 +546,7 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
 
       <Toolbar tools={tools} />
       <PresenceList />
+      <GuestEditPrompt />
       <ToastStack />
       <DialogHost />
     </div>

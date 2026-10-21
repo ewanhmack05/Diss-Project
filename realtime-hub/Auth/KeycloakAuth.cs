@@ -29,22 +29,27 @@ public static class KeycloakAuth
                         ? issuer
                         : throw new SecurityTokenInvalidIssuerException($"Not a token from the {realm} realm: {issuer}"),
                 };
-                // Browsers can't set headers on a WebSocket, so SignalR sends
-                // the token as ?access_token= instead - only taken for the hub.
-                options.Events = new JwtBearerEvents
-                {
-                    OnMessageReceived = context =>
-                    {
-                        var token = context.Request.Query["access_token"];
-                        if (!string.IsNullOrEmpty(token) && context.HttpContext.Request.Path.StartsWithSegments("/hubs"))
-                            context.Token = token;
-                        return Task.CompletedTask;
-                    },
-                };
+                options.Events = new JwtBearerEvents { OnMessageReceived = TakeHubQueryToken };
             });
 
+        // Guest tokens (see GuestTokens.cs) only get into /hubs/slides, which
+        // has its own policy. Keycloak doesn't accept them anyway, this is
+        // just in case.
         builder.Services.AddAuthorizationBuilder()
-            .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+            .SetFallbackPolicy(new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .RequireAssertion(context => !context.User.IsGuest())
+                .Build());
+    }
+
+    // Browsers can't set headers on a WebSocket, so SignalR sends the token
+    // as ?access_token= instead - only taken for the hubs.
+    public static Task TakeHubQueryToken(MessageReceivedContext context)
+    {
+        var token = context.Request.Query["access_token"];
+        if (!string.IsNullOrEmpty(token) && context.HttpContext.Request.Path.StartsWithSegments("/hubs"))
+            context.Token = token;
+        return Task.CompletedTask;
     }
 
     // See annotation-store's copy - the issuer follows the address the

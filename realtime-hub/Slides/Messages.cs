@@ -12,6 +12,8 @@ namespace RealtimeHub.Slides;
 // session, CanEdit whether they're more than view only - only they get
 // asked into counts. Screen is what's on their screen besides the map - open panels,
 // which tab each is on, image adjustments - for Present. Opaque, like Sketch.
+// Guest is someone from an invite link without an account - always view
+// only, and DisplayName is whatever they typed, so it's never saved.
 public record Participant(
     string ConnectionId,
     string RoomId,
@@ -23,7 +25,8 @@ public record Participant(
     bool CanEdit = false,
     Viewport? Viewport = null,
     IReadOnlyDictionary<string, Sketch>? Sketches = null,
-    JsonElement? Screen = null);
+    JsonElement? Screen = null,
+    bool Guest = false);
 
 // How everyone moves round the slide. Follow keeps everyone on the host's
 // view until they move away themselves, Present keeps them there and opens

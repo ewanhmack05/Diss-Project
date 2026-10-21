@@ -85,3 +85,20 @@ curl http://localhost:5180/users
 
 Not needed on a fresh Keycloak (or after `docker compose down -v`) - the
 import brings the client in.
+
+## Making an account
+
+The realm lets people make their own account (`registrationAllowed`), for
+guests who want to edit - see [docs/guests.md](../docs/guests.md). The
+viewer sends them straight to Keycloak's sign-up page (`prompt=create`), and
+back to the invite link after.
+
+A Keycloak that imported the realm before that was switched on needs it
+once, while it's running:
+
+```bash
+./auth/allow-sign-up.sh
+```
+
+Same as above - one container name or the other, safe to run again, not
+needed on a fresh Keycloak.

@@ -10,6 +10,8 @@ interface ViewportsContextValue {
   // here follows the default - see viewportShown.
   shown: Record<string, boolean>
   setShown: (userId: string, on: boolean) => void
+  // Show all / Hide all in a large session's people list.
+  setManyShown: (userIds: string[], on: boolean) => void
 }
 
 const ViewportsContext = createContext<ViewportsContextValue | null>(null)
@@ -22,8 +24,15 @@ function ViewportsContextProvider({ children }: { children: ReactNode }) {
   const [pointedAt, pointAt] = useState<string | null>(null)
   const [shown, setShownState] = useState<Record<string, boolean>>({})
   const setShown = useCallback((userId: string, on: boolean) => setShownState((current) => ({ ...current, [userId]: on })), [])
+  const setManyShown = useCallback(
+    (userIds: string[], on: boolean) =>
+      setShownState((current) => ({ ...current, ...Object.fromEntries(userIds.map((id) => [id, on])) })),
+    []
+  )
   return (
-    <ViewportsContext.Provider value={{ pointedAt, pointAt, shown, setShown }}>{children}</ViewportsContext.Provider>
+    <ViewportsContext.Provider value={{ pointedAt, pointAt, shown, setShown, setManyShown }}>
+      {children}
+    </ViewportsContext.Provider>
   )
 }
 

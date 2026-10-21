@@ -1,5 +1,6 @@
 import { useState, type ChangeEvent } from 'react'
 import { useAdjustmentsContext } from '../../context/AdjustmentsContext'
+import { useAuthContext } from '../../context/AuthContext'
 import DockedCard from '../toolbar/DockedCard'
 import type { ImageAdjustmentValues } from './adjustments'
 import './AdjustmentsPanel.css'
@@ -23,6 +24,7 @@ const SLIDER_FIELDS: SliderField[] = [
 function AdjustmentsPanel() {
   const { values, setValues, resetValues, presets, status, savePreset, applyPreset, updatePreset, deletePreset } =
     useAdjustmentsContext()
+  const { user } = useAuthContext()
   const [presetName, setPresetName] = useState('')
 
   const handleSliderChange = (key: keyof ImageAdjustmentValues) => (event: ChangeEvent<HTMLInputElement>) => {
@@ -63,6 +65,12 @@ function AdjustmentsPanel() {
         </button>
       </DockedCard>
 
+      {user.guest ? (
+        // Presets are saved to your own collection, which a guest doesn't have.
+        <DockedCard title="Presets" className="adjustments-panel-presets-card">
+          <p className="adjustments-panel-presets-empty">Saving presets needs an account.</p>
+        </DockedCard>
+      ) : (
       <DockedCard title="Presets" className="adjustments-panel-presets-card">
         <div className="adjustments-panel-save-row">
           <input
@@ -115,6 +123,7 @@ function AdjustmentsPanel() {
           </ul>
         )}
       </DockedCard>
+      )}
     </div>
   )
 }

@@ -22,8 +22,9 @@ other?
 
 - **A session is tied to a slide** - invites just add people to that room.
 - **Guest links don't need the identity provider** - the real-time hub
-  mints a short-lived signed token (JWT with `role=guest`, session id,
-  expiry) and puts it in the URL. Keycloak only handles real accounts.
+  mints a short-lived signed token (a guest id, the session id and an
+  expiry) when someone opens the invite link without an account. Keycloak
+  only handles real accounts. Built - see [guests.md](guests.md).
 - **Host/editor/viewer roles live in our own app**, per session - not in
   Keycloak, since they're session-specific rather than global.
 - The 4-digit code is a nice extra, but the link is what people will use.
@@ -69,7 +70,7 @@ Image adjustments always stay in the personal collection.
 
 #### Where it's at
 
-Built - the RealTime tab holds it:
+Built - the Collaboration tab holds it:
 
 - **Working alone** - your personal collection, no room, no connection to
   the hub. The tab offers "Start a session" and Join with a code. Your
@@ -93,3 +94,40 @@ Built - the RealTime tab holds it:
 
 Sessions are one slide each for now - whether one should span several (a
 case) is still open.
+
+
+### User inputs
+Since one of the usecases for this is students working and learning during lectures,
+im looking into adding profanity filtering alongside basic filtering like SQL or HTML.
+
+Current package ideas:
+https://www.npmjs.com/package/obscenity
+https://www.npmjs.com/package/allprofanity
+
+Leaning towards obscenity due to the higher downloads
+User inputs will be run through this profanity filter and flagged up before it is sent anywhere - frontend only
+Some names will need sorted in a whitelisting, e.g. `Dick`as its both a curse word and a name. 
+Im avoiding letting these input names be saved anywhere, as that will cause ethical issues. Im thinking that guest users will be locked down to a view only, and then will be prompted to make an account if they want to write/edit or are invited to edit by the owner of the session
+
+#### Where it's at
+
+Built for guest names - details in [guests.md](guests.md):
+
+- **obscenity** it is - 1.5M downloads a month against allprofanity's 5k.
+  Checked in the viewer before the name goes anywhere
+  ([textFilter.ts](../image-viewer/src/textFilter.ts)).
+- **Basic filtering** - only letters, numbers, spaces and `- _ . '` in a
+  name, checked in the viewer and again on the hub. That keeps out the
+  characters SQL and HTML need. Nothing a guest types reaches the database
+  anyway.
+- **Whitelisting** - "Dick" is allowed as a whole word, as are real names
+  with a rude word inside (Dickinson, Cumming, Penistone...), found by
+  testing 50 surnames. 12 of them were blocked before.
+- **Not saved** - the name isn't in the guest's token, only the hub's room
+  holds it, and annotation-store never sees it. Guests are view only with
+  no member row.
+- **Making an account to edit** - from the guest's own tab, or when the host
+  presses "Ask to edit" next to them. They come back to the same link
+  signed in.
+- Other text (labels, notes) isn't filtered yet - `isClean` and
+  `censorText` are there for it.

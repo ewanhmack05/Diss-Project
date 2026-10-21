@@ -140,6 +140,7 @@ Todos and notes, split by area, in [docs/](docs):
 | [Azure](docs/azure.md)                     | separate apps vs one VM, price tables, what has to change first                   |
 | [Libraries](docs/libraries.md)             | Yjs / Automerge / Loro, the WebSocket (SignalR) hub, CRDT vs server-authoritative |
 | [Thought process](docs/thought-process.md) | how users connect, guest vs authenticated, host controls, navigation modes        |
+| [Guests](docs/guests.md)                   | joining without an account - the token, what's never saved, the name filter      |
 | [Rendering](docs/rendering.md)             | WebGPU question, what's on WebGL now, what the panning delay turned out to be     |
 | [Breakdowns](docs/breakdown)               | per-service walkthroughs of how each one works - [realtime-hub](docs/breakdown/realtime-hub.md) so far |
 

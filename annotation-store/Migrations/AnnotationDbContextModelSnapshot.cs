@@ -285,6 +285,9 @@ namespace AnnotationStore.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int>("MaxEditors")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("Shared")
                         .HasColumnType("boolean");
 

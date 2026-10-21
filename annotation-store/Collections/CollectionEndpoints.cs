@@ -26,9 +26,12 @@ public record CollectionView(
     IReadOnlyList<MemberView> Members,
     int AnnotationCount = 0,
     int CellCountCount = 0,
-    DateTimeOffset? LastAdded = null);
+    DateTimeOffset? LastAdded = null,
+    // How many editors an edit link lets in before others join view only - see SessionSize.
+    int MaxEditors = SessionSize.DefaultMaxEditors);
 
-public record EnsureRequest(string SlideId, string? CollectionName = null);
+// MaxEditors is for POST /sessions only - see SessionSize. Null is the default.
+public record EnsureRequest(string SlideId, string? CollectionName = null, int? MaxEditors = null);
 
 public record RenameRequest(string CollectionName);
 
@@ -68,7 +71,15 @@ public record InvitePreview(
     DateTimeOffset Expires,
     string Status,
     bool AlreadyMember,
-    IReadOnlyList<string> People);
+    IReadOnlyList<string> People,
+    // What accepting would give you now - Viewer on an edit link once the
+    // session's editors are full (see SessionSize).
+    CollectionRole JoinsAs);
+
+// GET /invites/{code}/guest - see docs/guests.md. Status is the same as
+// InvitePreview's.
+public record GuestInvitePreview(
+    Guid CollectionId, string SlideId, string CollectionName, string HostName, string Status, DateTimeOffset Expires);
 
 // Just enough for the realtime hub to decide whether someone can join a
 // session's room - see realtime-hub's SessionAccess.
@@ -88,12 +99,15 @@ public static class CollectionEndpoints
         // then sessions still going, newest first, then ended ones - and
         // last, anyone else's they've shared, by owner. Each with how many
         // annotations and cell counts it has, and when the last was added.
+        // A guest only ever gets their own session, if it's on this slide.
         app.MapGet("/collections", async (string slideId, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
             var me = user.UserId();
-            var collections = await db.Collections
-                .Where(c => c.SlideId == slideId && (c.Members.Any(m => m.UserId == me)
-                    || (c.Kind == CollectionKind.Personal && c.Shared)))
+            var guestSession = user.GuestSessionId();
+            var onSlide = db.Collections.Where(c => c.SlideId == slideId);
+            var collections = await (user.IsGuest()
+                    ? onSlide.Where(c => c.CollectionId == guestSession && c.Kind == CollectionKind.Session)
+                    : onSlide.Where(c => c.Members.Any(m => m.UserId == me) || (c.Kind == CollectionKind.Personal && c.Shared)))
                 .Include(c => c.Members)
                 .ToListAsync();
 
@@ -126,7 +140,7 @@ public static class CollectionEndpoints
                         LastAdded = last,
                     };
                 }));
-        });
+        }).AllowGuests();
 
         // Everything in one collection in one go - for Scalar, curl or an
         // export. The viewer reads and writes through the flat endpoints.
@@ -165,14 +179,22 @@ public static class CollectionEndpoints
         });
 
         // For the realtime hub, checking someone's allowed in a session's room.
+        // A guest is a viewer of their own session, without being a member.
         app.MapGet("/collections/{id:guid}/membership", async (Guid id, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
+            if (user.IsGuest())
+            {
+                if (await db.RoleAsync(id, user) is not { } guestRole) return Results.NotFound();
+                var session = await db.Collections.FirstAsync(c => c.CollectionId == id);
+                return Results.Ok(new MembershipView(session.CollectionId, session.SlideId, session.Kind, guestRole, session.Ended));
+            }
+
             var me = user.UserId();
             var collection = await db.Collections.Include(c => c.Members).FirstOrDefaultAsync(c => c.CollectionId == id);
             var member = collection?.Members.FirstOrDefault(m => m.UserId == me);
             if (collection is null || member is null) return Results.NotFound();
             return Results.Ok(new MembershipView(collection.CollectionId, collection.SlideId, collection.Kind, member.Role, collection.Ended));
-        });
+        }).AllowGuests();
 
         // Get-or-create the user's own collection for a slide - what the
         // viewer calls on load. Keeps their name up to date while it's there.
@@ -226,9 +248,12 @@ public static class CollectionEndpoints
                 .OrderByDescending(c => c.Created)
                 .FirstOrDefaultAsync();
             if (existing is not null) return Results.Conflict(View(existing, me));
+            var maxEditors = request.MaxEditors ?? SessionSize.DefaultMaxEditors;
+            if (!SessionSize.IsValidMax(maxEditors))
+                return Results.BadRequest($"MaxEditors has to be between {SessionSize.LeastMaxEditors} and {SessionSize.MostMaxEditors}");
 
             var collection = await CreateAsync(db, user, request.SlideId, CollectionKind.Session,
-                string.IsNullOrWhiteSpace(request.CollectionName) ? $"{user.DisplayName()}'s session" : request.CollectionName);
+                string.IsNullOrWhiteSpace(request.CollectionName) ? $"{user.DisplayName()}'s session" : request.CollectionName, maxEditors);
             return Results.Created($"/collections/{collection.CollectionId}", View(collection, user.UserId()));
         });
 
@@ -322,7 +347,7 @@ public static class CollectionEndpoints
 
         app.MapDelete("/collections/{id:guid}", async (Guid id, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
-            var role = await db.RoleAsync(id, user.UserId());
+            var role = await db.RoleAsync(id, user);
             if (role is null) return Results.NotFound();
             if (role != CollectionRole.Owner) return Results.Forbid();
             db.Collections.Remove(await db.Collections.FirstAsync(c => c.CollectionId == id));
@@ -355,6 +380,8 @@ public static class CollectionEndpoints
                 if (userId == user.UserId()) return Results.BadRequest("You're the owner already");
                 if (!await IsSessionAsync(db, id)) return Results.BadRequest("Only a session can have other people in it");
 
+                // Not limited by MaxEditors - that's only how many an edit
+                // link lets in. The host can make anyone an editor.
                 var member = await db.CollectionMembers.FindAsync(id, userId);
                 if (member is null) return Results.NotFound();
                 member.Role = request.Role;
@@ -370,7 +397,7 @@ public static class CollectionEndpoints
             async (Guid id, string userId, ClaimsPrincipal user, AnnotationDbContext db) =>
             {
                 var me = user.UserId();
-                var myRole = await db.RoleAsync(id, me);
+                var myRole = await db.RoleAsync(id, user);
                 if (myRole is null) return Results.NotFound();
                 if (myRole != CollectionRole.Owner && userId != me) return Results.Forbid();
 
@@ -458,6 +485,7 @@ public static class CollectionEndpoints
             var (invite, collection) = found.Value;
             var me = user.UserId();
             var host = collection.Members.FirstOrDefault(m => m.Role == CollectionRole.Owner);
+            var current = collection.Members.FirstOrDefault(m => m.UserId == me)?.Role;
             return Results.Ok(new InvitePreview(
                 invite.Code,
                 collection.CollectionId,
@@ -468,21 +496,45 @@ public static class CollectionEndpoints
                 invite.Expires,
                 StatusOf(invite, collection),
                 collection.Members.Any(m => m.UserId == me),
-                collection.Members.Where(m => m.UserId != me).Select(m => m.DisplayName).ToList()));
+                collection.Members.Where(m => m.UserId != me).Select(m => m.DisplayName).ToList(),
+                SessionSize.RoleOnJoin(invite.Role, current, SessionSize.Editors(collection.Members), collection.MaxEditors)));
         });
 
-        // Joins the session with the invite's role. Someone already in it
-        // keeps whichever role is higher.
-        app.MapPost("/invites/{code}/accept", async (string code, ClaimsPrincipal user, AnnotationDbContext db) =>
+        // What someone without an account sees before joining as a guest, and
+        // what realtime-hub asks before making them a guest token. No sign-in,
+        // so no more than the code already gets you - no role, no people.
+        app.MapGet("/invites/{code}/guest", async (string code, AnnotationDbContext db) =>
         {
             var found = await FindInviteAsync(db, code);
             if (found is null) return Results.NotFound();
             var (invite, collection) = found.Value;
+            return Results.Ok(new GuestInvitePreview(
+                collection.CollectionId,
+                collection.SlideId,
+                collection.CollectionName,
+                OwnerName(collection),
+                StatusOf(invite, collection),
+                invite.Expires));
+        }).AllowAnonymous();
+
+        // Joins the session with the invite's role, or view only once its
+        // editors are full (see SessionSize). Someone already in it keeps
+        // whichever role is higher.
+        app.MapPost("/invites/{code}/accept", async (string code, ClaimsPrincipal user, AnnotationDbContext db) =>
+        {
+            var invite = await db.CollectionInvites.FirstOrDefaultAsync(i => i.Code == code);
+            if (invite is null) return Results.NotFound();
+            // Two people taking the last editor place at once would both see
+            // room for one - so the members are read under a lock.
+            await using var transaction = await db.Database.BeginTransactionAsync();
+            await LockSessionAsync(db, invite.CollectionId);
+            var collection = await db.Collections.Include(c => c.Members).FirstAsync(c => c.CollectionId == invite.CollectionId);
             var status = StatusOf(invite, collection);
             if (status != "open") return Results.Problem($"This invite has {status}", statusCode: StatusCodes.Status410Gone);
 
             var me = user.UserId();
             var member = collection.Members.FirstOrDefault(m => m.UserId == me);
+            var role = SessionSize.RoleOnJoin(invite.Role, member?.Role, SessionSize.Editors(collection.Members), collection.MaxEditors);
             if (member is null)
             {
                 collection.Members.Add(new CollectionMember
@@ -490,15 +542,16 @@ public static class CollectionEndpoints
                     CollectionId = collection.CollectionId,
                     UserId = me,
                     DisplayName = user.DisplayName(),
-                    Role = invite.Role,
+                    Role = role,
                     Added = DateTimeOffset.UtcNow,
                 });
             }
-            else if (member.Role < invite.Role)
+            else
             {
-                member.Role = invite.Role;
+                member.Role = role;
             }
             await db.SaveChangesAsync();
+            await transaction.CommitAsync();
             return Results.Ok(View(collection, me));
         });
     }
@@ -520,6 +573,15 @@ public static class CollectionEndpoints
     private static string OwnerName(Collections collection) =>
         collection.Members.FirstOrDefault(m => m.Role == CollectionRole.Owner)?.DisplayName ?? "";
 
+    // Holds the session's row until the transaction ends, so joins that
+    // count its editors happen one at a time. Postgres only - the tests run
+    // on SQLite, which has no row locks and runs one write at a time anyway.
+    private static async Task LockSessionAsync(AnnotationDbContext db, Guid id)
+    {
+        if (db.Database.IsNpgsql())
+            await db.Database.ExecuteSqlAsync($"SELECT 1 FROM \"Collections\" WHERE \"CollectionId\" = {id} FOR UPDATE");
+    }
+
     private static Task<bool> IsSessionAsync(AnnotationDbContext db, Guid id) =>
         db.Collections.AnyAsync(c => c.CollectionId == id && c.Kind == CollectionKind.Session);
 
@@ -532,7 +594,8 @@ public static class CollectionEndpoints
         new(invite.Code, invite.Role, invite.Created, invite.Expires);
 
     private static async Task<Collections> CreateAsync(
-        AnnotationDbContext db, ClaimsPrincipal user, string slideId, CollectionKind kind, string name)
+        AnnotationDbContext db, ClaimsPrincipal user, string slideId, CollectionKind kind, string name,
+        int maxEditors = SessionSize.DefaultMaxEditors)
     {
         var now = DateTimeOffset.UtcNow;
         var collection = new Collections
@@ -543,6 +606,7 @@ public static class CollectionEndpoints
             Kind = kind,
             CollectionName = name,
             Created = now,
+            MaxEditors = maxEditors,
         };
         collection.Members.Add(new CollectionMember
         {
@@ -572,5 +636,6 @@ public static class CollectionEndpoints
             .OrderByDescending(m => m.Role)
             .ThenBy(m => m.DisplayName)
             .Select(m => new MemberView(m.UserId, m.DisplayName, m.Role))
-            .ToList());
+            .ToList(),
+        MaxEditors: collection.MaxEditors);
 }

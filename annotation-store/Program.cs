@@ -42,6 +42,9 @@ builder.Services.AddOpenApi();
 // Sign-in via Keycloak on every endpoint - see Auth/KeycloakAuth.cs.
 builder.AddKeycloakAuth();
 
+// Guest tokens from realtime-hub, view only on a few reads - see Auth/GuestAuth.cs.
+builder.AddGuestAuth();
+
 // Roles go over the wire as "owner" rather than 2.
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)));
@@ -113,7 +116,7 @@ app.MapGet("/annotations", async (Guid collectionId, int? skip, int? take, strin
         .Filtered(filter)
         .NewestFirst()
         .Page(skip, take)
-        .ToListAsync()));
+        .ToListAsync())).AllowGuests();
 
 app.MapGet("/annotations/total", async (Guid collectionId, string? search, [AsParameters] SavedFilter filter, ClaimsPrincipal user, AnnotationDbContext db) =>
     await db.RequireAsync(collectionId, user, CollectionRole.Viewer)
@@ -121,7 +124,7 @@ app.MapGet("/annotations/total", async (Guid collectionId, string? search, [AsPa
         .Where(a => a.CollectionId == collectionId)
         .Matching(search)
         .Filtered(filter)
-        .CountAsync()));
+        .CountAsync())).AllowGuests();
 
 app.MapGet("/annotations/facets", async (Guid collectionId, ClaimsPrincipal user, AnnotationDbContext db) =>
 {
@@ -137,7 +140,7 @@ app.MapGet("/annotations/facets", async (Guid collectionId, ClaimsPrincipal user
         .Select(g => new SavedColour(g.Key, g.Count()))
         .ToListAsync();
     return Results.Ok(new SavedFacets(SavedPaging.Authors(authors), SavedPaging.Colours(colours)));
-});
+}).AllowGuests();
 
 app.MapPost("/annotations", async (Annotation annotation, ClaimsPrincipal user, AnnotationDbContext db) =>
 {
@@ -241,7 +244,7 @@ app.MapGet("/cellcounts", async (Guid collectionId, int? skip, int? take, string
             r.LocationX, r.LocationY, r.Created, r.CreatedById, r.CreatedByName, r.RegionOfInterest,
             CellCountSummary.Read<ColourCount>(colours), CellCountSummary.Read<PlacedByCount>(placedBy));
     }));
-});
+}).AllowGuests();
 
 app.MapGet("/cellcounts/total", async (Guid collectionId, string? search, [AsParameters] SavedFilter filter, ClaimsPrincipal user, AnnotationDbContext db) =>
     await db.RequireAsync(collectionId, user, CollectionRole.Viewer)
@@ -249,7 +252,7 @@ app.MapGet("/cellcounts/total", async (Guid collectionId, string? search, [AsPar
         .Where(c => c.CollectionId == collectionId)
         .Matching(search)
         .Filtered(filter)
-        .CountAsync()));
+        .CountAsync())).AllowGuests();
 
 app.MapGet("/cellcounts/facets", async (Guid collectionId, ClaimsPrincipal user, AnnotationDbContext db) =>
     await db.RequireAsync(collectionId, user, CollectionRole.Viewer)
@@ -259,7 +262,7 @@ app.MapGet("/cellcounts/facets", async (Guid collectionId, ClaimsPrincipal user,
             .GroupBy(c => new { c.CreatedById, c.CreatedByName })
             .Select(g => new SavedAuthor(g.Key.CreatedById, g.Key.CreatedByName, g.Count()))
             .ToListAsync()),
-        [])));
+        []))).AllowGuests();
 
 // One count on its own - for when the viewer needs a count that isn't on
 // the page it has loaded, e.g. the one a session's host is editing.
@@ -268,7 +271,7 @@ app.MapGet("/cellcounts/{id:guid}", async (Guid id, ClaimsPrincipal user, Annota
     var cellCount = await db.CellCounts.Include(c => c.RegionOfInterest).FirstOrDefaultAsync(c => c.Id == id);
     if (cellCount is null) return Results.NotFound();
     return await db.RequireAsync(cellCount.CollectionId, user, CollectionRole.Viewer) ?? Results.Ok(cellCount);
-});
+}).AllowGuests();
 
 // Every dot goes in the one request, at about 60 bytes a dot, so the 30 MB
 // default only took counts up to ~495k. This takes a million with room spare.

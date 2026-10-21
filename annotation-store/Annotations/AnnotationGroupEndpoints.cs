@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using AnnotationStore.Auth;
 using AnnotationStore.Collections;
 using Microsoft.EntityFrameworkCore;
 
@@ -38,7 +39,7 @@ public static class AnnotationGroupEndpoints
         {
             if (await db.RequireAsync(collectionId, user, CollectionRole.Viewer) is { } denied) return denied;
             return Results.Ok(await GroupViews(db, collectionId).ToListAsync());
-        });
+        }).AllowGuests();
 
         app.MapPost("/annotationgroups", async (NewGroupRequest request, ClaimsPrincipal user, AnnotationDbContext db) =>
         {

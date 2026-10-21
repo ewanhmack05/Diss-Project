@@ -33,6 +33,8 @@ public static class KeycloakAuth
                 };
             });
 
+        // Only the default scheme - Keycloak - is tried here, so a guest token
+        // is a 401 on anything not marked AllowGuests (see GuestAuth.cs).
         builder.Services.AddAuthorizationBuilder()
             .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
     }

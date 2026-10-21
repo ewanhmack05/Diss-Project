@@ -56,7 +56,7 @@ Keycloak is in, locally, and everything needs signing in.
   is `https://<that address>:5173/auth/realms/diss` - the services accept
   any address as long as it's the `diss` realm and the signature checks out.
 - **Viewer** - `oidc-client-ts`, sign-in with PKCE, tokens per tab so two
-  tabs can be two people ("Switch user" in the RealTime panel).
+  tabs can be two people ("Switch user" in the Collaboration panel).
 - **annotation-store** checks the token on every request (`AddJwtBearer`),
   with the audience `diss-api`.
 - **Real-time hub** checks the same token, sent in the query string.
@@ -71,16 +71,15 @@ Keycloak is in, locally, and everything needs signing in.
 
 ### Still to do
 
-- Invite links for people without an account (guests) - links need a
-  signed-in user for now.
+- Nothing for invites - guests are done, see [guests.md](guests.md).
 
 ### Invites
 - Users list
-    - The RealTime tab has a Users tab listing everyone with an account in Keycloak - who's online first, with what they're doing, then everyone offline
+    - The Collaboration tab has a Users tab listing everyone with an account in Keycloak - who's online first, with what they're doing, then everyone offline
     - The host can invite anyone online on the same slide straight from it - they get a popup and see the invite before joining
     - The list comes from Keycloak's admin API, read by realtime-hub as the `realtime-hub` client, whose service account can only view users (see [auth/README.md](../auth/README.md#adding-the-realtime-hub-client))
 - Generated link
-    - The host makes a link in the RealTime tab, e.g. https://localhost:5173/?invite=juyhsUFHC4gB
+    - The host makes a link in the Collaboration tab, e.g. https://localhost:5173/?invite=juyhsUFHC4gB
 - Invite codes
     - The code is the part after `?invite=` (`juyhsUFHC4gB` above), shown on its own under the link
-    - Working alone, anyone can type or paste it (or the whole link) into Join with a code in the RealTime tab to join the session
+    - Working alone, anyone can type or paste it (or the whole link) into Join with a code in the Collaboration tab to join the session

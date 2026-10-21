@@ -14,8 +14,6 @@ import {
   fromBase64,
   throttle,
   toBase64,
-  VIEWPORTS_ON_UP_TO,
-  peopleHere,
   viewportDisplay,
   viewportShown,
   viewportFrom,
@@ -316,8 +314,8 @@ describe('tabChanges', () => {
 
 describe('viewport boxes', () => {
   const view = { center: [0, 0] as [number, number], resolution: 1, rotation: 0, extent: [0, 0, 10, 10] as [number, number, number, number] }
-  const person = (userId: string, viewport: typeof view | null = view, connectionId = `c-${userId}`): Participant => ({
-    connectionId,
+  const person = (userId: string, viewport: typeof view | null = view): Participant => ({
+    connectionId: `c-${userId}`,
     roomId: 'r',
     userId,
     displayName: userId,
@@ -329,44 +327,39 @@ describe('viewport boxes', () => {
     sketches: null,
     screen: null,
   })
-  const crowd = (n: number) => Array.from({ length: n }, (_, i) => person(`u${i}`))
-  const small = [person('amy'), person('ben'), person('cal')]
+  const others = [person('amy'), person('ben'), person('cal')]
 
-  it('counts people, not tabs - you included, and only once', () => {
-    expect(peopleHere('me', small)).toBe(4)
-    expect(peopleHere('me', [...small, person('amy', view, 'c-amy-2'), person('me')])).toBe(4)
-    expect(peopleHere(null, small)).toBe(3)
-  })
-
-  it("has everyone's box on in a small session and off past the cap", () => {
-    const atCap = crowd(VIEWPORTS_ON_UP_TO - 1)
-    const pastCap = crowd(VIEWPORTS_ON_UP_TO)
-    expect(viewportShown('u0', {}, 'me', atCap)).toBe(true)
-    expect(viewportShown('u0', {}, 'me', pastCap)).toBe(false)
+  it("has everyone's box on in a small session and off in a large one", () => {
+    expect(viewportShown('amy', {}, false)).toBe(true)
+    expect(viewportShown('amy', {}, true)).toBe(false)
   })
 
   it('goes by what you picked over the default, either way', () => {
-    expect(viewportShown('amy', { amy: false }, 'me', small)).toBe(false)
-    expect(viewportShown('u0', { u0: true }, 'me', crowd(20))).toBe(true)
+    expect(viewportShown('amy', { amy: false }, false)).toBe(false)
+    expect(viewportShown('amy', { amy: true }, true)).toBe(true)
   })
 
   it('draws the boxes that are on, and leaves out the ones that are off', () => {
-    expect(viewportDisplay('amy', null, {}, 'me', small)).toBe('normal')
-    expect(viewportDisplay('amy', null, { amy: false }, 'me', small)).toBe('hidden')
+    expect(viewportDisplay('amy', null, {}, false, others)).toBe('normal')
+    expect(viewportDisplay('amy', null, {}, true, others)).toBe('hidden')
+    expect(viewportDisplay('amy', null, { amy: false }, false, others)).toBe('hidden')
   })
 
   it('picks out the one pointed at, even if it is off, and fades only the others that are on', () => {
     const shown = { ben: false, cal: false }
-    expect(viewportDisplay('ben', 'ben', shown, 'me', small)).toBe('pointed')
-    expect(viewportDisplay('amy', 'ben', shown, 'me', small)).toBe('faded')
-    expect(viewportDisplay('cal', 'ben', shown, 'me', small)).toBe('hidden')
+    expect(viewportDisplay('ben', 'ben', shown, false, others)).toBe('pointed')
+    expect(viewportDisplay('amy', 'ben', shown, false, others)).toBe('faded')
+    expect(viewportDisplay('cal', 'ben', shown, false, others)).toBe('hidden')
+    // A large session - all off, but pointing still shows that one.
+    expect(viewportDisplay('ben', 'ben', {}, true, others)).toBe('pointed')
+    expect(viewportDisplay('amy', 'ben', {}, true, others)).toBe('hidden')
   })
 
   it("changes nothing when the one pointed at has gone - their chip can't say it's no longer hovered", () => {
-    expect(viewportDisplay('amy', 'dan', {}, 'me', small)).toBe('normal')
+    expect(viewportDisplay('amy', 'dan', {}, false, others)).toBe('normal')
   })
 
   it("changes nothing when the one pointed at hasn't sent a viewport yet", () => {
-    expect(viewportDisplay('amy', 'eve', {}, 'me', [...small, person('eve', null)])).toBe('normal')
+    expect(viewportDisplay('amy', 'eve', {}, false, [...others, person('eve', null)])).toBe('normal')
   })
 })

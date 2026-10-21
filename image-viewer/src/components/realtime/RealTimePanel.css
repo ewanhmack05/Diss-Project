@@ -464,3 +464,32 @@
   color: var(--chrome-text);
   border-bottom-color: var(--accent);
 }
+
+/* An active user's colour - the same as their viewport box on the map. */
+.realtime-active-colour {
+  flex-shrink: 0;
+  width: 0.6em;
+  height: 0.6em;
+  border-radius: 50%;
+}
+
+/* The editors box when starting a session - looks like the selects. */
+.realtime-field input[type='number'] {
+  box-sizing: border-box;
+  width: 4.5em;
+  padding: 0.35em;
+  font-family: var(--sans);
+  font-size: 1em;
+  color: var(--chrome-text);
+  background: var(--white-06);
+  border: 1px solid transparent;
+  border-radius: 0.3125rem;
+}
+
+.realtime-field input[aria-invalid='true'] {
+  border-color: #e8a87c;
+}
+
+.realtime-note--warning {
+  color: #e8a87c;
+}
