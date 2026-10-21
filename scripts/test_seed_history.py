@@ -5,11 +5,11 @@
 import os
 import tempfile
 import unittest
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from seed_history import PEOPLE, STORY, backdate_sql, check_story, connection
 
-NOW = datetime(2026, 10, 21, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 10, 21, 12, 0, tzinfo=UTC)
 
 
 class Story(unittest.TestCase):

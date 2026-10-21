@@ -22,6 +22,13 @@ public class CellCountApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
 {
     public static readonly string? Postgres = Environment.GetEnvironmentVariable("ANNOTATION_STORE_TEST_POSTGRES");
 
+    // Connections each test class's database can have open at once. Classes
+    // run in parallel, each with its own pool, and a stock Postgres (like
+    // CI's) only takes 100 - a burst test opening one per request used to
+    // hit "too many clients". Past this a request waits for a free one, so
+    // bursts still overlap. PostgresPoolTests checks the classes still fit.
+    public const int PoolSizePerDatabase = 8;
+
     private readonly SqliteConnection _connection = new("DataSource=:memory:");
     private readonly string _postgresDatabase = $"annotationstore_test_{Guid.NewGuid():N}";
 
@@ -59,7 +66,11 @@ public class CellCountApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
                 services.AddDbContext<AnnotationDbContext>(options => options.UseSqlite(_connection));
             else
                 services.AddDbContext<AnnotationDbContext>(options =>
-                    options.UseNpgsql(new NpgsqlConnectionStringBuilder(Postgres) { Database = _postgresDatabase }.ConnectionString));
+                    options.UseNpgsql(new NpgsqlConnectionStringBuilder(Postgres)
+                    {
+                        Database = _postgresDatabase,
+                        MaxPoolSize = PoolSizePerDatabase,
+                    }.ConnectionString));
 
             // No Keycloak in tests - see TestAuthHandler.
             services.AddAuthentication(TestAuthHandler.Scheme)

@@ -621,7 +621,11 @@ same tests run on Postgres instead. Each test class gets a database of its
 own (`annotationstore_test_<guid>`), built from the real migrations and
 dropped afterwards. That catches what SQLite can't: the migrations
 themselves, Npgsql's SQL, and requests at the same moment (`[PostgresFact]`
-tests, skipped on SQLite).
+tests, skipped on SQLite). Test classes run in parallel, each with its own
+pool, so each database is held to 8 connections (`PoolSizePerDatabase` in
+`CellCountApiFactory`) - a stock Postgres, like CI's, takes 100, and a burst
+test opening one per request ran out. `PostgresPoolTests` fails if adding a
+test class would take them past it.
 
 | File | Tests | Covers |
 | ---- | ----- | ------ |
@@ -637,6 +641,7 @@ tests, skipped on SQLite).
 | ImageAdjustmentsTests | 10 | Presets CRUD and access |
 | PagingTests | 21 | Skip/take, tie-breaking, search, every filter, facets |
 | KeycloakAuthTests | 7 | Issuer check accepts any host, only the right realm |
+| PostgresPoolTests | 1 | Every test class's connections fit in a stock Postgres |
 | SoftDeleteTests | 18 | Deletes hide everywhere, deleted rows 404, batches in one change set, restore (its own change set only, editors only, collections by their owner, answers with the rows it put back), who and what on every write, header rules, merge and group delete with deleted annotations, change set list and total |
 
 ## 15. Known gaps

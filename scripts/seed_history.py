@@ -29,7 +29,7 @@ import tempfile
 import urllib.error
 import urllib.request
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from keycloak_login import access_token
 from seed_stress import COLOURS, slide_bounds
@@ -336,13 +336,13 @@ def main():
     _, collections = find_session(args.store, host, args.slide)
     members = next(c for c in collections if c["collectionId"] == session_id)["members"]
     user_ids = [session["ownerId"]] + [m["userId"] for m in members if m["userId"] != session["ownerId"]]
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     sql = backdate_sql(now, session_id, story.changes, story.rows, user_ids)
     with tempfile.NamedTemporaryFile("w", suffix=".sql", delete=False, encoding="utf-8") as script:
         script.write(sql)
     try:
         result = subprocess.run([psql, *psql_args, "-v", "ON_ERROR_STOP=1", "-q", "-f", script.name],
-                                env={**os.environ, "PGPASSWORD": password}, capture_output=True, text=True)
+                                env={**os.environ, "PGPASSWORD": password}, capture_output=True, text=True, check=False)
     finally:
         os.unlink(script.name)
     if result.returncode != 0:
