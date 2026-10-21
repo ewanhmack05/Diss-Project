@@ -167,27 +167,54 @@ bulk change. Leave it out and the write gets a change set of its own. The
 response's `Change-Set-Id` header says which it went in. An id already used
 by someone else, or in another collection, is a 400.
 
-**Deletes only hide.** A deleted row gets `Deleted` and `DeletedIn` (its
-change set) set and drops out of every read, but stays in the table, so
-`POST /changesets/{id}/restore` can put it back. Nothing is purged.
+**History is kept apart from the data.** What every change did to each row
+goes in the `history` schema (`History/`): a delete keeps the whole row, an
+edit keeps just the columns it changed, before and after. The live tables
+only ever hold what's there now - a delete takes the row out. The one
+exception is a deleted collection, which stays in its table, hidden, since
+it holds everything in it. Nothing in the history is purged.
 
 - `GET /changesets?collectionId=&skip=&take=` - the collection's change
   sets, newest first: `{ id, collectionId, userId, userName, what, created,
   deleted }`, `deleted` being how many rows it deleted that are still
-  deleted. Anyone who can read the collection, guests included
+  deleted - and haven't been put back and deleted again by something later,
+  which makes them that change's. Anyone who can read the collection, guests
+  included. Narrowed with the Saved lists' names (`ChangeSetFilter` in
+  `History/ChangeSetFilter.cs`):
+  - `createdBy` - who made it, Keycloak ids, repeat for more than one
+  - `kind` - `add`, `change`, `delete`, `merge`, `import` or `restore`,
+    repeat for more than one. Change is anything that isn't one of the
+    others. Anything else is a 400
+  - `from` / `to` - when, `from` included and `to` not
+  - `order=oldest` turns it round
+- `GET /changesets/facets?collectionId=` - `{ authors, kinds }`: who's made
+  changes and how many, and how many of each kind, for the filter popout
+- `GET /changesets/{id}/changes` - what one change set did, for the
+  History tab's detail page: `{ changes, created, deleted, deletedNames,
+  groups }`. `changes` is every column it changed, grouped - `{ entity,
+  column, before, after, count, names }`, so a recolour of 48 annotations
+  from red to blue is one, with the first 5 rows' names (null for one
+  that's gone since). `deletedNames` names the first 5 rows it deleted, and
+  `groups` names every group a `GroupId` in `changes` points at, gone ones
+  included. Only reads the update entries and the names out of the deletes,
+  never a deleted row's whole copy. Same access as the list
 - `GET /changesets/total?collectionId=` - how many change sets the
   collection has, for the viewer's History pager. Same access as the list
-- `POST /changesets/{id}/restore` - puts back everything that change set
-  deleted, as a change of its own. Any editor, for anyone's change set -
-  except a deleted collection, which only its owner can bring back (and not
-  while they've a newer personal one for that slide - 409). Answers
-  `{ counts, annotations, groups, cellCounts, imageAdjustments }`: `counts`
-  is `{ annotations, groups, cellCounts, imageAdjustments, collection }`,
-  how many of each came back, and the rest are the rows themselves, as the
-  reads give them - groups with their member `count`, cell counts as the
-  Saved list has them (no `dots`). Restoring again answers zeros and empty
-  lists. A restored group comes back empty - deleting it ungrouped its
-  annotations
+- `POST /changesets/{id}/restore` - puts it back how it was before that
+  change, as a change of its own: every row it deleted comes back, and every
+  column it changed on a row that's still here goes back - but only where
+  nobody's changed it again since. So a deleted or merged group comes back
+  with what was in it, and a later edit is never undone. Any editor, for
+  anyone's change set - except a deleted collection, which only its owner
+  can bring back (and not while they've a newer personal one for that slide
+  - 409). Answers `{ counts, annotations, groups, cellCounts,
+  imageAdjustments, changedAnnotations }`: `counts` is `{ annotations,
+  groups, cellCounts, imageAdjustments, collection }`, how many of each came
+  back, the lists are the rows that came back as the reads give them -
+  groups with their member `count`, cell counts as the Saved list has them
+  (no `dots`) - and `changedAnnotations` are ones that were already there
+  and went back how they were. Restoring again answers zeros and empty
+  lists
 
 - `GET /annotations?collectionId=` - every annotation in the collection,
   newest first. What the map loads
@@ -226,10 +253,10 @@ change set) set and drops out of every read, but stays in the table, so
 - `PUT /annotationgroups/{id}` - `{ name?, notes? }` - either or both
 - `POST /annotationgroups/{id}/merge` - `{ intoId }` - moves everything into
   that group and deletes this one, in one transaction. Notes are joined.
-  Deleted annotations move too
+  The delete says where it went, so an annotation put back later that was
+  in it lands in `intoId`
 - `DELETE /annotationgroups/{id}` - delete it. Its annotations stay,
-  ungrouped - deleted ones too, so restoring one never puts it back in a
-  group that's gone
+  ungrouped. Putting it back puts them back in it
 
 A group (`Annotations/AnnotationGroup.cs`) is a named set of annotations in
 one collection, one level deep - an annotation's `GroupId` is the one it's
@@ -295,15 +322,12 @@ cells (e.g. mitotic figures) within a region:
 | `LocationY`      | double, null  | see `LocationX`                                                |
 | `Created`        | timestamptz   | server-assigned                                               |
 
-Annotations, groups, cell counts, image adjustments and collections all
-also have:
+Collections also have `Deleted` (timestamptz, null) - set when it's
+deleted, never in JSON. Nothing else has: a deleted row is only in the
+history.
 
-| field       | type             | notes                                                     |
-| ----------- | ---------------- | --------------------------------------------------------- |
-| `Deleted`   | timestamptz, null | when it was deleted - never in JSON either way           |
-| `DeletedIn` | uuid, null, indexed | the change set that deleted it                         |
-
-`ChangeSets/ChangeSet.cs` - one change, like a commit:
+The `history` schema, in `History/ChangeSet.cs`. `history.ChangeSets` is one
+change, like a commit:
 
 | field          | type        | notes                                                  |
 | -------------- | ----------- | ------------------------------------------------------ |
@@ -313,6 +337,23 @@ also have:
 | `UserName`     | text        | their name then                                        |
 | `What`         | text        | what the first request in it did, e.g. `delete annotations` |
 | `Created`      | timestamptz | server-assigned                                        |
+
+`history.Entries` is what one change did to one row:
+
+| field          | type          | notes                                                  |
+| -------------- | ------------- | ------------------------------------------------------ |
+| `Id`           | bigint, PK    | identity - the order they happened in                  |
+| `ChangeSetId`  | uuid, indexed | the change it's part of                                |
+| `CollectionId` | uuid          | indexed with `Entity` and `EntityId`, for one row's history |
+| `Entity`       | text          | `annotation`, `group`, `cellCount`, `regionOfInterest`, `imageAdjustment` or `collection` |
+| `EntityId`     | uuid          | the row's id                                           |
+| `Op`           | text          | `Create`, `Update` or `Delete`                         |
+| `Before`       | jsonb, null   | a delete: the whole row. An update: the columns it changed, as they were |
+| `After`        | jsonb, null   | an update: the same columns, as they became. A group's delete in a merge: `{ "MergedInto": id }` |
+
+Column names as they are in the table, so a row's `Before` is the same as
+Postgres' `to_jsonb` of it. A create keeps nothing - the live row has it, or
+a later delete's `Before` does.
 
 `Annotations/AnnotationGroup.cs` - a named set of annotations in one
 collection:

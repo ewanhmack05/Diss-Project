@@ -45,7 +45,7 @@ function useRestoreChangeSet(): (changeSet: ChangeSet) => Promise<void> {
 
     if (collectionIdRef.current === changeSet.collectionId) {
       groups.addRestored(restored.groups)
-      annotationStore.addRestored(restored.annotations)
+      annotationStore.addRestored([...restored.annotations, ...(restored.changedAnnotations ?? [])])
       cellCountStore.addRestored(restored.cellCounts)
       adjustments.addRestored(restored.imageAdjustments)
       for (const op of restoredOps(restored)) sendOp(op)

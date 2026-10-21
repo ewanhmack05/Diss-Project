@@ -16,6 +16,14 @@ interface ShapeChoice {
   glyph: ReactNode
 }
 
+// A kind of change and how many there are, for the History list.
+interface KindChoice {
+  kind: string
+  label: string
+  glyph: ReactNode
+  count: number
+}
+
 // A group and how many are in it - the last one is "No group".
 interface GroupChoice {
   id: string
@@ -36,6 +44,14 @@ interface SavedFilterMenuProps {
   // Annotations only - the collection's groups. Left out, there's no section.
   groups?: GroupChoice[]
   roi?: boolean
+  // The History list only - kinds of change. Left out, there's no section.
+  kinds?: KindChoice[]
+  // What the people and the dates are of - "Saved by" and "Saved" unless
+  // said otherwise.
+  peopleTitle?: string
+  whenTitle?: string
+  // The History list has no notes to filter on.
+  notes?: boolean
 }
 
 function panelOf(toggle: HTMLElement): HTMLElement {
@@ -124,7 +140,20 @@ function EitherPicker({ value, onChange, label }: { value: Either; onChange: (va
 // opens against the panel's side - who saved it, shape, colour, notes,
 // region of interest and when. Changes apply as they're made, with the list
 // still in view; the badge says how many are on.
-function SavedFilterMenu({ filters, onChange, facets, myId, shapes, colours, groups, roi }: SavedFilterMenuProps) {
+function SavedFilterMenu({
+  filters,
+  onChange,
+  facets,
+  myId,
+  shapes,
+  colours,
+  groups,
+  roi,
+  kinds,
+  peopleTitle = 'Saved by',
+  whenTitle = 'Saved',
+  notes = true,
+}: SavedFilterMenuProps) {
   const [frame, setFrame] = useState<Frame | null>(null)
   const toggleRef = useRef<HTMLButtonElement>(null)
   const popupRef = useRef<HTMLDivElement>(null)
@@ -231,7 +260,7 @@ function SavedFilterMenu({ filters, onChange, facets, myId, shapes, colours, gro
               </button>
             </header>
             <div className="saved-filter-popup-body themed-scroll">
-              <FilterSection title="Saved by">
+              <FilterSection title={peopleTitle}>
                 {people.length === 0 ? (
                   <p className="saved-filter-empty">{facets ? 'Nobody yet.' : 'Loading...'}</p>
                 ) : (
@@ -249,6 +278,24 @@ function SavedFilterMenu({ filters, onChange, facets, myId, shapes, colours, gro
                   </div>
                 )}
               </FilterSection>
+
+              {kinds && (
+                <FilterSection title="Kind">
+                  <div className="saved-filter-chips">
+                    {kinds.map((choice) => (
+                      <Chip
+                        key={choice.kind}
+                        on={filters.kinds.includes(choice.kind)}
+                        onClick={() => set({ kinds: toggled(filters.kinds, choice.kind) })}
+                      >
+                        {choice.glyph}
+                        {choice.label}
+                        <span className="saved-filter-count">{choice.count.toLocaleString()}</span>
+                      </Chip>
+                    ))}
+                  </div>
+                </FilterSection>
+              )}
 
               {shapes && (
                 <FilterSection title="Shape">
@@ -321,9 +368,11 @@ function SavedFilterMenu({ filters, onChange, facets, myId, shapes, colours, gro
                 </FilterSection>
               )}
 
-              <FilterSection title="Notes">
-                <EitherPicker label="Notes" value={filters.notes} onChange={(notes) => set({ notes })} />
-              </FilterSection>
+              {notes && (
+                <FilterSection title="Notes">
+                  <EitherPicker label="Notes" value={filters.notes} onChange={(value) => set({ notes: value })} />
+                </FilterSection>
+              )}
 
               {roi && (
                 <FilterSection title="Region of interest">
@@ -331,7 +380,7 @@ function SavedFilterMenu({ filters, onChange, facets, myId, shapes, colours, gro
                 </FilterSection>
               )}
 
-              <FilterSection title="Saved">
+              <FilterSection title={whenTitle}>
                 <div className="saved-filter-dates">
                   <label>
                     From

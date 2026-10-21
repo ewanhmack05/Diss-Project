@@ -2,24 +2,25 @@ using System.Net;
 using System.Net.Http.Json;
 using AnnotationStore.Annotations;
 using AnnotationStore.CellCounts;
-using AnnotationStore.ChangeSets;
 using AnnotationStore.Collections;
+using AnnotationStore.History;
 using AnnotationStore.Paging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AnnotationStore.Tests;
 
-// Deletes hide rows rather than remove them, every write goes in a change
-// set, and a change set's deletes can be put back. See ChangeSets/.
-public class SoftDeleteTests : IClassFixture<CellCountApiFactory>
+// Every write goes in a change set, what it did to each row is kept in the
+// history schema, the live tables only ever hold what's there now, and a
+// change set can be put back. See History/.
+public class HistoryTests : IClassFixture<CellCountApiFactory>
 {
     private static readonly System.Text.Json.JsonSerializerOptions Json = TestJson.Options;
     private const string Header = ChangeSetEndpoints.Header;
 
     private readonly CellCountApiFactory _factory;
 
-    public SoftDeleteTests(CellCountApiFactory factory)
+    public HistoryTests(CellCountApiFactory factory)
     {
         _factory = factory;
     }
@@ -92,8 +93,14 @@ public class SoftDeleteTests : IClassFixture<CellCountApiFactory>
         return await read(scope.ServiceProvider.GetRequiredService<AnnotationDbContext>());
     }
 
+    private Task<List<HistoryEntry>> EntriesAsync(Guid changeSet) =>
+        WithDbAsync(db => db.HistoryEntries.Where(e => e.ChangeSetId == changeSet).OrderBy(e => e.Id).ToListAsync());
+
+    private static Dictionary<string, string> Columns(string? json) =>
+        System.Text.Json.JsonDocument.Parse(json!).RootElement.EnumerateObject().ToDictionary(p => p.Name, p => p.Value.ToString());
+
     [Fact]
-    public async Task DeletingAnAnnotation_HidesItEverywhere_ButKeepsTheRow()
+    public async Task DeletingAnAnnotation_TakesItOutOfTheLiveTable_AndKeepsTheWholeRowInHistory()
     {
         var alice = As("alice");
         var collection = await OwnAsync(alice);
@@ -115,10 +122,12 @@ public class SoftDeleteTests : IClassFixture<CellCountApiFactory>
         var listed = (await alice.GetFromJsonAsync<List<CollectionView>>($"/collections?slideId={collection.SlideId}", Json))!;
         Assert.Equal(1, Assert.Single(listed).AnnotationCount);
 
-        var row = await WithDbAsync(db => db.Annotations.IgnoreQueryFilters().SingleAsync(a => a.Id == gone.Id));
-        Assert.NotNull(row.Deleted);
-        Assert.Equal(ChangeSetOf(delete), row.DeletedIn);
-        Assert.Equal("gone", row.Label);
+        Assert.False(await WithDbAsync(db => db.Annotations.AnyAsync(a => a.Id == gone.Id)));
+        var entry = Assert.Single(await EntriesAsync(ChangeSetOf(delete)));
+        Assert.Equal((HistoryLog.Annotation, gone.Id, HistoryOp.Delete, id), (entry.Entity, entry.EntityId, entry.Op, entry.CollectionId));
+        var before = Columns(entry.Before);
+        Assert.Equal(("gone", "#FF0000", "Box"), (before["Label"], before["Colour"], before["Shape"]));
+        Assert.Null(entry.After);
     }
 
     [Fact]
@@ -182,7 +191,7 @@ public class SoftDeleteTests : IClassFixture<CellCountApiFactory>
         Assert.Equal(HttpStatusCode.OK, restore.StatusCode);
         Assert.Equal(new RestoreResult(5, 0, 0, 0, false), await CountsAsync(restore));
         Assert.Equal(ids.Append(untouched.Id).Order(), (await AnnotationsAsync(alice, id)).Select(a => a.Id).Order());
-        Assert.False(await WithDbAsync(db => db.Annotations.IgnoreQueryFilters().AnyAsync(a => a.CollectionId == id && (a.Deleted != null || a.DeletedIn != null))));
+        Assert.Equal(5, (await EntriesAsync(changeSet)).Count(e => e.Op == HistoryOp.Delete));
 
         // Nothing's left to put back the second time.
         Assert.Equal(new RestoreResult(0, 0, 0, 0, false),
@@ -205,6 +214,49 @@ public class SoftDeleteTests : IClassFixture<CellCountApiFactory>
         Assert.All(responses, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));
         Assert.Equal(1, await WithDbAsync(db => db.ChangeSets.CountAsync(c => c.Id == changeSet)));
         Assert.Equal(100, (await CountsAsync(await RestoreAsync(alice, changeSet))).Annotations);
+    }
+
+    // Two people pressing Put back on the same change at once.
+    [PostgresFact]
+    public async Task RestoresAtTheSameMoment_PutItBackOnce_AndNeitherFails()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var ids = new List<Guid>();
+        for (var i = 0; i < 50; i++) ids.Add((await AddAnnotationAsync(alice, id, $"a{i}")).Id);
+        var delete = ChangeSetOf(await alice.PostAsJsonAsync("/annotations/bulk-delete", new BulkDeleteRequest(id, ids), Json));
+
+        var responses = await Task.WhenAll(Enumerable.Range(0, 10).Select(_ => RestoreAsync(alice, delete)));
+
+        Assert.All(responses, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));
+        var counts = await Task.WhenAll(responses.Select(CountsAsync));
+        Assert.Equal(50, counts.Sum(c => c.Annotations));
+        Assert.Equal(ids.Order(), (await AnnotationsAsync(alice, id)).Select(a => a.Id).Order());
+    }
+
+    // Deleted, put back, then deleted again by a later change: the first
+    // delete has nothing left of its own to put back - doing it would undo
+    // the later one.
+    [Fact]
+    public async Task ARowDeletedAgainLater_BelongsToTheLaterDelete_NotTheFirst()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var a = await AddAnnotationAsync(alice, id, "a");
+        var b = await AddAnnotationAsync(alice, id, "b");
+        var first = ChangeSetOf(await alice.PostAsJsonAsync("/annotations/bulk-delete", new BulkDeleteRequest(id, [a.Id, b.Id]), Json));
+        await RestoreAsync(alice, first);
+        var second = ChangeSetOf(await alice.DeleteAsync($"/annotations/{a.Id}"));
+
+        var listed = (await alice.GetFromJsonAsync<List<ChangeSetView>>($"/changesets?collectionId={id}", Json))!.ToDictionary(c => c.Id, c => c.Deleted);
+        Assert.Equal(0, listed[first]);
+        Assert.Equal(1, listed[second]);
+
+        Assert.Equal(new RestoreResult(0, 0, 0, 0, false), await CountsAsync(await RestoreAsync(alice, first)));
+        Assert.Equal([b.Id], (await AnnotationsAsync(alice, id)).Select(x => x.Id));
+
+        Assert.Equal(1, (await CountsAsync(await RestoreAsync(alice, second))).Annotations);
+        Assert.Equal(new[] { a.Id, b.Id }.Order(), (await AnnotationsAsync(alice, id)).Select(x => x.Id).Order());
     }
 
     [Fact]
@@ -354,7 +406,7 @@ public class SoftDeleteTests : IClassFixture<CellCountApiFactory>
     }
 
     [Fact]
-    public async Task APost_CantMakeAHiddenRow()
+    public async Task APost_CantSetHistoryFields_SinceThereArentAny()
     {
         var alice = As("alice");
         var id = (await OwnAsync(alice)).CollectionId;
@@ -374,32 +426,56 @@ public class SoftDeleteTests : IClassFixture<CellCountApiFactory>
     }
 
     [Fact]
-    public async Task DeletingAGroup_UngroupsDeletedAnnotationsToo_AndComesBackEmpty()
+    public async Task PuttingBackADeletedGroup_PutsWhatWasInItBackInIt()
     {
         var alice = As("alice");
         var id = (await OwnAsync(alice)).CollectionId;
         var a = await AddAnnotationAsync(alice, id, "a");
         var b = await AddAnnotationAsync(alice, id, "b");
-        var group = await AddGroupAsync(alice, id, "g", [a.Id, b.Id]);
+        var c = await AddAnnotationAsync(alice, id, "c");
+        var group = await AddGroupAsync(alice, id, "g", [a.Id, b.Id, c.Id]);
         var deleteA = ChangeSetOf(await alice.DeleteAsync($"/annotations/{a.Id}"));
-
         var deleteGroup = ChangeSetOf(await alice.DeleteAsync($"/annotationgroups/{group.Id}"));
-        await RestoreAsync(alice, deleteA);
-
         Assert.All(await AnnotationsAsync(alice, id), x => Assert.Null(x.GroupId));
-        Assert.Equal(new RestoreResult(0, 1, 0, 0, false),
-            await CountsAsync(await RestoreAsync(alice, deleteGroup)));
-        var back = Assert.Single((await alice.GetFromJsonAsync<List<GroupView>>($"/annotationgroups?collectionId={id}", Json))!);
-        Assert.Equal((group.Id, 0), (back.Id, back.Count));
+
+        // Moved out of the group by someone since - stays where they put it.
+        var other = await AddGroupAsync(alice, id, "other", [c.Id]);
+        var restore = await RestoreAsync(alice, deleteGroup);
+        var restored = (await restore.Content.ReadFromJsonAsync<RestoredView>(Json))!;
+
+        Assert.Equal(new RestoreResult(0, 1, 0, 0, false), restored.Counts);
+        Assert.Equal([b.Id], restored.ChangedAnnotations.Select(x => x.Id));
+        var now = (await AnnotationsAsync(alice, id)).ToDictionary(x => x.Id, x => x.GroupId);
+        Assert.Equal(group.Id, now[b.Id]);
+        Assert.Equal(other.Id, now[c.Id]);
+
+        // a was deleted before the group was, so it comes back in it.
+        await RestoreAsync(alice, deleteA);
+        Assert.Equal(group.Id, (await AnnotationsAsync(alice, id)).Single(x => x.Id == a.Id).GroupId);
     }
 
     [Fact]
-    public async Task Merging_HidesTheOldGroup_AndMovesDeletedAnnotationsToo()
+    public async Task AnAnnotationPutBackAfterItsGroupWasDeleted_ComesBackUngrouped()
     {
         var alice = As("alice");
         var id = (await OwnAsync(alice)).CollectionId;
         var a = await AddAnnotationAsync(alice, id, "a");
-        var from = await AddGroupAsync(alice, id, "from", [a.Id]);
+        var group = await AddGroupAsync(alice, id, "g", [a.Id]);
+        var deleteA = ChangeSetOf(await alice.DeleteAsync($"/annotations/{a.Id}"));
+        await alice.DeleteAsync($"/annotationgroups/{group.Id}");
+
+        Assert.Equal(HttpStatusCode.OK, (await RestoreAsync(alice, deleteA)).StatusCode);
+        Assert.Null(Assert.Single(await AnnotationsAsync(alice, id)).GroupId);
+    }
+
+    [Fact]
+    public async Task Merging_TakesTheOldGroupOut_AndAnAnnotationPutBackLaterFollowsIt()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var a = await AddAnnotationAsync(alice, id, "a");
+        var b = await AddAnnotationAsync(alice, id, "b");
+        var from = await AddGroupAsync(alice, id, "from", [a.Id, b.Id]);
         var into = await AddGroupAsync(alice, id, "into");
         var deleteA = ChangeSetOf(await alice.DeleteAsync($"/annotations/{a.Id}"));
 
@@ -407,10 +483,138 @@ public class SoftDeleteTests : IClassFixture<CellCountApiFactory>
         merge.EnsureSuccessStatusCode();
         await RestoreAsync(alice, deleteA);
 
-        Assert.Equal(into.Id, Assert.Single(await AnnotationsAsync(alice, id)).GroupId);
+        Assert.All(await AnnotationsAsync(alice, id), x => Assert.Equal(into.Id, x.GroupId));
         Assert.Equal([into.Id], (await alice.GetFromJsonAsync<List<GroupView>>($"/annotationgroups?collectionId={id}", Json))!.Select(g => g.Id));
-        var old = await WithDbAsync(db => db.AnnotationGroups.IgnoreQueryFilters().SingleAsync(g => g.Id == from.Id));
-        Assert.Equal(ChangeSetOf(merge), old.DeletedIn);
+        var entries = await EntriesAsync(ChangeSetOf(merge));
+        var gone = Assert.Single(entries, e => e.Op == HistoryOp.Delete);
+        Assert.Equal(from.Id, gone.EntityId);
+        Assert.Equal(into.Id, HistoryLog.MergedInto(gone));
+        var moved = Assert.Single(entries, e => e.Op == HistoryOp.Update && e.Entity == HistoryLog.Annotation);
+        Assert.Equal(b.Id, moved.EntityId);
+    }
+
+    [Fact]
+    public async Task AnEdit_KeepsOnlyTheColumnsThatChanged()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var annotation = await AddAnnotationAsync(alice, id, "Region 4");
+
+        var put = await alice.PutAsJsonAsync($"/annotations/{annotation.Id}",
+            new Annotation { Label = "Region 4 (checked)", Notes = "", Colour = annotation.Colour });
+        put.EnsureSuccessStatusCode();
+
+        var entry = Assert.Single(await EntriesAsync(ChangeSetOf(put)));
+        Assert.Equal((HistoryLog.Annotation, annotation.Id, HistoryOp.Update), (entry.Entity, entry.EntityId, entry.Op));
+        Assert.Equal(new Dictionary<string, string> { ["Label"] = "Region 4" }, Columns(entry.Before));
+        Assert.Equal(new Dictionary<string, string> { ["Label"] = "Region 4 (checked)" }, Columns(entry.After));
+    }
+
+    [Fact]
+    public async Task SavingWhatsAlreadyThere_IsntAChange()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var annotation = await AddAnnotationAsync(alice, id, "same");
+
+        var put = await alice.PutAsJsonAsync($"/annotations/{annotation.Id}",
+            new Annotation { Label = "same", Notes = annotation.Notes, Colour = annotation.Colour });
+
+        Assert.Empty(await EntriesAsync(ChangeSetOf(put)));
+    }
+
+    [Fact]
+    public async Task AddingSomething_IsLoggedWithoutCopyingIt()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var post = await alice.PostAsJsonAsync("/annotations", new Annotation { CollectionId = id, Label = "new" });
+        var annotation = (await post.Content.ReadFromJsonAsync<Annotation>(Json))!;
+
+        var entry = Assert.Single(await EntriesAsync(ChangeSetOf(post)));
+        Assert.Equal((HistoryLog.Annotation, annotation.Id, HistoryOp.Create), (entry.Entity, entry.EntityId, entry.Op));
+        Assert.Null(entry.Before);
+        Assert.Null(entry.After);
+    }
+
+    [Fact]
+    public async Task PuttingBackARecolour_UndoesIt_ButNeverALaterEdit()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var a = await AddAnnotationAsync(alice, id, "a");
+        var b = await AddAnnotationAsync(alice, id, "b");
+        var recolour = await alice.PutAsJsonAsync("/annotations/bulk", new BulkUpdateRequest(id, [a.Id, b.Id], Colour: "#00FF00"), Json);
+        recolour.EnsureSuccessStatusCode();
+        Assert.Equal(2, (await EntriesAsync(ChangeSetOf(recolour))).Count);
+
+        // Someone recolours b again afterwards.
+        (await alice.PutAsJsonAsync($"/annotations/{b.Id}", new Annotation { Label = "b", Notes = "", Colour = "#0000FF" })).EnsureSuccessStatusCode();
+        var restore = await RestoreAsync(alice, ChangeSetOf(recolour));
+
+        var now = (await AnnotationsAsync(alice, id)).ToDictionary(x => x.Id, x => x.Colour);
+        Assert.Equal("#FF0000", now[a.Id]);
+        Assert.Equal("#0000FF", now[b.Id]);
+        var restored = (await restore.Content.ReadFromJsonAsync<RestoredView>(Json))!;
+        Assert.Equal([a.Id], restored.ChangedAnnotations.Select(x => x.Id));
+    }
+
+    [Fact]
+    public async Task ADeletedCellCount_KeepsItsDotsAndRegion_AndComesBackWithBoth()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var post = await alice.PostAsJsonAsync("/cellcounts", new CellCount
+        {
+            CollectionId = id,
+            Label = "c",
+            Count = 2,
+            WithRoi = true,
+            Dots = "[{\"x\":1,\"y\":2,\"colour\":\"#ff0000\"},{\"x\":3,\"y\":4,\"colour\":\"#00ff00\"}]",
+            RegionOfInterest = new RegionOfInterest { GeoJson = "{\"type\":\"Polygon\"}" },
+        });
+        var count = (await post.Content.ReadFromJsonAsync<CellCount>(Json))!;
+
+        var delete = ChangeSetOf(await alice.DeleteAsync($"/cellcounts/{count.Id}"));
+        Assert.False(await WithDbAsync(db => db.RegionsOfInterest.AnyAsync(r => r.CellCountId == count.Id)));
+        Assert.Equal([HistoryLog.CellCount, HistoryLog.RegionOfInterest], (await EntriesAsync(delete)).Select(e => e.Entity).Order());
+        await RestoreAsync(alice, delete);
+
+        var back = (await alice.GetFromJsonAsync<CellCount>($"/cellcounts/{count.Id}", Json))!;
+        Assert.Equal(count.Dots, back.Dots);
+        // Postgres keeps microseconds, .NET's answer had ticks.
+        Assert.True(Math.Abs((back.Created - count.Created).TotalMilliseconds) < 1);
+        Assert.Equal("{\"type\":\"Polygon\"}", back.RegionOfInterest!.GeoJson);
+    }
+
+    [Fact]
+    public void TheLiveTables_HaveNoHistoryColumns()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AnnotationDbContext>();
+        foreach (var type in HistoryLog.Entities.Keys)
+        {
+            var columns = db.Model.FindEntityType(type)!.GetProperties().Select(p => p.Name).ToList();
+            Assert.DoesNotContain("Deleted", columns);
+            Assert.DoesNotContain("DeletedIn", columns);
+        }
+        Assert.Equal("history", db.Model.FindEntityType(typeof(HistoryEntry))!.GetSchema() ?? "history");
+    }
+
+    [Fact]
+    public async Task ChangingSomethingVersioned_WithoutAChangeSet_Throws()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var annotation = await AddAnnotationAsync(alice, id);
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AnnotationDbContext>();
+        var row = await db.Annotations.SingleAsync(a => a.Id == annotation.Id);
+        row.Label = "behind its back";
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+        Assert.Contains("change set", error.Message);
     }
 
     [Fact]
@@ -460,6 +664,91 @@ public class SoftDeleteTests : IClassFixture<CellCountApiFactory>
         Assert.Equal(HttpStatusCode.OK, (await RestoreAsync(alice, changeSet)).StatusCode);
         Assert.Equal(old.CollectionId, (await OwnAsync(alice, slideId)).CollectionId);
     }
+
+    // A session alice and bob both edit: alice adds two and recolours them,
+    // bob adds one, groups it, then deletes it. Oldest first, that's add,
+    // add, change annotations, add, add group, delete annotation.
+    private async Task<(Guid Id, HttpClient Alice, HttpClient Bob, Guid BobsDelete)> TwoPeopleAsync()
+    {
+        var alice = As("alice");
+        var bob = As("bob");
+        var start = await alice.PostAsJsonAsync("/sessions", new EnsureRequest(NewSlide()));
+        var id = (await start.Content.ReadFromJsonAsync<CollectionView>(Json))!.CollectionId;
+        var invite = await alice.PostAsJsonAsync($"/collections/{id}/invites", new InviteRequest(CollectionRole.Editor, 24), Json);
+        (await bob.PostAsync($"/invites/{(await invite.Content.ReadFromJsonAsync<InviteView>(Json))!.Code}/accept", null)).EnsureSuccessStatusCode();
+        var a = await AddAnnotationAsync(alice, id, "a");
+        var b = await AddAnnotationAsync(alice, id, "b");
+        (await alice.PutAsJsonAsync("/annotations/bulk", new BulkUpdateRequest(id, [a.Id, b.Id], Colour: "#00FF00"), Json)).EnsureSuccessStatusCode();
+        var c = await AddAnnotationAsync(bob, id, "c");
+        await AddGroupAsync(bob, id, "g", [c.Id]);
+        var delete = ChangeSetOf(await bob.DeleteAsync($"/annotations/{c.Id}"));
+        return (id, alice, bob, delete);
+    }
+
+    private static async Task<List<string>> WhatsAsync(HttpClient client, string query) =>
+        (await client.GetFromJsonAsync<List<ChangeSetView>>($"/changesets?{query}", Json))!.Select(c => c.What).ToList();
+
+    [Fact]
+    public async Task ChangeSets_CanBeNarrowedToWhoMadeThem()
+    {
+        var (id, alice, _, _) = await TwoPeopleAsync();
+
+        Assert.Equal(["delete annotation", "add group", "add annotation"], await WhatsAsync(alice, $"collectionId={id}&createdBy=bob"));
+        Assert.Equal(6, (await WhatsAsync(alice, $"collectionId={id}&createdBy=alice&createdBy=bob")).Count);
+        Assert.Equal(3, await alice.GetFromJsonAsync<int>($"/changesets/total?collectionId={id}&createdBy=alice"));
+    }
+
+    [Fact]
+    public async Task ChangeSets_CanBeNarrowedToAKindOfChange_ChangeBeingAnythingElse()
+    {
+        var (id, alice, _, _) = await TwoPeopleAsync();
+
+        Assert.Equal(["add group", "add annotation", "add annotation", "add annotation"], await WhatsAsync(alice, $"collectionId={id}&kind=add"));
+        Assert.Equal(["delete annotation", "change annotations"], await WhatsAsync(alice, $"collectionId={id}&kind=delete&kind=change"));
+        Assert.Empty(await WhatsAsync(alice, $"collectionId={id}&kind=merge"));
+        Assert.Equal(1, await alice.GetFromJsonAsync<int>($"/changesets/total?collectionId={id}&kind=change"));
+        Assert.Equal(HttpStatusCode.BadRequest, (await alice.GetAsync($"/changesets?collectionId={id}&kind=rename")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await alice.GetAsync($"/changesets/total?collectionId={id}&kind=rename")).StatusCode);
+    }
+
+    [Fact]
+    public async Task ChangeSets_CanBeNarrowedToWhen_AndListedOldestFirst()
+    {
+        var (id, alice, _, _) = await TwoPeopleAsync();
+        var future = Uri.EscapeDataString(DateTimeOffset.UtcNow.AddDays(1).ToString("O"));
+        var past = Uri.EscapeDataString(DateTimeOffset.UtcNow.AddDays(-1).ToString("O"));
+
+        Assert.Empty(await WhatsAsync(alice, $"collectionId={id}&from={future}"));
+        Assert.Equal(6, (await WhatsAsync(alice, $"collectionId={id}&from={past}&to={future}")).Count);
+        Assert.Equal(["add annotation", "add annotation", "change annotations", "add annotation", "add group", "delete annotation"],
+            await WhatsAsync(alice, $"collectionId={id}&order=oldest"));
+        Assert.Equal(["add annotation", "add annotation"], await WhatsAsync(alice, $"collectionId={id}&order=oldest&kind=add&createdBy=alice"));
+        Assert.Equal(HttpStatusCode.BadRequest, (await alice.GetAsync($"/changesets?collectionId={id}&order=sideways")).StatusCode);
+    }
+
+    [Fact]
+    public async Task ChangeSetFacets_SayWhoMadeChanges_AndHowManyOfEachKind()
+    {
+        var (id, alice, _, _) = await TwoPeopleAsync();
+
+        var facets = (await alice.GetFromJsonAsync<ChangeSetFacets>($"/changesets/facets?collectionId={id}", Json))!;
+
+        Assert.Equal([("alice", "User alice", 3), ("bob", "User bob", 3)], facets.Authors.Select(a => (a.Id, a.Name, a.Count)));
+        Assert.Equal([("add", 4), ("change", 1), ("delete", 1)], facets.Kinds.Select(k => (k.Kind, k.Count)));
+        Assert.Equal(HttpStatusCode.NotFound, (await As("carol").GetAsync($"/changesets/facets?collectionId={id}")).StatusCode);
+    }
+
+    [Theory]
+    [InlineData("add annotation", "add")]
+    [InlineData("add cell count", "add")]
+    [InlineData("delete annotations", "delete")]
+    [InlineData("delete collection", "delete")]
+    [InlineData("merge groups", "merge")]
+    [InlineData("import", "import")]
+    [InlineData("restore", "restore")]
+    [InlineData("change group", "change")]
+    [InlineData("rename session", "change")]
+    public void AChangesKind_ComesFromWhatItDid(string what, string kind) => Assert.Equal(kind, ChangeKinds.Of(what));
 
     [Fact]
     public async Task ChangeSets_AreListedNewestFirst_WithWhatTheyStillHaveDeleted()
@@ -529,6 +818,94 @@ public class SoftDeleteTests : IClassFixture<CellCountApiFactory>
         Assert.Empty(again.Groups);
         Assert.Empty(again.CellCounts);
         Assert.Empty(again.ImageAdjustments);
+    }
+
+    private static async Task<ChangeSetChanges> ChangesAsync(HttpClient client, Guid changeSet) =>
+        (await client.GetFromJsonAsync<ChangeSetChanges>($"/changesets/{changeSet}/changes", Json))!;
+
+    [Fact]
+    public async Task AnEditsChanges_SayFromAndTo_OnTheRowByName()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var annotation = await AddAnnotationAsync(alice, id, "Region 4");
+        var put = await alice.PutAsJsonAsync($"/annotations/{annotation.Id}",
+            new Annotation { Label = "Region 4 (checked)", Notes = "Looked at again", Colour = annotation.Colour });
+
+        var changes = await ChangesAsync(alice, ChangeSetOf(put));
+
+        Assert.Equal(["Label", "Notes"], changes.Changes.Select(c => c.Column).Order());
+        var label = changes.Changes.Single(c => c.Column == "Label");
+        Assert.Equal((HistoryLog.Annotation, "Region 4", "Region 4 (checked)", 1), (label.Entity, label.Before.GetString(), label.After.GetString(), label.Count));
+        Assert.Equal(["Region 4 (checked)"], label.Names);
+        Assert.Equal("", changes.Changes.Single(c => c.Column == "Notes").Before.GetString());
+        Assert.Equal((0, 0), (changes.Created, changes.Deleted));
+    }
+
+    [Fact]
+    public async Task ARecoloursChanges_AreOneLine_WithHowManyAndTheFirstFewByName()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var ids = new List<Guid>();
+        for (var i = 0; i < 8; i++) ids.Add((await AddAnnotationAsync(alice, id, $"a{i}")).Id);
+        var recolour = await alice.PutAsJsonAsync("/annotations/bulk", new BulkUpdateRequest(id, ids, Colour: "#0000FF"), Json);
+
+        var change = Assert.Single((await ChangesAsync(alice, ChangeSetOf(recolour))).Changes);
+
+        Assert.Equal(("Colour", "#FF0000", "#0000FF", 8), (change.Column, change.Before.GetString(), change.After.GetString(), change.Count));
+        Assert.Equal(ChangeSetChangesEndpoint.NamesShown, change.Names.Count);
+    }
+
+    [Fact]
+    public async Task GroupMovesChanges_NameTheGroups_EvenOneThatsGone()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var a = await AddAnnotationAsync(alice, id, "a");
+        var from = await AddGroupAsync(alice, id, "Stroma", [a.Id]);
+        var into = await AddGroupAsync(alice, id, "Tumour margin");
+        var merge = await alice.PostAsJsonAsync($"/annotationgroups/{from.Id}/merge", new GroupMergeRequest(into.Id), Json);
+
+        var changes = await ChangesAsync(alice, ChangeSetOf(merge));
+
+        var moved = changes.Changes.Single(c => c.Column == "GroupId");
+        Assert.Equal((from.Id, into.Id), (moved.Before.GetGuid(), moved.After.GetGuid()));
+        Assert.Equal("Stroma", changes.Groups[from.Id]);
+        Assert.Equal("Tumour margin", changes.Groups[into.Id]);
+        Assert.Equal(1, changes.Deleted);
+        Assert.Equal(["Stroma"], changes.DeletedNames);
+    }
+
+    [Fact]
+    public async Task ADeletesChanges_SayWhatWentByName_AndAnAddsSayHowMany()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var count = await AddCellCountAsync(alice, id);
+        var a = await AddAnnotationAsync(alice, id, "Region 7");
+        var changeSet = Guid.NewGuid();
+        await alice.SendAsync(InChangeSet(HttpMethod.Delete, $"/annotations/{a.Id}", changeSet));
+        await alice.SendAsync(InChangeSet(HttpMethod.Delete, $"/cellcounts/{count.Id}", changeSet));
+
+        var changes = await ChangesAsync(alice, changeSet);
+        Assert.Empty(changes.Changes);
+        Assert.Equal((2, 0), (changes.Deleted, changes.Created));
+        Assert.Equal(["Region 7", "c"], changes.DeletedNames);
+
+        var post = await alice.PostAsJsonAsync("/annotations", new Annotation { CollectionId = id, Label = "new" });
+        Assert.Equal((1, 0), ((await ChangesAsync(alice, ChangeSetOf(post))).Created, (await ChangesAsync(alice, ChangeSetOf(post))).Deleted));
+    }
+
+    [Fact]
+    public async Task AChangeSetsChanges_AreForPeopleInTheCollection()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var post = await alice.PostAsJsonAsync("/annotations", new Annotation { CollectionId = id, Label = "x" });
+
+        Assert.Equal(HttpStatusCode.NotFound, (await As("bob").GetAsync($"/changesets/{ChangeSetOf(post)}/changes")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await alice.GetAsync($"/changesets/{Guid.NewGuid()}/changes")).StatusCode);
     }
 
     [Fact]

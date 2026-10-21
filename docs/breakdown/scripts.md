@@ -163,12 +163,11 @@ deletes the ones whose notes are `stress-test` (8 at a time), and says how
 many it removed and how many it left.
 
 Going through the API means each delete is checked like any other - and,
-like any other, it only hides the row (annotation-store never removes
-anything - see
-[annotation-store.md](annotation-store.md#11-deletes-and-change-sets)). So
-the map and lists are clean afterwards but the table isn't. To really remove
-them, and faster, without annotation-store running,
-`sql/delete_stress_test.sql` does it in two `DELETE`s.
+like any other, its history keeps a whole copy of every row it removed (see
+[annotation-store.md](annotation-store.md#11-history-and-change-sets)). So
+the live tables are clean afterwards but `history.Entries` has them all.
+`sql/delete_stress_test.sql` removes the stress rows and those copies, and
+is faster, without annotation-store running.
 
 ## 7. Measuring the map
 

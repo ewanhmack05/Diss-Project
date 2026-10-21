@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  KIND_LABELS,
   byDay,
   canRestore,
   changeKind,
@@ -131,10 +132,17 @@ describe('restoreStatus', () => {
 })
 
 describe('restoreNote', () => {
-  it('warns that a group comes back empty', () => {
-    expect(restoreNote({ what: 'delete group' })).toContain('comes back empty')
-    expect(restoreNote({ what: 'merge groups' })).toContain('comes back empty')
-    expect(restoreNote({ what: 'delete annotations' })).not.toContain('empty')
+  it('says a group comes back with what was in it', () => {
+    expect(restoreNote({ what: 'delete group' })).toContain('with what was in it')
+    expect(restoreNote({ what: 'merge groups' })).toContain('with what was in it')
+    expect(restoreNote({ what: 'delete annotations' })).not.toContain('group')
+  })
+})
+
+describe('KIND_LABELS', () => {
+  it("names every kind, in the store's order", () => {
+    expect(Object.keys(KIND_LABELS)).toEqual(['add', 'change', 'delete', 'merge', 'import', 'restore'])
+    expect(KIND_LABELS.restore).toBe('Put back')
   })
 })
 
@@ -196,15 +204,21 @@ describe('restoredOps', () => {
     groups: [{ id: 'g1', collectionId: 'c', name: 'g', notes: 'n', created: '', count: 0 }],
     cellCounts: [{ id: 'c1', dots: null } as Restored['cellCounts'][number]],
     imageAdjustments: [{ imageAdjustmentId: 'p1', collectionId: 'c', adjustmentName: 'p', adjustments: '{}', created: '' }],
+    changedAnnotations: [{ id: 'a2', groupId: 'g1' } as Restored['annotations'][number]],
   }
 
-  it('tells everyone else with a create per row, groups first', () => {
+  it('tells everyone else with a create per row put back, groups first, then an update for each already there', () => {
     const ops = restoredOps(restored)
     expect(ops.map((op) => [op.kind, op.entity, op.id])).toEqual([
       ['create', 'annotationGroup', 'g1'],
       ['create', 'annotation', 'a1'],
+      ['update', 'annotation', 'a2'],
       ['create', 'cellCount', 'c1'],
     ])
+  })
+
+  it('sends the whole of a changed annotation, so its group and colour both arrive', () => {
+    expect(restoredOps(restored)[2].data).toEqual({ id: 'a2', groupId: 'g1' })
   })
 
   it("leaves the store's member count off a group, like a made one", () => {
@@ -212,6 +226,6 @@ describe('restoredOps', () => {
   })
 
   it('sends nothing for nothing', () => {
-    expect(restoredOps({ counts: none, annotations: [], groups: [], cellCounts: [], imageAdjustments: [] })).toEqual([])
+    expect(restoredOps({ counts: none, annotations: [], groups: [], cellCounts: [], imageAdjustments: [], changedAnnotations: [] })).toEqual([])
   })
 })

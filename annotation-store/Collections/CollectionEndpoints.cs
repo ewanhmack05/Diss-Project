@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 using AnnotationStore.Annotations;
 using AnnotationStore.Auth;
 using AnnotationStore.CellCounts;
-using AnnotationStore.ChangeSets;
+using AnnotationStore.History;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -362,19 +362,22 @@ public static class CollectionEndpoints
 
         // Owner only. Hides it and everything in it from everyone - what's
         // in it is left as it is, so restoring the change set brings the lot
-        // back, people included. Its links stop and stay stopped.
+        // back, people included. Its links stop and stay stopped. The one
+        // thing that's hidden rather than removed - see Collections.Deleted.
         app.MapDelete("/collections/{id:guid}", async (Guid id, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
             var role = await db.RoleAsync(id, user);
             if (role is null) return Results.NotFound();
             if (role != CollectionRole.Owner) return Results.Forbid();
-            var (changeSet, problem) = await db.ChangeSetAsync(http, id, user, "delete collection");
-            if (problem is not null) return problem;
+            if ((await db.ChangeSetAsync(http, id, user, "delete collection")).Problem is { } problem) return problem;
 
             var collection = await db.Collections.Include(c => c.Invites).FirstAsync(c => c.CollectionId == id);
-            collection.SoftDelete(changeSet!);
+            await using var transaction = await db.Database.BeginTransactionAsync();
+            collection.Deleted = DateTimeOffset.UtcNow;
             foreach (var invite in collection.Invites.Where(i => i.Stopped is null)) invite.Stopped = collection.Deleted;
             await db.SaveChangesAsync();
+            await HistoryLog.CollectionDeletedAsync(db, id);
+            await transaction.CommitAsync();
             return Results.NoContent();
         });
 

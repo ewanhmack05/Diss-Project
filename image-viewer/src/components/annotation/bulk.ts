@@ -13,7 +13,7 @@ function inBatches<T>(items: T[], size = MAX_BULK_IDS): T[][] {
 
 // Every batch of one change goes with the same id, so annotation-store keeps
 // it as one change set - a 21k delete is one thing to put back, not two. See
-// annotation-store's ChangeSets/.
+// annotation-store's History/.
 const CHANGE_SET_HEADER = 'Change-Set-Id'
 
 function newChangeSet(): string {

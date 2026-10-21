@@ -135,7 +135,8 @@ def sql_time(now, hours_ago):
 def backdate_sql(now, collection_id, changes, rows, people_added):
     """One transaction moving everything back to when the story says.
     changes: [(change set id, hours ago)]. rows: {table: [(id column, id,
-    hours ago)]}. Deleted rows take their deleting change's time."""
+    hours ago)]}. A row that's been deleted since is only in the history
+    now, as its delete's copy of it, so that copy moves back too."""
     lines = ["BEGIN;"]
     oldest = max(hours for _, hours in changes) + 1
     lines.append(f'UPDATE "Collections" SET "Created" = {sql_time(now, oldest)} WHERE "CollectionId" = \'{collection_id}\';')
@@ -145,13 +146,12 @@ def backdate_sql(now, collection_id, changes, rows, people_added):
         lines.append(f'UPDATE "CollectionMembers" SET "Added" = {sql_time(now, oldest - 0.5)} '
                      f'WHERE "CollectionId" = \'{collection_id}\' AND "UserId" = \'{user_id}\';')
     for change_set, hours in changes:
-        lines.append(f'UPDATE "ChangeSets" SET "Created" = {sql_time(now, hours)} WHERE "Id" = \'{change_set}\';')
+        lines.append(f'UPDATE history."ChangeSets" SET "Created" = {sql_time(now, hours)} WHERE "Id" = \'{change_set}\';')
     for table, items in rows.items():
         for column, row_id, hours in items:
             lines.append(f'UPDATE "{table}" SET "Created" = {sql_time(now, hours)} WHERE "{column}" = \'{row_id}\';')
-    for table in ("Annotations", "AnnotationGroups", "CellCounts"):
-        lines.append(f'UPDATE "{table}" t SET "Deleted" = c."Created" FROM "ChangeSets" c '
-                     f'WHERE t."DeletedIn" = c."Id" AND t."CollectionId" = \'{collection_id}\';')
+            lines.append(f'UPDATE history."Entries" SET "Before" = jsonb_set("Before", \'{{Created}}\', to_jsonb({sql_time(now, hours)})) '
+                         f'WHERE "EntityId" = \'{row_id}\' AND "Op" = \'Delete\' AND "CollectionId" = \'{collection_id}\';')
     lines.append("COMMIT;")
     return "\n".join(lines) + "\n"
 
@@ -294,7 +294,7 @@ def clean(args, token):
         if not session["ended"]:
             call(args.store, token, "POST", f"/collections/{session['collectionId']}/end")
         call(args.store, token, "DELETE", f"/collections/{session['collectionId']}")
-        print(f"Deleted {session['collectionId']} (hidden - annotation-store only soft deletes).")
+        print(f"Deleted {session['collectionId']} (hidden - a deleted collection stays, so its owner can put it back).")
 
 
 def main():
