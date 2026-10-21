@@ -245,6 +245,9 @@ is taken to be in the map's own space already and isn't flipped.
 
 ### History - putting deletes back
 
+How this fits with the store's change sets is in
+[version-control.md](version-control.md).
+
 [HistoryList.tsx](../../image-viewer/src/components/collections/history/HistoryList.tsx)
 lists `GET /changesets?collectionId=` for the collection you're in, a page of
 50 at a time with the Saved lists' pager (`useSavedPage` with path

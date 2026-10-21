@@ -472,6 +472,8 @@ access as their collection.
 
 The first step of version control (see [todo.md](../todo.md#1-version-control)).
 Two pieces: deletes that only hide, and a change set for every write.
+[version-control.md](version-control.md) follows it across the store, the
+viewer and the hub.
 
 ```mermaid
 sequenceDiagram

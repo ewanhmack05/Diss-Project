@@ -60,7 +60,8 @@ an afternoon, medium a few days, large a week or more.
 ## 1. Version control
 
 Step 1 is done (see Done): deletes only hide, and every write is in a
-change set that says who did what. Edits are still last write wins, and once
+change set that says who did what. How it's built so far, across the
+services, is in [version-control.md](breakdown/version-control.md). Edits are still last write wins, and once
 something's overwritten it's gone. The Yjs history for a label or notes box
 is dropped when the last person closes it.
 
