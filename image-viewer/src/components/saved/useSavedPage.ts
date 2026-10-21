@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuthContext } from '../../context/AuthContext'
-import { isFiltered, pageUrls } from './paging'
+import { isFiltered, pageUrls, type SavedPath } from './paging'
 import { NO_FILTERS, filterKey, type SavedFilters } from './filters'
 
 type PageStatus = 'loading' | 'ready' | 'error'
@@ -40,7 +40,7 @@ function useSavedPage<T>({
   revision,
 }: {
   baseUrl: string
-  path: 'annotations' | 'cellcounts'
+  path: SavedPath
   collectionId: string | null
   page: number
   pageSize: number

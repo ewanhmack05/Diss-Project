@@ -65,6 +65,23 @@ public class CollectionsTests : IClassFixture<CellCountApiFactory>
         Assert.Equal(first.CollectionId, (await second.Content.ReadFromJsonAsync<CollectionView>(Json))!.CollectionId);
     }
 
+    // What the viewer does on its first load of a slide - React can run the
+    // ensure twice at once, and neither finds a collection to hand back.
+    [PostgresFact]
+    public async Task EnsuresAtTheSameMoment_AllGetTheOneCollection()
+    {
+        var alice = As("alice");
+        var slideId = NewSlide();
+
+        var responses = await Task.WhenAll(Enumerable.Range(0, 20).Select(_ =>
+            alice.PostAsJsonAsync("/collections/ensure", new EnsureRequest(slideId))));
+
+        Assert.All(responses, r => Assert.True(r.IsSuccessStatusCode, $"Got {(int)r.StatusCode}"));
+        var ids = await Task.WhenAll(responses.Select(async r => (await r.Content.ReadFromJsonAsync<CollectionView>(Json))!.CollectionId));
+        Assert.Single(ids.Distinct());
+        Assert.Single(await ListAsync(alice, slideId));
+    }
+
     [Fact]
     public async Task Ensure_IgnoresAnyUserInTheBody()
     {

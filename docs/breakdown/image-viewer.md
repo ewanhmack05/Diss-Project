@@ -215,7 +215,7 @@ decides where everything is read from and saved to.
 [CollectionsPanel.tsx](../../image-viewer/src/components/collections/CollectionsPanel.tsx)
 lists every collection you can see on the slide, each with how many
 annotations and cell counts it has and when something was last added. It has
-two tabs, kept in the panel itself so Present doesn't follow the host's:
+three tabs, kept in the panel itself so Present doesn't follow the host's:
 
 - **Mine** - your own. Rename it, turn sharing on or off, export, import.
 - **Shared** - two lists:
@@ -224,6 +224,8 @@ two tabs, kept in the panel itself so Present doesn't follow the host's:
     leave for good, or delete one you host once it's ended.
   - **Shared with everyone** - other people's shared collections. View and
     export only.
+- **History** - every change made in the collection you're in, newest first.
+  See below.
 
 The counts reload whenever an annotation or cell count is added or deleted.
 
@@ -240,6 +242,64 @@ polygons become annotations (each part of a Multi- one on its own), points
 become cell counts. Names and colours are taken from `label`/`name`/QuPath's
 `classification` and `colour`/`color`. A file where nothing has y above 0
 is taken to be in the map's own space already and isn't flipped.
+
+### History - putting deletes back
+
+[HistoryList.tsx](../../image-viewer/src/components/collections/history/HistoryList.tsx)
+lists `GET /changesets?collectionId=` for the collection you're in, a page of
+50 at a time with the Saved lists' pager (`useSavedPage` with path
+`changesets`, and `GET /changesets/total` for the page count). It's kept
+compact - one line a change, under day headings (Today, Yesterday, then the
+date - `dayHeading` in savedDates):
+
+- An icon for the kind of change (`changeKind` in
+  [history.ts](../../image-viewer/src/components/collections/history/history.ts),
+  drawn by `ChangeIcon`). A delete whose rows are still deleted gets a red
+  bin, so what can be put back stands out; once it's back the bin goes grey.
+- What it did - the change set's `what` read out (`changeLabel`):
+  `delete annotations` with 2,140 still deleted is "Deleted 2,140
+  annotations".
+- Who, as initials, and the clock time. Hovering gives the name and the
+  full date.
+
+Clicking a row opens it
+([HistoryDetail.tsx](../../image-viewer/src/components/collections/history/HistoryDetail.tsx)),
+in place of the list, with a way back:
+
+- Who, with their full name.
+- When, to the second (`formatFullDate`), and how long ago (`timeAgo`).
+- What's still deleted ("300 annotations still deleted", or "Already put
+  back") - `restoreStatus`.
+- The change set's id, shortened, with the whole id on hover.
+- **Put back** and **Cancel**, for editors and the owner, when something's
+  still deleted (`canRestore` - the one place that says who can, so it's one
+  line to change if restore is narrowed to the author and the host). A line
+  above says what happens, and that a group comes back empty. This page is
+  the confirm - there's no popup on top. Viewers and guests get the same
+  page without the buttons.
+
+Put back calls `POST /changesets/{id}/restore` through
+[useRestoreChangeSet.ts](../../image-viewer/src/components/collections/history/useRestoreChangeSet.ts).
+annotation-store answers with the rows it put back, so nothing is loaded
+again:
+
+1. Groups, annotations, cell counts (without dots) and image adjustments go
+   back into their contexts with each one's `addRestored`, which also clears
+   them from the deleted ids, so the Saved lists show them again, and bumps
+   the revisions so those lists refetch.
+2. Everyone else gets a create op per row (`restoredOps` - groups first, so
+   an annotation never arrives before its group). Image adjustments are
+   personal, so they're not sent. Receiving a create also clears that id
+   from the other person's deleted ids.
+3. A toast says what came back ("Put back 2,140 annotations"), or that
+   someone else had already put it back. A failure is the usual
+   `annotations:restored:error` toast.
+
+The page stays open and says it's back, keeping the title it opened with.
+If you move to another collection while it's on its way, the rows aren't put
+in the new one's lists. The list reloads after a restore - the restore is a
+change of its own ("Put back a change"). What's picked on the Select tab
+forgets anything deleted, so putting it back later doesn't pick it again.
 
 ### The invite gate
 
@@ -384,8 +444,8 @@ and not shared.
   hidden. The Undo toast (8s) restores that change set
   (`POST /changesets/{id}/restore`) once the delete has landed, then puts
   them back on the map and sends a create op each - same ids and authors.
-  After the toast's gone the change set can still be restored, just not
-  from here yet. See
+  After the toast's gone it can be put back from the Collections panel's
+  [History](#history---putting-deletes-back) tab. See
   [annotation-store.md](annotation-store.md#11-deletes-and-change-sets).
 - **Groups** (`AnnotationGroupContext`) - named sets of annotations in the
   collection, one level. Make one from what's picked, move things between
@@ -628,7 +688,7 @@ all tested without a browser.
 
 ## 15. Tests
 
-28 test files, 352 tests, run with Vitest (`npm test`). They sit next to
+36 test files, 577 tests, run with Vitest (`npm test`). They sit next to
 the code they cover and test the plain `.ts` logic, not React components or
 a live map.
 
@@ -637,9 +697,9 @@ a live map.
 | open-layers | OpenLayers, Styles, GeoJSON | Zoom ladder, styles, GeoJSON round trips |
 | realtime | realtime, sharedFields, sketch, autosave | `applyOp`, caret moves, Yjs merges, sketch simplifying, what to autosave |
 | cell-count | CellCountDots, CellCountView, compare, sharedCount | Dot parsing, view extent, comparison matching, double counts |
-| saved | paging, filters, savedBy, savedDates, sheetPlacement, useSavedTotal | Page maths, `mergePage` (pending deletes too), filter query strings, live filtering, search matching, the tab label |
-| annotation | selection | Fully inside a box or lasso, which shape a click is on |
-| collections | collectionGeoJson | Export and import, y flipping, QuPath-style files, groups, what's skipped |
+| saved | paging, filters, savedBy, savedDates, sheetPlacement, useSavedTotal | Page maths, `mergePage` (pending deletes too), filter query strings, live filtering, search matching, the tab label, History's day headings and times |
+| annotation | selection, bulk | Fully inside a box or lasso, which shape a click is on; batches and one change set per bulk change |
+| collections | collectionGeoJson, history | Export and import, y flipping, QuPath-style files, groups, what's skipped; History labels, icons, initials, what's still deleted, day headings, who can put back, the ops sent |
 | toolbar | dock, focusOrder, panelPlacement | Docking, splitting, stacking, placing |
 | other | adjustments, rotation, ruler, popupPosition, presence, newId | Clamping, angles, distances, out-of-order presence |
 

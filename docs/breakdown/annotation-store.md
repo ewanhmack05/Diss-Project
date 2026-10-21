@@ -232,7 +232,11 @@ The viewer calls `POST /collections/ensure` every time it opens a slide. If
 you already have a personal collection there it's returned (and your display
 name updated if it changed in Keycloak), otherwise one is made. The unique
 index on `(SlideId, UserId) WHERE Kind = 'Personal'` means two tabs racing
-can't make two.
+can't make two. The one that loses gets the other's back rather than a 500:
+the insert fails on the index, so it reads the one that was just made. The
+viewer's first load of a slide can send two at once, so this happens for
+real. A Postgres-only test (`EnsuresAtTheSameMoment_AllGetTheOneCollection`)
+sends 20 together; without the catch it fails.
 
 ## 5. Who can do what
 
@@ -522,16 +526,26 @@ sequenceDiagram
   only counts ones that aren't deleted, so `POST /collections/ensure` makes a
   fresh one.
 - **Restore** (`POST /changesets/{id}/restore`) puts back everything that
-  change set deleted, in one transaction, and says how many of each. It's
-  rollback rather than undo: any editor can restore anyone's delete, and it's
-  a change of its own, in its own change set. An ended session can't be
-  restored into (409).
+  change set deleted, in one transaction. It's rollback rather than undo: any
+  editor can restore anyone's delete, and it's a change of its own, in its
+  own change set. An ended session can't be restored into (409).
+- **A restore answers with what it put back** (`RestoredView`): the counts
+  of each, plus the rows themselves as the reads give them - annotations,
+  groups as `GET /annotationgroups` has them, cell counts as the Saved list
+  has them (no dots, via `CellCountSummary.ListItemsAsync`, the same code
+  `GET /cellcounts` uses) and image adjustments. The rows are read before the
+  update, since after it nothing marks which ones they were, and groups and
+  counts are read again after for their member count and summary. The viewer
+  shows them and sends everyone else a create per row without loading
+  anything again. Restoring again answers zeros and empty lists.
 - **Restoring a collection** is the owner's alone, since nobody's role counts
   while it's deleted. A personal one can't come back while its owner has a
   newer one for that slide (409) - delete the newer one first.
 - **`GET /changesets?collectionId=`** lists a collection's change sets,
   newest first, paged like the Saved lists, each with how many rows it
-  deleted that are still deleted. Guests can read it.
+  deleted that are still deleted. `GET /changesets/total` is how many there
+  are, for the pager. Guests can read both. The viewer's History tab is built
+  on these (see [image-viewer.md](image-viewer.md)).
 
 What this doesn't do yet, and why:
 
@@ -615,7 +629,7 @@ tests, skipped on SQLite).
 | AnnotationGroupsTests | 10 | Groups, bulk update and delete, merge, viewers turned down, import into groups |
 | CellCountRegionOfInterestTests | 10 | ROI saved with the count, 1:1, kept through a delete and restore |
 | CellCountSummaryTests | 14 | Colour and placed-by totals, old rows stamped on list |
-| CollectionsTests | 18 | Ensure, rename, delete (hides, keeps rows), personal uniqueness, sharing, export, import |
+| CollectionsTests | 19 | Ensure (and ensures at the same moment), rename, delete (hides, keeps rows), personal uniqueness, sharing, export, import |
 | SessionsTests | 15 | Start, invite, accept, roles, end, 404 vs 403 vs 409 |
 | SessionSizeTests | 15 | How many editors an edit link lets in |
 | GuestAccessTests | 24 | Guests read their session, 404 elsewhere, 401 on every write and bad token, no member rows, the guest invite preview |
@@ -623,7 +637,7 @@ tests, skipped on SQLite).
 | ImageAdjustmentsTests | 10 | Presets CRUD and access |
 | PagingTests | 21 | Skip/take, tie-breaking, search, every filter, facets |
 | KeycloakAuthTests | 7 | Issuer check accepts any host, only the right realm |
-| SoftDeleteTests | 16 | Deletes hide everywhere, deleted rows 404, batches in one change set, restore (its own change set only, editors only, collections by their owner), who and what on every write, header rules, merge and group delete with deleted annotations |
+| SoftDeleteTests | 18 | Deletes hide everywhere, deleted rows 404, batches in one change set, restore (its own change set only, editors only, collections by their owner, answers with the rows it put back), who and what on every write, header rules, merge and group delete with deleted annotations, change set list and total |
 
 ## 15. Known gaps
 

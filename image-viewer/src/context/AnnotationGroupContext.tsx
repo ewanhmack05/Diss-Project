@@ -26,6 +26,9 @@ interface AnnotationGroupContextValue {
   deleteGroup: (groupId: string) => Promise<void>
   // Already saved, by a GeoJSON import - shown, and sent to everyone else.
   addImported: (groups: AnnotationGroup[]) => void
+  // Put back by a restore - shown again, here only. Whoever restored them
+  // tells everyone else.
+  addRestored: (groups: AnnotationGroup[]) => void
 }
 
 const AnnotationGroupContext = createContext<AnnotationGroupContextValue | null>(null)
@@ -147,6 +150,13 @@ function AnnotationGroupContextProvider({ baseUrl, children }: { baseUrl: string
     for (const group of fresh) sendOp({ kind: 'create', entity: 'annotationGroup', id: group.id, data: group })
   }
 
+  const addRestored = (restored: AnnotationGroup[]) => {
+    if (restored.length === 0) return
+    // The store sends a member count too - not kept, same as a made one.
+    const tidy = restored.map(({ id, collectionId, name, notes, created }) => ({ id, collectionId, name, notes: notes ?? '', created }))
+    setGroups((current) => [...current, ...tidy.filter((g) => !current.some((c) => c.id === g.id))].sort(byName))
+  }
+
   const showAll = useCallback(() => setHiddenGroupIds((current) => (current.size === 0 ? current : new Set())), [])
 
   const toggleHidden = (groupId: string) =>
@@ -164,6 +174,7 @@ function AnnotationGroupContextProvider({ baseUrl, children }: { baseUrl: string
         toggleHidden,
         showAll,
         addImported,
+        addRestored,
         createGroup: (name, ids) =>
           createGroup(name, ids).catch((error: unknown) => {
             emit('annotationgroup:error')

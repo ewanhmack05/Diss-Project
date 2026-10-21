@@ -5,7 +5,7 @@
   min-height: 0;
 }
 
-/* Mine / Shared - same as RealTime's tabs. */
+/* Mine / Shared / History - same as RealTime's tabs. */
 .collections-tabs {
   display: flex;
   flex-shrink: 0;

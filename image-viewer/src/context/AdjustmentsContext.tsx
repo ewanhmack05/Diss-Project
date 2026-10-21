@@ -25,6 +25,8 @@ interface AdjustmentsContextValue {
   applyPreset: (id: string) => void
   updatePreset: (id: string) => void
   deletePreset: (id: string) => void
+  // Put back by a restore. Presets are your own, so nobody else is told.
+  addRestored: (presets: ImageAdjustmentPreset[]) => void
 }
 
 const AdjustmentsContext = createContext<AdjustmentsContextValue | null>(null)
@@ -158,6 +160,14 @@ function AdjustmentsContextProvider({ baseUrl, children }: AdjustmentsContextPro
       })
   }
 
+  const addRestored = (restored: ImageAdjustmentPreset[]) => {
+    if (restored.length === 0) return
+    setPresets((current) => [
+      ...current,
+      ...restored.filter((p) => !current.some((known) => known.imageAdjustmentId === p.imageAdjustmentId)),
+    ])
+  }
+
   return (
     <AdjustmentsContext.Provider
       value={{
@@ -170,6 +180,7 @@ function AdjustmentsContextProvider({ baseUrl, children }: AdjustmentsContextPro
         applyPreset,
         updatePreset,
         deletePreset,
+        addRestored,
       }}
     >
       {children}

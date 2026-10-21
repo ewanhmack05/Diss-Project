@@ -70,6 +70,9 @@ interface AnnotationStoreContextValue {
   addAnnotation: (annotation: Annotation) => void
   // Already saved by a GeoJSON import - see collections/useCollectionFiles.
   addImported: (annotations: Annotation[]) => void
+  // Put back by a restore - shown again, here only. Whoever restored them
+  // tells everyone else.
+  addRestored: (annotations: Annotation[]) => void
   // Many at once, from the Select tab - one request, one toast.
   updateMany: (ids: string[], patch: BulkPatch) => void
   // Gone straight away and sent straight away, as one change set. Returns
@@ -172,6 +175,8 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
       onOp(({ op }) => {
         if (op.entity !== 'annotation') return
         if (op.kind === 'delete') deletedIdsRef.current.add(op.id)
+        // Put back by someone else.
+        if (op.kind === 'create') deletedIdsRef.current.delete(op.id)
         setAnnotations((current) => applyOp(current, op))
         if (op.kind === 'delete') {
           setSelectedAnnotationId((current) => (current === op.id ? null : current))
@@ -233,6 +238,16 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
     if (imported.length === 0) return
     setAnnotations((current) => [...current, ...imported])
     for (const annotation of imported) sendOp({ kind: 'create', entity: 'annotation', id: annotation.id, data: annotation })
+    bumpRevision()
+  }
+
+  const addRestored = (restored: Annotation[]) => {
+    if (restored.length === 0) return
+    const ids = new Set(restored.map((a) => a.id))
+    for (const id of ids) deletedIdsRef.current.delete(id)
+    // Not taken off the count any more, if it was a delete from just now.
+    setRemovals((current) => current.map((r) => ({ ...r, items: r.items.filter((a) => !ids.has(a.id)) })))
+    setAnnotations((current) => [...current, ...restored.filter((a) => !current.some((c) => c.id === a.id))])
     bumpRevision()
   }
 
@@ -317,10 +332,8 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
       undo()
         .then(() => {
           setRemovals((current) => current.filter((r) => r.key !== key))
-          for (const a of removed) deletedIdsRef.current.delete(a.id)
-          setAnnotations((current) => [...current, ...removed.filter((a) => !current.some((c) => c.id === a.id))])
+          addRestored(removed)
           for (const a of removed) sendOp({ kind: 'create', entity: 'annotation', id: a.id, data: a })
-          bumpRevision()
         })
         .catch(() => emit('annotations:restored:error', { count: removed.length }))
     }
@@ -392,6 +405,7 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
         annotationsSource: annotationsSourceRef.current,
         addAnnotation,
         addImported,
+        addRestored,
         updateMany,
         deleteMany,
         markGrouped,

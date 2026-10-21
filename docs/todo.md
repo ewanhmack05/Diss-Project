@@ -49,6 +49,13 @@ an afternoon, medium a few days, large a week or more.
   time, and the Select tab's Undo uses it - the delete is no longer held
   back for 8s. See
   [annotation-store.md](breakdown/annotation-store.md#11-deletes-and-change-sets)
+- **Collection history** (version control step 4, the collection half) -
+  the Collections panel's History tab lists every change in the collection
+  you're in: who, what, when. Editors can put back anything a change
+  deleted, long after the Undo toast's gone, and everyone sees it come back
+  live. The restore answers with the rows it put back, so nothing loads
+  again. See
+  [image-viewer.md](breakdown/image-viewer.md#history---putting-deletes-back)
 
 ## 1. Version control
 
@@ -66,7 +73,7 @@ Each one builds on the one before.
 | 1 | ~~Soft delete~~ | Done - a delete sets `Deleted` and `DeletedIn` instead of removing the row, and a change set can be restored any time | medium |
 | 2 | History log | One row per change: what, who, when, before and after, under its change set (the `ChangeSets` table is there - this adds the rows under it). This is the "user log" too - who did what is in it, so it doesn't need a store of its own | large |
 | 3 | Periodic snapshots | The whole collection's state saved every so often, so rolling back far doesn't mean replaying every change | medium |
-| 4 | Viewing history | A timeline per annotation or count in its Saved row, and one for the whole collection | medium |
+| 4 | Viewing history | Partly done - the collection's timeline is the History tab, with put back. Still to do: a timeline per annotation or count in its Saved row, which needs the history log (step 2) | medium |
 | 5 | Rollback | Put one item, or a whole change set, back to an earlier version. Sent live like any other change | medium |
 | 6 | Policy for two or more people editing at once | First come wins vs last write wins vs locking vs merging - see below. Pick one per kind of field, and say why | large |
 | 7 | Evaluate it | See [Evaluation](#2-evaluation) | large |
@@ -84,6 +91,11 @@ Each one builds on the one before.
   and batches share one through the `Change-Set-Id` header. A Select tab
   recolour, a group merge and an import are each one change set. The
   history log still needs to put each row's before and after under it.
+- **Who can put a change back.** Any editor can, for anyone's change - it's
+  rollback, not undo. The other option is only the person who made it plus
+  the host. It's one check each side if it changes: `canRestore` in the
+  viewer's `collections/history/history.ts` and the Editor check on
+  `POST /changesets/{id}/restore` in `ChangeSets.cs`.
 - **Log the change, the state, or both.** Logging every change (event
   sourcing) gives a full history, but rebuilding a state means replaying it.
   Saving whole states is quick to read but large. Both - changes plus a

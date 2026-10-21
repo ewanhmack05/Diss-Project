@@ -202,9 +202,10 @@ public static class CollectionEndpoints
         app.MapPost("/collections/ensure", async (EnsureRequest request, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
             var me = user.UserId();
-            var existing = await db.Collections
+            Task<Collections?> Existing() => db.Collections
                 .Include(c => c.Members)
                 .FirstOrDefaultAsync(c => c.SlideId == request.SlideId && c.UserId == me && c.Kind == CollectionKind.Personal);
+            var existing = await Existing();
             if (existing is not null)
             {
                 var owner = existing.Members.FirstOrDefault(m => m.UserId == me);
@@ -216,9 +217,21 @@ public static class CollectionEndpoints
                 return Results.Ok(View(existing, me));
             }
 
-            var collection = await CreateAsync(db, user, request.SlideId, CollectionKind.Personal,
-                string.IsNullOrWhiteSpace(request.CollectionName) ? $"{user.DisplayName()}'s collection" : request.CollectionName);
-            return Results.Created($"/collections/{collection.CollectionId}", View(collection, me));
+            try
+            {
+                var collection = await CreateAsync(db, user, request.SlideId, CollectionKind.Personal,
+                    string.IsNullOrWhiteSpace(request.CollectionName) ? $"{user.DisplayName()}'s collection" : request.CollectionName);
+                return Results.Created($"/collections/{collection.CollectionId}", View(collection, me));
+            }
+            catch (DbUpdateException)
+            {
+                // The viewer can ensure twice at once on its first load, and
+                // the other one made it a moment ago - the unique index
+                // turned this one down. Hand back theirs.
+                db.ChangeTracker.Clear();
+                if (await Existing() is not { } made) throw;
+                return Results.Ok(View(made, me));
+            }
         });
 
         // Plain create of a personal collection, for completeness - ensure is

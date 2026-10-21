@@ -80,6 +80,9 @@ public class SoftDeleteTests : IClassFixture<CellCountApiFactory>
     private static Task<HttpResponseMessage> RestoreAsync(HttpClient client, Guid changeSet) =>
         client.PostAsync($"/changesets/{changeSet}/restore", null);
 
+    private static async Task<RestoreResult> CountsAsync(HttpResponseMessage restore) =>
+        (await restore.Content.ReadFromJsonAsync<RestoredView>(Json))!.Counts;
+
     private static async Task<List<Annotation>> AnnotationsAsync(HttpClient client, Guid collectionId) =>
         (await client.GetFromJsonAsync<List<Annotation>>($"/annotations?collectionId={collectionId}", Json))!;
 
@@ -177,13 +180,13 @@ public class SoftDeleteTests : IClassFixture<CellCountApiFactory>
 
         var restore = await RestoreAsync(alice, changeSet);
         Assert.Equal(HttpStatusCode.OK, restore.StatusCode);
-        Assert.Equal(new RestoreResult(5, 0, 0, 0, false), await restore.Content.ReadFromJsonAsync<RestoreResult>(Json));
+        Assert.Equal(new RestoreResult(5, 0, 0, 0, false), await CountsAsync(restore));
         Assert.Equal(ids.Append(untouched.Id).Order(), (await AnnotationsAsync(alice, id)).Select(a => a.Id).Order());
         Assert.False(await WithDbAsync(db => db.Annotations.IgnoreQueryFilters().AnyAsync(a => a.CollectionId == id && (a.Deleted != null || a.DeletedIn != null))));
 
         // Nothing's left to put back the second time.
         Assert.Equal(new RestoreResult(0, 0, 0, 0, false),
-            await (await RestoreAsync(alice, changeSet)).Content.ReadFromJsonAsync<RestoreResult>(Json));
+            await CountsAsync(await RestoreAsync(alice, changeSet)));
     }
 
     // What the viewer does with a big delete - every batch at once, one id.
@@ -201,7 +204,7 @@ public class SoftDeleteTests : IClassFixture<CellCountApiFactory>
 
         Assert.All(responses, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));
         Assert.Equal(1, await WithDbAsync(db => db.ChangeSets.CountAsync(c => c.Id == changeSet)));
-        Assert.Equal(100, (await (await RestoreAsync(alice, changeSet)).Content.ReadFromJsonAsync<RestoreResult>(Json))!.Annotations);
+        Assert.Equal(100, (await CountsAsync(await RestoreAsync(alice, changeSet))).Annotations);
     }
 
     [Fact]
@@ -219,13 +222,13 @@ public class SoftDeleteTests : IClassFixture<CellCountApiFactory>
         var deleteCount = ChangeSetOf(await alice.DeleteAsync($"/cellcounts/{count.Id}"));
         var deleteAdjustment = ChangeSetOf(await alice.DeleteAsync($"/imageadjustments/{adjustment.ImageAdjustmentId}"));
 
-        Assert.Equal(new RestoreResult(1, 0, 0, 0, false), await (await RestoreAsync(alice, deleteA)).Content.ReadFromJsonAsync<RestoreResult>(Json));
+        Assert.Equal(new RestoreResult(1, 0, 0, 0, false), await CountsAsync(await RestoreAsync(alice, deleteA)));
         Assert.Equal([a.Id], (await AnnotationsAsync(alice, id)).Select(x => x.Id));
 
-        Assert.Equal(new RestoreResult(0, 0, 1, 0, false), await (await RestoreAsync(alice, deleteCount)).Content.ReadFromJsonAsync<RestoreResult>(Json));
+        Assert.Equal(new RestoreResult(0, 0, 1, 0, false), await CountsAsync(await RestoreAsync(alice, deleteCount)));
         Assert.Equal(count.Id, (await alice.GetFromJsonAsync<CellCount>($"/cellcounts/{count.Id}", Json))!.Id);
 
-        Assert.Equal(new RestoreResult(0, 0, 0, 1, false), await (await RestoreAsync(alice, deleteAdjustment)).Content.ReadFromJsonAsync<RestoreResult>(Json));
+        Assert.Equal(new RestoreResult(0, 0, 0, 1, false), await CountsAsync(await RestoreAsync(alice, deleteAdjustment)));
         Assert.Single((await alice.GetFromJsonAsync<List<ImageAdjustments.ImageAdjustments>>($"/imageadjustments?collectionId={id}", Json))!);
     }
 
@@ -385,7 +388,7 @@ public class SoftDeleteTests : IClassFixture<CellCountApiFactory>
 
         Assert.All(await AnnotationsAsync(alice, id), x => Assert.Null(x.GroupId));
         Assert.Equal(new RestoreResult(0, 1, 0, 0, false),
-            await (await RestoreAsync(alice, deleteGroup)).Content.ReadFromJsonAsync<RestoreResult>(Json));
+            await CountsAsync(await RestoreAsync(alice, deleteGroup)));
         var back = Assert.Single((await alice.GetFromJsonAsync<List<GroupView>>($"/annotationgroups?collectionId={id}", Json))!);
         Assert.Equal((group.Id, 0), (back.Id, back.Count));
     }
@@ -430,7 +433,7 @@ public class SoftDeleteTests : IClassFixture<CellCountApiFactory>
         Assert.Equal(HttpStatusCode.NotFound, (await RestoreAsync(bob, changeSet)).StatusCode);
         var restore = await RestoreAsync(alice, changeSet);
 
-        Assert.Equal(new RestoreResult(0, 0, 0, 0, true), await restore.Content.ReadFromJsonAsync<RestoreResult>(Json));
+        Assert.Equal(new RestoreResult(0, 0, 0, 0, true), await CountsAsync(restore));
         Assert.Equal([annotation.Id], (await AnnotationsAsync(alice, id)).Select(a => a.Id));
         Assert.Single((await alice.GetFromJsonAsync<List<CellCountListItem>>($"/cellcounts?collectionId={id}", Json))!);
         var membership = (await bob.GetFromJsonAsync<MembershipView>($"/collections/{id}/membership", Json))!;
@@ -479,5 +482,67 @@ public class SoftDeleteTests : IClassFixture<CellCountApiFactory>
         await RestoreAsync(alice, bulkDelete);
         listed = (await alice.GetFromJsonAsync<List<ChangeSetView>>($"/changesets?collectionId={id}", Json))!;
         Assert.Equal(("restore", 0), (listed[0].What, listed[1].Deleted));
+    }
+
+    [Fact]
+    public async Task ARestore_AnswersWithTheRowsItPutBack()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var annotation = await AddAnnotationAsync(alice, id, "kept label");
+        var cellCount = await AddCellCountAsync(alice, id);
+        var adjustment = await AddAdjustmentAsync(alice, id);
+        var group = await AddGroupAsync(alice, id, "gone group");
+        var untouched = await AddAnnotationAsync(alice, id, "untouched");
+        var changeSet = Guid.NewGuid();
+        foreach (var url in new[]
+                 {
+                     $"/annotations/{annotation.Id}", $"/cellcounts/{cellCount.Id}",
+                     $"/imageadjustments/{adjustment.ImageAdjustmentId}", $"/annotationgroups/{group.Id}",
+                 })
+            (await alice.SendAsync(InChangeSet(HttpMethod.Delete, url, changeSet))).EnsureSuccessStatusCode();
+
+        var restore = await RestoreAsync(alice, changeSet);
+        var restored = (await restore.Content.ReadFromJsonAsync<RestoredView>(Json))!;
+
+        Assert.Equal(new RestoreResult(1, 1, 1, 1, false), restored.Counts);
+        Assert.Equal("kept label", Assert.Single(restored.Annotations).Label);
+        Assert.DoesNotContain(restored.Annotations, a => a.Id == untouched.Id);
+        var restoredGroup = Assert.Single(restored.Groups);
+        Assert.Equal((group.Id, "gone group", 0), (restoredGroup.Id, restoredGroup.Name, restoredGroup.Count));
+        var restoredCount = Assert.Single(restored.CellCounts);
+        Assert.Equal(cellCount.Id, restoredCount.Id);
+        Assert.Equal([new ColourCount("#ff0000", 1)], restoredCount.ColourCounts);
+        Assert.Equal(adjustment.ImageAdjustmentId, Assert.Single(restored.ImageAdjustments).ImageAdjustmentId);
+
+        // The shape the viewer reads - counts kept apart, and no dots.
+        using var json = System.Text.Json.JsonDocument.Parse(await restore.Content.ReadAsStringAsync());
+        Assert.Equal(1, json.RootElement.GetProperty("counts").GetProperty("annotations").GetInt32());
+        var countJson = json.RootElement.GetProperty("cellCounts")[0];
+        Assert.Equal(System.Text.Json.JsonValueKind.Null, countJson.GetProperty("dots").ValueKind);
+        Assert.False(json.RootElement.GetProperty("annotations")[0].TryGetProperty("deletedIn", out _));
+
+        // Nothing left to put back, so the second answers empty.
+        var again = (await (await RestoreAsync(alice, changeSet)).Content.ReadFromJsonAsync<RestoredView>(Json))!;
+        Assert.Equal(new RestoreResult(0, 0, 0, 0, false), again.Counts);
+        Assert.Empty(again.Annotations);
+        Assert.Empty(again.Groups);
+        Assert.Empty(again.CellCounts);
+        Assert.Empty(again.ImageAdjustments);
+    }
+
+    [Fact]
+    public async Task ChangeSetTotal_CountsTheCollectionsChangeSets()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var other = (await OwnAsync(alice)).CollectionId;
+        await AddAnnotationAsync(alice, id);
+        var annotation = await AddAnnotationAsync(alice, id);
+        await AddAnnotationAsync(alice, other);
+        await alice.DeleteAsync($"/annotations/{annotation.Id}");
+
+        Assert.Equal(3, await alice.GetFromJsonAsync<int>($"/changesets/total?collectionId={id}"));
+        Assert.Equal(HttpStatusCode.NotFound, (await As("bob").GetAsync($"/changesets/total?collectionId={id}")).StatusCode);
     }
 }

@@ -201,57 +201,13 @@ app.MapGet("/cellcounts", async (Guid collectionId, int? skip, int? take, string
     if (SavedPaging.Invalid(skip, take) is { } invalid) return invalid;
     if (await db.RequireAsync(collectionId, user, CollectionRole.Viewer) is { } denied) return denied;
 
-    // Every column but Dots, so the database never reads them for a list.
-    var rows = await db.CellCounts
+    return Results.Ok(await db.CellCounts
         .Where(c => c.CollectionId == collectionId)
         .Matching(search)
         .Filtered(filter)
         .NewestFirst()
         .Page(skip, take)
-        .Select(c => new
-        {
-            c.Id,
-            c.CollectionId,
-            c.SlideId,
-            c.Label,
-            c.Notes,
-            c.WithAnnotation,
-            c.WithRoi,
-            c.Count,
-            c.DotSize,
-            c.LocationX,
-            c.LocationY,
-            c.Created,
-            c.CreatedById,
-            c.CreatedByName,
-            c.RegionOfInterest,
-            c.ColourCountsJson,
-            c.PlacedByCountsJson,
-        })
-        .ToListAsync();
-
-    // Counts saved before the summary existed get it worked out once, the
-    // first time they're listed, and kept.
-    var unsummarised = rows.Where(r => r.ColourCountsJson is null || r.PlacedByCountsJson is null).Select(r => r.Id).ToList();
-    var filledIn = new Dictionary<Guid, (string Colours, string PlacedBy)>();
-    if (unsummarised.Count > 0)
-    {
-        foreach (var cellCount in await db.CellCounts.Where(c => unsummarised.Contains(c.Id)).ToListAsync())
-        {
-            CellCountSummary.Stamp(cellCount);
-            filledIn[cellCount.Id] = (cellCount.ColourCountsJson!, cellCount.PlacedByCountsJson!);
-        }
-        await db.SaveChangesAsync();
-    }
-
-    return Results.Ok(rows.Select(r =>
-    {
-        var (colours, placedBy) = filledIn.TryGetValue(r.Id, out var stamped) ? stamped : (r.ColourCountsJson, r.PlacedByCountsJson);
-        return new CellCountListItem(
-            r.Id, r.CollectionId, r.SlideId, r.Label, r.Notes, r.WithAnnotation, r.WithRoi, r.Count, r.DotSize,
-            r.LocationX, r.LocationY, r.Created, r.CreatedById, r.CreatedByName, r.RegionOfInterest,
-            CellCountSummary.Read<ColourCount>(colours), CellCountSummary.Read<PlacedByCount>(placedBy));
-    }));
+        .ListItemsAsync(db));
 }).AllowGuests();
 
 app.MapGet("/cellcounts/total", async (Guid collectionId, string? search, [AsParameters] SavedFilter filter, ClaimsPrincipal user, AnnotationDbContext db) =>

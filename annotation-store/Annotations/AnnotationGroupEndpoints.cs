@@ -165,10 +165,10 @@ public static class AnnotationGroupEndpoints
     private static IQueryable<Annotation> InCollection(AnnotationDbContext db, Guid collectionId, List<Guid> ids) =>
         db.Annotations.Where(a => a.CollectionId == collectionId && ids.Contains(a.Id));
 
-    // Just the one, given an id.
-    private static IQueryable<GroupView> GroupViews(AnnotationDbContext db, Guid collectionId, Guid? id = null) =>
+    // Just the one, given an id, or just these, given ids.
+    internal static IQueryable<GroupView> GroupViews(AnnotationDbContext db, Guid collectionId, Guid? id = null, List<Guid>? ids = null) =>
         db.AnnotationGroups
-            .Where(g => g.CollectionId == collectionId && (id == null || g.Id == id))
+            .Where(g => g.CollectionId == collectionId && (id == null || g.Id == id) && (ids == null || ids.Contains(g.Id)))
             .OrderBy(g => g.Name)
             .Select(g => new GroupView(g.Id, g.CollectionId, g.Name, g.Notes, g.Created, db.Annotations.Count(a => a.GroupId == g.Id)));
 

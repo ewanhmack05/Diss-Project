@@ -175,13 +175,19 @@ change set) set and drops out of every read, but stays in the table, so
   sets, newest first: `{ id, collectionId, userId, userName, what, created,
   deleted }`, `deleted` being how many rows it deleted that are still
   deleted. Anyone who can read the collection, guests included
+- `GET /changesets/total?collectionId=` - how many change sets the
+  collection has, for the viewer's History pager. Same access as the list
 - `POST /changesets/{id}/restore` - puts back everything that change set
   deleted, as a change of its own. Any editor, for anyone's change set -
   except a deleted collection, which only its owner can bring back (and not
   while they've a newer personal one for that slide - 409). Answers
-  `{ annotations, groups, cellCounts, imageAdjustments, collection }`, how
-  many of each came back. A restored group comes back empty - deleting it
-  ungrouped its annotations
+  `{ counts, annotations, groups, cellCounts, imageAdjustments }`: `counts`
+  is `{ annotations, groups, cellCounts, imageAdjustments, collection }`,
+  how many of each came back, and the rest are the rows themselves, as the
+  reads give them - groups with their member `count`, cell counts as the
+  Saved list has them (no `dots`). Restoring again answers zeros and empty
+  lists. A restored group comes back empty - deleting it ungrouped its
+  annotations
 
 - `GET /annotations?collectionId=` - every annotation in the collection,
   newest first. What the map loads

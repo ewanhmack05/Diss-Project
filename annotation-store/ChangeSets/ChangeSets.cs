@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using AnnotationStore.Annotations;
 using AnnotationStore.Auth;
+using AnnotationStore.CellCounts;
 using AnnotationStore.Collections;
 using AnnotationStore.Paging;
 using Microsoft.EntityFrameworkCore;
@@ -12,6 +13,16 @@ public record ChangeSetView(Guid Id, Guid CollectionId, string UserId, string Us
 // How many of each came back. Collection is true when the change deleted
 // the collection itself.
 public record RestoreResult(int Annotations, int Groups, int CellCounts, int ImageAdjustments, bool Collection);
+
+// What a restore answers - the counts, and the rows themselves as the reads
+// give them (counts as the Saved list has them, without dots), so the viewer
+// can show them and tell everyone else without loading them again.
+public record RestoredView(
+    RestoreResult Counts,
+    List<Annotation> Annotations,
+    List<GroupView> Groups,
+    List<CellCountListItem> CellCounts,
+    List<ImageAdjustments.ImageAdjustments> ImageAdjustments);
 
 public static class ChangeSetEndpoints
 {
@@ -103,8 +114,14 @@ public static class ChangeSetEndpoints
                 .ToListAsync());
         }).AllowGuests();
 
+        // How many there are, for the History list's pager.
+        app.MapGet("/changesets/total", async (Guid collectionId, ClaimsPrincipal user, AnnotationDbContext db) =>
+            await db.RequireAsync(collectionId, user, CollectionRole.Viewer)
+            ?? Results.Ok(await db.ChangeSets.CountAsync(c => c.CollectionId == collectionId))).AllowGuests();
+
         // Puts back everything a change set deleted - anyone's, so it's
-        // rollback rather than undo, and any editor can do it. Itself a
+        // rollback rather than undo, and any editor can do it (the viewer's
+        // canRestore in collections/history/history.ts matches). Itself a
         // change, in a change set of its own. A deleted group comes back
         // empty: deleting it ungrouped its annotations, and which ones were
         // in it isn't kept until the history log.
@@ -138,20 +155,34 @@ public static class ChangeSetEndpoints
                 collection.DeletedIn = null;
                 await db.SaveChangesAsync();
             }
-            var result = new RestoreResult(
+            // Read before they come back - after, nothing marks which ones they
+            // were. Annotations and adjustments go back as they are; groups and
+            // counts are read again after, for their member count and summary.
+            var annotations = await DeletedIn(db.Annotations, collectionId, id).AsNoTracking().ToListAsync();
+            var adjustments = await DeletedIn(db.ImageAdjustments, collectionId, id).AsNoTracking().ToListAsync();
+            var groupIds = await DeletedIn(db.AnnotationGroups, collectionId, id).Select(g => g.Id).ToListAsync();
+            var cellCountIds = await DeletedIn(db.CellCounts, collectionId, id).Select(c => c.Id).ToListAsync();
+            var counts = new RestoreResult(
                 await Restore(db.Annotations, collectionId, id),
                 await Restore(db.AnnotationGroups, collectionId, id),
                 await Restore(db.CellCounts, collectionId, id),
                 await Restore(db.ImageAdjustments, collectionId, id),
                 restoresCollection);
+            var groups = await AnnotationGroupEndpoints.GroupViews(db, collectionId, ids: groupIds).ToListAsync();
+            var cellCounts = await db.CellCounts
+                .Where(c => cellCountIds.Contains(c.Id))
+                .NewestFirst()
+                .ListItemsAsync(db);
             await transaction.CommitAsync();
-            return Results.Ok(result);
+            return Results.Ok(new RestoredView(counts, annotations, groups, cellCounts, adjustments));
         });
     }
 
+    private static IQueryable<T> DeletedIn<T>(IQueryable<T> rows, Guid collectionId, Guid changeSetId) where T : class, ISoftDeletable, IInCollection =>
+        rows.IgnoreQueryFilters().Where(r => r.CollectionId == collectionId && r.DeletedIn == changeSetId);
+
     private static Task<int> Restore<T>(IQueryable<T> rows, Guid collectionId, Guid changeSetId) where T : class, ISoftDeletable, IInCollection =>
-        rows.IgnoreQueryFilters()
-            .Where(r => r.CollectionId == collectionId && r.DeletedIn == changeSetId)
+        DeletedIn(rows, collectionId, changeSetId)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(r => r.Deleted, (DateTimeOffset?)null)
                 .SetProperty(r => r.DeletedIn, (Guid?)null));
