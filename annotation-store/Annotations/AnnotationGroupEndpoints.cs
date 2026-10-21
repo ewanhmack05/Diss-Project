@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using AnnotationStore.Auth;
+using AnnotationStore.ChangeSets;
 using AnnotationStore.Collections;
 using Microsoft.EntityFrameworkCore;
 
@@ -26,7 +27,8 @@ public record BulkResult(int Count);
 
 // Groups, and changing or deleting many annotations in one go. Same rules
 // as single annotations - anyone in the collection reads, editors and the
-// owner change things.
+// owner change things. Each request goes in a change set - a bulk change
+// sent in batches sends the same Change-Set-Id with each, so it's one.
 public static class AnnotationGroupEndpoints
 {
     public const int MaxNameLength = 64;
@@ -41,11 +43,12 @@ public static class AnnotationGroupEndpoints
             return Results.Ok(await GroupViews(db, collectionId).ToListAsync());
         }).AllowGuests();
 
-        app.MapPost("/annotationgroups", async (NewGroupRequest request, ClaimsPrincipal user, AnnotationDbContext db) =>
+        app.MapPost("/annotationgroups", async (NewGroupRequest request, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
             if (await db.RequireAsync(request.CollectionId, user, CollectionRole.Editor) is { } denied) return denied;
             if (InvalidName(request.Name) is { } invalid) return invalid;
             if (request.AnnotationIds is { Count: > MaxBulkIds }) return Results.BadRequest($"At most {MaxBulkIds} at a time");
+            if ((await db.ChangeSetAsync(http, request.CollectionId, user, "add group")).Problem is { } problem) return problem;
 
             var group = new AnnotationGroup
             {
@@ -63,67 +66,72 @@ public static class AnnotationGroupEndpoints
                 await GroupViews(db, request.CollectionId, group.Id).FirstAsync());
         });
 
-        app.MapPut("/annotationgroups/{id:guid}", async (Guid id, GroupUpdateRequest request, ClaimsPrincipal user, AnnotationDbContext db) =>
+        app.MapPut("/annotationgroups/{id:guid}", async (Guid id, GroupUpdateRequest request, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
-            var group = await db.AnnotationGroups.FindAsync(id);
+            var group = await db.AnnotationGroups.FirstOrDefaultAsync(g => g.Id == id);
             if (group is null) return Results.NotFound();
             if (await db.RequireAsync(group.CollectionId, user, CollectionRole.Editor) is { } denied) return denied;
-            if (request.Name is not null)
-            {
-                if (InvalidName(request.Name) is { } invalid) return invalid;
-                group.Name = request.Name.Trim();
-            }
-            if (request.Notes is not null)
-            {
-                if (request.Notes.Length > MaxNotesLength) return Results.BadRequest($"Notes are up to {MaxNotesLength} characters");
-                group.Notes = request.Notes;
-            }
+            if (request.Name is not null && InvalidName(request.Name) is { } invalid) return invalid;
+            if (request.Notes is { Length: > MaxNotesLength }) return Results.BadRequest($"Notes are up to {MaxNotesLength} characters");
+            if ((await db.ChangeSetAsync(http, group.CollectionId, user, "change group")).Problem is { } problem) return problem;
+            if (request.Name is not null) group.Name = request.Name.Trim();
+            if (request.Notes is not null) group.Notes = request.Notes;
             await db.SaveChangesAsync();
             return Results.Ok(await GroupViews(db, group.CollectionId, id).FirstAsync());
         });
 
         // Everything in this group moves into IntoId, and this one goes.
         // Notes are kept - joined if both have some. Answers with the group
-        // it went into.
-        app.MapPost("/annotationgroups/{id:guid}/merge", async (Guid id, GroupMergeRequest request, ClaimsPrincipal user, AnnotationDbContext db) =>
+        // it went into. Deleted annotations move too, so restoring one never
+        // puts it in a group that's gone.
+        app.MapPost("/annotationgroups/{id:guid}/merge", async (Guid id, GroupMergeRequest request, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
-            var group = await db.AnnotationGroups.FindAsync(id);
+            var group = await db.AnnotationGroups.FirstOrDefaultAsync(g => g.Id == id);
             if (group is null) return Results.NotFound();
             if (await db.RequireAsync(group.CollectionId, user, CollectionRole.Editor) is { } denied) return denied;
             if (request.IntoId == id) return Results.BadRequest("A group can't merge into itself");
             var into = await db.AnnotationGroups.FirstOrDefaultAsync(g => g.Id == request.IntoId && g.CollectionId == group.CollectionId);
             if (into is null) return Results.BadRequest("That group isn't in this collection");
+            var (changeSet, problem) = await db.ChangeSetAsync(http, group.CollectionId, user, "merge groups");
+            if (problem is not null) return problem;
 
             await using var transaction = await db.Database.BeginTransactionAsync();
-            await db.Annotations.Where(a => a.GroupId == id).ExecuteUpdateAsync(s => s.SetProperty(a => a.GroupId, into.Id));
+            await db.Annotations.IgnoreQueryFilters().Where(a => a.GroupId == id).ExecuteUpdateAsync(s => s.SetProperty(a => a.GroupId, into.Id));
             into.Notes = JoinNotes(into.Notes, group.Notes);
-            db.AnnotationGroups.Remove(group);
+            group.SoftDelete(changeSet!);
             await db.SaveChangesAsync();
             await transaction.CommitAsync();
             return Results.Ok(await GroupViews(db, into.CollectionId, into.Id).FirstAsync());
         });
 
-        // Ungroups what was in it - the annotations stay.
-        app.MapDelete("/annotationgroups/{id:guid}", async (Guid id, ClaimsPrincipal user, AnnotationDbContext db) =>
+        // Ungroups what was in it - the annotations stay. Deleted ones too,
+        // so restoring one never puts it in a group that's gone.
+        app.MapDelete("/annotationgroups/{id:guid}", async (Guid id, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
-            var group = await db.AnnotationGroups.FindAsync(id);
+            var group = await db.AnnotationGroups.FirstOrDefaultAsync(g => g.Id == id);
             if (group is null) return Results.NotFound();
             if (await db.RequireAsync(group.CollectionId, user, CollectionRole.Editor) is { } denied) return denied;
-            await db.Annotations.Where(a => a.GroupId == id).ExecuteUpdateAsync(s => s.SetProperty(a => a.GroupId, (Guid?)null));
-            db.AnnotationGroups.Remove(group);
+            var (changeSet, problem) = await db.ChangeSetAsync(http, group.CollectionId, user, "delete group");
+            if (problem is not null) return problem;
+
+            await using var transaction = await db.Database.BeginTransactionAsync();
+            await db.Annotations.IgnoreQueryFilters().Where(a => a.GroupId == id).ExecuteUpdateAsync(s => s.SetProperty(a => a.GroupId, (Guid?)null));
+            group.SoftDelete(changeSet!);
             await db.SaveChangesAsync();
+            await transaction.CommitAsync();
             return Results.NoContent();
         });
 
         // Only touches ids that are in the collection - anything else is
         // ignored, and Count says how many changed.
-        app.MapPut("/annotations/bulk", async (BulkUpdateRequest request, ClaimsPrincipal user, AnnotationDbContext db) =>
+        app.MapPut("/annotations/bulk", async (BulkUpdateRequest request, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
             if (await db.RequireAsync(request.CollectionId, user, CollectionRole.Editor) is { } denied) return denied;
             if (request.Ids.Count > MaxBulkIds) return Results.BadRequest($"At most {MaxBulkIds} at a time");
             if (request.Colour is null && !request.SetGroup) return Results.BadRequest("Nothing to change");
             if (request.SetGroup && !await db.GroupIsInAsync(request.GroupId, request.CollectionId))
                 return Results.BadRequest("That group isn't in this collection");
+            if ((await db.ChangeSetAsync(http, request.CollectionId, user, "change annotations")).Problem is { } problem) return problem;
 
             var matching = InCollection(db, request.CollectionId, request.Ids);
             var count = request switch
@@ -137,12 +145,15 @@ public static class AnnotationGroupEndpoints
             return Results.Ok(new BulkResult(count));
         });
 
-        // POST rather than DELETE, so the ids can go in the body.
-        app.MapPost("/annotations/bulk-delete", async (BulkDeleteRequest request, ClaimsPrincipal user, AnnotationDbContext db) =>
+        // POST rather than DELETE, so the ids can go in the body. Put back
+        // with POST /changesets/{id}/restore.
+        app.MapPost("/annotations/bulk-delete", async (BulkDeleteRequest request, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
             if (await db.RequireAsync(request.CollectionId, user, CollectionRole.Editor) is { } denied) return denied;
             if (request.Ids.Count > MaxBulkIds) return Results.BadRequest($"At most {MaxBulkIds} at a time");
-            var count = await InCollection(db, request.CollectionId, request.Ids).ExecuteDeleteAsync();
+            var (changeSet, problem) = await db.ChangeSetAsync(http, request.CollectionId, user, "delete annotations");
+            if (problem is not null) return problem;
+            var count = await InCollection(db, request.CollectionId, request.Ids).SoftDeleteAsync(changeSet!);
             return Results.Ok(new BulkResult(count));
         });
     }

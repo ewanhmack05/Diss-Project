@@ -119,7 +119,8 @@ public class ImageAdjustmentsTests : IClassFixture<CellCountApiFactory>
         Assert.Equal(created.ImageAdjustmentId, updated.ImageAdjustmentId);
         Assert.Equal(collectionId, updated.CollectionId);
         Assert.Equal(slideId, updated.SlideId);
-        Assert.Equal(created.Created, updated.Created);
+        // To the microsecond - all Postgres keeps of the POST's time.
+        Assert.Equal(created.Created, updated.Created, TimeSpan.FromMicroseconds(1));
     }
 
     [Fact]

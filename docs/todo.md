@@ -40,13 +40,22 @@ an afternoon, medium a few days, large a week or more.
 - **Bulk changes over 20k** - deletes, recolours and new groups go in
   batches the store accepts (it took at most 20,000 ids, and a 21k delete
   failed silently)
+- **Soft delete and change sets** (version control step 1) - annotations,
+  groups, cell counts, image adjustments and collections are only hidden
+  when deleted (`Deleted`, `DeletedIn`), never removed. Every write goes in
+  a change set - who, what, when - and the viewer sends one
+  `Change-Set-Id` with every batch, so a 21k delete is one change.
+  `POST /changesets/{id}/restore` puts a change set's deletes back, any
+  time, and the Select tab's Undo uses it - the delete is no longer held
+  back for 8s. See
+  [annotation-store.md](breakdown/annotation-store.md#11-deletes-and-change-sets)
 
 ## 1. Version control
 
-Nothing keeps earlier versions yet. Annotation and cell count edits are last
-write wins, a delete removes the row, and once something's overwritten it's
-gone. The Yjs history for a label or notes box is dropped when the last
-person closes it.
+Step 1 is done (see Done): deletes only hide, and every write is in a
+change set that says who did what. Edits are still last write wins, and once
+something's overwritten it's gone. The Yjs history for a label or notes box
+is dropped when the last person closes it.
 
 ### The steps, in order
 
@@ -54,8 +63,8 @@ Each one builds on the one before.
 
 | # | Step | What it means here | Size |
 |---|------|--------------------|------|
-| 1 | Soft delete | A delete sets `DeletedAt` instead of removing the row. Also gives an undo after the 8s window has passed | medium |
-| 2 | History log | One row per change: what, who, when, before and after, and which change set it was part of. This is the "user log" too - who did what is in it, so it doesn't need a store of its own | large |
+| 1 | ~~Soft delete~~ | Done - a delete sets `Deleted` and `DeletedIn` instead of removing the row, and a change set can be restored any time | medium |
+| 2 | History log | One row per change: what, who, when, before and after, under its change set (the `ChangeSets` table is there - this adds the rows under it). This is the "user log" too - who did what is in it, so it doesn't need a store of its own | large |
 | 3 | Periodic snapshots | The whole collection's state saved every so often, so rolling back far doesn't mean replaying every change | medium |
 | 4 | Viewing history | A timeline per annotation or count in its Saved row, and one for the whole collection | medium |
 | 5 | Rollback | Put one item, or a whole change set, back to an earlier version. Sent live like any other change | medium |
@@ -71,10 +80,10 @@ Each one builds on the one before.
   per-item version number, plus a per-collection counter for ordering across
   items. Keep the hub's `seq` in the log as well, for working out live
   latency.
-- **Change sets, not just rows.** A bulk delete of 21k annotations should be
-  one entry you can undo in one go, not 21k separate ones. Give every request
-  a change set id (like a commit) and log each row under it. A Select tab
-  recolour, a group merge and an import are each one change set.
+- **Change sets, not just rows.** Done for step 1 - every write is in one,
+  and batches share one through the `Change-Set-Id` header. A Select tab
+  recolour, a group merge and an import are each one change set. The
+  history log still needs to put each row's before and after under it.
 - **Log the change, the state, or both.** Logging every change (event
   sourcing) gives a full history, but rebuilding a state means replaying it.
   Saving whole states is quick to read but large. Both - changes plus a
@@ -84,11 +93,10 @@ Each one builds on the one before.
   tables, so it's a history table written by annotation-store in the same
   transaction as the change - or a trigger. Doing it in the app keeps who did
   it and the change set id without extra work.
-- **Soft delete knock-ons.** Every query has to skip deleted rows: the Saved
-  lists, `/total`, facets, export, the map's load. An EF Core global query
-  filter (`HasQueryFilter`) does that in one place. It also needs a purge rule
-  (how long deleted rows are kept) and a decision on what deleting a group
-  does to its annotations' history.
+- **Soft delete knock-ons.** Done with an EF Core global query filter
+  (`HasQueryFilter`) on all five tables. Still open: a purge rule (nothing is
+  purged now), and a deleted group comes back empty because which
+  annotations were in it isn't kept until the history log.
 - **Undo vs rollback.** Undo is "take back my last change" and only touches
   your own edits - the command pattern, or Yjs's `Y.UndoManager` for text.
   Rollback is "put this back how it was at 3pm" and touches everyone's. They

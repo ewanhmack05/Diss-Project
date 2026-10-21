@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using AnnotationStore.Annotations;
 using AnnotationStore.Auth;
 using AnnotationStore.CellCounts;
+using AnnotationStore.ChangeSets;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -281,9 +282,10 @@ public static class CollectionEndpoints
 
         // Editors and the owner. Saves everything from a GeoJSON import in
         // one go, stamped the same way POST /annotations and /cellcounts are.
-        app.MapPost("/collections/{id:guid}/import", [RequestSizeLimit(CellCountLimits.MaxRequestBytes)] async (Guid id, ImportRequest request, ClaimsPrincipal user, AnnotationDbContext db) =>
+        app.MapPost("/collections/{id:guid}/import", [RequestSizeLimit(CellCountLimits.MaxRequestBytes)] async (Guid id, ImportRequest request, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
             if (await db.RequireAsync(id, user, CollectionRole.Editor) is { } denied) return denied;
+            if ((await db.ChangeSetAsync(http, id, user, "import")).Problem is { } problem) return problem;
             var collection = await db.Collections.FirstAsync(c => c.CollectionId == id);
             var now = DateTimeOffset.UtcNow;
 
@@ -345,12 +347,20 @@ public static class CollectionEndpoints
             return Results.Ok(new ImportResult(request.Annotations, request.CellCounts, used));
         });
 
-        app.MapDelete("/collections/{id:guid}", async (Guid id, ClaimsPrincipal user, AnnotationDbContext db) =>
+        // Owner only. Hides it and everything in it from everyone - what's
+        // in it is left as it is, so restoring the change set brings the lot
+        // back, people included. Its links stop and stay stopped.
+        app.MapDelete("/collections/{id:guid}", async (Guid id, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
             var role = await db.RoleAsync(id, user);
             if (role is null) return Results.NotFound();
             if (role != CollectionRole.Owner) return Results.Forbid();
-            db.Collections.Remove(await db.Collections.FirstAsync(c => c.CollectionId == id));
+            var (changeSet, problem) = await db.ChangeSetAsync(http, id, user, "delete collection");
+            if (problem is not null) return problem;
+
+            var collection = await db.Collections.Include(c => c.Invites).FirstAsync(c => c.CollectionId == id);
+            collection.SoftDelete(changeSet!);
+            foreach (var invite in collection.Invites.Where(i => i.Stopped is null)) invite.Stopped = collection.Deleted;
             await db.SaveChangesAsync();
             return Results.NoContent();
         });
@@ -528,7 +538,8 @@ public static class CollectionEndpoints
             // room for one - so the members are read under a lock.
             await using var transaction = await db.Database.BeginTransactionAsync();
             await LockSessionAsync(db, invite.CollectionId);
-            var collection = await db.Collections.Include(c => c.Members).FirstAsync(c => c.CollectionId == invite.CollectionId);
+            var collection = await db.Collections.Include(c => c.Members).FirstOrDefaultAsync(c => c.CollectionId == invite.CollectionId);
+            if (collection is null) return Results.NotFound();
             var status = StatusOf(invite, collection);
             if (status != "open") return Results.Problem($"This invite has {status}", statusCode: StatusCodes.Status410Gone);
 
@@ -556,12 +567,13 @@ public static class CollectionEndpoints
         });
     }
 
+    // Null for a link to a deleted collection too.
     private static async Task<(CollectionInvite Invite, Collections Collection)?> FindInviteAsync(AnnotationDbContext db, string code)
     {
         var invite = await db.CollectionInvites.FirstOrDefaultAsync(i => i.Code == code);
         if (invite is null) return null;
-        var collection = await db.Collections.Include(c => c.Members).FirstAsync(c => c.CollectionId == invite.CollectionId);
-        return (invite, collection);
+        var collection = await db.Collections.Include(c => c.Members).FirstOrDefaultAsync(c => c.CollectionId == invite.CollectionId);
+        return collection is null ? null : (invite, collection);
     }
 
     private static string StatusOf(CollectionInvite invite, Collections collection) =>

@@ -42,6 +42,10 @@ Everything added has its notes set to `stress-test` - that's how
 `clean_stress.py` tells it apart from real annotations. Labels start with
 "Stress".
 
+`clean_stress.py` deletes through the API, and annotation-store only hides
+what's deleted, so the rows stay in Postgres. To really remove them, run
+`sql/delete_stress_test.sql`.
+
 ### Options
 
 Both default to slide `003`, signed in as `alice` / `password`.

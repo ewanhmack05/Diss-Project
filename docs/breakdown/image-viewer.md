@@ -126,7 +126,7 @@ flowchart TD
 | `Collection` | Your collections on this slide, which one is active, sessions, invites, roles |
 | `Presence` | Everyone with an account, who's online and what they're doing |
 | `Realtime` | The SignalR connection to the session's room - see [realtime-hub.md](realtime-hub.md#10-viewer-side) |
-| `AnnotationStore` | Every annotation in the collection, plus the OpenLayers source they're drawn from. Bulk updates and deletes, the waiting deletes undo can still stop, and the Saved list's filter the map draws by |
+| `AnnotationStore` | Every annotation in the collection, plus the OpenLayers source they're drawn from. Bulk updates and deletes (each one change set, undone by restoring it), and the Saved list's filter the map draws by |
 | `AnnotationGroup` | The collection's groups, and which are hidden on the map while the Select tab's open |
 | `AnnotationSelect` | What's picked on the Select tab, and box or lasso. Your own, not shared |
 | `CellCountStore` | Counts loaded so far (not all - see [section 11](#11-the-saved-lists)) |
@@ -377,10 +377,16 @@ and not shared.
   annotations. Only while the tab's open and you're not counting cells.
 - **Recolour** and **group** go to `PUT /annotations/bulk` in one request,
   with an update op per annotation for everyone else.
-- **Delete** asks first, then takes them off the map straight away with an
-  Undo toast. Nothing's deleted in annotation-store until the undo time
-  (8s) is up - undoing just puts them back, same ids and authors. Leaving
-  the page sends anything still waiting, with `keepalive`.
+- **Delete** asks first, then takes them off the map and sends the delete
+  straight away, every batch with the same `Change-Set-Id`
+  ([bulk.ts](../../image-viewer/src/components/annotation/bulk.ts)), so
+  annotation-store keeps it as one change set. Nothing's removed there, only
+  hidden. The Undo toast (8s) restores that change set
+  (`POST /changesets/{id}/restore`) once the delete has landed, then puts
+  them back on the map and sends a create op each - same ids and authors.
+  After the toast's gone the change set can still be restored, just not
+  from here yet. See
+  [annotation-store.md](annotation-store.md#11-deletes-and-change-sets).
 - **Groups** (`AnnotationGroupContext`) - named sets of annotations in the
   collection, one level. Make one from what's picked, move things between
   them or out, rename (double-click), delete (the annotations stay), pick
@@ -483,8 +489,8 @@ flowchart LR
   annotation-store's `PUT` replaces all three.
 - **Bulk changes** from the Select tab go in one request
   (`PUT /annotations/bulk`), with an op per annotation for everyone else. A
-  bulk delete is shown straight away but only sent once its undo time is up -
-  see [the Select tab](#the-select-tab---many-at-once).
+  bulk delete is shown and sent straight away, and Undo restores it - see
+  [the Select tab](#the-select-tab---many-at-once).
 
 `newId()` uses `crypto.randomUUID()` where it exists and builds a v4 UUID
 from `getRandomValues` where it doesn't (plain http from another machine).

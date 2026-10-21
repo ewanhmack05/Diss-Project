@@ -1,3 +1,3 @@
 BEGIN;
-TRUNCATE "Collections", "Annotations", "CellCounts", "RegionsOfInterest", "ImageAdjustments";
+TRUNCATE "Collections", "CollectionMembers", "CollectionInvites", "ChangeSets", "AnnotationGroups", "Annotations", "CellCounts", "RegionsOfInterest", "ImageAdjustments";
 COMMIT;

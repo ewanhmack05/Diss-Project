@@ -24,11 +24,12 @@ explains how it all fits together.
 8. [Cell counts and big payloads](#8-cell-counts-and-big-payloads)
 9. [The Saved lists - paging, search, filters](#9-the-saved-lists---paging-search-filters)
 10. [Groups and bulk changes](#10-groups-and-bulk-changes)
-11. [Export and import](#11-export-and-import)
-12. [Migrations and startup](#12-migrations-and-startup)
-13. [Tests](#13-tests)
-14. [Known gaps](#14-known-gaps)
-15. [Glossary](#15-glossary)
+11. [Deletes and change sets](#11-deletes-and-change-sets)
+12. [Export and import](#12-export-and-import)
+13. [Migrations and startup](#13-migrations-and-startup)
+14. [Tests](#14-tests)
+15. [Known gaps](#15-known-gaps)
+16. [Glossary](#16-glossary)
 
 ## 1. Where it sits
 
@@ -69,15 +70,16 @@ here, then tells the hub (see
 | [Collections/Collections.cs](../../annotation-store/Collections/Collections.cs), [CollectionMember.cs](../../annotation-store/Collections/CollectionMember.cs), [CollectionInvite.cs](../../annotation-store/Collections/CollectionInvite.cs) | The collection, member and invite tables, plus the `CollectionRole` and `CollectionKind` enums. |
 | [Annotations/Annotation.cs](../../annotation-store/Annotations/Annotation.cs) | The annotation table. |
 | [Annotations/AnnotationGroup.cs](../../annotation-store/Annotations/AnnotationGroup.cs), [AnnotationGroupEndpoints.cs](../../annotation-store/Annotations/AnnotationGroupEndpoints.cs) | Groups of annotations, and the group, merge, bulk update and bulk delete endpoints. |
-| [Annotations/AnnotationDbContext.cs](../../annotation-store/Annotations/AnnotationDbContext.cs) | The EF Core context: keys, indexes, cascades, and a SQLite-only date converter for the tests. |
+| [Annotations/AnnotationDbContext.cs](../../annotation-store/Annotations/AnnotationDbContext.cs) | The EF Core context: keys, indexes, cascades, the soft delete query filters, and a SQLite-only date converter for the tests. |
+| [ChangeSets/ChangeSet.cs](../../annotation-store/ChangeSets/ChangeSet.cs), [ChangeSets.cs](../../annotation-store/ChangeSets/ChangeSets.cs) | The change set table and `ISoftDeletable`, the `Change-Set-Id` header every write goes through, soft delete helpers, and the list and restore endpoints (see [section 11](#11-deletes-and-change-sets)). |
 | [CellCounts/CellCount.cs](../../annotation-store/CellCounts/CellCount.cs), [RegionOfInterest.cs](../../annotation-store/CellCounts/RegionOfInterest.cs) | The cell count table and its optional ROI box. |
 | [CellCounts/CellCountSummary.cs](../../annotation-store/CellCounts/CellCountSummary.cs) | Works out each count's per-colour and per-person totals from its dots, once, when it's saved. |
 | [ImageAdjustments/ImageAdjustments.cs](../../annotation-store/ImageAdjustments/ImageAdjustments.cs) | Saved brightness / contrast / colour presets. |
 | [Paging/Paging.cs](../../annotation-store/Paging/Paging.cs) | Paging, search, filters and facets for the viewer's Saved lists. |
 | [Auth/KeycloakAuth.cs](../../annotation-store/Auth/KeycloakAuth.cs) | JWT bearer setup, the issuer check, and `UserId()` / `DisplayName()` helpers. |
 | [Auth/GuestAuth.cs](../../annotation-store/Auth/GuestAuth.cs) | The second scheme, for guest tokens from realtime-hub, the policy that lets them onto a few reads, and `IsGuest()` / `GuestSessionId()`. |
-| [Migrations/](../../annotation-store/Migrations) | 17 EF Core migrations, from `InitialCreate` to `GroupNotes`. |
-| [Tests/](../../annotation-store/Tests) | 161 tests, nearly all integration tests on in-memory SQLite (see [section 13](#13-tests)). |
+| [Migrations/](../../annotation-store/Migrations) | 19 EF Core migrations, from `InitialCreate` to `SoftDeleteAndChangeSets`. |
+| [Tests/](../../annotation-store/Tests) | 177 tests, nearly all integration tests on in-memory SQLite, or Postgres when asked (see [section 14](#14-tests)). |
 
 ## 3. The data model
 
@@ -91,6 +93,7 @@ erDiagram
   Collections ||--o{ AnnotationGroups : "holds"
   AnnotationGroups |o--o{ Annotations : "groups"
   CellCounts ||--o| RegionsOfInterest : "may have"
+  Collections ||--o{ ChangeSets : "logs"
 
   Collections {
     uuid CollectionId PK
@@ -147,13 +150,30 @@ erDiagram
     uuid CollectionId
     text Adjustments "JSON"
   }
+  ChangeSets {
+    uuid Id PK
+    uuid CollectionId
+    text UserId
+    text UserName
+    text What
+    timestamptz Created
+  }
 ```
+
+Annotations, groups, cell counts, image adjustments and collections also
+each have `Deleted` (timestamptz) and `DeletedIn` (the change set that
+deleted it), both null until it's deleted - left off the diagram to keep it
+readable.
 
 A few rules that run through all of it:
 
 - **Everything belongs to a collection.** Every annotation, cell count and
-  preset has a `CollectionId`, and deleting a collection cascades to all of
-  them. That's the unit permissions are checked on.
+  preset has a `CollectionId`. That's the unit permissions are checked on.
+- **Nothing is deleted for real.** A delete sets `Deleted` and `DeletedIn`,
+  and a query filter hides the row from then on. Deleting a collection only
+  marks the collection - what's in it is left alone, and unreachable because
+  nobody's role counts there any more. See
+  [section 11](#11-deletes-and-change-sets).
 - **`SlideId` is copied, never trusted.** Each row also stores its slide id
   so queries don't have to join back to the collection. On create it's
   taken from the collection, not from the request, so it can't drift.
@@ -429,19 +449,103 @@ access as their collection.
 
 - **A group has to be in the same collection.** `POST /annotations` and the
   bulk update both turn down a group from somewhere else with a 400.
-- **Deleting a group keeps its annotations.** They're ungrouped first, and
-  the foreign key is `SET NULL` as well.
+- **Deleting a group keeps its annotations.** They're ungrouped first -
+  deleted ones too, so restoring one never puts it back in a group that's
+  gone - and the group is hidden. The foreign key is `SET NULL` as well.
 - **Merge** (`POST /annotationgroups/{id}/merge { intoId }`) moves everything
-  across and deletes the old group in one transaction, joining the notes.
+  across (deleted annotations included) and hides the old group in one
+  transaction, joining the notes.
 - **Bulk update and delete** (`PUT /annotations/bulk`,
   `POST /annotations/bulk-delete`) take a list of ids, up to 20,000, and only
   touch the ones in the collection given - the count that comes back says how
-  many. Both are one `UPDATE` / `DELETE` in SQL (`ExecuteUpdate` /
-  `ExecuteDelete`), so no rows are loaded.
-- **Undo is the viewer's.** A bulk delete from the viewer isn't sent until
-  its undo time is up, so there's nothing here to undo.
+  many. Both are one `UPDATE` in SQL (`ExecuteUpdate`), so no rows are
+  loaded - the delete sets `Deleted` rather than removing anything.
+- **Undo is a restore.** The viewer sends a bulk delete straight away, with
+  one `Change-Set-Id` across all its batches, and its Undo is
+  `POST /changesets/{id}/restore`.
 
-## 11. Export and import
+## 11. Deletes and change sets
+
+The first step of version control (see [todo.md](../todo.md#1-version-control)).
+Two pieces: deletes that only hide, and a change set for every write.
+
+```mermaid
+sequenceDiagram
+  participant V as Viewer
+  participant A as annotation-store
+  participant P as Postgres
+  V->>A: POST /annotations/bulk-delete (batch 1)<br/>Change-Set-Id: c1
+  A->>P: INSERT ChangeSets c1 (if new)
+  A->>P: UPDATE Annotations SET Deleted, DeletedIn = c1
+  V->>A: POST /annotations/bulk-delete (batch 2)<br/>Change-Set-Id: c1
+  A->>P: c1 already there - same person, same collection
+  A->>P: UPDATE Annotations SET Deleted, DeletedIn = c1
+  Note over V: Undo
+  V->>A: POST /changesets/c1/restore
+  A->>P: INSERT ChangeSets c2 "restore"
+  A->>P: UPDATE ... SET Deleted = null WHERE DeletedIn = c1
+```
+
+- **A change set is one change, like a commit.** Every write to annotations,
+  groups, cell counts, image adjustments, an import or a collection delete
+  goes in one (`ChangeSetAsync` in `ChangeSets/ChangeSets.cs`). The client
+  can send `Change-Set-Id` to choose it - the viewer does for anything sent
+  in batches - or leave it out and get a new one. Either way it comes back
+  in the response's `Change-Set-Id` header (let through CORS so the browser
+  can read it).
+- **Who and what.** A change set row has who made it (from the token), what
+  the first request did (`delete annotations`, `merge groups`, `import`...)
+  and when. It's one person in one collection - an id already used by
+  someone else, or in another collection, is a 400.
+- **Made after the checks.** It's made once access and validation have
+  passed, and before anything changes, so a turned-down write leaves no
+  change set behind.
+- **Batches at the same moment.** The viewer sends every batch at once, so
+  two can try to make the same change set together. The second insert fails
+  on the primary key and reads the first one's instead. A Postgres-only test
+  (`BatchesSentAtOnce_StillMakeOneChangeSet`) sends 100 together; with the
+  catch taken out it fails.
+- **Soft delete.** `ISoftDeletable` is `Deleted` and `DeletedIn`. A global
+  query filter (`HasQueryFilter(r => r.Deleted == null)`) on all five tables
+  keeps deleted rows out of every query - lists, totals, facets, export, the
+  map's load, group counts, `GET /collections`' counts - without each
+  endpoint having to remember. Only the change set list and restore use
+  `IgnoreQueryFilters`. Both fields are `[JsonIgnore]`, so a POST can't make
+  a hidden row and they never go out.
+- **A deleted row is gone to the API.** Changing, deleting, merging into or
+  putting an annotation in a deleted one is a 404 or 400, same as one that
+  never existed.
+- **Deleting a collection** marks it, and stops its invite links. Its
+  members are kept but count for nothing - `RoleAsync` only finds a role in a
+  collection that isn't deleted - so membership, every read and every write
+  are 404. Its links read as not found. The personal-collection unique index
+  only counts ones that aren't deleted, so `POST /collections/ensure` makes a
+  fresh one.
+- **Restore** (`POST /changesets/{id}/restore`) puts back everything that
+  change set deleted, in one transaction, and says how many of each. It's
+  rollback rather than undo: any editor can restore anyone's delete, and it's
+  a change of its own, in its own change set. An ended session can't be
+  restored into (409).
+- **Restoring a collection** is the owner's alone, since nobody's role counts
+  while it's deleted. A personal one can't come back while its owner has a
+  newer one for that slide (409) - delete the newer one first.
+- **`GET /changesets?collectionId=`** lists a collection's change sets,
+  newest first, paged like the Saved lists, each with how many rows it
+  deleted that are still deleted. Guests can read it.
+
+What this doesn't do yet, and why:
+
+- **No before and after.** A change set says who did what, not what changed.
+  Updates still overwrite. That's the history log, the next step.
+- **A deleted group comes back empty.** Deleting it ungroups its annotations,
+  and which ones were in it isn't kept anywhere until the history log.
+- **Nothing is purged.** Deleted rows stay for good - the history log will
+  need them. A retention rule comes with the privacy question in
+  [todo.md](../todo.md#things-to-decide-before-building).
+- **Not logged:** renaming a collection, sharing, ending a session, members
+  and invite links. They aren't the data being versioned.
+
+## 12. Export and import
 
 - **`GET /collections/{id}/export`** - the collection's annotations, cell
   counts (dots and ROI included) and groups, each its own query without
@@ -456,7 +560,7 @@ access as their collection.
   query it was a row for every member x annotation x count x preset, each
   repeating the GeoJSON and dots - exports took over a minute.
 
-## 12. Migrations and startup
+## 13. Migrations and startup
 
 ```mermaid
 flowchart TD
@@ -478,12 +582,13 @@ flowchart TD
   Export the variable in your shell first if you need to run it against a
   non-default database.
 
-The 17 migrations tell the story of the project: annotations, then notes,
+The 19 migrations tell the story of the project: annotations, then notes,
 cell counts, ROI, dots, image adjustments, collections, members, created-by,
 sessions, cell count summaries, the default colour moving onto the palette,
-sharing a personal collection, groups, and group notes.
+sharing a personal collection, groups, group notes, session sizes, and soft
+delete with change sets.
 
-## 13. Tests
+## 14. Tests
 
 [Tests/](../../annotation-store/Tests) boots the real app with
 `WebApplicationFactory` and calls it over HTTP. Two things are swapped:
@@ -497,13 +602,20 @@ sharing a personal collection, groups, and group notes.
   the real Guest scheme - the fake handler stands aside for any request with
   an `Authorization` header, as Keycloak would for a guest token.
 
+Set `ANNOTATION_STORE_TEST_POSTGRES` to a Postgres connection string and the
+same tests run on Postgres instead. Each test class gets a database of its
+own (`annotationstore_test_<guid>`), built from the real migrations and
+dropped afterwards. That catches what SQLite can't: the migrations
+themselves, Npgsql's SQL, and requests at the same moment (`[PostgresFact]`
+tests, skipped on SQLite).
+
 | File | Tests | Covers |
 | ---- | ----- | ------ |
 | AnnotationsTests | 10 | CRUD, server-set fields, access |
 | AnnotationGroupsTests | 10 | Groups, bulk update and delete, merge, viewers turned down, import into groups |
-| CellCountRegionOfInterestTests | 10 | ROI saved with the count, 1:1, cascade |
+| CellCountRegionOfInterestTests | 10 | ROI saved with the count, 1:1, kept through a delete and restore |
 | CellCountSummaryTests | 14 | Colour and placed-by totals, old rows stamped on list |
-| CollectionsTests | 18 | Ensure, rename, delete, personal uniqueness, sharing, export, import |
+| CollectionsTests | 18 | Ensure, rename, delete (hides, keeps rows), personal uniqueness, sharing, export, import |
 | SessionsTests | 15 | Start, invite, accept, roles, end, 404 vs 403 vs 409 |
 | SessionSizeTests | 15 | How many editors an edit link lets in |
 | GuestAccessTests | 24 | Guests read their session, 404 elsewhere, 401 on every write and bad token, no member rows, the guest invite preview |
@@ -511,8 +623,9 @@ sharing a personal collection, groups, and group notes.
 | ImageAdjustmentsTests | 10 | Presets CRUD and access |
 | PagingTests | 21 | Skip/take, tie-breaking, search, every filter, facets |
 | KeycloakAuthTests | 7 | Issuer check accepts any host, only the right realm |
+| SoftDeleteTests | 16 | Deletes hide everywhere, deleted rows 404, batches in one change set, restore (its own change set only, editors only, collections by their owner), who and what on every write, header rules, merge and group delete with deleted annotations |
 
-## 14. Known gaps
+## 15. Known gaps
 
 - **CORS allows any origin.** Same as the other services - needs a real
   list before deploying.
@@ -522,16 +635,17 @@ sharing a personal collection, groups, and group notes.
   see [guests.md](../guests.md#not-done).
 - **Search is a table scan.** `LOWER(...) LIKE` style matching can't use an
   index. Fine at stress-test sizes so far; a trigram index would be the fix.
-- **No history.** Updates overwrite. There's no audit trail of who changed
-  what, only who created it. Deletes are hard deletes, so the viewer's undo
-  for a bulk delete has to hold the request back rather than ask for it to
-  be undone here.
+- **No before and after.** Updates overwrite. Change sets say who changed
+  what and when, and deletes can be restored, but an overwritten value is
+  gone - see [section 11](#11-deletes-and-change-sets).
+- **Deleted rows are never purged.** Tables only grow, stress test runs
+  included (`clean_stress.py` only hides what it seeded).
 - **The hub's ops aren't checked against here.** The hub trusts the viewer
   to have saved before broadcasting.
 - **Dots are one big blob.** A million-dot count is one 60MB row. Fine to
   save and load whole, but you can't query or page individual dots.
 
-## 15. Glossary
+## 16. Glossary
 
 | Term | Meaning |
 | ---- | ------- |
@@ -551,6 +665,9 @@ sharing a personal collection, groups, and group notes.
 | Summary | Per-colour and per-person dot totals, stored so lists don't need the dots |
 | Facets | The authors and colours a Saved list can be filtered by |
 | Bulk | Changing or deleting many annotations in one request |
+| Change set | One change, like a commit - one request, or several batches sent with the same `Change-Set-Id`. Who, what and when |
+| Soft delete | Marking a row deleted (`Deleted`, `DeletedIn`) instead of removing it, so it can be restored |
+| Restore | Putting back everything one change set deleted |
 | EF Core | Entity Framework Core, .NET's ORM. Maps C# classes to tables and writes migrations |
 | Migration | A versioned schema change EF Core can apply to a database |
 | JWT | JSON Web Token - the signed access token Keycloak issues |

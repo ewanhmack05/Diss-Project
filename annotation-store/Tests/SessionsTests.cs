@@ -293,7 +293,7 @@ public class SessionsTests : IClassFixture<CellCountApiFactory>
     }
 
     [Fact]
-    public async Task Deleting_TakesItsPeopleAndLinksWithIt()
+    public async Task Deleting_ShutsItsPeopleOut_AndStopsItsLinks()
     {
         var alice = As("alice");
         var session = await StartAsync(alice, NewSlide());
@@ -302,9 +302,16 @@ public class SessionsTests : IClassFixture<CellCountApiFactory>
 
         Assert.Equal(HttpStatusCode.NoContent, (await alice.DeleteAsync($"/collections/{session.CollectionId}")).StatusCode);
 
+        var bob = As("bob");
+        Assert.Equal(HttpStatusCode.NotFound, (await bob.GetAsync($"/collections/{session.CollectionId}/membership")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await PostAnnotationAsync(bob, session.CollectionId)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await bob.GetAsync($"/invites/{invite.Code}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await AcceptAsync(As("carol"), invite.Code)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await _factory.CreateClient().GetAsync($"/invites/{invite.Code}/guest")).StatusCode);
+
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AnnotationDbContext>();
-        Assert.False(await db.CollectionMembers.AnyAsync(m => m.CollectionId == session.CollectionId));
-        Assert.False(await db.CollectionInvites.AnyAsync(i => i.CollectionId == session.CollectionId));
+        Assert.True(await db.CollectionMembers.AnyAsync(m => m.CollectionId == session.CollectionId && m.UserId == "bob"));
+        Assert.NotNull((await db.CollectionInvites.SingleAsync(i => i.Code == invite.Code)).Stopped);
     }
 }

@@ -1,5 +1,7 @@
+using System.Text.Json.Serialization;
 using AnnotationStore.Annotations;
 using AnnotationStore.CellCounts;
+using AnnotationStore.ChangeSets;
 
 namespace AnnotationStore.Collections;
 
@@ -12,7 +14,7 @@ namespace AnnotationStore.Collections;
 // opens a slide - see POST /collections/ensure - not something set up by
 // hand first. Who else can see or change it is in Members - see
 // CollectionMember.
-public class Collections
+public class Collections : ISoftDeletable
 {
     public Guid CollectionId { get; set; }
     public string SlideId { get; set; } = "";
@@ -32,6 +34,11 @@ public class Collections
     // else joins view only, set by whoever started it (the viewer's
     // maxEditors option). The host can still make more. See SessionSize.
     public int MaxEditors { get; set; } = SessionSize.DefaultMaxEditors;
+
+    // Set when it's deleted - see ChangeSets/ChangeSet.cs. Never sent or taken
+    // over JSON, so a POST can't make a hidden row.
+    [JsonIgnore] public DateTimeOffset? Deleted { get; set; }
+    [JsonIgnore] public Guid? DeletedIn { get; set; }
 
     public List<CollectionMember> Members { get; set; } = [];
     public List<CollectionInvite> Invites { get; set; } = [];

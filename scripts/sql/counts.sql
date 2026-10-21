@@ -1,8 +1,12 @@
-SELECT 'Collections' AS "Table", COUNT(*) AS "Rows" FROM "Collections"
-UNION ALL SELECT 'Annotations', COUNT(*) FROM "Annotations"
-UNION ALL SELECT 'CellCounts', COUNT(*) FROM "CellCounts"
-UNION ALL SELECT 'RegionsOfInterest', COUNT(*) FROM "RegionsOfInterest"
-UNION ALL SELECT 'ImageAdjustments', COUNT(*) FROM "ImageAdjustments";
+-- Deleted rows are only hidden by annotation-store, so they're still counted
+-- in Rows - Deleted says how many of them that is.
+SELECT 'Collections' AS "Table", COUNT(*) AS "Rows", COUNT("Deleted") AS "Deleted" FROM "Collections"
+UNION ALL SELECT 'Annotations', COUNT(*), COUNT("Deleted") FROM "Annotations"
+UNION ALL SELECT 'AnnotationGroups', COUNT(*), COUNT("Deleted") FROM "AnnotationGroups"
+UNION ALL SELECT 'CellCounts', COUNT(*), COUNT("Deleted") FROM "CellCounts"
+UNION ALL SELECT 'RegionsOfInterest', COUNT(*), NULL FROM "RegionsOfInterest"
+UNION ALL SELECT 'ImageAdjustments', COUNT(*), COUNT("Deleted") FROM "ImageAdjustments"
+UNION ALL SELECT 'ChangeSets', COUNT(*), NULL FROM "ChangeSets";
 
 SELECT
     c."SlideId",

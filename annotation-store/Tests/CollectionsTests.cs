@@ -179,7 +179,7 @@ public class CollectionsTests : IClassFixture<CellCountApiFactory>
     }
 
     [Fact]
-    public async Task Delete_CascadesToEverythingInIt()
+    public async Task Delete_HidesItAndEverythingInIt_WithoutRemovingAnyRows()
     {
         var alice = As("alice");
         var collection = await EnsureAsync(alice, NewSlide());
@@ -195,12 +195,17 @@ public class CollectionsTests : IClassFixture<CellCountApiFactory>
 
         Assert.Equal(HttpStatusCode.NoContent, (await alice.DeleteAsync($"/collections/{id}")).StatusCode);
 
+        Assert.Equal(HttpStatusCode.NotFound, (await alice.GetAsync($"/annotations?collectionId={id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await alice.GetAsync($"/collections/{id}")).StatusCode);
+        Assert.DoesNotContain(await ListAsync(alice, collection.SlideId), c => c.CollectionId == id);
+
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AnnotationDbContext>();
-        Assert.False(await db.Annotations.AnyAsync(a => a.Id == annotation!.Id));
-        Assert.False(await db.CellCounts.AnyAsync(c => c.Id == cellCount!.Id));
-        Assert.False(await db.ImageAdjustments.AnyAsync(a => a.ImageAdjustmentId == adjustment!.ImageAdjustmentId));
-        Assert.False(await db.CollectionMembers.AnyAsync(m => m.CollectionId == id));
+        Assert.True(await db.Collections.IgnoreQueryFilters().AnyAsync(c => c.CollectionId == id && c.Deleted != null));
+        Assert.True(await db.Annotations.AnyAsync(a => a.Id == annotation!.Id));
+        Assert.True(await db.CellCounts.AnyAsync(c => c.Id == cellCount!.Id));
+        Assert.True(await db.ImageAdjustments.AnyAsync(a => a.ImageAdjustmentId == adjustment!.ImageAdjustmentId));
+        Assert.True(await db.CollectionMembers.AnyAsync(m => m.CollectionId == id));
     }
 
     private static Task<HttpResponseMessage> ShareAsync(HttpClient client, Guid id, bool shared) =>

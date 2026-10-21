@@ -1,4 +1,5 @@
 using AnnotationStore.CellCounts;
+using AnnotationStore.ChangeSets;
 using AnnotationStore.Collections;
 using AnnotationStore.ImageAdjustments;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +17,7 @@ public class AnnotationDbContext(DbContextOptions<AnnotationDbContext> options) 
     public DbSet<Collections.Collections> Collections => Set<Collections.Collections>();
     public DbSet<CollectionMember> CollectionMembers => Set<CollectionMember>();
     public DbSet<CollectionInvite> CollectionInvites => Set<CollectionInvite>();
+    public DbSet<ChangeSet> ChangeSets => Set<ChangeSet>();
 
     // The tests run on SQLite, which can't sort DateTimeOffset - and the lists
     // are sorted and paged in SQL, newest first. Stored there as UTC ticks
@@ -41,12 +43,13 @@ public class AnnotationDbContext(DbContextOptions<AnnotationDbContext> options) 
         // /collections/ensure relies on this to make "get or create" race-safe
         // at the DB level. Sessions are one not ended per host per slide, but
         // that's checked in POST /sessions, not here - older data can have
-        // more. The filter is plain SQL that Postgres and SQLite both take.
+        // more. Deleted ones don't count, so ensure can make a new one. The
+        // filter is plain SQL that Postgres and SQLite both take.
         modelBuilder.Entity<Collections.Collections>().Property(c => c.Kind).HasConversion<string>();
         modelBuilder.Entity<Collections.Collections>()
             .HasIndex(c => new { c.SlideId, c.UserId })
             .IsUnique()
-            .HasFilter("\"Kind\" = 'Personal'");
+            .HasFilter("\"Kind\" = 'Personal' AND \"Deleted\" IS NULL");
 
         modelBuilder.Entity<CollectionInvite>().HasKey(i => i.Code);
         modelBuilder.Entity<CollectionInvite>().Property(i => i.Role).HasConversion<string>();
@@ -122,5 +125,28 @@ public class AnnotationDbContext(DbContextOptions<AnnotationDbContext> options) 
             .WithOne()
             .HasForeignKey<RegionOfInterest>(r => r.CellCountId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ChangeSet>().HasIndex(c => new { c.CollectionId, c.Created });
+        modelBuilder.Entity<ChangeSet>()
+            .HasOne<Collections.Collections>()
+            .WithMany()
+            .HasForeignKey(c => c.CollectionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Deleted rows drop out of every query unless it asks for them with
+        // IgnoreQueryFilters - only restoring and the change set list do.
+        // DeletedIn is indexed for restore. A region of interest has no
+        // filter of its own - it's only ever read through its count.
+        SoftDeletable<Annotation>(modelBuilder);
+        SoftDeletable<AnnotationGroup>(modelBuilder);
+        SoftDeletable<CellCount>(modelBuilder);
+        SoftDeletable<ImageAdjustments.ImageAdjustments>(modelBuilder);
+        SoftDeletable<Collections.Collections>(modelBuilder);
+    }
+
+    private static void SoftDeletable<T>(ModelBuilder modelBuilder) where T : class, ISoftDeletable
+    {
+        modelBuilder.Entity<T>().HasQueryFilter(r => r.Deleted == null);
+        modelBuilder.Entity<T>().HasIndex(r => r.DeletedIn);
     }
 }

@@ -5,7 +5,7 @@ import { useCollectionContext } from './CollectionContext'
 import { useEmitEvent } from './EventContext'
 import { useRealtimeContext } from './RealtimeContext'
 import { useAnnotationStoreContext } from './AnnotationStoreContext'
-import { inBatches } from '../components/annotation/bulk'
+import { changeSetHeaders, inBatches, newChangeSet } from '../components/annotation/bulk'
 
 interface AnnotationGroupContextValue {
   // The active collection's groups, by name.
@@ -79,10 +79,11 @@ function AnnotationGroupContextProvider({ baseUrl, children }: { baseUrl: string
   )
 
   const send = useCallback(
-    async (path: string, method: string, body?: unknown) => {
+    // changeSet puts several requests in one change set - see bulk.ts.
+    async (path: string, method: string, body?: unknown, changeSet?: string) => {
       const response = await authFetch(`${baseUrl}${path}`, {
         method,
-        headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+        headers: changeSet ? changeSetHeaders(changeSet) : body === undefined ? undefined : { 'Content-Type': 'application/json' },
         body: body === undefined ? undefined : JSON.stringify(body),
       })
       if (!response.ok) throw new Error(String(response.status))
@@ -94,7 +95,8 @@ function AnnotationGroupContextProvider({ baseUrl, children }: { baseUrl: string
   const createGroup = async (name: string, annotationIds: string[]) => {
     if (collectionId === null) throw new Error('No collection')
     const [first = [], ...rest] = inBatches(annotationIds)
-    const response = await send('/annotationgroups', 'POST', { collectionId, name, annotationIds: first })
+    const changeSet = newChangeSet()
+    const response = await send('/annotationgroups', 'POST', { collectionId, name, annotationIds: first }, changeSet)
     const { count: _count, ...group } = (await response.json()) as AnnotationGroup & { count: number }
     group.notes ??= ''
     setGroups((current) => [...current, group].sort(byName))
@@ -104,7 +106,7 @@ function AnnotationGroupContextProvider({ baseUrl, children }: { baseUrl: string
     // leaves it listed with whatever got in.
     await Promise.all(
       rest.map(async (ids) => {
-        await send('/annotations/bulk', 'PUT', { collectionId, ids, setGroup: true, groupId: group.id })
+        await send('/annotations/bulk', 'PUT', { collectionId, ids, setGroup: true, groupId: group.id }, changeSet)
         markGrouped(ids, group.id)
       })
     )

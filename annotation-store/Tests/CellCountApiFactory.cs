@@ -8,15 +8,22 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Npgsql;
 
 namespace AnnotationStore.Tests;
 
 // Swaps Postgres for in-memory SQLite so tests don't need a real database,
 // while still exercising real DDL (foreign keys, cascade delete). The
 // connection has to stay open for the factory's life or the DB gets dropped.
+// With ANNOTATION_STORE_TEST_POSTGRES set to a connection string, each test
+// class gets a Postgres database of its own instead, built from the real
+// migrations and dropped afterwards - see the README.
 public class CellCountApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
+    public static readonly string? Postgres = Environment.GetEnvironmentVariable("ANNOTATION_STORE_TEST_POSTGRES");
+
     private readonly SqliteConnection _connection = new("DataSource=:memory:");
+    private readonly string _postgresDatabase = $"annotationstore_test_{Guid.NewGuid():N}";
 
     // Explicit interface impl - WebApplicationFactory already has its own
     // DisposeAsync() (returns ValueTask); IAsyncLifetime's version returns
@@ -29,6 +36,11 @@ public class CellCountApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
 
     async Task IAsyncLifetime.DisposeAsync()
     {
+        if (Postgres is not null)
+        {
+            using var scope = Services.CreateScope();
+            await scope.ServiceProvider.GetRequiredService<AnnotationDbContext>().Database.EnsureDeletedAsync();
+        }
         await base.DisposeAsync();
         await _connection.DisposeAsync();
     }
@@ -43,14 +55,30 @@ public class CellCountApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
             // and stacks with ours. Remove both or EF sees two providers.
             services.RemoveAll<DbContextOptions<AnnotationDbContext>>();
             services.RemoveAll<IDbContextOptionsConfiguration<AnnotationDbContext>>();
-            services.AddDbContext<AnnotationDbContext>(options => options.UseSqlite(_connection));
+            if (Postgres is null)
+                services.AddDbContext<AnnotationDbContext>(options => options.UseSqlite(_connection));
+            else
+                services.AddDbContext<AnnotationDbContext>(options =>
+                    options.UseNpgsql(new NpgsqlConnectionStringBuilder(Postgres) { Database = _postgresDatabase }.ConnectionString));
 
             // No Keycloak in tests - see TestAuthHandler.
             services.AddAuthentication(TestAuthHandler.Scheme)
                 .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.Scheme, _ => { });
 
             using var scope = services.BuildServiceProvider().CreateScope();
-            scope.ServiceProvider.GetRequiredService<AnnotationDbContext>().Database.EnsureCreated();
+            var database = scope.ServiceProvider.GetRequiredService<AnnotationDbContext>().Database;
+            if (Postgres is null) database.EnsureCreated();
+            else database.Migrate();
         });
+    }
+}
+
+// For what SQLite can't show - it runs one write at a time on the one
+// connection, so nothing there ever happens at the same moment.
+public sealed class PostgresFactAttribute : FactAttribute
+{
+    public PostgresFactAttribute()
+    {
+        if (CellCountApiFactory.Postgres is null) Skip = "Needs ANNOTATION_STORE_TEST_POSTGRES";
     }
 }

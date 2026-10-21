@@ -46,6 +46,12 @@ namespace AnnotationStore.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<DateTimeOffset?>("Deleted")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedIn")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("GeoJson")
                         .IsRequired()
                         .HasColumnType("text");
@@ -80,6 +86,8 @@ namespace AnnotationStore.Migrations
 
                     b.HasIndex("CollectionId");
 
+                    b.HasIndex("DeletedIn");
+
                     b.HasIndex("GroupId");
 
                     b.HasIndex("SlideId");
@@ -99,6 +107,12 @@ namespace AnnotationStore.Migrations
                     b.Property<DateTimeOffset>("Created")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTimeOffset?>("Deleted")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedIn")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
@@ -110,6 +124,8 @@ namespace AnnotationStore.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CollectionId");
+
+                    b.HasIndex("DeletedIn");
 
                     b.ToTable("AnnotationGroups");
                 });
@@ -139,6 +155,12 @@ namespace AnnotationStore.Migrations
                     b.Property<string>("CreatedByName")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("Deleted")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedIn")
+                        .HasColumnType("uuid");
 
                     b.Property<int>("DotSize")
                         .HasColumnType("integer");
@@ -178,6 +200,8 @@ namespace AnnotationStore.Migrations
 
                     b.HasIndex("CollectionId");
 
+                    b.HasIndex("DeletedIn");
+
                     b.HasIndex("SlideId");
 
                     b.ToTable("CellCounts");
@@ -205,6 +229,37 @@ namespace AnnotationStore.Migrations
                         .IsUnique();
 
                     b.ToTable("RegionsOfInterest");
+                });
+
+            modelBuilder.Entity("AnnotationStore.ChangeSets.ChangeSet", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CollectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("Created")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UserName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("What")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollectionId", "Created");
+
+                    b.ToTable("ChangeSets");
                 });
 
             modelBuilder.Entity("AnnotationStore.Collections.CollectionInvite", b =>
@@ -278,6 +333,12 @@ namespace AnnotationStore.Migrations
                     b.Property<DateTimeOffset>("Created")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTimeOffset?>("Deleted")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedIn")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset?>("Ended")
                         .HasColumnType("timestamp with time zone");
 
@@ -301,9 +362,11 @@ namespace AnnotationStore.Migrations
 
                     b.HasKey("CollectionId");
 
+                    b.HasIndex("DeletedIn");
+
                     b.HasIndex("SlideId", "UserId")
                         .IsUnique()
-                        .HasFilter("\"Kind\" = 'Personal'");
+                        .HasFilter("\"Kind\" = 'Personal' AND \"Deleted\" IS NULL");
 
                     b.ToTable("Collections");
                 });
@@ -328,6 +391,12 @@ namespace AnnotationStore.Migrations
                     b.Property<DateTimeOffset>("Created")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTimeOffset?>("Deleted")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedIn")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("SlideId")
                         .IsRequired()
                         .HasColumnType("text");
@@ -339,6 +408,8 @@ namespace AnnotationStore.Migrations
                     b.HasKey("ImageAdjustmentId");
 
                     b.HasIndex("CollectionId");
+
+                    b.HasIndex("DeletedIn");
 
                     b.HasIndex("SlideId");
 
@@ -382,6 +453,15 @@ namespace AnnotationStore.Migrations
                     b.HasOne("AnnotationStore.CellCounts.CellCount", null)
                         .WithOne("RegionOfInterest")
                         .HasForeignKey("AnnotationStore.CellCounts.RegionOfInterest", "CellCountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AnnotationStore.ChangeSets.ChangeSet", b =>
+                {
+                    b.HasOne("AnnotationStore.Collections.Collections", null)
+                        .WithMany()
+                        .HasForeignKey("CollectionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

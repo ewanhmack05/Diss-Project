@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using AnnotationStore.Annotations;
 using AnnotationStore.Auth;
 using AnnotationStore.CellCounts;
+using AnnotationStore.ChangeSets;
 using AnnotationStore.Collections;
 using AnnotationStore.ImageAdjustments;
 using AnnotationStore.Paging;
@@ -30,11 +31,12 @@ builder.Services.AddDbContext<AnnotationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("AnnotationStore")));
 
 // Any origin, so the viewer works from other devices on the network too.
-// Needs a real origin list once deployed.
+// Needs a real origin list once deployed. Change-Set-Id is let through so
+// the viewer can read which change set a write went in.
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
-        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader().WithExposedHeaders(ChangeSetEndpoints.Header));
 });
 
 builder.Services.AddOpenApi();
@@ -98,6 +100,7 @@ if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Databas
 
 app.MapCollectionEndpoints();
 app.MapAnnotationGroupEndpoints();
+app.MapChangeSetEndpoints();
 
 // Annotation endpoints
 
@@ -106,7 +109,8 @@ app.MapAnnotationGroupEndpoints();
 // time (see Paging/Paging.cs), with /total giving the count for the same
 // search and filters, and /facets the people and colours to filter by.
 // Anyone in the collection can read. Adding, changing and deleting need
-// editor or owner - see Collections/CollectionAccess.cs.
+// editor or owner - see Collections/CollectionAccess.cs. Every write goes
+// in a change set, and a delete only hides the row - see ChangeSets/.
 app.MapGet("/annotations", async (Guid collectionId, int? skip, int? take, string? search, [AsParameters] SavedFilter filter, ClaimsPrincipal user, AnnotationDbContext db) =>
     SavedPaging.Invalid(skip, take)
     ?? await db.RequireAsync(collectionId, user, CollectionRole.Viewer)
@@ -142,10 +146,11 @@ app.MapGet("/annotations/facets", async (Guid collectionId, ClaimsPrincipal user
     return Results.Ok(new SavedFacets(SavedPaging.Authors(authors), SavedPaging.Colours(colours)));
 }).AllowGuests();
 
-app.MapPost("/annotations", async (Annotation annotation, ClaimsPrincipal user, AnnotationDbContext db) =>
+app.MapPost("/annotations", async (Annotation annotation, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
 {
     if (await db.RequireAsync(annotation.CollectionId, user, CollectionRole.Editor) is { } denied) return denied;
     if (!await db.GroupIsInAsync(annotation.GroupId, annotation.CollectionId)) return Results.BadRequest("That group isn't in this collection");
+    if ((await db.ChangeSetAsync(http, annotation.CollectionId, user, "add annotation")).Problem is { } problem) return problem;
     var collection = await db.Collections.FirstAsync(c => c.CollectionId == annotation.CollectionId);
 
     if (annotation.Id == Guid.Empty) annotation.Id = Guid.NewGuid();
@@ -160,11 +165,12 @@ app.MapPost("/annotations", async (Annotation annotation, ClaimsPrincipal user, 
     return Results.Created($"/annotations/{annotation.Id}", annotation);
 });
 
-app.MapPut("/annotations/{id:guid}", async (Guid id, Annotation update, ClaimsPrincipal user, AnnotationDbContext db) =>
+app.MapPut("/annotations/{id:guid}", async (Guid id, Annotation update, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
 {
-    var existing = await db.Annotations.FindAsync(id);
+    var existing = await db.Annotations.FirstOrDefaultAsync(r => r.Id == id);
     if (existing is null) return Results.NotFound();
     if (await db.RequireAsync(existing.CollectionId, user, CollectionRole.Editor) is { } denied) return denied;
+    if ((await db.ChangeSetAsync(http, existing.CollectionId, user, "change annotation")).Problem is { } problem) return problem;
     existing.Label = update.Label;
     existing.Notes = update.Notes;
     existing.Colour = update.Colour;
@@ -172,12 +178,14 @@ app.MapPut("/annotations/{id:guid}", async (Guid id, Annotation update, ClaimsPr
     return Results.Ok(existing);
 });
 
-app.MapDelete("/annotations/{id:guid}", async (Guid id, ClaimsPrincipal user, AnnotationDbContext db) =>
+app.MapDelete("/annotations/{id:guid}", async (Guid id, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
 {
-    var existing = await db.Annotations.FindAsync(id);
+    var existing = await db.Annotations.FirstOrDefaultAsync(r => r.Id == id);
     if (existing is null) return Results.NotFound();
     if (await db.RequireAsync(existing.CollectionId, user, CollectionRole.Editor) is { } denied) return denied;
-    db.Annotations.Remove(existing);
+    var (changeSet, problem) = await db.ChangeSetAsync(http, existing.CollectionId, user, "delete annotation");
+    if (problem is not null) return problem;
+    existing.SoftDelete(changeSet!);
     await db.SaveChangesAsync();
     return Results.NoContent();
 });
@@ -275,9 +283,10 @@ app.MapGet("/cellcounts/{id:guid}", async (Guid id, ClaimsPrincipal user, Annota
 
 // Every dot goes in the one request, at about 60 bytes a dot, so the 30 MB
 // default only took counts up to ~495k. This takes a million with room spare.
-app.MapPost("/cellcounts", [RequestSizeLimit(CellCountLimits.MaxRequestBytes)] async (CellCount cellCount, ClaimsPrincipal user, AnnotationDbContext db) =>
+app.MapPost("/cellcounts", [RequestSizeLimit(CellCountLimits.MaxRequestBytes)] async (CellCount cellCount, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
 {
     if (await db.RequireAsync(cellCount.CollectionId, user, CollectionRole.Editor) is { } denied) return denied;
+    if ((await db.ChangeSetAsync(http, cellCount.CollectionId, user, "add cell count")).Problem is { } problem) return problem;
     var collection = await db.Collections.FirstAsync(c => c.CollectionId == cellCount.CollectionId);
 
     if (cellCount.Id == Guid.Empty) cellCount.Id = Guid.NewGuid();
@@ -297,11 +306,12 @@ app.MapPost("/cellcounts", [RequestSizeLimit(CellCountLimits.MaxRequestBytes)] a
     return Results.Created($"/cellcounts/{cellCount.Id}", cellCount);
 });
 
-app.MapPut("/cellcounts/{id:guid}", async (Guid id, CellCount update, ClaimsPrincipal user, AnnotationDbContext db) =>
+app.MapPut("/cellcounts/{id:guid}", async (Guid id, CellCount update, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
 {
-    var existing = await db.CellCounts.FindAsync(id);
+    var existing = await db.CellCounts.FirstOrDefaultAsync(r => r.Id == id);
     if (existing is null) return Results.NotFound();
     if (await db.RequireAsync(existing.CollectionId, user, CollectionRole.Editor) is { } denied) return denied;
+    if ((await db.ChangeSetAsync(http, existing.CollectionId, user, "change cell count")).Problem is { } problem) return problem;
     existing.Label = update.Label;
     existing.Notes = update.Notes;
     existing.WithAnnotation = update.WithAnnotation;
@@ -312,12 +322,15 @@ app.MapPut("/cellcounts/{id:guid}", async (Guid id, CellCount update, ClaimsPrin
     return Results.Ok(existing);
 });
 
-app.MapDelete("/cellcounts/{id:guid}", async (Guid id, ClaimsPrincipal user, AnnotationDbContext db) =>
+// Its region of interest is left as it is, so it comes back with it.
+app.MapDelete("/cellcounts/{id:guid}", async (Guid id, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
 {
-    var existing = await db.CellCounts.FindAsync(id);
+    var existing = await db.CellCounts.FirstOrDefaultAsync(r => r.Id == id);
     if (existing is null) return Results.NotFound();
     if (await db.RequireAsync(existing.CollectionId, user, CollectionRole.Editor) is { } denied) return denied;
-    db.CellCounts.Remove(existing);
+    var (changeSet, problem) = await db.ChangeSetAsync(http, existing.CollectionId, user, "delete cell count");
+    if (problem is not null) return problem;
+    existing.SoftDelete(changeSet!);
     await db.SaveChangesAsync();
     return Results.NoContent();
 });
@@ -329,9 +342,10 @@ app.MapGet("/imageadjustments", async (Guid collectionId, ClaimsPrincipal user, 
     await db.RequireAsync(collectionId, user, CollectionRole.Viewer)
     ?? Results.Ok(await db.ImageAdjustments.Where(a => a.CollectionId == collectionId).ToListAsync()));
 
-app.MapPost("/imageadjustments", async (AnnotationStore.ImageAdjustments.ImageAdjustments adjustment, ClaimsPrincipal user, AnnotationDbContext db) =>
+app.MapPost("/imageadjustments", async (AnnotationStore.ImageAdjustments.ImageAdjustments adjustment, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
 {
     if (await db.RequireAsync(adjustment.CollectionId, user, CollectionRole.Editor) is { } denied) return denied;
+    if ((await db.ChangeSetAsync(http, adjustment.CollectionId, user, "add image adjustment")).Problem is { } problem) return problem;
     var collection = await db.Collections.FirstAsync(c => c.CollectionId == adjustment.CollectionId);
     adjustment.UserId = user.UserId();
 
@@ -343,23 +357,26 @@ app.MapPost("/imageadjustments", async (AnnotationStore.ImageAdjustments.ImageAd
     return Results.Created($"/imageadjustments/{adjustment.ImageAdjustmentId}", adjustment);
 });
 
-app.MapPut("/imageadjustments/{id:guid}", async (Guid id, AnnotationStore.ImageAdjustments.ImageAdjustments update, ClaimsPrincipal user, AnnotationDbContext db) =>
+app.MapPut("/imageadjustments/{id:guid}", async (Guid id, AnnotationStore.ImageAdjustments.ImageAdjustments update, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
 {
-    var existing = await db.ImageAdjustments.FindAsync(id);
+    var existing = await db.ImageAdjustments.FirstOrDefaultAsync(r => r.ImageAdjustmentId == id);
     if (existing is null) return Results.NotFound();
     if (await db.RequireAsync(existing.CollectionId, user, CollectionRole.Editor) is { } denied) return denied;
+    if ((await db.ChangeSetAsync(http, existing.CollectionId, user, "change image adjustment")).Problem is { } problem) return problem;
     existing.AdjustmentName = update.AdjustmentName;
     existing.Adjustments = update.Adjustments;
     await db.SaveChangesAsync();
     return Results.Ok(existing);
 });
 
-app.MapDelete("/imageadjustments/{id:guid}", async (Guid id, ClaimsPrincipal user, AnnotationDbContext db) =>
+app.MapDelete("/imageadjustments/{id:guid}", async (Guid id, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
 {
-    var existing = await db.ImageAdjustments.FindAsync(id);
+    var existing = await db.ImageAdjustments.FirstOrDefaultAsync(r => r.ImageAdjustmentId == id);
     if (existing is null) return Results.NotFound();
     if (await db.RequireAsync(existing.CollectionId, user, CollectionRole.Editor) is { } denied) return denied;
-    db.ImageAdjustments.Remove(existing);
+    var (changeSet, problem) = await db.ChangeSetAsync(http, existing.CollectionId, user, "delete image adjustment");
+    if (problem is not null) return problem;
+    existing.SoftDelete(changeSet!);
     await db.SaveChangesAsync();
     return Results.NoContent();
 });
