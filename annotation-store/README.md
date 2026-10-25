@@ -21,6 +21,17 @@ configured database automatically on startup - no manual
 `Database__MigrateOnStartup=true` does the same in any environment - the
 Docker image sets it.
 
+Shapes are saved with coordinates to a tenth of a slide pixel
+([GeoJsonRounding.cs](Annotations/GeoJsonRounding.cs)). Ones saved before
+that can be rounded once, after which it exits rather than serving:
+
+```bash
+dotnet run --project annotation-store -- round-geojson
+```
+
+It writes straight to the rows, so nothing shows on the History tab, and
+running it again finds nothing to do.
+
 ### Tests
 
 ```bash
@@ -300,7 +311,7 @@ ties, so no row turns up on two pages.
 | `Shape`         | text          | `line` / `freehand` / `polygon` / `arrow` / `rectangle` / `circle`                                  |
 | `LineStyle`     | text          | `solid` / `dashed`                                                                                  |
 | `LineThickness` | int           |                                                                                                     |
-| `GeoJson`       | text          | the drawn feature, as written by `image-viewer`'s `featureToGeoJson`                                |
+| `GeoJson`       | text          | the drawn feature, as written by `image-viewer`'s `featureToGeoJson` - coordinates to a tenth, rounded on save if not |
 | `GroupId`       | uuid, null    | the `AnnotationGroup` it's in, if any - always one in the same collection                           |
 | `Created`       | timestamptz   | server-assigned                                                                                     |
 

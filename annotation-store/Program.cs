@@ -98,6 +98,15 @@ if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Databas
     scope.ServiceProvider.GetRequiredService<AnnotationDbContext>().Database.Migrate();
 }
 
+// One-off jobs, then exit rather than serve.
+if (args.Contains("round-geojson"))
+{
+    using var scope = app.Services.CreateScope();
+    var (annotations, regions) = await GeoJsonBackfill.RunAsync(scope.ServiceProvider.GetRequiredService<AnnotationDbContext>());
+    Console.WriteLine($"Rounded {annotations} annotations and {regions} regions of interest");
+    return;
+}
+
 app.MapCollectionEndpoints();
 app.MapAnnotationGroupEndpoints();
 app.MapChangeSetEndpoints();

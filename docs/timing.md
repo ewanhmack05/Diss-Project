@@ -76,19 +76,23 @@ viewer wouldn't go through Vite.
    since sign-in needs HTTPS or localhost. Going straight to the store from
    the viewer when it's on localhost would take all of it off; CORS already
    allows it. Neither changes a deployed build, which won't have Vite.
-2. **Send less GeoJSON.** It's 80% of the map's load (8.2 of 10.2 MB), and
-   its coordinates are full doubles - `88734.88763302466`. Rounded to a
-   tenth of a slide pixel it's 4.5 MB (54% of now), with no CPU cost and no
-   visible difference. Rounding on save - in the viewer's `featureToGeoJson`
-   and the store's import - means the map, export and Saved lists all get
-   smaller. Existing rows would need a one-off pass, or can be left.
+2. **Send less GeoJSON - done 25 Oct.** It was 80% of the map's load (8.2
+   of 10.2 MB), with full-double coordinates - `88734.88763302466`. Rounded
+   to a tenth of a slide pixel, alice's 5,000 go from 8.21 to 3.98 MB of
+   GeoJSON, and the whole answer from 10.24 to 6.01 MB (59%) - re-measured
+   25 Oct - with no CPU cost and no visible difference. The viewer's `featureToGeoJson` now saves to a tenth,
+   the store rounds anything else on save (an import, a script), and
+   `dotnet run --project annotation-store -- round-geojson` rounds what was
+   saved before. Re-run `time_api.py` after that to get the new sizes.
 3. **Compression, for the VPN.** gzip takes the three big answers to about a
    third (map 10.2 -> 3.75 MB, export 14.0 -> 4.5 MB, a count's dots
    3.1 -> 0.6 MB) but costs about 230ms of CPU on the map at the fastest
    level - slower than not compressing on localhost, much faster over a
    slow link. Worth it once anyone uses it remotely, at the fastest level,
    and only above a size.
-4. **Load the map by what's in view** - already in
+4. **Load the map by what's in view** - the zoomed-out half is done (see
+   [rendering.md](rendering.md#less-detail-zoomed-out---2026-10-25)); loading
+   by extent is still open, and in
    [image-viewer.md's known gaps](breakdown/image-viewer.md#16-known-gaps)
    and [rendering.md](rendering.md#what-would-move-the-limits). The biggest
    change of all at 25k+ annotations, and the most work.

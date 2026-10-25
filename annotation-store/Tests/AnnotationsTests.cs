@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using AnnotationStore.Annotations;
+using AnnotationStore.CellCounts;
 using AnnotationStore.Collections;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -185,5 +186,95 @@ public class AnnotationsTests : IClassFixture<CellCountApiFactory>
         var response = await client.DeleteAsync($"/annotations/{Guid.NewGuid()}");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ASavedAnnotation_IsStoredRounded()
+    {
+        var client = _factory.CreateClient();
+        var collectionId = await TestJson.EnsureCollectionAsync(client, Guid.NewGuid().ToString());
+
+        var response = await client.PostAsJsonAsync("/annotations", new Annotation
+        {
+            CollectionId = collectionId,
+            Label = "a",
+            Shape = "polygon",
+            GeoJson = GeoJsonRoundingTests.Long,
+        });
+        response.EnsureSuccessStatusCode();
+        var created = (await response.Content.ReadFromJsonAsync<Annotation>())!;
+
+        Assert.Equal(GeoJsonRoundingTests.Rounded, created.GeoJson);
+        var listed = await client.GetFromJsonAsync<List<Annotation>>($"/annotations?collectionId={collectionId}", TestJson.Options);
+        Assert.Equal(GeoJsonRoundingTests.Rounded, Assert.Single(listed!).GeoJson);
+    }
+
+    [Fact]
+    public async Task ACellCountsRegionOfInterest_IsStoredRounded()
+    {
+        var client = _factory.CreateClient();
+        var collectionId = await TestJson.EnsureCollectionAsync(client, Guid.NewGuid().ToString());
+
+        var response = await client.PostAsJsonAsync("/cellcounts", new CellCount
+        {
+            CollectionId = collectionId,
+            Label = "c",
+            Dots = "[]",
+            WithRoi = true,
+            RegionOfInterest = new RegionOfInterest { GeoJson = GeoJsonRoundingTests.Long },
+        });
+        response.EnsureSuccessStatusCode();
+
+        Assert.Equal(GeoJsonRoundingTests.Rounded, (await response.Content.ReadFromJsonAsync<CellCount>())!.RegionOfInterest!.GeoJson);
+    }
+
+    [Fact]
+    public async Task AnImport_IsStoredRounded()
+    {
+        var alice = TestAuthHandler.As(_factory.CreateClient(), "alice");
+        var collectionId = await TestJson.EnsureCollectionAsync(alice, Guid.NewGuid().ToString());
+
+        var response = await alice.PostAsJsonAsync($"/collections/{collectionId}/import", new ImportRequest(
+            [new Annotation { Label = "a", GeoJson = GeoJsonRoundingTests.Long }], []), TestJson.Options);
+        response.EnsureSuccessStatusCode();
+
+        var listed = await alice.GetFromJsonAsync<List<Annotation>>($"/annotations?collectionId={collectionId}", TestJson.Options);
+        Assert.Equal(GeoJsonRoundingTests.Rounded, Assert.Single(listed!).GeoJson);
+    }
+
+    [Fact]
+    public async Task TheBackfill_RoundsWhatWasSavedBefore_AndLeavesTheRest()
+    {
+        var client = _factory.CreateClient();
+        var collectionId = await TestJson.EnsureCollectionAsync(client, Guid.NewGuid().ToString());
+        var oldShape = (await (await client.PostAsJsonAsync("/annotations", new Annotation { CollectionId = collectionId, Label = "old", GeoJson = GeoJsonRoundingTests.Rounded }))
+            .Content.ReadFromJsonAsync<Annotation>())!;
+        var newShape = (await (await client.PostAsJsonAsync("/annotations", new Annotation { CollectionId = collectionId, Label = "new", GeoJson = GeoJsonRoundingTests.Rounded }))
+            .Content.ReadFromJsonAsync<Annotation>())!;
+        var count = (await (await client.PostAsJsonAsync("/cellcounts", new CellCount
+        {
+            CollectionId = collectionId,
+            Label = "c",
+            Dots = "[]",
+            WithRoi = true,
+            RegionOfInterest = new RegionOfInterest { GeoJson = GeoJsonRoundingTests.Rounded },
+        })).Content.ReadFromJsonAsync<CellCount>())!;
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AnnotationDbContext>();
+        // As they'd be from before rounding on save.
+        await db.Annotations.Where(a => a.Id == oldShape.Id).ExecuteUpdateAsync(s => s.SetProperty(a => a.GeoJson, GeoJsonRoundingTests.Long));
+        await db.RegionsOfInterest.Where(r => r.Id == count.RegionOfInterest!.Id).ExecuteUpdateAsync(s => s.SetProperty(r => r.GeoJson, GeoJsonRoundingTests.Long));
+
+        var (annotations, regions) = await GeoJsonBackfill.RunAsync(db);
+
+        Assert.True(annotations >= 1);
+        Assert.True(regions >= 1);
+        Assert.Equal(GeoJsonRoundingTests.Rounded, await db.Annotations.Where(a => a.Id == oldShape.Id).Select(a => a.GeoJson).SingleAsync());
+        Assert.Equal(GeoJsonRoundingTests.Rounded, await db.Annotations.Where(a => a.Id == newShape.Id).Select(a => a.GeoJson).SingleAsync());
+        Assert.Equal(GeoJsonRoundingTests.Rounded, await db.RegionsOfInterest.Where(r => r.Id == count.RegionOfInterest!.Id).Select(r => r.GeoJson).SingleAsync());
+        // Nothing for the History tab, and nothing left to do a second time.
+        Assert.Empty(await db.HistoryEntries.Where(e => e.EntityId == oldShape.Id && e.Op == AnnotationStore.History.HistoryOp.Update).ToListAsync());
+        Assert.Equal((0, 0), await GeoJsonBackfill.RunAsync(db));
     }
 }

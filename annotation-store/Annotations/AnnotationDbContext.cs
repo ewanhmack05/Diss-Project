@@ -32,6 +32,7 @@ public class AnnotationDbContext(DbContextOptions<AnnotationDbContext> options) 
     // The change and its history go in together, or neither does.
     public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
+        RoundNewShapes();
         var history = HistoryLog.Capture(this);
         if (history.Count == 0) return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
         await using var transaction = await HistoryLog.BeginAsync(this);
@@ -40,6 +41,17 @@ public class AnnotationDbContext(DbContextOptions<AnnotationDbContext> options) 
         if (transaction is not null) await transaction.CommitAsync(cancellationToken);
         DeleteNotes.Clear();
         return saved;
+    }
+
+    // A shape is fixed once saved, so only new ones need it.
+    private void RoundNewShapes()
+    {
+        foreach (var entry in ChangeTracker.Entries())
+        {
+            if (entry.State != EntityState.Added) continue;
+            if (entry.Entity is Annotation annotation) annotation.GeoJson = GeoJsonRounding.Round(annotation.GeoJson);
+            else if (entry.Entity is RegionOfInterest region) region.GeoJson = GeoJsonRounding.Round(region.GeoJson);
+        }
     }
 
     // For HistoryLog's own rows, which aren't history of anything.

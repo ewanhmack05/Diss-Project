@@ -388,7 +388,7 @@ line's end, style functions) stay on canvas.
 | Layer | Renderer | Shows |
 | ----- | -------- | ----- |
 | Slide tiles | WebGL | The image. Brightness, contrast, gamma and colour gains run in its shader |
-| Saved annotations | WebGL | Every annotation in the collection - minus hidden groups, and anything the open Saved list's search and filters leave out |
+| Saved annotations | WebGL | Every annotation in the collection - minus hidden groups, and anything the open Saved list's search and filters leave out. Drawn with less detail zoomed out ([LessDetail.ts](../../image-viewer/src/components/open-layers/LessDetail.ts), see [rendering.md](../rendering.md#less-detail-zoomed-out---2026-10-25)) |
 | Selected annotations | Canvas | A teal halo round what's picked on the Select tab |
 | Arrowheads | Canvas | The heads of arrow annotations |
 | Viewed annotation | Canvas | A halo round the one picked with View on map |
@@ -416,7 +416,10 @@ OpenLayers' own GeoJSON format. GeoJSON has no circles, so the circle tool
 draws a 50-sided polygon and the rectangle tool a box polygon
 ([Tools.ts](../../image-viewer/src/components/annotation/Tools.ts)) - every
 shape is a plain line or polygon by the time it's saved. That string is what
-goes in annotation-store's `GeoJson` column.
+goes in annotation-store's `GeoJson` column, with coordinates rounded to a
+tenth of a slide pixel (`CoordinateDecimals`) - full doubles nearly doubled
+what the map loads, and a tenth of a pixel never shows. The store rounds
+anything else saved the same way.
 
 ## 7. Drawing an annotation
 
@@ -743,9 +746,10 @@ build on every push that touches the viewer.
 
 ## 16. Known gaps
 
-- **The map loads every annotation.** Smooth to ~10k, laggy at 25k,
-  unusable at 50k. Loading by extent and simplifying at low zoom would fix
-  it - see [rendering.md](../rendering.md#what-would-move-the-limits).
+- **The map loads every annotation.** Zoomed out it now draws a simplified
+  copy, which cuts what the GPU draws at the fitted view to about a fifth,
+  but the whole collection is still loaded and held. Loading by extent is
+  the rest - see [rendering.md](../rendering.md#what-would-move-the-limits).
 - **Viewing a big count freezes the page** while its dots are parsed and
   made into features in one go. Chunks or a worker would fix it.
 - **Saves aren't rolled back** if they fail - you get a toast, but the item
