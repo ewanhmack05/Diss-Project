@@ -22,6 +22,10 @@ describe('filterParams', () => {
     expect(query.getAll('colour')).toEqual(['#fb0909', '#0913fb'])
   })
 
+  it("sends the History list's kinds of change, one key each", () => {
+    expect(params({ ...NO_FILTERS, kinds: ['delete', 'merge'] }).getAll('kind')).toEqual(['delete', 'merge'])
+  })
+
   it('sends Custom as everything but the palette', () => {
     const query = params({ ...NO_FILTERS, colours: ['#fb0909'], customColour: true })
     expect(query.getAll('colour')).toEqual(['#fb0909'])
@@ -108,6 +112,7 @@ describe('activeFilterCount', () => {
     expect(activeFilterCount({ ...NO_FILTERS, createdBy: ['a', 'b'], colours: ['#000000'] })).toBe(2)
     expect(activeFilterCount({ ...NO_FILTERS, from: '2026-10-01', to: '2026-10-14', notes: 'yes' })).toBe(2)
     expect(activeFilterCount({ ...NO_FILTERS, customColour: true })).toBe(1)
+    expect(activeFilterCount({ ...NO_FILTERS, kinds: ['add', 'delete'], createdBy: ['bob'] })).toBe(2)
   })
 })
 

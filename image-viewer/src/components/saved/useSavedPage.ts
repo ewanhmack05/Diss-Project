@@ -37,6 +37,7 @@ function useSavedPage<T>({
   pageSize,
   search,
   filters = NO_FILTERS,
+  order = 'newest',
   revision,
 }: {
   baseUrl: string
@@ -46,6 +47,7 @@ function useSavedPage<T>({
   pageSize: number
   search: string
   filters?: SavedFilters
+  order?: 'newest' | 'oldest'
   revision: number
 }): SavedPage<T> {
   const { authFetch } = useAuthContext()
@@ -64,7 +66,7 @@ function useSavedPage<T>({
   // Only the newest request's answer is used - a slow page 1 mustn't land
   // on top of the page 2 asked for after it.
   const latestRef = useRef(0)
-  const previousRef = useRef<{ page: number; collectionId: string; key: string } | null>(null)
+  const previousRef = useRef<{ page: number; collectionId: string; key: string; order: string } | null>(null)
   // The effect goes by this rather than the object, which is new each time
   // the popout changes anything.
   const key = filterKey(filters)
@@ -78,8 +80,9 @@ function useSavedPage<T>({
       previous === null ||
       previous.page !== page ||
       previous.collectionId !== collectionId ||
-      previous.key !== key
-    previousRef.current = { page, collectionId, key }
+      previous.key !== key ||
+      previous.order !== order
+    previousRef.current = { page, collectionId, key, order }
     const request = ++latestRef.current
 
     const timer = setTimeout(
@@ -88,7 +91,7 @@ function useSavedPage<T>({
         const asked = performance.now()
         const askedFilters = JSON.parse(key) as SavedFilters
         const filtered = isFiltered(search, askedFilters)
-        const urls = pageUrls(baseUrl, path, collectionId, page, pageSize, search, askedFilters)
+        const urls = pageUrls(baseUrl, path, collectionId, page, pageSize, search, askedFilters, order)
         const json = (url: string) =>
           authFetch(url).then((response) => {
             if (!response.ok) throw new Error(String(response.status))
@@ -107,7 +110,7 @@ function useSavedPage<T>({
       immediate ? 0 : SETTLE_MS,
     )
     return () => clearTimeout(timer)
-  }, [baseUrl, path, collectionId, page, pageSize, search, key, revision, authFetch])
+  }, [baseUrl, path, collectionId, page, pageSize, search, key, order, revision, authFetch])
 
   if (state.collectionId !== collectionId) return { fetched: [], total: 0, at: -1, asked: -1, filtered: false, status: 'loading', loadingMore: false }
   return state

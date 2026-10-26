@@ -5,7 +5,7 @@ import type { ImageAdjustmentPreset } from '../../../interfaces/ImageAdjustment'
 import type { AnnotationOp } from '../../realtime/realtime'
 
 // One change in a collection, as GET /changesets gives it - see
-// annotation-store's ChangeSets/. deleted is how many rows it deleted that
+// annotation-store's History/. deleted is how many rows it deleted that
 // are still deleted, so 0 once it's been put back.
 interface ChangeSet {
   id: string
@@ -34,6 +34,9 @@ interface Restored {
   groups: (AnnotationGroup & { count?: number })[]
   cellCounts: CellCount[]
   imageAdjustments: ImageAdjustmentPreset[]
+  // Were already there, and went back how they were - put back in the
+  // group a delete or merge took them out of, or a recolour undone.
+  changedAnnotations: Annotation[]
 }
 
 const number = (n: number) => n.toLocaleString('en-GB')
@@ -80,7 +83,7 @@ function wasPutBack({ what, deleted }: Pick<ChangeSet, 'what' | 'deleted'>): boo
 // The one place that says who can put a change back. annotation-store lets
 // any editor restore anyone's change (it's rollback, not undo), so this
 // matches. If that's narrowed to the author and the host, change it here
-// and in ChangeSets.cs.
+// and in annotation-store's History/ChangeSets.cs.
 function canRestore(changeSet: Pick<ChangeSet, 'deleted' | 'what'>, canEdit: boolean): boolean {
   // A deleted collection is never the one you're in, so it can't be put
   // back from its own history.
@@ -129,9 +132,8 @@ function restoreStatus(changeSet: Pick<ChangeSet, 'what' | 'deleted'>): string |
 // Said above Put back, so it's clear what happens before it does.
 function restoreNote({ what }: Pick<ChangeSet, 'what'>): string {
   const everyone = 'It comes back for everyone in this collection, as a change of its own.'
-  // Deleting or merging a group ungrouped what was in it, and which ones
-  // isn't kept yet.
-  return what === 'delete group' || what === 'merge groups' ? `${everyone} The group comes back empty.` : everyone
+  // Anything moved out of it since stays where it was moved to.
+  return what === 'delete group' || what === 'merge groups' ? `${everyone} The group comes back with what was in it.` : everyone
 }
 
 // Which icon a row gets.
@@ -143,6 +145,17 @@ function changeKind(what: string): ChangeKind {
   if (what.startsWith('add')) return 'add'
   if (what.startsWith('delete')) return 'delete'
   return 'change'
+}
+
+// What each kind is called in the History filter, in the order it lists
+// them - the store's ChangeKinds.All.
+const KIND_LABELS: Record<ChangeKind, string> = {
+  add: 'Added',
+  change: 'Changed',
+  delete: 'Deleted',
+  merge: 'Merged',
+  import: 'Imported',
+  restore: 'Put back',
 }
 
 // "AM" for Alice Moore - first and last word.
@@ -172,8 +185,9 @@ function byDay<T extends { created: string }>(items: T[], heading: (iso: string)
   return days
 }
 
-// Everyone else is told with a create per row, the same as an import.
-// Image adjustments are personal, so nobody else needs them.
+// Everyone else is told with a create per row, the same as an import, and an
+// update for each one that was already there. Image adjustments are
+// personal, so nobody else needs them.
 function restoredOps(restored: Restored): AnnotationOp[] {
   // Groups first, so an annotation that's in one never arrives before it.
   return [
@@ -184,11 +198,13 @@ function restoredOps(restored: Restored): AnnotationOp[] {
       data: { ...group, notes: group.notes ?? '' },
     })),
     ...restored.annotations.map((a): AnnotationOp => ({ kind: 'create', entity: 'annotation', id: a.id, data: a })),
+    ...(restored.changedAnnotations ?? []).map((a): AnnotationOp => ({ kind: 'update', entity: 'annotation', id: a.id, data: a })),
     ...restored.cellCounts.map((c): AnnotationOp => ({ kind: 'create', entity: 'cellCount', id: c.id, data: c })),
   ]
 }
 
 export {
+  KIND_LABELS,
   changeLabel,
   wasPutBack,
   canRestore,

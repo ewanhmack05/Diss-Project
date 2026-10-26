@@ -18,6 +18,8 @@ interface SavedColour {
 interface SavedFacets {
   authors: SavedAuthor[]
   colours: SavedColour[]
+  // The History list only - how many of each kind of change.
+  kinds?: { kind: string; count: number }[]
 }
 
 // From annotation-store's /facets. Refetched on `revision` like
@@ -25,7 +27,7 @@ interface SavedFacets {
 // until it's known.
 function useSavedFacets(
   baseUrl: string,
-  path: 'annotations' | 'cellcounts',
+  path: 'annotations' | 'cellcounts' | 'changesets',
   collectionId: string | null,
   revision: number,
 ): SavedFacets | null {
@@ -41,7 +43,8 @@ function useSavedFacets(
         return response.json() as Promise<SavedFacets>
       })
       .then((facets) => {
-        if (!cancelled) setState({ collectionId, facets })
+        // The History list's has no colours.
+        if (!cancelled) setState({ collectionId, facets: { ...facets, colours: facets.colours ?? [] } })
       })
       // A missed refresh keeps the last choices - the filters still work.
       .catch(() => {})

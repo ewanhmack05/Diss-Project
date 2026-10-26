@@ -1,6 +1,6 @@
 using AnnotationStore.CellCounts;
-using AnnotationStore.ChangeSets;
 using AnnotationStore.Collections;
+using AnnotationStore.History;
 using AnnotationStore.ImageAdjustments;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
@@ -18,6 +18,45 @@ public class AnnotationDbContext(DbContextOptions<AnnotationDbContext> options) 
     public DbSet<CollectionMember> CollectionMembers => Set<CollectionMember>();
     public DbSet<CollectionInvite> CollectionInvites => Set<CollectionInvite>();
     public DbSet<ChangeSet> ChangeSets => Set<ChangeSet>();
+    public DbSet<HistoryEntry> HistoryEntries => Set<HistoryEntry>();
+
+    // The change set this request's writes go in - set by ChangeSetAsync.
+    // Every save writes what it did to versioned rows under it (HistoryLog).
+    public ChangeSet? CurrentChangeSet { get; set; }
+    // Extra said about a delete - a merged group says where it went.
+    internal Dictionary<object, object> DeleteNotes { get; } = new(ReferenceEqualityComparer.Instance);
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess) =>
+        SaveChangesAsync(acceptAllChangesOnSuccess).GetAwaiter().GetResult();
+
+    // The change and its history go in together, or neither does.
+    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        RoundNewShapes();
+        var history = HistoryLog.Capture(this);
+        if (history.Count == 0) return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        await using var transaction = await HistoryLog.BeginAsync(this);
+        var saved = await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        await HistoryLog.WriteAsync(this, history, cancellationToken);
+        if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+        DeleteNotes.Clear();
+        return saved;
+    }
+
+    // A shape is fixed once saved, so only new ones need it.
+    private void RoundNewShapes()
+    {
+        foreach (var entry in ChangeTracker.Entries())
+        {
+            if (entry.State != EntityState.Added) continue;
+            if (entry.Entity is Annotation annotation) annotation.GeoJson = GeoJsonRounding.Round(annotation.GeoJson);
+            else if (entry.Entity is RegionOfInterest region) region.GeoJson = GeoJsonRounding.Round(region.GeoJson);
+        }
+    }
+
+    // For HistoryLog's own rows, which aren't history of anything.
+    internal Task<int> SaveWithoutHistoryAsync(CancellationToken cancellationToken) =>
+        base.SaveChangesAsync(true, cancellationToken);
 
     // The tests run on SQLite, which can't sort DateTimeOffset - and the lists
     // are sorted and paged in SQL, newest first. Stored there as UTC ticks
@@ -45,6 +84,9 @@ public class AnnotationDbContext(DbContextOptions<AnnotationDbContext> options) 
         // that's checked in POST /sessions, not here - older data can have
         // more. Deleted ones don't count, so ensure can make a new one. The
         // filter is plain SQL that Postgres and SQLite both take.
+        // A deleted collection is hidden rather than removed - it holds
+        // everything in it, and its owner can bring it back. Nothing else
+        // keeps deleted rows; they're in the history schema.
         modelBuilder.Entity<Collections.Collections>().Property(c => c.Kind).HasConversion<string>();
         modelBuilder.Entity<Collections.Collections>()
             .HasIndex(c => new { c.SlideId, c.UserId })
@@ -126,6 +168,9 @@ public class AnnotationDbContext(DbContextOptions<AnnotationDbContext> options) 
             .HasForeignKey<RegionOfInterest>(r => r.CellCountId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // History is its own schema - the live tables above only ever hold
+        // what's there now. See History/.
+        modelBuilder.Entity<ChangeSet>().ToTable("ChangeSets", "history");
         modelBuilder.Entity<ChangeSet>().HasIndex(c => new { c.CollectionId, c.Created });
         modelBuilder.Entity<ChangeSet>()
             .HasOne<Collections.Collections>()
@@ -133,20 +178,21 @@ public class AnnotationDbContext(DbContextOptions<AnnotationDbContext> options) 
             .HasForeignKey(c => c.CollectionId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // Deleted rows drop out of every query unless it asks for them with
-        // IgnoreQueryFilters - only restoring and the change set list do.
-        // DeletedIn is indexed for restore. A region of interest has no
-        // filter of its own - it's only ever read through its count.
-        SoftDeletable<Annotation>(modelBuilder);
-        SoftDeletable<AnnotationGroup>(modelBuilder);
-        SoftDeletable<CellCount>(modelBuilder);
-        SoftDeletable<ImageAdjustments.ImageAdjustments>(modelBuilder);
-        SoftDeletable<Collections.Collections>(modelBuilder);
-    }
+        modelBuilder.Entity<HistoryEntry>().ToTable("Entries", "history");
+        modelBuilder.Entity<HistoryEntry>().Property(e => e.Op).HasConversion<string>();
+        modelBuilder.Entity<HistoryEntry>().HasIndex(e => e.ChangeSetId);
+        modelBuilder.Entity<HistoryEntry>().HasIndex(e => new { e.CollectionId, e.Entity, e.EntityId });
+        modelBuilder.Entity<HistoryEntry>()
+            .HasOne<ChangeSet>()
+            .WithMany()
+            .HasForeignKey(e => e.ChangeSetId)
+            .OnDelete(DeleteBehavior.Cascade);
+        if (Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL")
+        {
+            modelBuilder.Entity<HistoryEntry>().Property(e => e.Before).HasColumnType("jsonb");
+            modelBuilder.Entity<HistoryEntry>().Property(e => e.After).HasColumnType("jsonb");
+        }
 
-    private static void SoftDeletable<T>(ModelBuilder modelBuilder) where T : class, ISoftDeletable
-    {
-        modelBuilder.Entity<T>().HasQueryFilter(r => r.Deleted == null);
-        modelBuilder.Entity<T>().HasIndex(r => r.DeletedIn);
+        modelBuilder.Entity<Collections.Collections>().HasQueryFilter(c => c.Deleted == null);
     }
 }

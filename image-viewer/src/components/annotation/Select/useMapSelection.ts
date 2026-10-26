@@ -43,14 +43,14 @@ function useMapSelection(
     if (!map) return
     const layer = new VectorLayer({ source: highlightSourceRef.current, style: selectedAnnotationStyle })
     const layers = map.getLayers()
-    const at = layers.getArray().findIndex((l) => (l as VectorLayer<VectorSource>).getSource?.() === annotationsSource)
+    const at = layers.getArray().findIndex((l) => l.get('savedAnnotations'))
     layers.insertAt(at < 0 ? layers.getLength() : at, layer)
     layerRef.current = layer
     return () => {
       layers.remove(layer)
       layerRef.current = null
     }
-  }, [mapRef, mapVersion, annotationsSource])
+  }, [mapRef, mapVersion])
 
   useEffect(() => {
     layerRef.current?.setVisible(visible)

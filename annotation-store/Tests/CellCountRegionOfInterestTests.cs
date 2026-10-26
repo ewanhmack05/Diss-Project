@@ -162,7 +162,7 @@ public class CellCountRegionOfInterestTests : IClassFixture<CellCountApiFactory>
     }
 
     [Fact]
-    public async Task Delete_HidesTheCount_AndKeepsItsRegionOfInterestForARestore()
+    public async Task Delete_TakesItsRegionOfInterestWithIt_AndARestoreBringsItBack()
     {
         var client = _factory.CreateClient();
         var collectionId = await CreateCollectionAsync(client, Guid.NewGuid().ToString());
@@ -177,7 +177,8 @@ public class CellCountRegionOfInterestTests : IClassFixture<CellCountApiFactory>
         Assert.Equal(System.Net.HttpStatusCode.NotFound, (await client.GetAsync($"/cellcounts/{created.Id}")).StatusCode);
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AnnotationDbContext>();
-        Assert.True(await db.RegionsOfInterest.AnyAsync(r => r.Id == roiId));
+        Assert.False(await db.RegionsOfInterest.AnyAsync(r => r.Id == roiId));
+        Assert.True(await db.HistoryEntries.AnyAsync(e => e.EntityId == roiId && e.Op == AnnotationStore.History.HistoryOp.Delete));
         var changeSet = deleteResponse.Headers.GetValues("Change-Set-Id").Single();
 
         (await client.PostAsync($"/changesets/{changeSet}/restore", null)).EnsureSuccessStatusCode();

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Collection, Feature, type Map, type MapBrowserEvent } from 'ol'
+import { Feature, type Map, type MapBrowserEvent } from 'ol'
 import type Geometry from 'ol/geom/Geometry'
 import type LineString from 'ol/geom/LineString'
 import Point from 'ol/geom/Point'
@@ -7,7 +7,6 @@ import Polygon, { fromExtent } from 'ol/geom/Polygon'
 import { containsCoordinate, type Extent } from 'ol/extent'
 import type { Coordinate } from 'ol/coordinate'
 import Draw, { type DrawEvent } from 'ol/interaction/Draw'
-import Translate from 'ol/interaction/Translate'
 import DragPan from 'ol/interaction/DragPan'
 import DragRotate from 'ol/interaction/DragRotate'
 import DragZoom from 'ol/interaction/DragZoom'
@@ -42,6 +41,8 @@ import {
   sharedDotFlatStyle,
 } from './open-layers/Styles'
 import { featureToGeoJson, geoJsonToFeature } from './open-layers/GeoJSON'
+import { LessDetail } from './open-layers/LessDetail'
+import { translatePending } from './open-layers/TranslatePending'
 import { useAnnotationGroupContext } from '../context/AnnotationGroupContext'
 import { useMapSelection } from './annotation/Select/useMapSelection'
 import { matchesSearch, passes } from './saved/filters'
@@ -293,6 +294,7 @@ function MapNode() {
     if (!mapElement.current) return
 
     let cancelled = false
+    let lessDetail: LessDetail | null = null
 
     const slideUrl = `${source.tilerUrl}/slides/${source.slideId}`
     fetch(slideUrl)
@@ -308,12 +310,17 @@ function MapNode() {
         // canvas - they only ever hold a feature or two, and need style
         // functions and text that WebGL layers don't support.
         // Nothing hit-tests these layers, so that's switched off too.
+        // The GPU draws a copy of the saved annotations with less detail
+        // when zoomed out (see LessDetail); everything else reads the
+        // shapes as saved from annotationsSource.
+        lessDetail = new LessDetail(annotationsSource)
         const annotationsLayer = new WebGLVectorLayer({
-          source: annotationsSource,
+          source: lessDetail.source,
           style: annotationFlatStyle,
           visible: annotationsVisible,
           disableHitDetection: true,
         })
+        annotationsLayer.set('savedAnnotations', true)
         const annotationArrowsLayer = new VectorLayer({
           source: annotationsSource,
           style: annotationArrowHeadStyle,
@@ -432,6 +439,7 @@ function MapNode() {
             style: (feature) => remoteViewportOverviewStyle(feature, overviewMap.getSize()?.[0] ?? 0),
           })
         )
+        lessDetail.follow(map)
         mapRef.current = map
         baseLayerRef.current = baseLayer
         // For scripts/map_bench.js, which turns layers off one at a time to
@@ -440,6 +448,7 @@ function MapNode() {
           Object.assign(window, {
             viewerMap: {
               map,
+              lessDetail,
               layers: {
                 tiles: baseLayer,
                 annotations: annotationsLayer,
@@ -467,6 +476,7 @@ function MapNode() {
       // Each WebGL layer holds its own GL context and browsers only allow
       // about 16 at once, so free them rather than leaking a set per slide.
       mapRef.current?.getLayers().forEach((layer) => layer.dispose())
+      lessDetail?.dispose()
       mapRef.current = null
       baseLayerRef.current = null
     }
@@ -1396,7 +1406,7 @@ function MapNode() {
     const map = mapRef.current
     if (!map || !pending) return
 
-    const translate = new Translate({ features: new Collection([pending.feature]) })
+    const translate = translatePending(drawLayerRef.current, pending.feature)
     map.addInteraction(translate)
 
     return () => {

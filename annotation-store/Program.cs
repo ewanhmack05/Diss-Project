@@ -4,8 +4,8 @@ using System.Text.Json.Serialization;
 using AnnotationStore.Annotations;
 using AnnotationStore.Auth;
 using AnnotationStore.CellCounts;
-using AnnotationStore.ChangeSets;
 using AnnotationStore.Collections;
+using AnnotationStore.History;
 using AnnotationStore.ImageAdjustments;
 using AnnotationStore.Paging;
 using DotNetEnv;
@@ -98,6 +98,15 @@ if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Databas
     scope.ServiceProvider.GetRequiredService<AnnotationDbContext>().Database.Migrate();
 }
 
+// One-off jobs, then exit rather than serve.
+if (args.Contains("round-geojson"))
+{
+    using var scope = app.Services.CreateScope();
+    var (annotations, regions) = await GeoJsonBackfill.RunAsync(scope.ServiceProvider.GetRequiredService<AnnotationDbContext>());
+    Console.WriteLine($"Rounded {annotations} annotations and {regions} regions of interest");
+    return;
+}
+
 app.MapCollectionEndpoints();
 app.MapAnnotationGroupEndpoints();
 app.MapChangeSetEndpoints();
@@ -110,7 +119,7 @@ app.MapChangeSetEndpoints();
 // search and filters, and /facets the people and colours to filter by.
 // Anyone in the collection can read. Adding, changing and deleting need
 // editor or owner - see Collections/CollectionAccess.cs. Every write goes
-// in a change set, and a delete only hides the row - see ChangeSets/.
+// in a change set, and what it did is kept in the history - see History/.
 app.MapGet("/annotations", async (Guid collectionId, int? skip, int? take, string? search, [AsParameters] SavedFilter filter, ClaimsPrincipal user, AnnotationDbContext db) =>
     SavedPaging.Invalid(skip, take)
     ?? await db.RequireAsync(collectionId, user, CollectionRole.Viewer)
@@ -183,9 +192,8 @@ app.MapDelete("/annotations/{id:guid}", async (Guid id, HttpContext http, Claims
     var existing = await db.Annotations.FirstOrDefaultAsync(r => r.Id == id);
     if (existing is null) return Results.NotFound();
     if (await db.RequireAsync(existing.CollectionId, user, CollectionRole.Editor) is { } denied) return denied;
-    var (changeSet, problem) = await db.ChangeSetAsync(http, existing.CollectionId, user, "delete annotation");
-    if (problem is not null) return problem;
-    existing.SoftDelete(changeSet!);
+    if ((await db.ChangeSetAsync(http, existing.CollectionId, user, "delete annotation")).Problem is { } problem) return problem;
+    db.Annotations.Remove(existing);
     await db.SaveChangesAsync();
     return Results.NoContent();
 });
@@ -278,15 +286,14 @@ app.MapPut("/cellcounts/{id:guid}", async (Guid id, CellCount update, HttpContex
     return Results.Ok(existing);
 });
 
-// Its region of interest is left as it is, so it comes back with it.
+// Its region of interest goes with it, and comes back with it.
 app.MapDelete("/cellcounts/{id:guid}", async (Guid id, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
 {
-    var existing = await db.CellCounts.FirstOrDefaultAsync(r => r.Id == id);
+    var existing = await db.CellCounts.Include(c => c.RegionOfInterest).FirstOrDefaultAsync(r => r.Id == id);
     if (existing is null) return Results.NotFound();
     if (await db.RequireAsync(existing.CollectionId, user, CollectionRole.Editor) is { } denied) return denied;
-    var (changeSet, problem) = await db.ChangeSetAsync(http, existing.CollectionId, user, "delete cell count");
-    if (problem is not null) return problem;
-    existing.SoftDelete(changeSet!);
+    if ((await db.ChangeSetAsync(http, existing.CollectionId, user, "delete cell count")).Problem is { } problem) return problem;
+    db.CellCounts.Remove(existing);
     await db.SaveChangesAsync();
     return Results.NoContent();
 });
@@ -330,9 +337,8 @@ app.MapDelete("/imageadjustments/{id:guid}", async (Guid id, HttpContext http, C
     var existing = await db.ImageAdjustments.FirstOrDefaultAsync(r => r.ImageAdjustmentId == id);
     if (existing is null) return Results.NotFound();
     if (await db.RequireAsync(existing.CollectionId, user, CollectionRole.Editor) is { } denied) return denied;
-    var (changeSet, problem) = await db.ChangeSetAsync(http, existing.CollectionId, user, "delete image adjustment");
-    if (problem is not null) return problem;
-    existing.SoftDelete(changeSet!);
+    if ((await db.ChangeSetAsync(http, existing.CollectionId, user, "delete image adjustment")).Problem is { } problem) return problem;
+    db.ImageAdjustments.Remove(existing);
     await db.SaveChangesAsync();
     return Results.NoContent();
 });

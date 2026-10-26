@@ -89,10 +89,11 @@ One saved count viewed at a time, as the viewer does.
 
 ### What would move the limits
 
-- Annotations: load by extent and zoom rather than everything at once, and
-  simplify shapes at low zoom so the GPU has fewer points when the whole
-  slide is in view. The Saved list already pages (50 at a time from
-  annotation-store), but the map still loads every annotation.
+- Annotations: simplify shapes at low zoom so the GPU has fewer points
+  when the whole slide is in view - done since, see
+  [Less detail zoomed out](#less-detail-zoomed-out---2026-10-25). Loading by
+  extent is still open: the map loads every annotation, though the Saved
+  list pages (50 at a time from annotation-store).
 - Dots: build viewed dots in chunks or a worker so View doesn't freeze the
   page. Done since: the Saved list pages, and gets each count's colour
   and placed-by summary rather than its dots - those load only for the
@@ -102,6 +103,48 @@ One saved count viewed at a time, as the viewer does.
   dots), and a new count goes out to the session with all its dots. What
   happens past that - the message dropped, or the sender's connection
   closed - needs trying with a live session.
+
+## Less detail zoomed out - 2026-10-25
+
+Zoomed out, a shape's points sit far closer together than the screen's
+pixels, and the GPU still drew every one. The WebGL annotations layer now
+draws a copy of each annotation with the points it can't show dropped
+([LessDetail.ts](../image-viewer/src/components/open-layers/LessDetail.ts)):
+
+- Full detail below 2 slide pixels a screen pixel. Past that, a level per
+  4x zoom out, each simplified (Douglas-Peucker) to half a screen pixel at
+  the sharpest zoom it's used at - so a line never moves by more than that.
+- A shape under a pixel across is drawn as its bounding box rather than
+  vanishing.
+- Everything still loads, and `annotationsSource` keeps the shapes as
+  saved - picking, the arrowheads, View on map and the Saved lists read
+  those. Only the GPU layer draws the copy, and it follows edits (a colour
+  picked before saving shows straight away).
+- A new level goes in when the view stops moving, which is when the WebGL
+  layer rebuilds its buffers anyway. Each level is worked out once per shape
+  and kept, so zooming back to one costs nothing.
+
+What the GPU gets, from `LessDetail.eval.test.ts` - 2,000 shapes in
+`seed_stress.py`'s mix, worst error measured against the saved points:
+
+| Slide px per screen px | Level | Points | Of saved | Worst error |
+|---|---|---|---|---|
+| 1 | 0 | 102,234 | 100% | 0 px |
+| 4 | 1 | 91,984 | 90% | 0.25 px |
+| 16 | 2 | 69,636 | 68% | 0.25 px |
+| 64 | 3 | 37,766 | 37% | 0.25 px |
+| 244 (slide 003 fitted to 1600x900) | 4 | 19,152 | 19% | 0.26 px |
+
+In the viewer, alice's 5,000 annotations on slide 003 at the fitted view
+(1024x768, level 4): 186,229 points as saved, 48,780 drawn (26%). A
+screenshot at level 4 and one at full detail differ in 29 of 157,904
+pixels (0.02%, anti-aliasing at edges); the same check one level too
+coarse, 33,304 (21%), so it would show if it were wrong. The main-thread
+part of a settle went from ~37-40 ms to ~26-31 ms.
+
+**Not measured yet:** frame rate while panning at 25k and 50k - the
+benchmark needs the browser visible. Re-run `map_bench.js` on those steps
+and add a column to the table above.
 
 ## Panning delay - what it turned out to be
 

@@ -1,5 +1,6 @@
 import { formatFullDate, timeAgo } from '../../saved/savedDates'
 import ChangeIcon from './ChangeIcon'
+import ChangeList from './ChangeList'
 import { canRestore, changeKind, changeLabel, initials, restoreNote, restoreStatus, shortId, wasPutBack, type ChangeSet } from './history'
 import Icon from '../../../icons/Icon'
 import chevronLeftSvg from '../../../icons/chevron-left.svg?raw'
@@ -14,8 +15,9 @@ interface HistoryDetailProps {
   onBack: () => void
 }
 
-// One change opened up - who, exactly when, what it did and what's still
-// deleted. This is the confirm too: Put back here does it straight away.
+// One change opened up - who, exactly when, what it changed from and to,
+// and what's still deleted. This is the confirm too: Put back here does it
+// straight away.
 function HistoryDetail({ changeSet, canEdit, restoring, putBack, onRestore, onBack }: HistoryDetailProps) {
   const current = putBack ? { ...changeSet, deleted: 0 } : changeSet
   const kind = changeKind(changeSet.what)
@@ -57,6 +59,8 @@ function HistoryDetail({ changeSet, canEdit, restoring, putBack, onRestore, onBa
           {shortId(changeSet.id)}
         </dd>
       </dl>
+
+      <ChangeList changeSetId={changeSet.id} />
 
       {restorable ? (
         <>

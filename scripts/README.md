@@ -19,6 +19,7 @@ layers for annotations and cell-count dots.
 | `simulate_session.py` | Fills a session with simulated people who move round live - see [below](#simulated-people-in-a-session) |
 | `simulate_annotations.py` | Same, and the editors draw shapes live in what they're looking at - see [below](#drawing-and-counting) |
 | `simulate_cell_counts.py` | Same, and the editors count cells live in what they're looking at - see [below](#drawing-and-counting) |
+| `time_api.py`      | Times every read the viewer makes of annotation-store, slowest first - see [below](#timing-the-api) |
 | `seed_history.py`  | A session with a few days of made-up changes, for the History tab - see [below](#history-test-data) |
 | `teardown_users.py` | Removes test users from Keycloak, and from the sessions they joined - see [below](#removing-test-users) |
 | `keycloak_login.py` | Signs the Python scripts in - not run on its own                      |
@@ -43,9 +44,10 @@ Everything added has its notes set to `stress-test` - that's how
 `clean_stress.py` tells it apart from real annotations. Labels start with
 "Stress".
 
-`clean_stress.py` deletes through the API, and annotation-store only hides
-what's deleted, so the rows stay in Postgres. To really remove them, run
-`sql/delete_stress_test.sql`.
+`clean_stress.py` deletes through the API, and annotation-store keeps a
+whole copy of every deleted row in its history, so they stay in Postgres. To
+really remove them, run `sql/delete_stress_test.sql`, which clears the
+copies too.
 
 ### Options
 
@@ -191,6 +193,27 @@ anyone watching so it goes from their map too. It needs a sim person who
 can still edit the session, so run it before `--leave`. Saved annotations
 only show in the viewer with the Annotations panel open, like any others.
 
+## Timing the API
+
+`time_api.py` signs in (alice by default) and times every read the viewer
+makes of annotation-store, for their own collection on the slide and the
+first session they're in: loading a slide, the map's annotations, both
+Saved lists and their totals and facets, groups, the biggest cell count's
+dots, export, and History's list, facets and a change of each kind. Each one
+is called twice to warm up, then timed over one kept-alive connection, and
+it prints the median, slowest 5%, slowest and the size of the answer,
+slowest first. Read only - the one POST is `/collections/ensure`, which the
+viewer calls on every load anyway.
+
+```bash
+python scripts/time_api.py                                   # straight to the store
+python scripts/time_api.py --via https://localhost:5173/store  # through the viewer's dev proxy
+python scripts/time_api.py --runs 20 --json before.json        # keep the numbers to compare
+```
+
+Timing both ways shows what's the store and what's the way there - see
+[docs/timing.md](../docs/timing.md) for what it found.
+
 ## History test data
 
 `seed_history.py` makes a session called "History test" on the slide and
@@ -215,8 +238,8 @@ python scripts/seed_history.py --clean        # end and delete it again
 Every change goes through annotation-store's API like the viewer's would,
 so the change sets are real. annotation-store stamps them all as now, so
 afterwards the script moves the change sets, the rows they made and the
-deletes back to when the story says - straight in Postgres with `psql`,
-using the connection string in `annotation-store/.env` (`--env` for
+history's copies of the ones deleted since back to when the story says -
+straight in Postgres with `psql`, using the connection string in `annotation-store/.env` (`--env` for
 another). Only the new session's rows are touched. It then reads the
 oldest change back through the API, and stops if it still reads as now -
 that means psql wrote to a different database from the store's.
