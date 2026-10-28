@@ -593,8 +593,6 @@ flowchart LR
 
 What this doesn't do yet, and why:
 
-- **The edit forms autosave every pause as its own change.** One change set
-  per edit is the fix, in the viewer.
 - **A restore can't be put back.** It reverts deletes and updates; the
   creates a restore makes aren't undone by putting the restore back.
 - **A column added later.** An old delete's copy of a row won't have a

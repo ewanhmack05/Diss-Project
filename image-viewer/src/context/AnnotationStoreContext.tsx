@@ -9,7 +9,7 @@ import { useAuthContext } from './AuthContext'
 import { applyOp } from '../components/realtime/realtime'
 import { useSavedTotalAt } from '../components/saved/useSavedTotal'
 import type { SavedFilters } from '../components/saved/filters'
-import { changeSetHeaders, deleteAsOneChange, inBatches, newChangeSet } from '../components/annotation/bulk'
+import { changeSetHeaders, deleteAsOneChange, inBatches, jsonHeaders, newChangeSet } from '../components/annotation/bulk'
 
 type Status = 'loading' | 'ready' | 'error'
 
@@ -84,7 +84,8 @@ interface AnnotationStoreContextValue {
   // run by everyone when a group is deleted.
   markGrouped: (ids: string[], groupId: string) => void
   forgetGroup: (groupId: string) => void
-  updateAnnotation: (id: string, patch: Pick<Annotation, 'label' | 'notes' | 'colour'>) => void
+  // changeSet keeps every save of one edit as one change - see SavedAnnotationEdit.
+  updateAnnotation: (id: string, patch: Pick<Annotation, 'label' | 'notes' | 'colour'>, changeSet?: string) => void
   deleteAnnotation: (id: string) => void
   setSelectedAnnotationId: (id: string | null) => void
   setViewedAnnotationId: (id: string | null) => void
@@ -356,14 +357,14 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
 
   // annotation-store's PUT replaces label, notes and colour together, so
   // pass all three.
-  const updateAnnotation = (id: string, patch: Pick<Annotation, 'label' | 'notes' | 'colour'>) => {
+  const updateAnnotation = (id: string, patch: Pick<Annotation, 'label' | 'notes' | 'colour'>, changeSet?: string) => {
     if (deletedIdsRef.current.has(id)) return
     setAnnotations((current) => current.map((a) => (a.id === id ? { ...a, ...patch } : a)))
     emit('annotation:updated', { id, patch })
     sendOp({ kind: 'update', entity: 'annotation', id, data: patch })
     authFetch(`${baseUrl}/annotations/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: jsonHeaders(changeSet),
       body: JSON.stringify({ ...patch, slideId }),
     })
       .then((response) => {

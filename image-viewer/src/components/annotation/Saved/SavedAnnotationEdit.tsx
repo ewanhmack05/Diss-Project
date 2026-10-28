@@ -5,7 +5,8 @@ import { setAnnotationRenderProperties } from '../../open-layers/Styles'
 import { debounce, throttle } from '../../realtime/realtime'
 import { useSharedFields } from '../../realtime/useSharedFields'
 import EditingWith from '../../realtime/EditingWith'
-import { LABEL_MAX, NOTES_MAX, nextSave } from '../../realtime/autosave'
+import { LABEL_MAX, NOTES_MAX, TEXT_SAVE_MS, nextSave } from '../../realtime/autosave'
+import { newChangeSet } from '../bulk'
 import ColourPicker from '../../colour-picker/ColourPicker'
 import DockedCard from '../../toolbar/DockedCard'
 import '../FreeForm/AnnotationForm.css'
@@ -18,7 +19,6 @@ interface SavedAnnotationEditProps {
 const FIELDS = ['label', 'notes'] as const
 // Typing saves once you pause; colour goes out while you drag the custom
 // picker so everyone else sees it change.
-const AUTOSAVE_MS = 500
 const COLOUR_MS = 200
 
 // Label and notes are shared live (see useSharedFields), so two people can
@@ -31,6 +31,9 @@ function SavedAnnotationEdit({ annotation, onBack }: SavedAnnotationEditProps) {
 
   // Read by the save, which outlives any one render.
   const [initial] = useState(() => ({ label: annotation.label, notes: annotation.notes ?? '', colour: annotation.colour }))
+  // Every save while the form's open is one change - one row in History,
+  // from how it was when the form opened to how it was when it closed.
+  const [changeSet] = useState(newChangeSet)
   const latestRef = useRef(initial)
   const savedRef = useRef(initial)
   const updateRef = useRef(updateAnnotation)
@@ -43,9 +46,9 @@ function SavedAnnotationEdit({ annotation, onBack }: SavedAnnotationEditProps) {
       const next = nextSave(latestRef.current, savedRef.current)
       if (!next) return
       savedRef.current = next
-      updateRef.current(annotation.id, next)
+      updateRef.current(annotation.id, next, changeSet)
     }
-    return [debounce(commit, AUTOSAVE_MS), throttle(commit, COLOUR_MS)] as const
+    return [debounce(commit, TEXT_SAVE_MS), throttle(commit, COLOUR_MS)] as const
   })
 
   const { values, editors, fieldProps } = useSharedFields(

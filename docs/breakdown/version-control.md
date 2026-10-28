@@ -114,6 +114,18 @@ changelist. It's a row in `history.ChangeSets`
   which change set it went in.
 - **One person, one collection.** An id already used by someone else, or in
   another collection, is a 400.
+- **One edit is one change.** An edit form (an annotation's or a count's
+  label, notes and colour, or a group's name and notes) makes a change set
+  id when it opens and sends it with every autosave. The store folds a
+  repeat update to a row in the same change set into the entry already
+  there (`FoldRepeatsAsync` in
+  [HistoryLog.cs](../../annotation-store/History/HistoryLog.cs)): the first
+  before stays, the latest after wins, a column that's back where it
+  started drops out, and an edit that undid itself leaves no entry. It only
+  folds into the row's latest entry and only if that's an update, so
+  nothing folds across a delete. Two saves of one row can't fold at the same
+  moment - each has already updated the live row, and Postgres holds that
+  row until the first commits.
 - **Batches at the same moment.** The viewer sends batches all at once, so
   two can try to make the same change set together. The second insert fails
   on the primary key and reads the first one's instead.
@@ -331,13 +343,13 @@ the store's database. See the
 
 | Where | Tests | Covers |
 |-------|-------|--------|
-| annotation-store `HistoryTests` | 38 | A delete leaves the live table and keeps the whole row, an edit keeps only what changed, a create copies nothing, nothing versioned changes outside a change set, no history columns on the live tables. Batches in one change set (and at the same moment, Postgres only). Restore - its own change set only, editors only, collections by their owner, answers with the rows, a group back with what was in it, a recolour undone but never a later edit, a count back with its dots and ROI, an annotation following a merged group, ten restores at once putting it back once (Postgres only). What a change did, from and to. A row deleted again later belonging to the later delete. Narrowing by person, kind and date, oldest first, the facets. Who and what on every write, header rules, the list and total |
+| annotation-store `HistoryTests` | 46 | A delete leaves the live table and keeps the whole row, an edit keeps only what changed, a create copies nothing, nothing versioned changes outside a change set, no history columns on the live tables. Batches in one change set (and at the same moment, Postgres only). Restore - its own change set only, editors only, collections by their owner, answers with the rows, a group back with what was in it, a recolour undone but never a later edit, a count back with its dots and ROI, an annotation following a merged group, ten restores at once putting it back once (Postgres only). What a change did, from and to. A row deleted again later belonging to the later delete. Narrowing by person, kind and date, oldest first, the facets. Who and what on every write, header rules, the list and total. One edit saved many times as one entry - columns back where they started dropping out, separate edits staying separate, nothing folding across a delete, a folded edit putting back to before it, saves at the same moment (Postgres only), and the fold itself |
 | annotation-store `HistoryMigrationTests` | 1 | Postgres only: soft-deleted rows become delete entries that rebuild exactly, and go back on the way down |
 | annotation-store `CollectionsTests` | 1 of 19 | 20 ensures at the same moment all get the one collection (Postgres only) |
 | annotation-store `PostgresPoolTests` | 1 | Every test class's connections fit in a stock Postgres |
 | viewer `changes.test.ts` | 14 | From and to for every kind of field - text, (empty), colours, groups by name, flags, numbers, image adjustment settings one by one - many rows on one line, deletes by name |
 | viewer `history.test.ts` | 26 | Labels for every kind of change, icons, initials, what's still deleted, who can put back, toast and note wording, day grouping, the ops sent to everyone else (creates, and updates for changed annotations) |
-| viewer `bulk.test.ts` | 13 | Batches, one change set id per change, Undo only after the delete's in |
+| viewer `bulk.test.ts` | 14 | Batches, one change set id per change, Undo only after the delete's in, an edit form's change set on each save |
 | viewer `savedDates.test.ts` | 15 | Day headings by the calendar, times, "12 minutes ago" |
 | viewer `paging.test.ts` | 1 of its tests | The History list's page and total URLs |
 | scripts `test_seed_history.py` | 13 | The story's order, the SQL that moves it back (history's copies included, nothing touching the old soft delete columns), reading the connection string |
@@ -349,10 +361,6 @@ same moment, and the real migrations. CI runs the store's suite on both.
 
 The history has what the next pieces need; they're mostly the viewer now.
 
-- **One row per edit.** The edit forms autosave every 500ms pause, each its
-  own change set. An open form should send one `Change-Set-Id` for the whole
-  edit, so it's one History row - before is when it opened, after when it
-  closed.
 - **A timeline per annotation or count** - the other half of step 4. Every
   entry for one row, by `CollectionId`, `Entity` and `EntityId` (indexed).
 - **Putting one row back to a point in time** - step 5's other half.
@@ -369,8 +377,9 @@ parallels for the write-up.
 
 - **Changes from before history was kept** show "Nothing was recorded for
   this change" - soft delete only kept deletes.
-- **Autosaves flood the list.** Every pause while typing in an edit form is
-  its own "Changed an annotation" row.
+- **Someone else's typing saves under your edit.** Shared text saves from
+  every open form, so in a session your edit's change set can hold what
+  someone else typed in the same box while you had it open.
 - **A restore can't be put back.** It reverts deletes and updates, and the
   rows a restore brings back are creates, which aren't undone.
 - **A column added later.** An old delete's copy of a row won't have a column

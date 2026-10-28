@@ -19,7 +19,8 @@ interface AnnotationGroupContextValue {
   // straight into it.
   createGroup: (name: string, annotationIds: string[]) => Promise<AnnotationGroup>
   // Name, notes, or both.
-  updateGroup: (groupId: string, patch: Partial<Pick<AnnotationGroup, 'name' | 'notes'>>) => Promise<void>
+  // changeSet keeps every save of the notes as one change - see GroupPage.
+  updateGroup: (groupId: string, patch: Partial<Pick<AnnotationGroup, 'name' | 'notes'>>, changeSet?: string) => Promise<void>
   // Everything in fromId moves into intoId, and fromId goes. Notes are joined.
   mergeGroup: (fromId: string, intoId: string) => Promise<void>
   // Ungroups what was in it - the annotations stay.
@@ -116,9 +117,9 @@ function AnnotationGroupContextProvider({ baseUrl, children }: { baseUrl: string
     return group
   }
 
-  const updateGroup = async (groupId: string, patch: Partial<Pick<AnnotationGroup, 'name' | 'notes'>>) => {
+  const updateGroup = async (groupId: string, patch: Partial<Pick<AnnotationGroup, 'name' | 'notes'>>, changeSet?: string) => {
     const tidy = patch.name === undefined ? patch : { ...patch, name: patch.name.trim() }
-    await send(`/annotationgroups/${groupId}`, 'PUT', tidy)
+    await send(`/annotationgroups/${groupId}`, 'PUT', tidy, changeSet)
     setGroups((current) => current.map((g) => (g.id === groupId ? { ...g, ...tidy } : g)).sort(byName))
     sendOp({ kind: 'update', entity: 'annotationGroup', id: groupId, data: tidy })
   }
@@ -180,8 +181,8 @@ function AnnotationGroupContextProvider({ baseUrl, children }: { baseUrl: string
             emit('annotationgroup:error')
             throw error
           }),
-        updateGroup: (id, patch) =>
-          updateGroup(id, patch).catch((error: unknown) => {
+        updateGroup: (id, patch, changeSet) =>
+          updateGroup(id, patch, changeSet).catch((error: unknown) => {
             emit('annotationgroup:error')
             throw error
           }),

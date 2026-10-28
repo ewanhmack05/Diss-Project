@@ -455,8 +455,12 @@ sequenceDiagram
 - **Editing.** In the Saved tab, opening an annotation shows its label,
   notes and colour. Label and notes are shared text - see
   [realtime-hub.md](realtime-hub.md#7-two-people-typing-in-the-same-box) -
-  and everything autosaves 500ms after you stop. Colour changes show live on
-  the map as you drag the picker.
+  and everything autosaves a second after you stop (`TEXT_SAVE_MS` in
+  [autosave.ts](../../image-viewer/src/components/realtime/autosave.ts)).
+  Colour changes show live on the map as you drag the picker. Every save
+  while the form's open goes in one change set, so the History tab shows
+  one row for the whole edit (see
+  [version-control.md](version-control.md#3-change-sets)).
 
 ### The Select tab - many at once
 
