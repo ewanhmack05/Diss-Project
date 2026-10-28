@@ -5,6 +5,7 @@ import { useAuthContext } from './AuthContext'
 import { useDialogContext } from './DialogContext'
 import { useToastContext } from './ToastContext'
 import { defaultMaxEditors } from '../components/realtime/sessionSize'
+import { defaultEditPolicy, type EditPolicy } from '../components/realtime/editPolicy'
 
 type Status = 'loading' | 'ready' | 'error'
 
@@ -42,6 +43,9 @@ interface Collection {
   // How many editors an edit link lets in - anyone after joins view only,
   // though the host can make more (see components/realtime/sessionSize.ts).
   maxEditors: number
+  // What happens when two people change the same thing - picked by the
+  // host. Personal ones are always lastWriteWins. See editPolicy.ts.
+  editPolicy: EditPolicy
 }
 
 interface Invite {
@@ -84,6 +88,8 @@ interface CollectionContextValue {
   // The session's room, when there is one - only while it hasn't ended.
   roomId: string | null
   canEdit: boolean
+  // The active collection's - how saves deal with someone else's change.
+  editPolicy: EditPolicy
   // The active session was opened just to look at, because nobody was in
   // it - read-only, and no room. reopen() takes it live again.
   dormant: boolean
@@ -97,11 +103,13 @@ interface CollectionContextValue {
   // These reject if annotation-store says no. endSession needs a refresh
   // after - see it below.
   // One per slide - with one already going, that's the one you go into.
-  // maxEditors is what the host picked - see defaultMaxEditors.
-  startSession: (name?: string, maxEditors?: number) => Promise<void>
+  // maxEditors and editPolicy are what the host picked - see the defaults.
+  startSession: (name?: string, maxEditors?: number, editPolicy?: EditPolicy) => Promise<void>
   // What the start box begins at - the viewer's maxEditors option, inside
   // annotation-store's limits.
   defaultMaxEditors: number
+  // Likewise the viewer's editPolicy option.
+  defaultEditPolicy: EditPolicy
   renameSession: (name: string) => Promise<void>
   endSession: () => Promise<void>
   // Ends one you host that you're not in - an older one from before only one
@@ -137,6 +145,9 @@ interface CollectionContextProviderProps {
   // change it when they start a session. Anyone after that many joins view
   // only. Sessions keep the number they started with.
   maxEditors?: number
+  // Likewise what the start box's "when two people change the same thing"
+  // starts at. Sessions keep the one they started with.
+  editPolicy?: EditPolicy
 }
 
 // Remembered per tab, so a reload stays in the same session - and still
@@ -167,7 +178,7 @@ function hostName(session: Collection): string {
   return session.members.find((m) => m.role === 'owner')?.displayName || 'The host'
 }
 
-function CollectionContextProvider({ baseUrl, maxEditors, children }: CollectionContextProviderProps) {
+function CollectionContextProvider({ baseUrl, maxEditors, editPolicy, children }: CollectionContextProviderProps) {
   const { source } = useImageViewerContext()
   const { slideId } = source
   const emit = useEmitEvent()
@@ -319,21 +330,27 @@ function CollectionContextProvider({ baseUrl, maxEditors, children }: Collection
   const sessionId = session?.collectionId ?? null
 
   const startingMax = defaultMaxEditors(maxEditors)
+  const startingPolicy = defaultEditPolicy(editPolicy)
 
   const startSession = useCallback(
-    async (name?: string, chosenMax?: number) => {
+    async (name?: string, chosenMax?: number, chosenPolicy?: EditPolicy) => {
       // 409 is annotation-store handing back the one you've already got.
       const response = await authFetch(`${baseUrl}/sessions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slideId, collectionName: name, maxEditors: chosenMax ?? startingMax }),
+        body: JSON.stringify({
+          slideId,
+          collectionName: name,
+          maxEditors: chosenMax ?? startingMax,
+          editPolicy: chosenPolicy ?? startingPolicy,
+        }),
       })
       if (!response.ok && response.status !== 409) throw new Error(String(response.status))
       const session = (await response.json()) as Collection
       await loadCollections()
       setActive(session.collectionId)
     },
-    [authFetch, baseUrl, slideId, startingMax, loadCollections, setActive]
+    [authFetch, baseUrl, slideId, startingMax, startingPolicy, loadCollections, setActive]
   )
 
   const endOther = useCallback(
@@ -489,6 +506,8 @@ function CollectionContextProvider({ baseUrl, maxEditors, children }: Collection
         leaveSession: () => (guestSessionId ? signOut() : setActive(null)),
         startSession,
         defaultMaxEditors: startingMax,
+        defaultEditPolicy: startingPolicy,
+        editPolicy: active?.editPolicy ?? 'lastWriteWins',
         renameSession,
         endSession,
         endOther,

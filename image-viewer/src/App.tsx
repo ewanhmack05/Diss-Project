@@ -64,6 +64,7 @@ import DialogHost from './components/dialog/DialogHost'
 import PresenceList from './components/presence/PresenceList'
 import GuestEditPrompt from './components/guest/GuestEditPrompt'
 import type { ImageSource } from './interfaces/ImageSource'
+import type { EditPolicy } from './components/realtime/editPolicy'
 import './App.css'
 
 // Fixed height of a top/bottom DockEdge (see DockEdge.css) - used to inset
@@ -105,6 +106,9 @@ interface AppOptions {
   fontSize?: string
   tools?: ToolName[]
   maxEditors?: number
+  // What a new session's "when two people change the same thing" starts
+  // at - lastWriteWins or firstComeWins. See components/realtime/editPolicy.ts.
+  editPolicy?: EditPolicy
 }
 
 interface AppProps {
@@ -133,7 +137,11 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, auth
               realtime room - working alone there's no room at all. An
               invite link is dealt with before the viewer opens. Presence
               (who's online) is connected the whole time, room or not. */}
-          <CollectionContextProvider baseUrl={annotationStoreUrl} maxEditors={options?.maxEditors}>
+          <CollectionContextProvider
+            baseUrl={annotationStoreUrl}
+            maxEditors={options?.maxEditors}
+            editPolicy={options?.editPolicy}
+          >
             <InviteGate>
             <PresenceContextProvider hubUrl={realtimeHubUrl}>
             <RealtimeContextProvider hubUrl={realtimeHubUrl}>

@@ -71,7 +71,10 @@ public static class ChangeSetEndpoints
             catch (DbUpdateException)
             {
                 // Batches of one change go out together, so another may have
-                // made it a moment ago.
+                // made it a moment ago. Inside a transaction (a checked save -
+                // see Conflicts/) a failed insert would spoil the rest of it on
+                // Postgres, but EF saves inside a savepoint of its own there and
+                // goes back to it, so the transaction carries on.
                 db.Entry(changeSet).State = EntityState.Detached;
                 changeSet = await db.ChangeSets.FirstOrDefaultAsync(c => c.Id == id);
                 if (changeSet is null) throw;

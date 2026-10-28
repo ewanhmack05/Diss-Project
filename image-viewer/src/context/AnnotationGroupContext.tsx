@@ -1,11 +1,13 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { AnnotationGroup } from '../interfaces/AnnotationGroup'
 import { useAuthContext } from './AuthContext'
 import { useCollectionContext } from './CollectionContext'
 import { useEmitEvent } from './EventContext'
 import { useRealtimeContext } from './RealtimeContext'
 import { useAnnotationStoreContext } from './AnnotationStoreContext'
-import { changeSetHeaders, inBatches, newChangeSet } from '../components/annotation/bulk'
+import { changeSetHeaders, inBatches, jsonHeaders, newChangeSet } from '../components/annotation/bulk'
+import { useToastContext } from './ToastContext'
+import { conflictMessage, oneAtATime, readConflict } from '../components/realtime/editPolicy'
 
 interface AnnotationGroupContextValue {
   // The active collection's groups, by name.
@@ -44,6 +46,16 @@ function AnnotationGroupContextProvider({ baseUrl, children }: { baseUrl: string
   const emit = useEmitEvent()
   const [groups, setGroups] = useState<AnnotationGroup[]>([])
   const [hiddenGroupIds, setHiddenGroupIds] = useState<Set<string>>(new Set())
+  const { addToast } = useToastContext()
+  // Groups here only change once annotation-store has them, so they're what
+  // it has - what a save says it started from. Read when the save goes,
+  // which is after this render. Saves to one group go one at a time, so
+  // notes typed in bursts never conflict with each other.
+  const groupsRef = useRef(groups)
+  useEffect(() => {
+    groupsRef.current = groups
+  })
+  const queueRef = useRef(oneAtATime())
 
   useEffect(() => {
     let cancelled = false
@@ -117,12 +129,49 @@ function AnnotationGroupContextProvider({ baseUrl, children }: { baseUrl: string
     return group
   }
 
-  const updateGroup = async (groupId: string, patch: Partial<Pick<AnnotationGroup, 'name' | 'notes'>>, changeSet?: string) => {
-    const tidy = patch.name === undefined ? patch : { ...patch, name: patch.name.trim() }
-    await send(`/annotationgroups/${groupId}`, 'PUT', tidy, changeSet)
-    setGroups((current) => current.map((g) => (g.id === groupId ? { ...g, ...tidy } : g)).sort(byName))
-    sendOp({ kind: 'update', entity: 'annotationGroup', id: groupId, data: tidy })
-  }
+  // Name and notes go with what they were, so in a first change wins session
+  // a save over someone else's change is turned down (see editPolicy.ts) -
+  // theirs is shown, and "Use mine" saves ours again over it.
+  const updateGroup = (groupId: string, patch: Partial<Pick<AnnotationGroup, 'name' | 'notes'>>, changeSet?: string): Promise<void> =>
+    queueRef.current(groupId, async () => {
+      const tidy = patch.name === undefined ? patch : { ...patch, name: patch.name.trim() }
+      const was = groupsRef.current.find((g) => g.id === groupId)
+      const response = await authFetch(`${baseUrl}/annotationgroups/${groupId}`, {
+        method: 'PUT',
+        headers: jsonHeaders(changeSet),
+        body: JSON.stringify({
+          ...tidy,
+          wasName: tidy.name !== undefined ? was?.name : undefined,
+          wasNotes: tidy.notes !== undefined ? was?.notes : undefined,
+        }),
+      })
+      if (response.status === 409) {
+        const conflict = readConflict(await response.json())
+        if (!conflict) throw new Error('409')
+        const theirs = conflict.current as Partial<AnnotationGroup>
+        setGroups((current) =>
+          current.map((g) => (g.id === groupId ? { ...g, name: theirs.name ?? g.name, notes: theirs.notes ?? g.notes } : g)).sort(byName)
+        )
+        addToast(conflictMessage(conflict, theirs.name ?? 'this group'), 'error', {
+          duration: null,
+          actions: [
+            { label: 'Use mine', primary: true, onClick: () => void updateGroup(groupId, tidy, changeSet).catch(() => emit('annotationgroup:error')) },
+            { label: 'Keep theirs', onClick: () => {} },
+          ],
+        })
+        return
+      }
+      if (!response.ok) throw new Error(String(response.status))
+      // Not changing a field leaves what's stored - someone else's, if they
+      // got there first - so what goes out is what was saved.
+      const saved = (await response.json()) as AnnotationGroup
+      const data = {
+        ...(tidy.name !== undefined ? { name: saved.name } : {}),
+        ...(tidy.notes !== undefined ? { notes: saved.notes } : {}),
+      }
+      setGroups((current) => current.map((g) => (g.id === groupId ? { ...g, ...data } : g)).sort(byName))
+      sendOp({ kind: 'update', entity: 'annotationGroup', id: groupId, data })
+    })
 
   // The moves go out before the delete, so nobody ungroups them first.
   const mergeGroup = async (fromId: string, intoId: string) => {

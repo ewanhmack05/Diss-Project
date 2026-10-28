@@ -88,8 +88,8 @@ Each one builds on the one before.
 | 3 | Periodic snapshots | The whole collection's state saved every so often, so rolling back far doesn't mean replaying every change | medium |
 | 4 | Viewing history | Mostly done - the collection's timeline is the History tab, with put back, and each change shows what it changed, from and to. Still to do: a timeline per annotation or count in its Saved row - every entry for that row, which the history now has | medium |
 | 5 | Rollback | Mostly done for a whole change set - putting it back brings back what it deleted and undoes what it changed, unless someone's changed it since, sent live. Still to do: one item back to an earlier point | medium |
-| 6 | Policy for two or more people editing at once | First come wins vs last write wins vs locking vs merging - see below. Pick one per kind of field, and say why | large |
-| 7 | Evaluate it | See [Evaluation](#2-evaluation) | large |
+| 6 | ~~Policy for two or more people editing at once~~ | Done - labels and notes merge (Yjs); colour, group and a group's name and notes are last write wins or first come wins, picked per session; locking is for the write-up. Checked per field, from the value a save started from. See [version-control.md](breakdown/version-control.md#8-two-people-changing-the-same-thing) | large |
+| 7 | Evaluate it | See [Evaluation](#2-evaluation). `simulate_conflicts.py` and the dashboard's Edits row are there to measure step 6 | large |
 
 ### Things to decide before building
 
@@ -147,8 +147,8 @@ Each one builds on the one before.
 
 | Policy | How it behaves | Built with | Games / tools parallel |
 |--------|----------------|------------|------------------------|
-| Last write wins (now) | Later save silently replaces the earlier one | Nothing - it's the default | Simple state sync where the server takes the latest input |
-| First come wins | Second save is refused with a conflict, and they're shown what changed | A version on each row - the save sends the version it started from, a mismatch is a 409. Npgsql can use Postgres's `xmin` as that version | Perforce's exclusive checkout |
+| Last write wins (built - a session's "Last change wins") | Later save silently replaces the earlier one, and the store counts it | Nothing, plus the save's was so the store can count what it overwrote | Simple state sync where the server takes the latest input |
+| First come wins (built - "First change wins") | Second save is refused with a 409, and they're shown what changed and by whom, and choose | Per field, not a row version: the save sends the value it started from, and it's refused if that's changed since and it would change it again. A row version would call a regroup and a recolour a conflict | Perforce's exclusive checkout |
 | Locking | Whoever starts editing holds it until they finish or time out | A lock per item on the hub, shown on the map | Locking an actor in Unreal's Multi-User Editing |
 | Merge | Both changes are kept | Yjs (CRDT) - already used for labels and notes | Collaborative editors |
 
@@ -185,7 +185,10 @@ adding with links:
 - **Latency** - how long a change takes to reach everyone else. The hub
   already stamps each op with `serverTime`
 - **Conflicts** - two people editing the same annotation or count at once:
-  how often it happens, and how many changes each policy loses
+  how often it happens, and how many changes each policy loses.
+  `scripts/simulate_conflicts.py` runs it (see the
+  [scripts README](../scripts/README.md#people-changing-the-same-thing)), and
+  `annotation_store.conflicting_saves` counts it on the dashboard
 - **Yjs vs last write wins** for labels and notes
 - **History cost** - how much the log grows per change, and how long a
   rollback of 1, 1k and 20k items takes

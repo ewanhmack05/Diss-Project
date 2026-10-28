@@ -1,5 +1,6 @@
 using AnnotationStore.CellCounts;
 using AnnotationStore.Collections;
+using AnnotationStore.Conflicts;
 using AnnotationStore.History;
 using AnnotationStore.ImageAdjustments;
 using Microsoft.EntityFrameworkCore;
@@ -88,6 +89,7 @@ public class AnnotationDbContext(DbContextOptions<AnnotationDbContext> options) 
         // everything in it, and its owner can bring it back. Nothing else
         // keeps deleted rows; they're in the history schema.
         modelBuilder.Entity<Collections.Collections>().Property(c => c.Kind).HasConversion<string>();
+        modelBuilder.Entity<Collections.Collections>().Property(c => c.EditPolicy).HasConversion<string>();
         modelBuilder.Entity<Collections.Collections>()
             .HasIndex(c => new { c.SlideId, c.UserId })
             .IsUnique()

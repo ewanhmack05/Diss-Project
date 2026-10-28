@@ -78,8 +78,9 @@ here, then tells the hub (see
 | [Paging/Paging.cs](../../annotation-store/Paging/Paging.cs) | Paging, search, filters and facets for the viewer's Saved lists. |
 | [Auth/KeycloakAuth.cs](../../annotation-store/Auth/KeycloakAuth.cs) | JWT bearer setup, the issuer check, and `UserId()` / `DisplayName()` helpers. |
 | [Auth/GuestAuth.cs](../../annotation-store/Auth/GuestAuth.cs) | The second scheme, for guest tokens from realtime-hub, the policy that lets them onto a few reads, and `IsGuest()` / `GuestSessionId()`. |
-| [Migrations/](../../annotation-store/Migrations) | 19 EF Core migrations, from `InitialCreate` to `SoftDeleteAndChangeSets`. |
-| [Tests/](../../annotation-store/Tests) | 177 tests, nearly all integration tests on in-memory SQLite, or Postgres when asked (see [section 14](#14-tests)). |
+| [Conflicts/EditConflicts.cs](../../annotation-store/Conflicts/EditConflicts.cs) | What happens when two people change the same thing: each session's `EditPolicy`, the per field check from what a save started from, the row locks, the 409 and the `conflicting_saves` counter (see [version-control.md](../breakdown/version-control.md#8-two-people-changing-the-same-thing)). |
+| [Migrations/](../../annotation-store/Migrations) | 21 EF Core migrations, from `InitialCreate` to `SessionEditPolicy`. |
+| [Tests/](../../annotation-store/Tests) | 251 tests, nearly all integration tests on in-memory SQLite, or Postgres when asked (see [section 14](#14-tests)). |
 
 ## 3. The data model
 
@@ -641,12 +642,12 @@ flowchart TD
   Export the variable in your shell first if you need to run it against a
   non-default database.
 
-The 20 migrations tell the story of the project: annotations, then notes,
+The 21 migrations tell the story of the project: annotations, then notes,
 cell counts, ROI, dots, image adjustments, collections, members, created-by,
 sessions, cell count summaries, the default colour moving onto the palette,
 sharing a personal collection, groups, group notes, session sizes, soft
-delete with change sets, and then the history schema that replaced soft
-delete.
+delete with change sets, the history schema that replaced soft delete, and
+each session's edit policy.
 
 ## 14. Tests
 
@@ -690,6 +691,7 @@ test class would take them past it.
 | PostgresPoolTests | 1 | Every test class's connections fit in a stock Postgres |
 | HistoryTests | 38 (46 with the cases) | A delete leaves the live table and keeps the whole row, an edit keeps only what changed, a create copies nothing, saving what's there isn't a change, nothing versioned changes outside a change set, no history columns on the live tables. Batches in one change set (and at the same moment, Postgres only), restore - its own change set only, editors only, collections by their owner, answers with the rows, a group back with what was in it, a recolour undone but never a later edit, a count back with its dots and ROI, an annotation following a merged group, ten restores at once putting it back once (Postgres only). What a change did - an edit's from and to by name, a recolour as one line with a count, groups by name, deletes by name, adds counted. A row deleted again later belongs to the later delete. Narrowing by person, kind and date, oldest first, the facets, which kind each `What` is. Who and what on every write, header rules, the list and total |
 | HistoryMigrationTests | 1 | Postgres only: soft-deleted rows become delete entries that rebuild exactly, and go back on the way down |
+| EditConflictsTests | 14 | Each session's edit policy, a colour or group name from an old copy turned down under first come wins and counted as overwriting under last write wins, a label edit never putting an old colour back, no was not checked, bulk changes under each, no change set for a refused save, and at the same moment (Postgres only) one save through and checked batches in one change set |
 
 ## 15. Known gaps
 

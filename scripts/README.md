@@ -19,6 +19,7 @@ layers for annotations and cell-count dots.
 | `simulate_session.py` | Fills a session with simulated people who move round live - see [below](#simulated-people-in-a-session) |
 | `simulate_annotations.py` | Same, and the editors draw shapes live in what they're looking at - see [below](#drawing-and-counting) |
 | `simulate_cell_counts.py` | Same, and the editors count cells live in what they're looking at - see [below](#drawing-and-counting) |
+| `simulate_conflicts.py` | Same, and the editors keep recolouring the same few annotations, for measuring a session's edit policy - see [below](#people-changing-the-same-thing) |
 | `time_api.py`      | Times every read the viewer makes of annotation-store, slowest first - see [below](#timing-the-api) |
 | `seed_history.py`  | A session with a few days of made-up changes, for the History tab - see [below](#history-test-data) |
 | `teardown_users.py` | Removes test users from Keycloak, and from the sessions they joined - see [below](#removing-test-users) |
@@ -192,6 +193,38 @@ those in the session, deletes them as one of the sim editors, and tells
 anyone watching so it goes from their map too. It needs a sim person who
 can still edit the session, so run it before `--leave`. Saved annotations
 only show in the viewer with the Annotations panel open, like any others.
+
+### People changing the same thing
+
+`simulate_conflicts.py` is for measuring a session's edit policy (see
+[version-control.md](../docs/breakdown/version-control.md#8-two-people-changing-the-same-thing)).
+The first editor makes a few shared annotations in the middle of the slide,
+then every editor keeps recolouring them, each from their own copy of the
+colour. Someone else's change only reaches their copy `--notice` seconds
+after it's saved - the gap between something changing and a person noticing
+- which is what decides how often two changes collide.
+
+Under first change wins, a save from an old copy is turned down, and they
+then put theirs over it (`--use-mine` of the time) or keep the other one.
+Under last change wins it goes through, and annotation-store says it
+overwrote someone. When it stops it prints the tally:
+
+```text
+Policy: lastWriteWins
+Saves sent: 117
+Collided with someone else's change: 88 (75.2%)
+  overwrote it without anyone knowing: 88
+Save time: median 47 ms, 95% under 57 ms
+```
+
+To compare, start two sessions - one each way, with the same editor cap -
+and run it against each with the same settings.
+
+```bash
+python scripts/simulate_conflicts.py juyhsUFHC4gB --seconds 120
+python scripts/simulate_conflicts.py juyhsUFHC4gB --targets 1 --change-every 2 --notice 3 --use-mine 0.3
+python scripts/simulate_conflicts.py juyhsUFHC4gB --clean     # remove the shared annotations
+```
 
 ## Timing the API
 

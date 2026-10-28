@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using AnnotationStore.Annotations;
 using AnnotationStore.Auth;
 using AnnotationStore.CellCounts;
+using AnnotationStore.Conflicts;
 using AnnotationStore.History;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -29,10 +30,13 @@ public record CollectionView(
     int CellCountCount = 0,
     DateTimeOffset? LastAdded = null,
     // How many editors an edit link lets in before others join view only - see SessionSize.
-    int MaxEditors = SessionSize.DefaultMaxEditors);
+    int MaxEditors = SessionSize.DefaultMaxEditors,
+    // What happens when two people change the same thing - see Conflicts/EditConflicts.cs.
+    EditPolicy EditPolicy = EditPolicy.LastWriteWins);
 
-// MaxEditors is for POST /sessions only - see SessionSize. Null is the default.
-public record EnsureRequest(string SlideId, string? CollectionName = null, int? MaxEditors = null);
+// MaxEditors and EditPolicy are for POST /sessions only - see SessionSize
+// and Conflicts/EditConflicts.cs. Null is the default.
+public record EnsureRequest(string SlideId, string? CollectionName = null, int? MaxEditors = null, EditPolicy? EditPolicy = null);
 
 public record RenameRequest(string CollectionName);
 
@@ -267,7 +271,8 @@ public static class CollectionEndpoints
                 return Results.BadRequest($"MaxEditors has to be between {SessionSize.LeastMaxEditors} and {SessionSize.MostMaxEditors}");
 
             var collection = await CreateAsync(db, user, request.SlideId, CollectionKind.Session,
-                string.IsNullOrWhiteSpace(request.CollectionName) ? $"{user.DisplayName()}'s session" : request.CollectionName, maxEditors);
+                string.IsNullOrWhiteSpace(request.CollectionName) ? $"{user.DisplayName()}'s session" : request.CollectionName, maxEditors,
+                request.EditPolicy ?? EditPolicy.LastWriteWins);
             return Results.Created($"/collections/{collection.CollectionId}", View(collection, user.UserId()));
         });
 
@@ -623,7 +628,7 @@ public static class CollectionEndpoints
 
     private static async Task<Collections> CreateAsync(
         AnnotationDbContext db, ClaimsPrincipal user, string slideId, CollectionKind kind, string name,
-        int maxEditors = SessionSize.DefaultMaxEditors)
+        int maxEditors = SessionSize.DefaultMaxEditors, EditPolicy editPolicy = EditPolicy.LastWriteWins)
     {
         var now = DateTimeOffset.UtcNow;
         var collection = new Collections
@@ -635,6 +640,7 @@ public static class CollectionEndpoints
             CollectionName = name,
             Created = now,
             MaxEditors = maxEditors,
+            EditPolicy = editPolicy,
         };
         collection.Members.Add(new CollectionMember
         {
@@ -665,5 +671,6 @@ public static class CollectionEndpoints
             .ThenBy(m => m.DisplayName)
             .Select(m => new MemberView(m.UserId, m.DisplayName, m.Role))
             .ToList(),
-        MaxEditors: collection.MaxEditors);
+        MaxEditors: collection.MaxEditors,
+        EditPolicy: collection.EditPolicy);
 }

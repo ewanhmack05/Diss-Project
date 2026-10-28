@@ -18,12 +18,13 @@ still to make.
 5. [Putting a change back](#5-putting-a-change-back)
 6. [In the viewer](#6-in-the-viewer)
 7. [Who can put things back](#7-who-can-put-things-back)
-8. [Test data](#8-test-data)
-9. [Tests](#9-tests)
-10. [What's next](#10-whats-next)
-11. [Known gaps](#11-known-gaps)
-12. [Files](#12-files)
-13. [Glossary](#13-glossary)
+8. [Two people changing the same thing](#8-two-people-changing-the-same-thing)
+9. [Test data](#9-test-data)
+10. [Tests](#10-tests)
+11. [What's next](#11-whats-next)
+12. [Known gaps](#12-known-gaps)
+13. [Files](#13-files)
+14. [Glossary](#14-glossary)
 
 ## 1. Where it's up to
 
@@ -37,15 +38,15 @@ the one before:
 | 3 | Periodic snapshots | Not started |
 | 4 | Viewing history | Mostly done - the collection's timeline is the History tab, and opening a change shows what it changed, from and to. A timeline per annotation or count is next |
 | 5 | Rollback | Mostly there - putting a change set back brings back what it deleted and undoes what it changed, unless someone's changed it since. Putting one row back to a point in time isn't built |
-| 6 | Policy for two people editing at once | Not started - still last write wins |
-| 7 | Evaluate it | Not started |
+| 6 | Policy for two people editing at once | Done - picked per session, last change wins or first change wins, for colour, group and a group's name and notes. Labels and notes are merged live with Yjs. See [section 8](#8-two-people-changing-the-same-thing) |
+| 7 | Evaluate it | The tools are there - `simulate_conflicts.py` and the dashboard's Edits row count what each policy does. No proper runs yet |
 
 What works today, end to end: delete 21,000 annotations in one go, see it in
 the History tab as one change, and put it all back days later - for
 everyone in the session, live. Delete a group and put it back, and what was
 in it goes back in. Every edit's before and after is kept, and opening it in History shows
 each field from and to. What doesn't yet: a timeline for one annotation (see
-[What's next](#10-whats-next)).
+[What's next](#11-whats-next)).
 
 ## 2. How the pieces fit
 
@@ -325,7 +326,98 @@ check each side:
 - the Editor check on `POST /changesets/{id}/restore` in
   [ChangeSets.cs](../../annotation-store/History/ChangeSets.cs)
 
-## 8. Test data
+## 8. Two people changing the same thing
+
+What happens when two people change the same thing at about the same time.
+The host picks it when they start a session, and it's saved on it
+(`Collections.EditPolicy`). Personal collections are one person, so they're
+always last change wins. The code is in
+[Conflicts/EditConflicts.cs](../../annotation-store/Conflicts/EditConflicts.cs)
+and [editPolicy.ts](../../image-viewer/src/components/realtime/editPolicy.ts).
+
+| Kind of field | Policy | Why |
+|---------------|--------|-----|
+| Labels and notes on annotations and cell counts | Merged live (Yjs) | Two people can type in the same box at once and nothing's lost, so there's nothing to choose |
+| An annotation's colour and group, a group's name and notes | Last change wins or first change wins, per session | One value - only one person's can stay |
+| Deletes | Not checked | Anything deleted can be put back from History |
+| Cell counts' other fields, image adjustment presets | Not checked | Fixed once saved, or one person's own |
+
+```mermaid
+sequenceDiagram
+  participant A as Alice
+  participant S as annotation-store
+  participant B as Bob
+  Note over A,B: both see red
+  B->>S: PUT colour blue, was red
+  S-->>B: 200
+  A->>S: PUT colour green, was red
+  Note over S: stored is blue, not red - and green would replace it
+  alt first change wins
+    S-->>A: 409 - blue, Bob, when
+    Note over A: card - Use mine / Keep theirs
+    A->>S: Use mine - PUT green, was blue
+    S-->>A: 200
+  else last change wins
+    S-->>A: 200, Overwrote: 1 - counted
+  end
+```
+
+- **Per field, not per row.** A save sends the value it started from (its
+  "was") with the value it wants. It's in the way of someone else only when
+  the stored value isn't its was any more - someone's changed it since -
+  and the save would change it again. A row version would have called a
+  regroup and a recolour of the same annotation a conflict, and counted it
+  as a lost change under last change wins, which it isn't.
+- **A field that isn't changing is left alone.** The viewer always sends
+  colour with a label edit. When the colour is the same as its was, the
+  save isn't changing it, so the stored colour - maybe someone else's newer
+  one - stays. A label edit from an old copy never puts an old colour back,
+  under either policy.
+- **No was, no check.** Scripts and older clients leave it out and save as
+  they always did.
+- **One at a time.** The check and the save happen with the row locked
+  (`FOR UPDATE`), so two saves from the same was can't both get through. A
+  Postgres-only test sends ten together and exactly one wins; without the
+  lock it fails.
+- **Turned down before it joins a change set.** A refused save makes no
+  change set and no history, like any other turned-down write. A bulk
+  change refused for every row returns before it joins one; one partly
+  through joins it for the rows that changed.
+- **The viewer under first change wins:**
+  - Saves to one item go one at a time
+    (`oneAtATime`), and each one's was is what the store last confirmed,
+    not what's on screen - otherwise dragging the colour picker would
+    conflict with itself.
+  - A change goes out to everyone else only once it's saved, so nobody sees
+    one that's then turned down.
+  - On a 409, theirs is shown straight away, and a card says who changed
+    what and when - "Bob Hughes changed the colour of Region 4 just now,
+    before your change got there" - with **Use mine** (save again over it)
+    and **Keep theirs**.
+  - A bulk change that's partly turned down changes the rest, and the card
+    says how many were left alone, with **Use mine for those**.
+- **The viewer under last change wins:** as before - ops go out straight
+  away - but saves send their was too, so the store can count what they
+  overwrite.
+- **Counted.** `annotation_store.conflicting_saves` (an OpenTelemetry
+  counter, by policy, entity and outcome) goes up for every save in the way
+  of someone else's: "refused" under first change wins, "overwrote" under
+  last change wins. The dashboard's Edits row graphs it. A single save that
+  overwrote someone also answers with an `Overwrote: 1` header, and a bulk
+  change with `overwrote`, so a script can count without the dashboard.
+- **Measuring it.**
+  [simulate_conflicts.py](../../scripts/simulate_conflicts.py) has
+  simulated people recolour a few shared annotations from their own copies,
+  each seeing other people's changes `--notice` seconds late. It prints how
+  many saves collided and what happened to them, and save times. Run it
+  against a last change wins session and a first change wins one with the
+  same settings and the same number of editors.
+- **Locking** - whoever starts editing holds it - is the other policy in
+  [todo.md](../todo.md#policies-for-two-people-editing-the-same-thing). It's
+  for the write-up rather than built: it's the most code, and worst on the
+  large sessions this is for.
+
+## 9. Test data
 
 [seed_history.py](../../scripts/seed_history.py) makes a session called
 "History test" on the slide, with about 20 changes from alice, bob and carol
@@ -339,7 +431,7 @@ copies of rows deleted since - back in Postgres with `psql`, and reads the oldes
 the store's database. See the
 [scripts README](../../scripts/README.md#history-test-data).
 
-## 9. Tests
+## 10. Tests
 
 | Where | Tests | Covers |
 |-------|-------|--------|
@@ -349,6 +441,9 @@ the store's database. See the
 | annotation-store `PostgresPoolTests` | 1 | Every test class's connections fit in a stock Postgres |
 | viewer `changes.test.ts` | 14 | From and to for every kind of field - text, (empty), colours, groups by name, flags, numbers, image adjustment settings one by one - many rows on one line, deletes by name |
 | viewer `history.test.ts` | 26 | Labels for every kind of change, icons, initials, what's still deleted, who can put back, toast and note wording, day grouping, the ops sent to everyone else (creates, and updates for changed annotations) |
+| annotation-store `EditConflictsTests` | 14 | The policy per session (and personal always last change wins), a colour from an old copy turned down with who and what, "use mine", last change wins letting it through and counting it, a label edit never putting back an old colour or conflicting, the same colour not a conflict, no was not checked, bulk recolour and regroup under each policy, a group rename, no change set for a refused save, checked batches at the same moment in one change set and saves from one copy at the same moment with only one through (Postgres only) |
+| viewer `editPolicy.test.ts` | 11 | The option's default, reading a 409, the card's wording (fields, who, when, singular and plural), when ops go out, saves to one item in order and carrying on after one fails |
+| scripts `test_simulate_conflicts.py` | 9 | Each person's copy - others' saves only once they're old enough, what they heard for themselves - picking a new colour, the summary under each policy |
 | viewer `bulk.test.ts` | 14 | Batches, one change set id per change, Undo only after the delete's in, an edit form's change set on each save |
 | viewer `savedDates.test.ts` | 15 | Day headings by the calendar, times, "12 minutes ago" |
 | viewer `paging.test.ts` | 1 of its tests | The History list's page and total URLs |
@@ -357,7 +452,7 @@ the store's database. See the
 The Postgres-only tests are the ones SQLite can't show: requests at the
 same moment, and the real migrations. CI runs the store's suite on both.
 
-## 10. What's next
+## 11. What's next
 
 The history has what the next pieces need; they're mostly the viewer now.
 
@@ -367,13 +462,15 @@ The history has what the next pieces need; they're mostly the viewer now.
 - **Snapshots** (step 3), if replaying entries for a big collection gets
   slow.
 
+- **Running the comparison** (step 7) - matched sessions under each policy
+  with `simulate_conflicts.py`, at a few `--notice` and `--people` settings.
+
 The decisions still open - where the order comes from, text fields,
 privacy - are listed in
 [todo.md](../todo.md#things-to-decide-before-building), along with the
-policies for two people editing the same thing (step 6) and the games
-parallels for the write-up.
+games parallels for the write-up.
 
-## 11. Known gaps
+## 12. Known gaps
 
 - **Changes from before history was kept** show "Nothing was recorded for
   this change" - soft delete only kept deletes.
@@ -392,8 +489,13 @@ parallels for the write-up.
   and invite links.
 - **The hub doesn't check ops against the store** - it trusts the viewer to
   have saved, or restored, before telling everyone.
+- **Last change wins counts can run high by a few.** Ops go out before the
+  save there, so another viewer can take a change as stored a moment before
+  it is, and a save of theirs in that moment counts as overwriting.
+- **Keep theirs on group notes while typing.** The notes box doesn't follow
+  the group while it has focus, so it keeps showing yours until you leave it.
 
-## 12. Files
+## 13. Files
 
 | File | What's in it |
 |------|--------------|
@@ -404,13 +506,16 @@ parallels for the write-up.
 | [annotation-store/History/ChangeSetChanges.cs](../../annotation-store/History/ChangeSetChanges.cs) | `GET /changesets/{id}/changes` - what one change did, grouped |
 | [annotation-store/Annotations/AnnotationDbContext.cs](../../annotation-store/Annotations/AnnotationDbContext.cs) | The `history` schema, and the save that writes history with every change |
 | [annotation-store/Migrations/20261021133213_HistoryArea.cs](../../annotation-store/Migrations/20261021133213_HistoryArea.cs) | The history schema, and moving soft-deleted rows into it |
+| [annotation-store/Conflicts/EditConflicts.cs](../../annotation-store/Conflicts/EditConflicts.cs) | `EditPolicy`, the per field check, the row locks, the 409 and the counter |
+| [image-viewer/src/components/realtime/editPolicy.ts](../../image-viewer/src/components/realtime/editPolicy.ts) | The policy choices, reading a 409, the card's wording, saves one at a time |
+| [scripts/simulate_conflicts.py](../../scripts/simulate_conflicts.py) | Simulated people changing the same things, and the tally |
 | [image-viewer/src/components/annotation/bulk.ts](../../image-viewer/src/components/annotation/bulk.ts) | Batches, one change set per bulk change, Undo |
 | [image-viewer/src/components/collections/history/](../../image-viewer/src/components/collections/history) | History list, detail, icons, the restore hook and the plain logic in `history.ts` |
 | [image-viewer/src/components/saved/savedDates.ts](../../image-viewer/src/components/saved/savedDates.ts) | Day headings, times, how long ago |
 | [image-viewer/src/context/](../../image-viewer/src/context) | `addRestored` on the annotation, cell count, group and adjustment contexts |
 | [scripts/seed_history.py](../../scripts/seed_history.py) | The test history |
 
-## 13. Glossary
+## 14. Glossary
 
 - **Change set** - one change someone made, as a row in `history.ChangeSets`.
   Its entries say what it did to each row.
@@ -421,6 +526,11 @@ parallels for the write-up.
   says "put back".
 - **Undo** - the toast's button on a bulk delete: a restore of that change
   set, offered for 8 seconds.
+- **Edit policy** - what happens when two people change the same thing in
+  a session: last change wins (the later save stays) or first change wins
+  (the later one is turned down and asked).
+- **Was** - the value a save started from, sent with it so the store can
+  tell whether someone else changed it since.
 - **Rollback** - putting something back how it was, whoever changed it.
   Restore is rollback; Undo is the same thing offered straight after.
 - **Soft delete** - what step 1 did: hiding a row instead of removing it.

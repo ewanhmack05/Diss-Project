@@ -25,6 +25,7 @@ createRoot(document.getElementById('root')!).render(
       options={{
         fontSize: '11px',
         maxEditors: 6,
+        editPolicy: 'lastWriteWins',
         tools: [
           'fullscreen',
           'annotations',

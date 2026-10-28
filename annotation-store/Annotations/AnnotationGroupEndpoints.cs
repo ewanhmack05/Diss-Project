@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using AnnotationStore.Auth;
 using AnnotationStore.Collections;
+using AnnotationStore.Conflicts;
 using AnnotationStore.History;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,19 +12,26 @@ public record GroupView(Guid Id, Guid CollectionId, string Name, string Notes, D
 // AnnotationIds, if given, go straight into the new group - "group these".
 public record NewGroupRequest(Guid CollectionId, string Name, List<Guid>? AnnotationIds = null);
 
-// Either or both - whatever's left out stays as it is.
-public record GroupUpdateRequest(string? Name = null, string? Notes = null);
+// Either or both - whatever's left out stays as it is. WasName and WasNotes
+// are what the save started from, checked in a FirstComeWins session - see
+// Conflicts/EditConflicts.cs.
+public record GroupUpdateRequest(string? Name = null, string? Notes = null, string? WasName = null, string? WasNotes = null);
 
 public record GroupMergeRequest(Guid IntoId);
 
 // Several annotations at once, from the viewer's Select tab. Colour changes
 // all their colours. SetGroup moves them all into GroupId, or out of any
-// group when GroupId is null.
-public record BulkUpdateRequest(Guid CollectionId, List<Guid> Ids, string? Colour = null, bool SetGroup = false, Guid? GroupId = null);
+// group when GroupId is null. WasColours and WasGroups are each one's colour
+// and group as the viewer had them, checked in a FirstComeWins session.
+public record BulkUpdateRequest(
+    Guid CollectionId, List<Guid> Ids, string? Colour = null, bool SetGroup = false, Guid? GroupId = null,
+    Dictionary<Guid, string>? WasColours = null, Dictionary<Guid, Guid?>? WasGroups = null);
 
 public record BulkDeleteRequest(Guid CollectionId, List<Guid> Ids);
 
-public record BulkResult(int Count);
+// Conflicts are the ones a FirstComeWins session left alone, as they are now.
+// Overwrote is how many replaced someone else's change, in a LastWriteWins one.
+public record BulkResult(int Count, List<BulkConflict>? Conflicts = null, int Overwrote = 0);
 
 // Groups, and changing or deleting many annotations in one go. Same rules
 // as single annotations - anyone in the collection reads, editors and the
@@ -75,10 +83,32 @@ public static class AnnotationGroupEndpoints
             if (await db.RequireAsync(group.CollectionId, user, CollectionRole.Editor) is { } denied) return denied;
             if (request.Name is not null && InvalidName(request.Name) is { } invalid) return invalid;
             if (request.Notes is { Length: > MaxNotesLength }) return Results.BadRequest($"Notes are up to {MaxNotesLength} characters");
+
+            await using var transaction = await HistoryLog.BeginAsync(db);
+            await EditConflicts.LockGroupAsync(db, id);
+            await db.Entry(group).ReloadAsync();
+            if (db.Entry(group).State == EntityState.Detached) return Results.NotFound();
+            // One the same as its was isn't being changed, so it's left as it is now.
+            var name = request.WasName is not null && request.Name?.Trim() == request.WasName ? null : request.Name?.Trim();
+            var notes = request.WasNotes is not null && request.Notes == request.WasNotes ? null : request.Notes;
+            var inWay = new List<string>();
+            if (name is not null && EditConflicts.InWay(request.WasName is not null, request.WasName, group.Name, name))
+                inWay.Add(nameof(AnnotationGroup.Name));
+            if (notes is not null && EditConflicts.InWay(request.WasNotes is not null, request.WasNotes, group.Notes, notes))
+                inWay.Add(nameof(AnnotationGroup.Notes));
+            if (inWay.Count > 0)
+            {
+                var policy = await EditConflicts.PolicyAsync(db, group.CollectionId);
+                EditConflicts.Count(policy, HistoryLog.Group);
+                if (policy == EditPolicy.FirstComeWins)
+                    return await EditConflicts.ConflictAsync(db, HistoryLog.Group, id, await GroupViews(db, group.CollectionId, id).FirstAsync(), inWay);
+                http.Response.Headers[EditConflicts.OverwroteHeader] = "1";
+            }
             if ((await db.ChangeSetAsync(http, group.CollectionId, user, "change group")).Problem is { } problem) return problem;
-            if (request.Name is not null) group.Name = request.Name.Trim();
-            if (request.Notes is not null) group.Notes = request.Notes;
+            if (name is not null) group.Name = name;
+            if (notes is not null) group.Notes = notes;
             await db.SaveChangesAsync();
+            if (transaction is not null) await transaction.CommitAsync();
             return Results.Ok(await GroupViews(db, group.CollectionId, id).FirstAsync());
         });
 
@@ -124,7 +154,9 @@ public static class AnnotationGroupEndpoints
         });
 
         // Only touches ids that are in the collection - anything else is
-        // ignored, and Count says how many changed.
+        // ignored, and Count says how many changed. In a FirstComeWins
+        // session, ones someone else has recoloured or regrouped since the
+        // viewer read them are left alone and listed in Conflicts.
         app.MapPut("/annotations/bulk", async (BulkUpdateRequest request, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
             if (await db.RequireAsync(request.CollectionId, user, CollectionRole.Editor) is { } denied) return denied;
@@ -132,11 +164,45 @@ public static class AnnotationGroupEndpoints
             if (request.Colour is null && !request.SetGroup) return Results.BadRequest("Nothing to change");
             if (request.SetGroup && !await db.GroupIsInAsync(request.GroupId, request.CollectionId))
                 return Results.BadRequest("That group isn't in this collection");
-            if ((await db.ChangeSetAsync(http, request.CollectionId, user, "change annotations")).Problem is { } problem) return problem;
 
-            var count = await AnnotationBulk.UpdateAsync(
-                db, InCollection(db, request.CollectionId, request.Ids), request.Colour, request.SetGroup, request.GroupId);
-            return Results.Ok(new BulkResult(count));
+            var rows = InCollection(db, request.CollectionId, request.Ids);
+            if (request.WasColours is null && request.WasGroups is null)
+            {
+                if ((await db.ChangeSetAsync(http, request.CollectionId, user, "change annotations")).Problem is { } notChecked) return notChecked;
+                return Results.Ok(new BulkResult(await AnnotationBulk.UpdateAsync(db, rows, request.Colour, request.SetGroup, request.GroupId)));
+            }
+
+            await using var transaction = await HistoryLog.BeginAsync(db);
+            await EditConflicts.LockAnnotationsAsync(db, request.Ids);
+            var now = await rows.AsNoTracking().Select(a => new { a.Id, a.Colour, a.GroupId }).ToListAsync();
+            var inWay = now.Where(a =>
+                    (request.Colour is not null && request.WasColours is not null && request.WasColours.TryGetValue(a.Id, out var colour)
+                        && EditConflicts.InWay(true, colour, a.Colour, request.Colour))
+                    || (request.SetGroup && request.WasGroups is not null && request.WasGroups.TryGetValue(a.Id, out var group)
+                        && EditConflicts.InWay(true, group, a.GroupId, request.GroupId)))
+                .ToList();
+            List<BulkConflict>? conflicts = null;
+            var overwrote = 0;
+            if (inWay.Count > 0)
+            {
+                var policy = await EditConflicts.PolicyAsync(db, request.CollectionId);
+                EditConflicts.Count(policy, HistoryLog.Annotation, inWay.Count);
+                if (policy == EditPolicy.FirstComeWins)
+                {
+                    var skipped = inWay.Select(a => a.Id).ToList();
+                    rows = rows.Where(a => !skipped.Contains(a.Id));
+                    var last = await EditConflicts.LastChangesAsync(db, HistoryLog.Annotation, skipped, EditConflicts.AnnotationFields);
+                    conflicts = inWay.Select(a => new BulkConflict(a.Id, a.Colour, a.GroupId,
+                        last.GetValueOrDefault(a.Id)?.By, last.GetValueOrDefault(a.Id)?.At)).ToList();
+                    // All of it turned down - nothing changes, so no change set.
+                    if (conflicts.Count == now.Count) return Results.Ok(new BulkResult(0, conflicts));
+                }
+                else overwrote = inWay.Count;
+            }
+            if ((await db.ChangeSetAsync(http, request.CollectionId, user, "change annotations")).Problem is { } problem) return problem;
+            var count = await AnnotationBulk.UpdateAsync(db, rows, request.Colour, request.SetGroup, request.GroupId);
+            if (transaction is not null) await transaction.CommitAsync();
+            return Results.Ok(new BulkResult(count, conflicts, overwrote));
         });
 
         // POST rather than DELETE, so the ids can go in the body. Put back

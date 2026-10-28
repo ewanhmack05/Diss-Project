@@ -478,7 +478,9 @@ and not shared.
   clears. Picked shapes get a teal halo on a canvas layer under the
   annotations. Only while the tab's open and you're not counting cells.
 - **Recolour** and **group** go to `PUT /annotations/bulk` in one request,
-  with an update op per annotation for everyone else.
+  with an update op per annotation for everyone else. On first change wins,
+  any someone else changed first are left as they are, and a card says how
+  many, with **Use mine for those**.
 - **Delete** asks first, then takes them off the map and sends the delete
   straight away, every batch with the same `Change-Set-Id`
   ([bulk.ts](../../image-viewer/src/components/annotation/bulk.ts)), so
@@ -588,7 +590,18 @@ flowchart LR
   annotation was deleted still flushes its last autosave, which has to be
   dropped rather than sent to something that's gone.
 - **Updates send label, notes and colour together**, because
-  annotation-store's `PUT` replaces all three.
+  annotation-store's `PUT` replaces all three - with the colour it started
+  from (`wasColour`), so the store can tell a colour change from one that's
+  just along for the ride.
+- **Two people changing the same thing.** In a session on first change wins
+  the op goes out after the save instead, saves to one annotation or group
+  go one at a time, and a save turned down (409) shows theirs and a card -
+  "Bob Hughes changed the colour of Region 4 just now, before your change
+  got there" - with **Use mine** and **Keep theirs**. Each item's colour,
+  group, name and notes as the store last had them are kept to send as the
+  was. See
+  [version-control.md](version-control.md#8-two-people-changing-the-same-thing)
+  and [editPolicy.ts](../../image-viewer/src/components/realtime/editPolicy.ts).
 - **Bulk changes** from the Select tab go in one request
   (`PUT /annotations/bulk`), with an op per annotation for everyone else. A
   bulk delete is shown and sent straight away, and Undo restores it - see
@@ -655,20 +668,35 @@ Three providers deal with other people. The hub side is in
 ### The Collaboration panel
 
 [RealTimePanel.tsx](../../image-viewer/src/components/realtime/RealTimePanel.tsx)
-shows one of four things on its Session tab:
+shows one of four things on its Session tab, kept to what you reach for
+during a session:
 
 - **Working alone** - start a session, or join with a code. Rejoining one
-  you're already in is in the Collections panel.
-- **Hosting** - the invite link and code, who can join as editor or viewer,
-  how long it lasts, the people list with role changes and remove, end the
-  session, and navigation controls.
-- **Joined** - who's here and what the host has everyone doing.
+  you're already in is in the Collections panel. Starting one picks how many
+  editors a link lets in and "when two people change the same thing" - last
+  change wins or first change wins - starting from the viewer's
+  `maxEditors` and `editPolicy` options in `index.tsx`. Neither can change
+  once it's started; Settings says which it is.
+- **Hosting** - the quick controls: the invite link and code to copy, making
+  a (new) link, a line saying what it lets people do with **Change** (which
+  opens Settings), navigation, and ending the session.
+- **Joined** - what the host has everyone doing, and leaving.
 - **Ended** - read-only, to look back at.
 
-The Users tab lists everyone in Keycloak, online first. The host can invite
-anyone online on the same slide - they get a popup with the invite card.
-Presence messages can arrive out of order, so `presence.ts` only takes
-something newer than what it has.
+The other tabs:
+
+- **Active** (in a session) - for the host, Ask people to…; who's here
+  right now, guests included; and every member, with the host's role
+  changes and remove.
+- **Settings** (the host, while the session's live) - who the link lets in
+  as, when it runs out, stopping it, and what was fixed when the session
+  started (editors through the link, and when two people change the same
+  thing). The link's two parts share `useSessionInvite` in
+  [SessionInvite.tsx](../../image-viewer/src/components/realtime/SessionInvite.tsx).
+- **Users** - everyone in Keycloak, online first. The host can invite
+  anyone online on the same slide - they get a popup with the invite card.
+  Presence messages can arrive out of order, so `presence.ts` only takes
+  something newer than what it has.
 
 ### Navigation modes
 
@@ -730,14 +758,14 @@ all tested without a browser.
 
 ## 15. Tests
 
-37 test files, 640 tests, run with Vitest (`npm test`). They sit next to
+42 test files, 699 tests, run with Vitest (`npm test`). They sit next to
 the code they cover and test the plain `.ts` logic, not React components or
 a live map.
 
 | Area | Files | Covers |
 | ---- | ----- | ------ |
 | open-layers | OpenLayers, Styles, GeoJSON | Zoom ladder, styles, GeoJSON round trips |
-| realtime | realtime, sharedFields, sketch, autosave | `applyOp`, caret moves, Yjs merges, sketch simplifying, what to autosave |
+| realtime | realtime, sharedFields, sketch, autosave, editPolicy | `applyOp`, caret moves, Yjs merges, sketch simplifying, what to autosave; reading a 409, the conflict card's wording, saves one at a time |
 | cell-count | CellCountDots, CellCountView, compare, sharedCount | Dot parsing, view extent, comparison matching, double counts |
 | saved | paging, filters, savedBy, savedDates, sheetPlacement, useSavedTotal | Page maths, `mergePage` (pending deletes too), filter query strings, live filtering, search matching, the tab label, History's day headings and times |
 | annotation | selection, bulk | Fully inside a box or lasso, which shape a click is on; batches and one change set per bulk change |
