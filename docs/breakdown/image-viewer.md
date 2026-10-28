@@ -755,10 +755,22 @@ all tested without a browser.
 - **Popups** ([DialogContext.tsx](../../image-viewer/src/context/DialogContext.tsx))
   for things too easy to miss as a toast, like being taken out of a session.
   One at a time; Escape runs the last button.
+- **Info boxes** ([InfoNote.tsx](../../image-viewer/src/components/info/InfoNote.tsx))
+  - an (i) beside a label opens a small box saying how something works, so
+  the explanation's there when wanted without taking up the panel. What you
+  need before acting stays on the page as a short line instead ("Neither can
+  change once the session's started"). The box is a fixed-position portal
+  placed with `computePopupPosition`, like the colour picker's, since a
+  docked panel clips anything that spills out of it, and takes the viewer's
+  text size from `.app`. One open at a time across the viewer
+  ([oneOpen.ts](../../image-viewer/src/components/info/oneOpen.ts)); a
+  press outside, Esc (back to the button), a scroll or a resize closes it.
+  Used in the Collaboration panel for editors through the link, the edit
+  policy, navigation and guests.
 
 ## 15. Tests
 
-42 test files, 699 tests, run with Vitest (`npm test`). They sit next to
+44 test files, 711 tests, run with Vitest (`npm test`). They sit next to
 the code they cover and test the plain `.ts` logic, not React components or
 a live map.
 

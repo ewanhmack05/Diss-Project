@@ -3,6 +3,7 @@ import { useCollectionContext, type InvitePreview } from '../../context/Collecti
 import { useImageViewerContext } from '../../context/ImageViewerContext'
 import { useAuthContext } from '../../context/AuthContext'
 import './InviteGate.css'
+import { peopleLine } from './peopleLine'
 
 const ROLE_TEXT = {
   editor: 'Add and change annotations and counts',
@@ -166,7 +167,7 @@ function InviteGate({ children }: { children: ReactNode }) {
         <dt>You'll be able to</dt>
         <dd>{ROLE_TEXT[preview.joinsAs]}</dd>
         <dt>In it now</dt>
-        <dd>{preview.people.length > 0 ? preview.people.join(', ') : 'Nobody else yet'}</dd>
+        <dd>{preview.people.length > 0 ? peopleLine(preview.people) : 'Nobody else yet'}</dd>
       </dl>
       {preview.alreadyMember && <p className="invite-note">You're already in this session.</p>}
       {preview.joinsAs !== preview.role && (
