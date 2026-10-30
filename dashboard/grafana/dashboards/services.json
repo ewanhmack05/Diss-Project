@@ -974,6 +974,64 @@
         "w": 6,
         "h": 8
       }
+    },
+    {
+      "type": "row",
+      "title": "Edits",
+      "id": 22,
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 48,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Saves over someone else's change, per minute",
+      "description": "Two people changing the same colour, group or group name. Refused is a first change wins session turning the second save down; overwrote is a last change wins session letting it replace the first, silently. See annotation-store's Conflicts/EditConflicts.cs.",
+      "targets": [
+        {
+          "expr": "sum by (policy, outcome, entity) (increase(annotation_store_conflicting_saves_total{job=~\"$service\"}[1m]))",
+          "legendFormat": "{{policy}} {{outcome}} ({{entity}})",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0 - none",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 23,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 49,
+        "w": 24,
+        "h": 8
+      }
     }
   ]
 }

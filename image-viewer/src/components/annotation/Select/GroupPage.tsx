@@ -7,12 +7,13 @@ import { useToastContext } from '../../../context/ToastContext'
 import type { AnnotationGroup } from '../../../interfaces/AnnotationGroup'
 import ColourPicker from '../../colour-picker/ColourPicker'
 import { debounce } from '../../realtime/realtime'
+import { TEXT_SAVE_MS } from '../../realtime/autosave'
+import { newChangeSet } from '../bulk'
 import { DefaultColour } from '../Tools'
 import Icon from '../../../icons/Icon'
 import chevronLeftSvg from '../../../icons/chevron-left.svg?raw'
 
 // Group notes save once you pause, like an annotation's.
-const NOTES_SAVE_MS = 500
 const NOTES_MAX = 10_000
 
 const plural = (n: number) => `${n} ${n === 1 ? 'annotation' : 'annotations'}`
@@ -53,14 +54,17 @@ function GroupPage({ group, editable, onBack }: GroupPageProps) {
     if (!notesFocused) setNotes(group.notes)
   }, [group.notes, notesFocused])
 
+  // Renaming and every notes save while the page is open are one change -
+  // see SavedAnnotationEdit. Merging and deleting are changes of their own.
+  const [changeSet] = useState(newChangeSet)
   const updateRef = useRef(updateGroup)
   useEffect(() => {
     updateRef.current = updateGroup
   })
   const [saveNotes] = useState(() =>
     debounce((id: string, text: string) => {
-      updateRef.current(id, { notes: text }).catch(() => {})
-    }, NOTES_SAVE_MS)
+      updateRef.current(id, { notes: text }, changeSet).catch(() => {})
+    }, TEXT_SAVE_MS)
   )
   // Leaving the page doesn't lose the last few keys.
   useEffect(() => () => saveNotes.flush(), [saveNotes])
@@ -69,7 +73,7 @@ function GroupPage({ group, editable, onBack }: GroupPageProps) {
     setNameFocused(false)
     const trimmed = name.trim()
     if (!trimmed) setName(group.name)
-    else if (trimmed !== group.name) updateGroup(group.id, { name: trimmed }).catch(() => setName(group.name))
+    else if (trimmed !== group.name) updateGroup(group.id, { name: trimmed }, changeSet).catch(() => setName(group.name))
   }
 
   const others = groups.filter((g) => g.id !== group.id)

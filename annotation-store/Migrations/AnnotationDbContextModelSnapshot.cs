@@ -281,6 +281,10 @@ namespace AnnotationStore.Migrations
                     b.Property<DateTimeOffset?>("Deleted")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("EditPolicy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<DateTimeOffset?>("Ended")
                         .HasColumnType("timestamp with time zone");
 

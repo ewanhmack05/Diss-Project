@@ -315,7 +315,7 @@ byte arrays and relays new ones. The doc id looks like
   [useSharedFields.ts](../../image-viewer/src/components/realtime/useSharedFields.ts)
   puts it back after React re-renders the input.
 - **Saving.** There's no Save button. The form autosaves to annotation-store
-  500ms after typing stops. Remote changes trigger a save too, so whoever
+  a second after typing stops, every save in one change set. Remote changes trigger a save too, so whoever
   saves last always writes the fully merged text.
 
 `GET /rooms/{roomId}/docs` shows each open doc's editor count, number of

@@ -7,6 +7,7 @@ import { useRealtimeContext } from './RealtimeContext'
 import { useAuthContext } from './AuthContext'
 import { applyOp } from '../components/realtime/realtime'
 import { useSavedTotalAt } from '../components/saved/useSavedTotal'
+import { jsonHeaders } from '../components/annotation/bulk'
 
 type Status = 'loading' | 'ready' | 'error'
 
@@ -42,7 +43,8 @@ interface CellCountStoreContextValue {
   // Put back by a restore, without their dots - shown again, here only.
   // Whoever restored them tells everyone else.
   addRestored: (cellCounts: CellCount[]) => void
-  updateCellCount: (id: string, patch: CellCountEdit) => void
+  // changeSet keeps every save of one edit as one change - see SavedCountEdit.
+  updateCellCount: (id: string, patch: CellCountEdit, changeSet?: string) => void
   deleteCellCount: (id: string) => void
   setSelectedCellCountId: (id: string | null) => void
   setViewedCellCountId: (id: string | null) => void
@@ -197,14 +199,14 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
   }
 
   // annotation-store's PUT replaces all of these together, so pass them all.
-  const updateCellCount = (id: string, patch: CellCountEdit) => {
+  const updateCellCount = (id: string, patch: CellCountEdit, changeSet?: string) => {
     if (deletedIdsRef.current.has(id)) return
     setCellCounts((current) => current.map((c) => (c.id === id ? { ...c, ...patch } : c)))
     emit('cellcount:updated', { id, patch })
     sendOp({ kind: 'update', entity: 'cellCount', id, data: patch })
     authFetch(`${baseUrl}/cellcounts/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: jsonHeaders(changeSet),
       body: JSON.stringify({ ...patch, slideId }),
     })
       .then((response) => {

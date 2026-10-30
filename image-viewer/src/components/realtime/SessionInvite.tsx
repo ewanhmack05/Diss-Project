@@ -10,8 +10,7 @@ const HOURS = [
   { hours: 24 * 7, label: 'in 7 days' },
 ]
 
-// Short, so it fits on one line beside Stop this link - the form below
-// spells it out.
+// Short, so it fits on one line beside Change - Settings spells it out.
 const CAN_TEXT: Record<CollectionRole, string> = {
   editor: 'Can edit',
   viewer: 'View only',
@@ -28,19 +27,16 @@ function linkFor(code: string): string {
   return `${window.location.origin}${window.location.pathname}?invite=${encodeURIComponent(code)}`
 }
 
-// The host's invite link, and its code on its own for typing into Join
-// with a code - one working link at a time. Who it lets in as
-// and when it runs out change the working link straight away. Making a new
-// one stops the old one, for when the old one has gone further than it should.
-function SessionInvite() {
+// The session's one working link, who it lets in as and how long it lasts.
+// The Session tab and Settings each have their own, loaded when they open -
+// only one's showing at a time.
+function useSessionInvite() {
   const { session, loadInvites, inviteChanges, createInvite, updateInvite, stopInvite } = useCollectionContext()
   const emit = useEmitEvent()
   const [invite, setInvite] = useState<Invite | null>(null)
   const [role, setRole] = useState<CollectionRole>('editor')
   const [hours, setHours] = useState(24)
   const [busy, setBusy] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const codeRef = useRef<HTMLInputElement>(null)
   const sessionId = session?.collectionId
 
   // Only a different session clears it - a new invite made elsewhere just
@@ -62,12 +58,14 @@ function SessionInvite() {
           setHours(hoursOf(current))
         }
       })
-      .catch(() => { })
+      .catch(() => {})
     return () => {
       cancelled = true
     }
   }, [sessionId, loadInvites, inviteChanges])
 
+  // A new one stops the old one, for when the old one has gone further than
+  // it should. Same role and expiry as before.
   const make = () => {
     setBusy(true)
     createInvite(role, hours)
@@ -99,6 +97,17 @@ function SessionInvite() {
       .then(() => setInvite(null))
       .catch(() => emit('session:error'))
   }
+
+  return { session, invite, role, hours, busy, make, change, stop }
+}
+
+// The quick part, on the Session tab: the link and code to copy, and making
+// one. What it lets people do is a line with a way into Settings.
+function InviteLink({ onChange }: { onChange: () => void }) {
+  const { invite, busy, make } = useSessionInvite()
+  const emit = useEmitEvent()
+  const inputRef = useRef<HTMLInputElement>(null)
+  const codeRef = useRef<HTMLInputElement>(null)
 
   // Clipboard needs https or localhost - otherwise the text is selected
   // so it can be copied by hand.
@@ -162,13 +171,29 @@ function SessionInvite() {
             >
               {CAN_TEXT[invite.role]} · until {formatLongDate(invite.expires)}
             </span>
-            <button type="button" className="realtime-text-button realtime-text-button--danger" onClick={stop}>
-              Stop this link
+            <button type="button" className="realtime-text-button" onClick={onChange}>
+              Change
             </button>
           </div>
         </>
-      ) : null}
+      ) : (
+        <p className="realtime-note">No working link - make one to let people in.</p>
+      )}
+      <button type="button" className="realtime-button realtime-button--accent realtime-button--wide" disabled={busy} onClick={make}>
+        {invite ? 'Make a new link' : 'Make a link'}
+      </button>
+    </section>
+  )
+}
 
+// The rest, in Settings: who the link lets in as, how long it lasts, and
+// stopping it. Both change the working link straight away.
+function InviteSettings() {
+  const { session, invite, role, hours, busy, change, stop } = useSessionInvite()
+
+  return (
+    <section className="realtime-section">
+      <h3 className="realtime-heading">Invite link</h3>
       <div className="realtime-field">
         <span className="realtime-field-label">People who join can</span>
         <div className="realtime-segmented" role="group" aria-label="People who join can">
@@ -199,14 +224,21 @@ function SessionInvite() {
       {role === 'editor' && session && sessionSize(session.members, session.maxEditors).full && (
         <p className="realtime-note">
           {session.maxEditors} people are editing already, so anyone joining now comes in view only. You can still
-          make them editors from People.
+          make them editors from Active.
         </p>
       )}
-      <button type="button" className="realtime-button realtime-button--accent realtime-button--wide" disabled={busy} onClick={make}>
-        {invite ? 'Make a new link' : 'Make a link'}
-      </button>
+      {invite ? (
+        <div className="realtime-invite-about">
+          <span className="realtime-invite-about-text">Working until {formatLongDate(invite.expires)}</span>
+          <button type="button" className="realtime-text-button realtime-text-button--danger" onClick={stop}>
+            Stop this link
+          </button>
+        </div>
+      ) : (
+        <p className="realtime-note">No working link. These are what the next one you make will do.</p>
+      )}
     </section>
   )
 }
 
-export default SessionInvite
+export { InviteLink, InviteSettings }

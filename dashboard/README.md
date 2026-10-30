@@ -35,6 +35,7 @@ Pick one or both services at the top. Refreshes every 5 seconds.
 | Endpoints | table of every route - request count, rate, median and p95 time       |
 | Errors    | 4xx and 5xx per minute, by status code                                |
 | Machine   | CPU (% of all cores), memory, thread pool threads, GC pause time      |
+| Edits     | saves over someone else's change per minute - refused (first change wins) or overwrote (last change wins) |
 
 Hover the (i) next to a panel's title for what it means.
 

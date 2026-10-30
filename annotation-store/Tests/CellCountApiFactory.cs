@@ -27,7 +27,7 @@ public class CellCountApiFactory : WebApplicationFactory<Program>, IAsyncLifetim
     // CI's) only takes 100 - a burst test opening one per request used to
     // hit "too many clients". Past this a request waits for a free one, so
     // bursts still overlap. PostgresPoolTests checks the classes still fit.
-    public const int PoolSizePerDatabase = 8;
+    public const int PoolSizePerDatabase = 7;
 
     private readonly SqliteConnection _connection = new("DataSource=:memory:");
     private readonly string _postgresDatabase = $"annotationstore_test_{Guid.NewGuid():N}";

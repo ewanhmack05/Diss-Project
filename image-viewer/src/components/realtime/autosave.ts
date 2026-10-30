@@ -8,6 +8,12 @@ interface Labelled {
 const LABEL_MAX = 64
 const NOTES_MAX = 256
 
+// How long a pause in typing before a label or notes box saves. Long enough
+// not to save mid-sentence, short enough that a crash loses almost nothing.
+// Every save of one open form goes in one change set, so this only changes
+// how often it saves, not what the history shows.
+const TEXT_SAVE_MS = 1000
+
 // What to save next, or null if it matches what's already saved. An empty
 // label can't be saved, so the last one stays until there's a new one -
 // everything else still saves. Merged text from several people typing can
@@ -23,5 +29,5 @@ function nextSave<T extends Labelled>(latest: T, saved: T): T | null {
   return changed ? next : null
 }
 
-export { nextSave, LABEL_MAX, NOTES_MAX }
+export { nextSave, LABEL_MAX, NOTES_MAX, TEXT_SAVE_MS }
 export type { Labelled }

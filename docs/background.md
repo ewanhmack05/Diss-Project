@@ -1,4 +1,5 @@
-# Background 
+# Background
+
 A look into the background, and a list of possible citation sources and other papers:
 
 ### Web Processing
@@ -12,17 +13,19 @@ SignalR real-time application cookbook: https://ebookcentral.proquest.com/lib/lj
 WebSocket Essentials – Building Apps with HTML5 WebSockets: https://learning.oreilly.com/library/view/websocket-essentials-building/9781784396756/index.html
 
 ### Keycloak:
+
 Keycloak - Identity and Access Management for Modern Applications: http://learning.oreilly.com/library/view/keycloak-identity/9781804616444/Text/Preface.xhtml
 
 Applying Spring Security Framework with KeyCloak-Based OAuth2 to Protect Microservice Architecture APIs: https://mdpi-res.com/sensors/sensors-22-01703/article_deploy/sensors-22-01703-v2.pdf?version=1646020803
 
 ### Azure
+
 Building your first Azure Static Web Application: https://www.proquest.com/docview/2408684545?pq-origsite=primo&accountid=12118&sourcetype=Trade%20Journals
 
 Run containers on Azure App Service: https://www.proquest.com/docview/2489906537?pq-origsite=primo&accountid=12118&sourcetype=Trade%20Journals
 
-
 ### Version Control
+
 Database Version Control - A Software Configuration Management Approach to Database Version Control: https://www.researchgate.net/publication/220738264_Database_Version_Control_-_A_Software_Configuration_Management_Approach_to_Database_Version_Control
 
 Temporal and Real-Time Databases: https://experts.arizona.edu/en/publications/temporal-and-real-time-databases-a-survey/
@@ -37,3 +40,7 @@ Digital pathology in tau research: A comparison of QuPath and HALO: https://pubm
 
 Halo: https://indicalab.com/halo/
 QuPath: https://qupath.github.io/
+
+### Ai tailored source control
+
+Redesigning source control at Anthropic: https://www.anthropic.com/research/redesigning-source-control

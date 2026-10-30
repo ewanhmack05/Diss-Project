@@ -6,7 +6,7 @@ import { useAuthContext } from '../../context/AuthContext'
 import { useEmitEvent } from '../../context/EventContext'
 import { TOOL_NAMES, useToolbarContext, type ToolId } from '../../context/ToolbarContext'
 import CountInvites from '../cell-count/CountInvites'
-import SessionInvite from './SessionInvite'
+import { InviteLink, InviteSettings } from './SessionInvite'
 import UsersList from '../users/UsersList'
 import JoinWithCode from '../users/JoinWithCode'
 import { usePresenceContext } from '../../context/PresenceContext'
@@ -15,7 +15,9 @@ import { useSharedCountContext } from '../../context/SharedCountContext'
 import { formatLongDate } from '../saved/savedDates'
 import type { NavigationMode } from './realtime'
 import { LEAST_MAX_EDITORS, MOST_MAX_EDITORS, readMaxEditors, sessionSize } from './sessionSize'
+import { EDIT_POLICY_CHOICES } from './editPolicy'
 import { activeUsers, splitActive, type ActiveKind, type ActiveUser } from './activeUsers'
+import InfoNote from '../info/InfoNote'
 import './RealTimePanel.css'
 import Icon from '../../icons/Icon'
 import pencilSvg from '../../icons/pencil.svg?raw'
@@ -190,14 +192,17 @@ function ActiveUsers({ controls }: { controls: boolean }) {
         )}
       </section>
       <section className="realtime-section">
-        <h3 className="realtime-heading">Guests ({guests.length})</h3>
+        <h3 className="realtime-heading">
+          Guests ({guests.length})
+          <InfoNote label="About guests">
+            <p>Anyone who opens the invite link without an account comes in here, under a name they type.</p>
+            <p>They can only view, and their names go when they leave.</p>
+          </InfoNote>
+        </h3>
         {guests.length > 0 ? (
-          <>
-            <p className="realtime-note">No account, so view only. Their names go when they leave.</p>
-            <ul className="realtime-people">{guests.map(row)}</ul>
-          </>
+          <ul className="realtime-people">{guests.map(row)}</ul>
         ) : (
-          <p className="realtime-note">No guests. Anyone who opens the invite link without an account comes in here.</p>
+          <p className="realtime-note">No guests.</p>
         )}
       </section>
     </>
@@ -229,7 +234,7 @@ function CountActivity() {
 }
 
 function WorkingAlone() {
-  const { collections, startSession, open, defaultMaxEditors } = useCollectionContext()
+  const { collections, startSession, open, defaultMaxEditors, defaultEditPolicy } = useCollectionContext()
   const { user } = useAuthContext()
   const { activeTools, toggleTool } = useToolbarContext()
   const emit = useEmitEvent()
@@ -237,6 +242,7 @@ function WorkingAlone() {
   // Typed, so it can be empty part way through changing it.
   const [maxText, setMaxText] = useState(() => String(defaultMaxEditors))
   const chosenMax = readMaxEditors(maxText)
+  const [policy, setPolicy] = useState(defaultEditPolicy)
   const sessions = collections.filter((c) => c.kind === 'session').length
   // One per slide - the newest you host that hasn't ended. The list is newest first.
   const mine = collections.find((c) => c.kind === 'session' && !c.ended && c.ownerId === user.id)
@@ -244,7 +250,7 @@ function WorkingAlone() {
   const start = () => {
     if (chosenMax === null) return
     setStarting(true)
-    startSession(undefined, chosenMax)
+    startSession(undefined, chosenMax, policy)
       .catch(() => emit('session:error'))
       .finally(() => setStarting(false))
   }
@@ -269,29 +275,56 @@ function WorkingAlone() {
           </>
         ) : (
           <>
-            <p className="realtime-note">
-              Start a session to work on this slide with other people. You'll get an invite link and code to send them, or
-              invite anyone online from Users - nobody can join without one.
-            </p>
-            <label className="realtime-field realtime-field--row">
-              <span className="realtime-field-label">Editors through the link</span>
+            <div className="realtime-field realtime-field--row">
+              <span className="realtime-field-label">
+                Editors through the link
+                <InfoNote label="About editors through the link">
+                  <p>
+                    The first {chosenMax ?? 'few'} people through an edit link can edit, you included. Anyone after that
+                    joins view only - you can still let them edit.
+                  </p>
+                </InfoNote>
+              </span>
               <input
                 type="number"
+                aria-label="Editors through the link"
                 inputMode="numeric"
                 min={LEAST_MAX_EDITORS}
                 max={MOST_MAX_EDITORS}
                 step={1}
                 value={maxText}
                 aria-invalid={chosenMax === null}
-                aria-describedby="max-editors-note"
+                aria-describedby={chosenMax === null ? 'max-editors-note' : undefined}
                 onChange={(e) => setMaxText(e.target.value)}
               />
-            </label>
-            <p id="max-editors-note" className={`realtime-note${chosenMax === null ? ' realtime-note--warning' : ''}`}>
-              {chosenMax === null
-                ? `A whole number from ${LEAST_MAX_EDITORS} to ${MOST_MAX_EDITORS}.`
-                : `The first ${chosenMax === 1 ? 'person' : `${chosenMax} people`} through an edit link can edit, you included. Anyone after that joins view only - you can still let them edit.`}
-            </p>
+            </div>
+            {chosenMax === null && (
+              <p id="max-editors-note" className="realtime-note realtime-note--warning">
+                {`A whole number from ${LEAST_MAX_EDITORS} to ${MOST_MAX_EDITORS}.`}
+              </p>
+            )}
+            <div className="realtime-field">
+              <span className="realtime-field-label">
+                When two people change the same thing
+                <InfoNote label="About when two people change the same thing">
+                  <PolicyChoices />
+                </InfoNote>
+              </span>
+              <div className="realtime-segmented" role="group" aria-label="When two people change the same thing">
+                {EDIT_POLICY_CHOICES.map((choice) => (
+                  <button
+                    key={choice.policy}
+                    type="button"
+                    aria-pressed={policy === choice.policy}
+                    className={`realtime-segment${policy === choice.policy ? ' realtime-segment--active' : ''}`}
+                    onClick={() => setPolicy(choice.policy)}
+                  >
+                    {choice.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="realtime-note">Neither can change once the session's started.</p>
             <button
               type="button"
               className="realtime-button realtime-button--accent realtime-button--wide"
@@ -401,11 +434,22 @@ function NavigationControls() {
   const { status, navigation, setNavigation } = useRealtimeContext()
   const emit = useEmitEvent()
   const live = status === 'connected'
-  const current = NAVIGATION_OPTIONS.find((option) => option.mode === navigation)
 
   return (
     <section className="realtime-section">
-      <h3 className="realtime-heading">Navigation</h3>
+      <h3 className="realtime-heading">
+        Navigation
+        <InfoNote label="About navigation">
+          <dl>
+            {NAVIGATION_OPTIONS.map((option) => (
+              <div key={option.mode}>
+                <dt>{option.label}</dt>
+                <dd>{option.about}</dd>
+              </div>
+            ))}
+          </dl>
+        </InfoNote>
+      </h3>
       <div className="realtime-segmented" role="group" aria-label="Navigation">
         {NAVIGATION_OPTIONS.map((option) => (
           <button
@@ -420,7 +464,6 @@ function NavigationControls() {
           </button>
         ))}
       </div>
-      {current && <p className="realtime-note">{current.about}</p>}
     </section>
   )
 }
@@ -480,6 +523,72 @@ function AskPeople() {
   )
 }
 
+// Both edit policies, for the (i) beside the choice.
+function PolicyChoices() {
+  return (
+    <>
+      <dl>
+        {EDIT_POLICY_CHOICES.map((choice) => (
+          <div key={choice.policy}>
+            <dt>{choice.label}</dt>
+            <dd>{choice.note}</dd>
+          </div>
+        ))}
+      </dl>
+      <p>Labels and notes are typed together either way, so nothing typed is lost.</p>
+    </>
+  )
+}
+
+// The host's, while the session's live: the link's settings, and what was
+// fixed when it started.
+function SessionSettings({ session }: { session: Collection }) {
+  const policy = EDIT_POLICY_CHOICES.find((c) => c.policy === session.editPolicy)
+  return (
+    <>
+      <InviteSettings />
+      <section className="realtime-section">
+        <h3 className="realtime-heading">Session</h3>
+        <div className="realtime-field realtime-field--row">
+          <span className="realtime-field-label">
+            Editors through the link
+            <InfoNote label="About editors through the link">
+              <p>
+                The first {session.maxEditors} people through an edit link can edit, you included. Anyone after that
+                joins view only - you can still let them edit from Active.
+              </p>
+            </InfoNote>
+          </span>
+          <span>{session.maxEditors}</span>
+        </div>
+        <div className="realtime-field realtime-field--row">
+          <span className="realtime-field-label">
+            When two people change the same thing
+            <InfoNote label="About when two people change the same thing">
+              <PolicyChoices />
+            </InfoNote>
+          </span>
+          <span>{policy?.label}</span>
+        </div>
+        <p className="realtime-note">Picked when the session started - start a new one for different ones.</p>
+      </section>
+    </>
+  )
+}
+
+// Everyone in the session: asking people to do something (the host), who's
+// here right now, and every member with what they can do.
+function ActiveTab({ session }: { session: Collection | null }) {
+  const host = session?.myRole === 'owner'
+  return (
+    <>
+      {host && <AskPeople />}
+      <ActiveUsers controls={host} />
+      {session && <PeopleList session={session} controls={host} />}
+    </>
+  )
+}
+
 // What the host has everyone doing, for people who joined.
 function NavigationNote() {
   const { navigation } = useRealtimeContext()
@@ -493,7 +602,9 @@ function NavigationNote() {
   )
 }
 
-function Hosting({ session }: { session: Collection }) {
+// The host's quick controls - the link, navigation and ending it. Who the
+// link lets in and the session's rules are in Settings; people are in Active.
+function Hosting({ session, openSettings }: { session: Collection; openSettings: () => void }) {
   const { endSession, refresh } = useCollectionContext()
   const emit = useEmitEvent()
   const tellEveryone = useTellEveryone()
@@ -514,11 +625,9 @@ function Hosting({ session }: { session: Collection }) {
         <SessionTitle session={session} editable />
         <LiveLine text={`Live · you're hosting · slide ${session.slideId}`} />
       </section>
-      <SessionInvite />
-      <PeopleList session={session} controls />
+      <InviteLink onChange={openSettings} />
       <CountActivity />
       <NavigationControls />
-      <AskPeople />
       {confirmingEnd ? (
         <div className="realtime-confirm">
           <p className="realtime-note">End it for everyone? Its link stops working and it becomes read-only.</p>
@@ -566,7 +675,6 @@ function Joined({ session }: { session: Collection }) {
         </section>
       )}
       <NavigationNote />
-      <PeopleList session={session} controls={false} />
       <CountActivity />
       <button type="button" className="realtime-button realtime-button--wide" onClick={leaveSession}>
         Leave session
@@ -676,12 +784,13 @@ function SignedIn() {
   )
 }
 
-type RealTimeTab = 'session' | 'active' | 'users'
+type RealTimeTab = 'session' | 'active' | 'users' | 'settings'
 
 // Session: working alone, hosting a session, in someone else's, or looking
 // back at one that's ended. Active: who's in the session right now, guests
 // included - only while you're in one. Users: everyone with an account,
-// online first. All say who you're signed in as. The tab is kept here rather
+// online first. Settings: the host's link and the session's rules, only
+// while it's live. All say who you're signed in as. The tab is kept here rather
 // than in the toolbar's context - it's your own, so Present doesn't follow
 // the host's.
 function RealTimePanel() {
@@ -692,11 +801,13 @@ function RealTimePanel() {
   const [picked, setPicked] = useState<RealTimeTab>('session')
   const inSession = !!roomId
   const activeCount = inSession ? activeUsers(me, others).length : 0
+  const hosting = inSession && !!session && session.myRole === 'owner' && !session.ended && !dormant
   // Users is everyone with an account - nothing a guest can use.
   const tabs: RealTimeTab[] = [
     'session',
     ...(inSession ? (['active'] as const) : []),
     ...(user.guest ? [] : (['users'] as const)),
+    ...(hosting ? (['settings'] as const) : []),
   ]
   // Out of the session with Active picked - back to Session, and Active
   // again if they go back in.
@@ -707,17 +818,20 @@ function RealTimePanel() {
       ? 'Session'
       : option === 'active'
         ? `Active${activeCount > 0 ? ` (${activeCount})` : ''}`
-        : `Users${onlineCount > 0 ? ` (${onlineCount} online)` : ''}`
+        : option === 'settings'
+          ? 'Settings'
+          : `Users${onlineCount > 0 ? ` (${onlineCount} online)` : ''}`
 
   let body
   if (tab === 'users') body = <UsersList />
-  else if (tab === 'active') body = <ActiveUsers controls={session?.myRole === 'owner'} />
+  else if (tab === 'active') body = <ActiveTab session={session} />
+  else if (tab === 'settings' && session) body = <SessionSettings session={session} />
   else if (status !== 'ready') body = <p className="realtime-note">Loading…</p>
   else if (!session && user.guest) body = <GuestSessionGone />
   else if (!session) body = <WorkingAlone />
   else if (session.ended) body = <Ended session={session} />
   else if (dormant) body = <Dormant session={session} />
-  else if (session.myRole === 'owner') body = <Hosting session={session} />
+  else if (session.myRole === 'owner') body = <Hosting session={session} openSettings={() => setPicked('settings')} />
   else body = <Joined session={session} />
 
   return (

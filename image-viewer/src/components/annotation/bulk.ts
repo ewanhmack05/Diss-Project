@@ -24,6 +24,13 @@ function changeSetHeaders(changeSet: string): Record<string, string> {
   return { 'Content-Type': 'application/json', [CHANGE_SET_HEADER]: changeSet }
 }
 
+// For a JSON write that may or may not be part of a bigger change - an open
+// edit form sends its change set with every autosave. Without one, the
+// store gives the write a change set of its own.
+function jsonHeaders(changeSet?: string): Record<string, string> {
+  return changeSet ? changeSetHeaders(changeSet) : { 'Content-Type': 'application/json' }
+}
+
 // Puts back everything the change set deleted, for everyone.
 function restorePath(changeSet: string): string {
   return `/changesets/${encodeURIComponent(changeSet)}/restore`
@@ -66,4 +73,4 @@ function deleteAsOneChange(
   return { deleted, undo }
 }
 
-export { MAX_BULK_IDS, CHANGE_SET_HEADER, inBatches, newChangeSet, changeSetHeaders, restorePath, deleteAsOneChange }
+export { MAX_BULK_IDS, CHANGE_SET_HEADER, inBatches, newChangeSet, changeSetHeaders, jsonHeaders, restorePath, deleteAsOneChange }

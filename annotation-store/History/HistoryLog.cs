@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using AnnotationStore.Annotations;
 using AnnotationStore.CellCounts;
 using Microsoft.EntityFrameworkCore;
@@ -79,6 +80,7 @@ public static class HistoryLog
     // the change itself, so they can't end up apart.
     public static async Task WriteAsync(AnnotationDbContext db, IReadOnlyList<HistoryEntry> entries, CancellationToken cancellationToken = default)
     {
+        entries = await FoldRepeatsAsync(db, entries, cancellationToken);
         if (entries.Count == 0) return;
         if (db.Database.ProviderName != Postgres)
         {
@@ -102,6 +104,66 @@ public static class HistoryLog
             await WriteJsonAsync(copy, entry.After, cancellationToken);
         }
         await copy.CompleteAsync(cancellationToken);
+    }
+
+    // An edit form saves on every pause, all in one change set, so a second
+    // update to a row in the same change set folds into the entry already
+    // there rather than adding one: its before stays, the latest after wins.
+    // A column that's ended up back where it started drops out, and an entry
+    // left with none goes. One edit is one entry, however often it saved.
+    // Only into the row's latest entry in the change set, and only if that's
+    // an update - nothing folds across a create or delete.
+    // Two saves of the same row can't fold at once: each has already updated
+    // the live row in this transaction, and Postgres holds that row until
+    // the first commits.
+    private static async Task<IReadOnlyList<HistoryEntry>> FoldRepeatsAsync(
+        AnnotationDbContext db, IReadOnlyList<HistoryEntry> entries, CancellationToken cancellationToken)
+    {
+        var updates = entries.Where(e => e.Op == HistoryOp.Update).ToList();
+        if (updates.Count == 0) return entries;
+        var changeSetId = updates[0].ChangeSetId;
+        var ids = updates.Select(e => e.EntityId).Distinct().ToList();
+        var earlier = (await db.HistoryEntries
+                .Where(e => e.ChangeSetId == changeSetId && ids.Contains(e.EntityId))
+                .ToListAsync(cancellationToken))
+            .GroupBy(e => (e.Entity, e.EntityId))
+            .Select(g => g.MaxBy(e => e.Id)!)
+            .Where(e => e.Op == HistoryOp.Update)
+            .ToDictionary(e => (e.Entity, e.EntityId));
+        if (earlier.Count == 0) return entries;
+
+        var fresh = new List<HistoryEntry>();
+        foreach (var entry in entries)
+        {
+            if (entry.Op != HistoryOp.Update || !earlier.TryGetValue((entry.Entity, entry.EntityId), out var first))
+            {
+                fresh.Add(entry);
+                continue;
+            }
+            var (before, after) = Fold(first.Before!, first.After!, entry.Before!, entry.After!);
+            if (before is null) db.HistoryEntries.Remove(first);
+            else (first.Before, first.After) = (before, after);
+        }
+        await db.SaveWithoutHistoryAsync(cancellationToken);
+        return fresh;
+    }
+
+    // Two updates' columns as one, or nulls if it all ended where it began.
+    public static (string? Before, string? After) Fold(string firstBefore, string firstAfter, string nextBefore, string nextAfter)
+    {
+        var before = JsonNode.Parse(firstBefore)!.AsObject();
+        var after = JsonNode.Parse(firstAfter)!.AsObject();
+        foreach (var (name, value) in JsonNode.Parse(nextBefore)!.AsObject())
+            if (!before.ContainsKey(name)) before[name] = value?.DeepClone();
+        foreach (var (name, value) in JsonNode.Parse(nextAfter)!.AsObject())
+            after[name] = value?.DeepClone();
+        foreach (var name in before.Select(c => c.Key).ToList())
+        {
+            if (!JsonNode.DeepEquals(before[name], after[name])) continue;
+            before.Remove(name);
+            after.Remove(name);
+        }
+        return before.Count == 0 ? (null, null) : (before.ToJsonString(Json), after.ToJsonString(Json));
     }
 
     // A transaction for a change that's more than one statement - or none, if

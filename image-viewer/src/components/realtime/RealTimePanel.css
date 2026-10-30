@@ -443,9 +443,12 @@
   background: var(--chrome-bg);
 }
 
+/* Sized to their labels, sharing what's left - "Users (12 online)" needs
+   more room than "Session", and a label never wraps. */
 .realtime-tab {
-  flex: 1;
-  padding: 0.6em;
+  flex: 1 1 auto;
+  white-space: nowrap;
+  padding: 0.6em 0.5em;
   font-family: var(--sans);
   font-size: 0.9em;
   font-weight: 600;

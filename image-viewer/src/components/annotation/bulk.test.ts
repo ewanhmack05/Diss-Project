@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CHANGE_SET_HEADER, MAX_BULK_IDS, changeSetHeaders, deleteAsOneChange, inBatches, newChangeSet, restorePath } from './bulk'
+import { CHANGE_SET_HEADER, MAX_BULK_IDS, changeSetHeaders, deleteAsOneChange, inBatches, jsonHeaders, newChangeSet, restorePath } from './bulk'
 
 describe('inBatches', () => {
   it('splits a selection bigger than the cap so every request is under it', () => {
@@ -39,6 +39,12 @@ describe('change sets', () => {
     const a = newChangeSet()
     expect(a).not.toBe(newChangeSet())
     expect(a).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+  })
+
+  it("sends an edit form's change set with each save, and nothing extra without one", () => {
+    const edit = newChangeSet()
+    expect(jsonHeaders(edit)).toEqual({ 'Content-Type': 'application/json', [CHANGE_SET_HEADER]: edit })
+    expect(jsonHeaders()).toEqual({ 'Content-Type': 'application/json' })
   })
 
   it('restores through the change set it was sent in', () => {

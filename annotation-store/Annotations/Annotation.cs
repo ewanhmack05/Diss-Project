@@ -23,3 +23,15 @@ public class Annotation
     public string CreatedById { get; set; } = "";
     public string CreatedByName { get; set; } = "";
 }
+
+// What PUT /annotations/{id} takes. Label, notes and colour are all
+// replaced. WasColour is the colour the save started from, for a session
+// that turns down a save made over someone else's change - see
+// Conflicts/EditConflicts.cs. Left out, it isn't checked.
+public class AnnotationUpdate
+{
+    public string Label { get; set; } = "";
+    public string Notes { get; set; } = "";
+    public string Colour { get; set; } = "";
+    public string? WasColour { get; set; }
+}

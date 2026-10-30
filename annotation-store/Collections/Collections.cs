@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using AnnotationStore.Annotations;
 using AnnotationStore.CellCounts;
+using AnnotationStore.Conflicts;
 
 namespace AnnotationStore.Collections;
 
@@ -33,6 +34,10 @@ public class Collections
     // else joins view only, set by whoever started it (the viewer's
     // maxEditors option). The host can still make more. See SessionSize.
     public int MaxEditors { get; set; } = SessionSize.DefaultMaxEditors;
+    // Sessions only - what happens when two people change the same thing,
+    // set by whoever started it (the viewer's editPolicy option). Personal
+    // collections are one person, so they stay LastWriteWins.
+    public EditPolicy EditPolicy { get; set; } = EditPolicy.LastWriteWins;
 
     // Set when it's deleted - it's hidden rather than removed, so its owner
     // can bring it back with everything in it. Who deleted it, and when, is

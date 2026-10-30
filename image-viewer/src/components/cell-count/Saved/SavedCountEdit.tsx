@@ -3,7 +3,8 @@ import { useCellCountStoreContext, type CellCountEdit } from '../../../context/C
 import type { CellCount } from '../../../interfaces/CellCount'
 import { debounce } from '../../realtime/realtime'
 import { useSharedFields } from '../../realtime/useSharedFields'
-import { LABEL_MAX, NOTES_MAX, nextSave } from '../../realtime/autosave'
+import { LABEL_MAX, NOTES_MAX, TEXT_SAVE_MS, nextSave } from '../../realtime/autosave'
+import { newChangeSet } from '../../annotation/bulk'
 import EditingWith from '../../realtime/EditingWith'
 import { countSummary } from '../CellCountDots'
 import CountedBy from '../CountedBy'
@@ -17,7 +18,6 @@ interface SavedCountEditProps {
 }
 
 const FIELDS = ['label', 'notes'] as const
-const AUTOSAVE_MS = 500
 
 // Same as SavedAnnotationEdit: label and notes are shared live, so several
 // people can type in them at once, and everything saves as it changes.
@@ -37,6 +37,8 @@ function SavedCountEdit({ cellCount, onBack }: SavedCountEditProps) {
     count: cellCount.count,
     dotSize: cellCount.dotSize,
   }))
+  // Every save while the form's open is one change - see SavedAnnotationEdit.
+  const [changeSet] = useState(newChangeSet)
   const latestRef = useRef(initial)
   const savedRef = useRef(initial)
   const updateRef = useRef(updateCellCount)
@@ -49,8 +51,8 @@ function SavedCountEdit({ cellCount, onBack }: SavedCountEditProps) {
       const next = nextSave(latestRef.current, savedRef.current)
       if (!next) return
       savedRef.current = next
-      updateRef.current(cellCount.id, next)
-    }, AUTOSAVE_MS)
+      updateRef.current(cellCount.id, next, changeSet)
+    }, TEXT_SAVE_MS)
   )
 
   const { values, editors, fieldProps } = useSharedFields(

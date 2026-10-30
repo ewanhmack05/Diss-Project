@@ -86,7 +86,7 @@ viewer, without being a member.
 | `GET /collections/{id}/export` | members, or anyone if shared | Its annotations and cell counts (dots and ROI included), oldest first - what the viewer's GeoJSON export reads |
 | `GET /collections/{id}/membership` | members | Your role, its kind and whether it's ended - what the realtime hub checks before letting you into a session's room |
 | `POST /collections/ensure` | anyone | Get or create your own for `{ slideId }` |
-| `POST /sessions` | anyone | Start a session on `{ slideId, collectionName? }`, hosted by you. One at a time per slide - with one not ended, it's a 409 with that one instead |
+| `POST /sessions` | anyone | Start a session on `{ slideId, collectionName?, maxEditors?, editPolicy? }`, hosted by you. `editPolicy` is `lastWriteWins` (the default) or `firstComeWins` - see below. One at a time per slide - with one not ended, it's a 409 with that one instead |
 | `PUT /collections/{id}` | owner | Rename |
 | `PUT /collections/{id}/sharing` | owner | Personal only - `{ shared }`. Lets anyone signed in view it, read-only |
 | `POST /collections/{id}/import` | editor, owner | `{ annotations, cellCounts }` from a GeoJSON import, saved together and stamped as you |
@@ -178,6 +178,22 @@ bulk change. Leave it out and the write gets a change set of its own. The
 response's `Change-Set-Id` header says which it went in. An id already used
 by someone else, or in another collection, is a 400.
 
+**Two people changing the same thing.** A session is `lastWriteWins` or
+`firstComeWins` (`editPolicy`, picked by the host - personal collections are
+always `lastWriteWins`). It's checked per field, for an annotation's colour
+and group and a group's name and notes - labels and notes on annotations and
+cell counts are merged live, so they're never checked. A save sends the
+value it started from (`wasColour`, `wasName`, `wasNotes`, or `wasColours` /
+`wasGroups` by id for a bulk change). It's in the way of someone else's
+change when the stored value isn't that any more and the save would change
+it again: a 409 under `firstComeWins`, with `{ entity, id, current,
+changedBy, changedAt, changed }` - the row now and the last change to those
+fields - and saved anyway under `lastWriteWins`, with an `Overwrote: 1`
+header. A field sent the same as its was isn't being changed, so it's left
+as it is. No was, no check. Either way it's counted on the
+`annotation_store.conflicting_saves` metric. See
+[version-control.md](../docs/breakdown/version-control.md#8-two-people-changing-the-same-thing).
+
 **History is kept apart from the data.** What every change did to each row
 goes in the `history` schema (`History/`): a delete keeps the whole row, an
 edit keeps just the columns it changed, before and after. The live tables
@@ -249,19 +265,24 @@ it holds everything in it. Nothing in the history is purged.
   included) and `colours` (`{ colour, count }`, most used first)
 - `POST /annotations` - create one (body: `Annotation` minus `id`/`created`,
   both are assigned server-side if omitted)
-- `PUT /annotations/{id}` - update `label`/`notes`/`colour`
-- `DELETE /annotations/{id}` - delete (hides it - see above)
+- `PUT /annotations/{id}` - update `label`/`notes`/`colour`, with
+  `wasColour` to check it (see above)
+- `DELETE /annotations/{id}` - delete (the row goes to the history - see above)
 - `PUT /annotations/bulk` - many at once, from the viewer's Select tab:
-  `{ collectionId, ids, colour?, setGroup, groupId? }`. `colour` recolours
-  them all; `setGroup` moves them all into `groupId`, or out of any group
-  when it's null. Ids not in the collection are skipped - `{ count }` says
-  how many changed. Up to 20,000 ids
+  `{ collectionId, ids, colour?, setGroup, groupId?, wasColours?, wasGroups? }`.
+  `colour` recolours them all; `setGroup` moves them all into `groupId`, or
+  out of any group when it's null. Ids not in the collection are skipped -
+  `{ count }` says how many changed. Under `firstComeWins` the ones in the
+  way of someone else's change are left alone and listed in `conflicts`, as
+  they are now; under `lastWriteWins`, `overwrote` says how many replaced
+  someone's. Up to 20,000 ids
 - `POST /annotations/bulk-delete` - `{ collectionId, ids }`, same rules
 - `GET /annotationgroups?collectionId=` - the collection's groups, by name,
   each with how many annotations are in it
 - `POST /annotationgroups` - `{ collectionId, name, annotationIds? }` - a new
   group, with those annotations put straight in it
-- `PUT /annotationgroups/{id}` - `{ name?, notes? }` - either or both
+- `PUT /annotationgroups/{id}` - `{ name?, notes?, wasName?, wasNotes? }` -
+  either or both, checked like an annotation's colour
 - `POST /annotationgroups/{id}/merge` - `{ intoId }` - moves everything into
   that group and deletes this one, in one transaction. Notes are joined.
   The delete says where it went, so an annotation put back later that was

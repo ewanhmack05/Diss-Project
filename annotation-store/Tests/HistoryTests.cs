@@ -523,6 +523,149 @@ public class HistoryTests : IClassFixture<CellCountApiFactory>
         Assert.Empty(await EntriesAsync(ChangeSetOf(put)));
     }
 
+    // What an open edit form does - a save on every pause, one change set.
+    private async Task<HttpResponseMessage> EditAsync(HttpClient client, Annotation annotation, Guid changeSet, string label, string notes = "", string? colour = null)
+    {
+        var response = await client.SendAsync(InChangeSet(HttpMethod.Put, $"/annotations/{annotation.Id}", changeSet,
+            new Annotation { Label = label, Notes = notes, Colour = colour ?? annotation.Colour }));
+        response.EnsureSuccessStatusCode();
+        return response;
+    }
+
+    [Fact]
+    public async Task OneEdit_SavedManyTimes_IsOneEntry_FromHowItWasToHowItEnded()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var annotation = await AddAnnotationAsync(alice, id, "Region");
+        var edit = Guid.NewGuid();
+
+        await EditAsync(alice, annotation, edit, "Region 4");
+        await EditAsync(alice, annotation, edit, "Region 4", notes: "mitoses");
+        await EditAsync(alice, annotation, edit, "Region 4 (checked)", notes: "mitoses", colour: "#00FF00");
+
+        var entry = Assert.Single(await EntriesAsync(edit));
+        Assert.Equal(HistoryOp.Update, entry.Op);
+        Assert.Equal(new Dictionary<string, string> { ["Label"] = "Region", ["Notes"] = "", ["Colour"] = "#FF0000" }, Columns(entry.Before));
+        Assert.Equal(new Dictionary<string, string> { ["Label"] = "Region 4 (checked)", ["Notes"] = "mitoses", ["Colour"] = "#00FF00" }, Columns(entry.After));
+    }
+
+    [Fact]
+    public async Task AColumnBackWhereItStarted_DropsOut_AndAnEditThatUndidItselfLeavesNothing()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var annotation = await AddAnnotationAsync(alice, id, "Region");
+        var edit = Guid.NewGuid();
+
+        await EditAsync(alice, annotation, edit, "Regoin", notes: "x");
+        await EditAsync(alice, annotation, edit, "Region", notes: "x");
+        var entry = Assert.Single(await EntriesAsync(edit));
+        Assert.Equal(new Dictionary<string, string> { ["Notes"] = "" }, Columns(entry.Before));
+        Assert.Equal(new Dictionary<string, string> { ["Notes"] = "x" }, Columns(entry.After));
+
+        await EditAsync(alice, annotation, edit, "Region");
+        Assert.Empty(await EntriesAsync(edit));
+    }
+
+    [Fact]
+    public async Task Edits_InSeparateChangeSets_StaySeparate_AndOtherRowsArentFoldedIn()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var a = await AddAnnotationAsync(alice, id, "a");
+        var b = await AddAnnotationAsync(alice, id, "b");
+        var edit = Guid.NewGuid();
+        var later = Guid.NewGuid();
+
+        await EditAsync(alice, a, edit, "a2");
+        await EditAsync(alice, b, edit, "b2");
+        await EditAsync(alice, a, later, "a3");
+
+        Assert.Equal([a.Id, b.Id], (await EntriesAsync(edit)).Select(e => e.EntityId));
+        Assert.Equal("a2", Columns(Assert.Single(await EntriesAsync(edit), e => e.EntityId == a.Id).After)["Label"]);
+        Assert.Equal("a2", Columns(Assert.Single(await EntriesAsync(later)).Before)["Label"]);
+    }
+
+    // Saves that overlap on a slow network - each waits on the live row the
+    // one before it updated, so they fold one at a time.
+    [PostgresFact]
+    public async Task SavesOfOneEditAtTheSameMoment_StillFoldIntoOneEntry_EndingWhereTheRowDid()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var annotation = await AddAnnotationAsync(alice, id, "start");
+        var edit = Guid.NewGuid();
+
+        await Task.WhenAll(Enumerable.Range(0, 20).Select(i => EditAsync(alice, annotation, edit, $"label {i}")));
+
+        var entry = Assert.Single(await EntriesAsync(edit));
+        Assert.Equal("start", Columns(entry.Before)["Label"]);
+        Assert.Equal(Assert.Single(await AnnotationsAsync(alice, id)).Label, Columns(entry.After)["Label"]);
+    }
+
+    [Fact]
+    public async Task NothingFoldsAcrossADelete()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var annotation = await AddAnnotationAsync(alice, id, "a");
+        var change = Guid.NewGuid();
+
+        await EditAsync(alice, annotation, change, "a2");
+        (await alice.SendAsync(InChangeSet(HttpMethod.Delete, $"/annotations/{annotation.Id}", change))).EnsureSuccessStatusCode();
+
+        Assert.Equal([HistoryOp.Update, HistoryOp.Delete], (await EntriesAsync(change)).Select(e => e.Op));
+    }
+
+    [Fact]
+    public async Task PuttingBackAFoldedEdit_GoesBackToHowItWasBeforeTheEdit()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var annotation = await AddAnnotationAsync(alice, id, "Region");
+        var edit = Guid.NewGuid();
+        await EditAsync(alice, annotation, edit, "Region 4");
+        await EditAsync(alice, annotation, edit, "Region 4 (checked)", notes: "n", colour: "#00FF00");
+
+        (await RestoreAsync(alice, edit)).EnsureSuccessStatusCode();
+
+        var back = Assert.Single(await AnnotationsAsync(alice, id));
+        Assert.Equal(("Region", "", "#FF0000"), (back.Label, back.Notes, back.Colour));
+    }
+
+    [Fact]
+    public async Task ABulkRecolourInTheSameChangeSetAsAnEdit_FoldsIntoIt()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var a = await AddAnnotationAsync(alice, id, "a");
+        var change = Guid.NewGuid();
+
+        await EditAsync(alice, a, change, "a2");
+        (await alice.SendAsync(InChangeSet(HttpMethod.Put, "/annotations/bulk", change,
+            new BulkUpdateRequest(id, [a.Id], Colour: "#00FF00")))).EnsureSuccessStatusCode();
+
+        var entry = Assert.Single(await EntriesAsync(change));
+        Assert.Equal(("a2", "#00FF00"), (Columns(entry.After)["Label"], Columns(entry.After)["Colour"]));
+        Assert.Equal(("a", "#FF0000"), (Columns(entry.Before)["Label"], Columns(entry.Before)["Colour"]));
+    }
+
+    [Theory]
+    [InlineData("""{"Label":"a"}""", """{"Label":"b"}""", """{"Label":"b"}""", """{"Label":"c"}""", """{"Label":"a"}""", """{"Label":"c"}""")]
+    [InlineData("""{"Label":"a"}""", """{"Label":"b"}""", """{"Colour":"#1"}""", """{"Colour":"#2"}""", """{"Label":"a","Colour":"#1"}""", """{"Label":"b","Colour":"#2"}""")]
+    [InlineData("""{"Label":"a","Colour":"#1"}""", """{"Label":"b","Colour":"#2"}""", """{"Label":"b"}""", """{"Label":"a"}""", """{"Colour":"#1"}""", """{"Colour":"#2"}""")]
+    [InlineData("""{"GroupId":null}""", """{"GroupId":"7d1e4c4e-0000-4000-8000-000000000000"}""", """{"GroupId":"7d1e4c4e-0000-4000-8000-000000000000"}""", """{"GroupId":null}""", null, null)]
+    // Postgres hands jsonb back with its own spacing and key order.
+    [InlineData("""{"Label": "a", "Notes": ""}""", """{"Notes": "x", "Label": "b"}""", """{"Label":"b"}""", """{"Label":"c"}""", """{"Label":"a","Notes":""}""", """{"Notes":"x","Label":"c"}""")]
+    public void Fold_KeepsTheFirstBefore_AndTheLatestAfter(string firstBefore, string firstAfter, string nextBefore, string nextAfter, string? before, string? after)
+    {
+        var (foldedBefore, foldedAfter) = HistoryLog.Fold(firstBefore, firstAfter, nextBefore, nextAfter);
+
+        Assert.Equal(before is null ? null : Columns(before), foldedBefore is null ? null : Columns(foldedBefore));
+        Assert.Equal(after is null ? null : Columns(after), foldedAfter is null ? null : Columns(foldedAfter));
+    }
+
     [Fact]
     public async Task AddingSomething_IsLoggedWithoutCopyingIt()
     {
