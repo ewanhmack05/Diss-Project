@@ -55,7 +55,20 @@ what still needs filling in listed at the top.
 New machine? See [SETUP.md](SETUP.md) for installing .NET 10, Node.js,
 PostgreSQL, Git LFS, and recommended VS Code extensions.
 
-## Running everything - 3 terminals required
+## Running everything
+
+One terminal, everything in it:
+
+```bash
+python scripts/run_all.py
+```
+
+Starts Keycloak, tiler, annotation-store, realtime-hub and the viewer, shows
+their output together and stops them on Ctrl+C. `--dashboard` adds Grafana,
+`--docker` runs the backend in containers. See
+[scripts/README.md](scripts/README.md#running-everything).
+
+### By hand - 3 terminals
 
 ```bash
 cd auth/             # once - Keycloak keeps running in Docker after this

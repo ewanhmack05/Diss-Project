@@ -2,9 +2,66 @@
 
 [![scripts](https://github.com/ewanhmack05/Diss-Project/actions/workflows/scripts.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/scripts.yml)
 
-One-off and dev scripts that sit outside the services - test data, database
-maintenance and the like. Python scripts use the standard library only, so
+One-off and dev scripts that sit outside the services - starting everything,
+test data, database maintenance and the like. Python scripts use the standard library only, so
 there's nothing to install. Run them from the repo root.
+
+## Running everything
+
+`run_all.py` starts the whole project from one terminal - Keycloak (`auth/`),
+tiler, annotation-store, realtime-hub and the viewer - and shows all their
+output together, each line starting with which one it came from. Once
+they're up it prints where each one is:
+
+```text
+run_all |   auth    already running  http://localhost:8080/auth/admin
+run_all |   tiler   ready            http://localhost:5095
+run_all |   store   ready            http://localhost:5252
+run_all |   hub     ready            http://localhost:5180
+run_all |   viewer  ready            https://localhost:5173
+run_all | Ctrl+C to stop
+```
+
+Ctrl+C stops tiler, annotation-store, realtime-hub and the viewer. Keycloak
+and the dashboard are Docker and keep running, like when they're started by
+hand - `--stop-docker` stops them too.
+
+```bash
+python scripts/run_all.py                          # everything but the dashboard
+python scripts/run_all.py --dashboard              # and Grafana on :3000
+python scripts/run_all.py --only store viewer      # just these
+python scripts/run_all.py --skip hub               # everything but these
+python scripts/run_all.py --http                   # viewer on http://localhost:5174 instead
+python scripts/run_all.py --docker                 # backend from the root docker-compose.yml, viewer with npm
+python scripts/run_all.py --quiet --logs logs      # just when they're up, output to logs/<name>.log
+python scripts/run_all.py --list                   # the names it takes
+```
+
+Names are `auth`, `dashboard`, `tiler`, `store`, `hub` and `viewer`; the
+folder names (`annotation-store`, `realtime-hub`, `image-viewer`) and
+`keycloak` work too.
+
+- **Something already on a port is left alone** and shown as already
+  running - a `dotnet run` in another terminal, or the Docker stack. So it's
+  safe to run with half of it up already.
+- **Each service runs from its own folder**, so annotation-store picks up
+  its `.env` the same as `cd annotation-store && dotnet run`.
+- **Keycloak counts as up once its realm answers**, not just its port,
+  which it opens a while before sign-in works. The rest are up once their
+  port is.
+- **Keycloak is started from whichever stack made it** - `auth/` or the
+  root `docker-compose.yml`. Both name the container `diss-keycloak`, so
+  starting it from the other one fails.
+- If one falls over (a build error, say), it says so with its last line
+  and the rest keep running.
+- It warns if nothing's on 5432, since annotation-store needs Postgres.
+  With `--docker` it warns if Keycloak is from the `auth/` stack - the
+  containers can't reach that one. `docker compose -f auth/docker-compose.yml down`
+  first.
+- It waits 5 minutes for everything to come up (15 with `--docker`, for the
+  first build), `--timeout` to change it.
+- realtime-hub takes about 7 seconds to stop after Ctrl+C. Anything still
+  going after 20 seconds is killed.
 
 ## Stress-test data
 
@@ -109,7 +166,8 @@ Results so far, and what breaks first, are in
 python -m unittest discover -s scripts
 ```
 
-Covers the parts of `keycloak_login.py` that don't need Keycloak (reading
+Covers which services `run_all.py` picks and the commands it starts
+them with, the parts of `keycloak_login.py` that don't need Keycloak (reading
 the sign-in form and the redirect), `seed_stress.py`'s dot limit,
 including that the largest count it allows really fits under 80 MiB, and
 `seed_history.py`'s story order and the SQL that moves its changes back,
