@@ -86,6 +86,7 @@ layers for annotations and cell-count dots.
 | `simulate_cell_counts.py` | Same, and the editors count cells live in what they're looking at - see [below](#drawing-and-counting) |
 | `simulate_conflicts.py` | Same, and the editors keep recolouring the same few annotations, for measuring a session's edit policy - see [below](#people-changing-the-same-thing) |
 | `time_api.py`      | Times every read the viewer makes of annotation-store, slowest first - see [below](#timing-the-api) |
+| `db_docs.py`       | Writes annotation-store's database diagram and columns into its README, from the migrations and `schema-notes.json`. Run it after changing the schema - a test fails until you do |
 | `time_rollback.py` | Times putting a whole collection back, with a snapshot and without - see [below](#timing-rollback) |
 | `seed_history.py`  | A session with a few days of made-up changes, for the History tab - see [below](#history-test-data) |
 | `teardown_users.py` | Removes test users from Keycloak, and from the sessions they joined - see [below](#removing-test-users) |

@@ -136,17 +136,19 @@ public static class CollectionRollback
     }
 
     // On Postgres the shapes and dots are left out in the database - a delete's
-    // copy can be megabytes.
+    // copy can be megabytes. Only fixed names are put in the SQL itself; the
+    // values go in as parameters.
     private static Task<List<EntryRow>> EntriesAsync(AnnotationDbContext db, Guid collectionId, long point, long? upTo)
     {
         var postgres = HistoryLog.IsPostgres(db);
         var before = postgres ? """("Before" - 'GeoJson' - 'Dots' - 'ColourCountsJson' - 'PlacedByCountsJson')::text""" : "\"Before\"";
         var table = postgres ? "history.\"Entries\"" : "\"Entries\"";
-        return db.Database.SqlQueryRaw<EntryRow>($$"""
+        var sql = $$"""
             SELECT "Entity", "EntityId", "Op", {{before}} AS "Before" FROM {{table}}
             WHERE "CollectionId" = {0} AND "Id" > {1} AND "Id" <= {2}
             ORDER BY "Id" DESC
-            """, collectionId, point, upTo ?? long.MaxValue).ToListAsync();
+            """;
+        return db.Database.SqlQueryRaw<EntryRow>(sql, collectionId, point, upTo ?? long.MaxValue).ToListAsync();
     }
 
     private static RollbackView View(Plan plan, long? latest)

@@ -6,6 +6,10 @@ on:
     paths:
       - scripts/**
       - .github/workflows/scripts.yml
+      # test_db_docs.py checks the README's schema against these.
+      - annotation-store/Migrations/**
+      - annotation-store/schema-notes.json
+      - annotation-store/README.md
   workflow_dispatch:
 
 concurrency:
