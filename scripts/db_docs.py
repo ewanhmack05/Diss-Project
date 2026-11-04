@@ -24,10 +24,50 @@ END = "<!-- schema:end -->"
 
 # Mermaid's attribute types can't have spaces.
 SHORT_TYPES = {"timestamp with time zone": "timestamptz", "double precision": "double"}
-DELETES = {"Cascade": "cascade", "SetNull": "set null", "Restrict": "restrict", "NoAction": "no action"}
+# What each column type means, in the order they're listed. A test fails if the
+# schema uses one that isn't here.
+TYPE_MEANINGS = {
+    "uuid": "A 128-bit random id, like `33afa424-ed8b-4489-ab20-ee917f31880c`. Used for most ids, since the viewer can make one itself before saving",
+    "bigint": "A 64-bit whole number. Used where ids count up, so their order means something",
+    "integer": "A 32-bit whole number",
+    "double precision": "Short for `double precision`. A 64-bit decimal number",
+    "boolean": "True or false",
+    "text": "A string of any length. Also holds some JSON that's only stored and handed back, like `GeoJson` and `Dots`",
+    "jsonb": "JSON that Postgres has parsed, so the database can read inside it. Used by the history, which pulls fields out of it in SQL",
+    "timestamp with time zone": "Short for `timestamp with time zone`. A moment in time, kept in UTC",
+}
+
+# What the rest of the diagram and tables are saying.
+TERMS = [
+    ("PK", "Primary key - what identifies a row. Two together, as on `CollectionMembers`, means the pair is what's unique"),
+    ("FK", "Foreign key - a column pointing at another table's row. The database won't let it point at one that isn't there"),
+    ("PK,FK", "Both - part of what identifies the row, and pointing at another table"),
+    ("not null / null", "Whether a column has to have a value, or can be empty"),
+    ("Index", "A lookup kept by the database, so finding rows by that column doesn't read the whole table"),
+    ("Unique index", "An index that also refuses two rows with the same value"),
+    ("Set by", "Where a value comes from: `client` is in the request, `server` is the store, `host` or `owner` is that person choosing it through the API"),
+]
+
+# What the ends of a line on the diagram mean. In words, since these are what's
+# drawn, and the pipes in Mermaid's own spelling would split a Markdown table.
+LINE_ENDS = [
+    ("Two bars", "Exactly one"),
+    ("A bar and a circle", "Zero or one"),
+    ("A circle and three prongs", "Zero or more"),
+]
+
+# What a foreign key does when the row it points at is deleted, in words.
+DELETES = {
+    "Cascade": "Deleted with it",
+    "SetNull": "Goes to null if that's deleted",
+    "Restrict": "Stops that being deleted",
+    "NoAction": "Stops that being deleted",
+}
 
 ENTITY = re.compile(r'modelBuilder\.Entity\("([^"]+)", b =>\s*\{(.*?)\n\s*\}\);', re.DOTALL)
-PROPERTY = re.compile(r'b\.Property<([^>]+)>\("([^"]+)"\)([^;]*);', re.DOTALL)
+# Only at the start of a line - b.Property also turns up inside other statements,
+# like UseIdentityByDefaultColumn(b.Property<long>("Id")).
+PROPERTY = re.compile(r'^\s*b\.Property<([^>]+)>\("([^"]+)"\)([^;]*);', re.DOTALL | re.MULTILINE)
 
 
 def quoted(text):
@@ -67,14 +107,14 @@ def parse_snapshot(text):
                     "column": quoted(statement[statement.index("HasForeignKey"):].split(")")[0])[-1],
                     "one_to_one": "WithOne" in statement,
                     "required": "IsRequired" in statement,
-                    "on_delete": DELETES.get(behaviour.group(1), behaviour.group(1)) if behaviour else "no action",
+                    "on_delete": DELETES.get(behaviour.group(1), behaviour.group(1)) if behaviour else DELETES["NoAction"],
                 })
     # EF leaves IsRequired off a string key, since a key can't be null anyway.
     for table in tables.values():
         for column in table["columns"]:
             if column["name"] in table["key"]:
                 column["nullable"] = False
-    resolved = [{**r, "from": tables[r["from"]]["name"], "to": tables[r["to"]]["name"]} for r in relations]
+    resolved = [{**r, "from": tables[r["from"]]["name"], "to": tables[r["to"]]["name"], "from_key": tables[r["from"]]["key"][0]} for r in relations]
     return {t["name"]: t for t in tables.values()}, resolved
 
 
@@ -95,6 +135,11 @@ def mermaid_type(column_type):
     return SHORT_TYPES.get(column_type, column_type).replace(" ", "_")
 
 
+def relation_label(relation):
+    """Which column points at which, like Annotations(GroupId) -> AnnotationGroups(Id)."""
+    return f'{relation["to"]}({relation["column"]}) -> {relation["from"]}({relation["from_key"]})'
+
+
 def diagram(tables, relations, order):
     lines = ["```mermaid", "erDiagram"]
     for name in order:
@@ -103,13 +148,15 @@ def diagram(tables, relations, order):
         lines.append(f'  "{name}" {{')
         for column in table["columns"]:
             keys = key_text(column, table, fks)
-            nullable = ' "null"' if column["nullable"] else ""
-            lines.append(f'    {mermaid_type(column["type"])} {column["name"]}{" " + keys if keys else ""}{nullable}')
+            nullable = "null" if column["nullable"] else "not null"
+            # Name first, then type. Mermaid calls those type and name, but only
+            # draws them in that order - it doesn't read them.
+            lines.append(f'    {column["name"]} {mermaid_type(column["type"])}{" " + keys if keys else ""} "{nullable}"')
         lines.append("  }")
     for relation in relations:
         parent = "||" if relation["required"] else "|o"
         child = "o|" if relation["one_to_one"] else "o{"
-        lines.append(f'  "{relation["from"]}" {parent}--{child} "{relation["to"]}" : "{relation["column"]}, {relation["on_delete"]}"')
+        lines.append(f'  "{relation["from"]}" {parent}--{child} "{relation["to"]}" : "{relation_label(relation)}"')
     lines.append("```")
     return "\n".join(lines)
 
@@ -125,12 +172,12 @@ def table_section(name, table, relations, note):
     extras = []
     for index in table["indexes"]:
         where = f" where `{index['filter']}`" if index["filter"] else ""
-        extras.append(f"{'unique ' if index['unique'] else ''}index on `{', '.join(index['columns'])}`{where}")
+        extras.append(f"{'Unique index' if index['unique'] else 'Index'} on `{', '.join(index['columns'])}`{where}")
     for relation in relations:
         if relation["to"] == name:
-            extras.append(f"`{relation['column']}` points at `{relation['from']}`, {relation['on_delete']} when that's deleted")
+            extras.append(f"`{relation['column']}` points at `{relation['from']}.{relation['from_key']}`. {relation['on_delete']}")
     if extras:
-        lines += ["", "Also: " + "; ".join(extras) + "."]
+        lines += ["", *[f"- {extra}" for extra in extras]]
     return "\n".join(lines)
 
 
@@ -149,13 +196,31 @@ def problems(tables, notes):
     return sorted(found)
 
 
+def types_without_meaning(tables):
+    used = {column["type"] for table in tables.values() for column in table["columns"]}
+    return sorted(used - TYPE_MEANINGS.keys())
+
+
+def glossary():
+    lines = ["### Reading the diagram and tables", "", "| Type | What it is |", "|---|---|"]
+    lines += [f"| `{SHORT_TYPES.get(name, name)}` | {meaning} |" for name, meaning in TYPE_MEANINGS.items()]
+    lines += ["", "| Term | What it means |", "|---|---|"]
+    lines += [f"| {term} | {meaning} |" for term, meaning in TERMS]
+    lines += ["", "| Line end | How many rows of the table it's next to |", "|---|---|"]
+    lines += [f"| {end} | {meaning} |" for end, meaning in LINE_ENDS]
+    return "\n".join(lines)
+
+
 def generate(snapshot_text, notes):
     tables, relations = parse_snapshot(snapshot_text)
     missing = problems(tables, notes)
     if missing:
         raise ValueError("schema-notes.json doesn't match the schema:\n  " + "\n  ".join(missing))
+    unexplained = types_without_meaning(tables)
+    if unexplained:
+        raise ValueError("TYPE_MEANINGS in db_docs.py has nothing for: " + ", ".join(unexplained))
     order = list(notes)
-    parts = [START, "", diagram(tables, relations, order), ""]
+    parts = [START, "", diagram(tables, relations, order), "", glossary(), ""]
     parts += [part for name in order for part in (table_section(name, tables[name], relations, notes[name]), "")]
     return "\n".join(parts + [END])
 

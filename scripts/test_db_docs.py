@@ -11,12 +11,15 @@ from db_docs import (
     README,
     SNAPSHOT,
     START,
+    TYPE_MEANINGS,
     diagram,
     generate,
+    glossary,
     parse_snapshot,
     problems,
     replace_section,
     table_section,
+    types_without_meaning,
 )
 
 SAMPLE = """
@@ -46,6 +49,8 @@ SAMPLE = """
                 {
                     b.Property<long>("Id")
                         .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
                     b.Property<Guid>("ParentId")
                         .HasColumnType("uuid");
@@ -102,6 +107,10 @@ class ParseSnapshot(unittest.TestCase):
         self.assertTrue(columns["Gone"]["nullable"])
         self.assertFalse(columns["Name"]["nullable"])
 
+    def test_a_column_named_inside_another_statement_isnt_a_second_column(self):
+        names = [c["name"] for c in self.tables["history.Children"]["columns"]]
+        self.assertEqual(["Id", "ParentId", "OtherId", "Maybe"], names)
+
     def test_a_string_without_is_required_can_be_null(self):
         columns = {c["name"]: c for c in self.tables["history.Children"]["columns"]}
         self.assertTrue(columns["Maybe"]["nullable"])
@@ -127,9 +136,9 @@ class ParseSnapshot(unittest.TestCase):
 
     def test_reads_both_kinds_of_relationship(self):
         by_column = {r["column"]: r for r in self.relations}
-        self.assertEqual(("Parents", "history.Children", False, True, "cascade"),
+        self.assertEqual(("Parents", "history.Children", False, True, "Deleted with it"),
                          tuple(by_column["ParentId"][k] for k in ("from", "to", "one_to_one", "required", "on_delete")))
-        self.assertEqual((True, False, "set null"), tuple(by_column["OtherId"][k] for k in ("one_to_one", "required", "on_delete")))
+        self.assertEqual((True, False, "Goes to null if that's deleted"), tuple(by_column["OtherId"][k] for k in ("one_to_one", "required", "on_delete")))
 
 
 class Diagram(unittest.TestCase):
@@ -142,13 +151,13 @@ class Diagram(unittest.TestCase):
         self.assertTrue(self.text.endswith("```"))
 
     def test_marks_keys_and_nulls_with_types_it_can_draw(self):
-        self.assertIn("uuid Id PK", self.text)
-        self.assertIn("uuid ParentId FK", self.text)
-        self.assertIn('timestamptz Gone "null"', self.text)
+        self.assertIn('Id uuid PK "not null"', self.text)
+        self.assertIn('ParentId uuid FK "not null"', self.text)
+        self.assertIn('Gone timestamptz "null"', self.text)
 
     def test_quotes_a_name_with_a_schema_and_draws_cardinality(self):
-        self.assertIn('"Parents" ||--o{ "history.Children" : "ParentId, cascade"', self.text)
-        self.assertIn('"Parents" |o--o| "history.Children" : "OtherId, set null"', self.text)
+        self.assertIn('"Parents" ||--o{ "history.Children" : "history.Children(ParentId) -> Parents(Id)"', self.text)
+        self.assertIn('"Parents" |o--o| "history.Children" : "history.Children(OtherId) -> Parents(Id)"', self.text)
 
 
 class TableSection(unittest.TestCase):
@@ -159,7 +168,8 @@ class TableSection(unittest.TestCase):
         self.assertIn("**To make one:** Like this.", text)
         self.assertIn("| `Maybe` | jsonb, null |  | server | About Maybe |", text)
         self.assertIn("| `ParentId` | uuid | FK | server |", text)
-        self.assertIn("`ParentId` points at `Parents`, cascade when that's deleted", text)
+        self.assertIn("`ParentId` points at `Parents.Id`. Deleted with it", text)
+        self.assertIn("`OtherId` points at `Parents.Id`. Goes to null if that's deleted", text)
 
 
 class Problems(unittest.TestCase):
@@ -184,6 +194,31 @@ class Problems(unittest.TestCase):
             generate(SAMPLE, {**SAMPLE_NOTES, "Parents": note_for(["Id", "Name"])})
 
 
+class Glossary(unittest.TestCase):
+    def test_says_what_the_short_names_the_diagram_shows_stand_for(self):
+        text = glossary()
+        self.assertIn("| `timestamptz` | Short for `timestamp with time zone`.", text)
+        self.assertIn("| `double` | Short for `double precision`.", text)
+
+    def test_explains_keys_and_line_ends(self):
+        text = glossary()
+        for term in ("| PK |", "| FK |", "| PK,FK |", "| Set by |", "| Two bars |", "| A bar and a circle |", "| A circle and three prongs |"):
+            self.assertIn(term, text)
+
+    # A pipe inside a cell splits the row, even in backticks.
+    def test_every_table_row_has_two_cells(self):
+        for line in glossary().splitlines():
+            if line.startswith("|"):
+                self.assertEqual(3, line.count("|"), line)
+
+    def test_a_type_with_no_meaning_is_found_and_refused(self):
+        tables, _ = parse_snapshot(SAMPLE)
+        tables["Parents"]["columns"][0]["type"] = "geometry"
+        self.assertEqual(["geometry"], types_without_meaning(tables))
+        with self.assertRaisesRegex(ValueError, "nothing for: geometry"):
+            generate(SAMPLE.replace('.HasColumnType("text")', '.HasColumnType("geometry")'), SAMPLE_NOTES)
+
+
 class ReplaceSection(unittest.TestCase):
     def test_only_touches_whats_between_the_markers(self):
         readme = f"before\n{START}\nold\n{END}\nafter\n"
@@ -204,6 +239,18 @@ class TheRealReadme(unittest.TestCase):
     def test_every_table_and_column_has_a_note(self):
         tables, _ = parse_snapshot(self.snapshot)
         self.assertEqual([], problems(tables, self.notes))
+
+    def test_every_type_in_the_schema_is_explained_and_none_is_left_over(self):
+        tables, _ = parse_snapshot(self.snapshot)
+        self.assertEqual([], types_without_meaning(tables))
+        used = {c["type"] for t in tables.values() for c in t["columns"]}
+        self.assertEqual(sorted(TYPE_MEANINGS), sorted(used))
+
+    def test_no_table_lists_a_column_twice(self):
+        tables, _ = parse_snapshot(self.snapshot)
+        for name, table in tables.items():
+            columns = [c["name"] for c in table["columns"]]
+            self.assertEqual(sorted(set(columns)), sorted(columns), name)
 
     def test_finds_every_foreign_key_in_the_snapshot(self):
         _, relations = parse_snapshot(self.snapshot)
