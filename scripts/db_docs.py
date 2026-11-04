@@ -22,26 +22,24 @@ README = ROOT / "annotation-store" / "README.md"
 START = "<!-- schema:start - written by scripts/db_docs.py, don't edit by hand -->"
 END = "<!-- schema:end -->"
 
-# Mermaid's attribute types can't have spaces.
-SHORT_TYPES = {"timestamp with time zone": "timestamptz", "double precision": "double"}
 # What each column type means, in the order they're listed. A test fails if the
 # schema uses one that isn't here.
 TYPE_MEANINGS = {
     "uuid": "A 128-bit random id, like `33afa424-ed8b-4489-ab20-ee917f31880c`. Used for most ids, since the viewer can make one itself before saving",
     "bigint": "A 64-bit whole number. Used where ids count up, so their order means something",
     "integer": "A 32-bit whole number",
-    "double precision": "Short for `double precision`. A 64-bit decimal number",
+    "double precision": "A 64-bit decimal number",
     "boolean": "True or false",
     "text": "A string of any length. Also holds some JSON that's only stored and handed back, like `GeoJson` and `Dots`",
     "jsonb": "JSON that Postgres has parsed, so the database can read inside it. Used by the history, which pulls fields out of it in SQL",
-    "timestamp with time zone": "Short for `timestamp with time zone`. A moment in time, kept in UTC",
+    "timestamp with time zone": "A moment in time, kept in UTC. Postgres also calls it `timestamptz`",
 }
 
 # What the rest of the diagram and tables are saying.
 TERMS = [
     ("PK", "Primary key - what identifies a row. Two together, as on `CollectionMembers`, means the pair is what's unique"),
     ("FK", "Foreign key - a column pointing at another table's row. The database won't let it point at one that isn't there"),
-    ("PK,FK", "Both - part of what identifies the row, and pointing at another table"),
+    ("PK, FK", "Both - part of what identifies the row, and pointing at another table"),
     ("not null / null", "Whether a column has to have a value, or can be empty"),
     ("Index", "A lookup kept by the database, so finding rows by that column doesn't read the whole table"),
     ("Unique index", "An index that also refuses two rows with the same value"),
@@ -128,11 +126,29 @@ def key_text(column, table, fks):
         keys.append("PK")
     if column["name"] in fks:
         keys.append("FK")
-    return ",".join(keys)
+    return ", ".join(keys)
+
+
+def ordered_columns(table, fks):
+    """Primary key, then foreign keys, then everything that has to have a value,
+    then what can be null - by type, then name, within each."""
+    def rank(column):
+        if column["name"] in table["key"]:
+            return (0, table["key"].index(column["name"]))
+        if column["name"] in fks:
+            return (1, 0)
+        return (3 if column["nullable"] else 2, 0)
+
+    return sorted(table["columns"], key=lambda c: (rank(c), c["nullable"], c["type"], c["name"].lower()))
 
 
 def mermaid_type(column_type):
-    return SHORT_TYPES.get(column_type, column_type).replace(" ", "_")
+    return column_type.replace(" ", "_")
+
+
+def mermaid_name(name):
+    """Mermaid only takes a name with a dot in it, like history.Entries, in quotes."""
+    return f'"{name}"' if "." in name else name
 
 
 def relation_label(relation):
@@ -140,23 +156,23 @@ def relation_label(relation):
     return f'{relation["to"]}({relation["column"]}) -> {relation["from"]}({relation["from_key"]})'
 
 
-def diagram(tables, relations, order):
-    lines = ["```mermaid", "erDiagram"]
-    for name in order:
+def diagram(tables, relations):
+    lines = ["```mermaid", "erDiagram", ""]
+    for name in sorted(tables, key=str.lower):
         table = tables[name]
         fks = foreign_keys(name, relations)
-        lines.append(f'  "{name}" {{')
-        for column in table["columns"]:
+        lines.append(f"    {mermaid_name(name)} {{")
+        for column in ordered_columns(table, fks):
             keys = key_text(column, table, fks)
             nullable = "null" if column["nullable"] else "not null"
             # Name first, then type. Mermaid calls those type and name, but only
             # draws them in that order - it doesn't read them.
-            lines.append(f'    {column["name"]} {mermaid_type(column["type"])}{" " + keys if keys else ""} "{nullable}"')
-        lines.append("  }")
-    for relation in relations:
+            lines.append(f'        {column["name"]} {mermaid_type(column["type"])}{" " + keys if keys else ""} "{nullable}"')
+        lines += ["    }", ""]
+    for relation in sorted(relations, key=lambda r: (r["from"].lower(), r["to"].lower(), r["column"].lower())):
         parent = "||" if relation["required"] else "|o"
         child = "o|" if relation["one_to_one"] else "o{"
-        lines.append(f'  "{relation["from"]}" {parent}--{child} "{relation["to"]}" : "{relation_label(relation)}"')
+        lines.append(f'    {mermaid_name(relation["from"])} {parent}--{child} {mermaid_name(relation["to"])} : "{relation_label(relation)}"')
     lines.append("```")
     return "\n".join(lines)
 
@@ -165,9 +181,9 @@ def table_section(name, table, relations, note):
     fks = foreign_keys(name, relations)
     lines = [f"### {name}", "", note["summary"], "", f"**To make one:** {note['make']}", "",
              "| Column | Type | Key | Set by | Notes |", "|---|---|---|---|---|"]
-    for column in table["columns"]:
+    for column in ordered_columns(table, fks):
         set_by, what = note["columns"][column["name"]]
-        type_text = SHORT_TYPES.get(column["type"], column["type"]) + (", null" if column["nullable"] else "")
+        type_text = column["type"] + (", null" if column["nullable"] else "")
         lines.append(f"| `{column['name']}` | {type_text} | {key_text(column, table, fks)} | {set_by} | {what} |")
     extras = []
     for index in table["indexes"]:
@@ -202,8 +218,9 @@ def types_without_meaning(tables):
 
 
 def glossary():
-    lines = ["### Reading the diagram and tables", "", "| Type | What it is |", "|---|---|"]
-    lines += [f"| `{SHORT_TYPES.get(name, name)}` | {meaning} |" for name, meaning in TYPE_MEANINGS.items()]
+    lines = ["### Reading the diagram and tables", "", "The diagram puts underscores in a type with spaces, since it can't draw them otherwise.", "",
+             "| Type | What it is |", "|---|---|"]
+    lines += [f"| `{name}` | {meaning} |" for name, meaning in TYPE_MEANINGS.items()]
     lines += ["", "| Term | What it means |", "|---|---|"]
     lines += [f"| {term} | {meaning} |" for term, meaning in TERMS]
     lines += ["", "| Line end | How many rows of the table it's next to |", "|---|---|"]
@@ -219,9 +236,8 @@ def generate(snapshot_text, notes):
     unexplained = types_without_meaning(tables)
     if unexplained:
         raise ValueError("TYPE_MEANINGS in db_docs.py has nothing for: " + ", ".join(unexplained))
-    order = list(notes)
-    parts = [START, "", diagram(tables, relations, order), "", glossary(), ""]
-    parts += [part for name in order for part in (table_section(name, tables[name], relations, notes[name]), "")]
+    parts = [START, "", diagram(tables, relations), "", glossary(), ""]
+    parts += [part for name in notes for part in (table_section(name, tables[name], relations, notes[name]), "")]
     return "\n".join(parts + [END])
 
 

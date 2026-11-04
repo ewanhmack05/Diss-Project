@@ -15,6 +15,7 @@ from db_docs import (
     diagram,
     generate,
     glossary,
+    ordered_columns,
     parse_snapshot,
     problems,
     replace_section,
@@ -144,20 +145,41 @@ class ParseSnapshot(unittest.TestCase):
 class Diagram(unittest.TestCase):
     def setUp(self):
         self.tables, self.relations = parse_snapshot(SAMPLE)
-        self.text = diagram(self.tables, self.relations, ["Parents", "history.Children"])
+        self.text = diagram(self.tables, self.relations)
 
     def test_is_a_mermaid_er_diagram(self):
-        self.assertTrue(self.text.startswith("```mermaid\nerDiagram\n"))
+        self.assertTrue(self.text.startswith("```mermaid\nerDiagram\n\n"))
         self.assertTrue(self.text.endswith("```"))
 
     def test_marks_keys_and_nulls_with_types_it_can_draw(self):
-        self.assertIn('Id uuid PK "not null"', self.text)
-        self.assertIn('ParentId uuid FK "not null"', self.text)
-        self.assertIn('Gone timestamptz "null"', self.text)
+        self.assertIn('        Id uuid PK "not null"', self.text)
+        self.assertIn('        ParentId uuid FK "not null"', self.text)
+        self.assertIn('        Gone timestamp_with_time_zone "null"', self.text)
 
-    def test_quotes_a_name_with_a_schema_and_draws_cardinality(self):
-        self.assertIn('"Parents" ||--o{ "history.Children" : "history.Children(ParentId) -> Parents(Id)"', self.text)
-        self.assertIn('"Parents" |o--o| "history.Children" : "history.Children(OtherId) -> Parents(Id)"', self.text)
+    def test_only_quotes_a_name_with_a_schema_and_draws_cardinality(self):
+        self.assertIn('    Parents ||--o{ "history.Children" : "history.Children(ParentId) -> Parents(Id)"', self.text)
+        self.assertIn('    Parents |o--o| "history.Children" : "history.Children(OtherId) -> Parents(Id)"', self.text)
+        self.assertIn('    Parents {', self.text)
+        self.assertIn('    "history.Children" {', self.text)
+
+    def test_tables_and_lines_are_in_a_set_order_whatever_order_they_came_in(self):
+        self.assertLess(self.text.index('"history.Children" {'), self.text.index("Parents {"))
+        self.assertLess(self.text.index("history.Children(OtherId)"), self.text.index("history.Children(ParentId)"))
+
+
+class ColumnOrder(unittest.TestCase):
+    def names(self, columns, key, fks):
+        table = {"key": key, "columns": [{"name": n, "type": t, "nullable": x} for n, t, x in columns]}
+        return [c["name"] for c in ordered_columns(table, fks)]
+
+    def test_keys_then_required_by_type_then_null(self):
+        columns = [("notes", "text", True), ("name", "text", False), ("active", "boolean", False), ("group", "uuid", True),
+                   ("owner", "uuid", False), ("id", "uuid", False), ("count", "integer", False), ("archived", "boolean", True)]
+        self.assertEqual(["id", "owner", "group", "active", "count", "name", "archived", "notes"],
+                         self.names(columns, ["id"], {"owner", "group"}))
+
+    def test_a_key_of_two_keeps_its_order(self):
+        self.assertEqual(["b", "a", "c"], self.names([("a", "text", False), ("b", "text", False), ("c", "text", False)], ["b", "a"], set()))
 
 
 class TableSection(unittest.TestCase):
@@ -195,14 +217,14 @@ class Problems(unittest.TestCase):
 
 
 class Glossary(unittest.TestCase):
-    def test_says_what_the_short_names_the_diagram_shows_stand_for(self):
+    def test_lists_types_by_their_full_names(self):
         text = glossary()
-        self.assertIn("| `timestamptz` | Short for `timestamp with time zone`.", text)
-        self.assertIn("| `double` | Short for `double precision`.", text)
+        self.assertIn("| `timestamp with time zone` | A moment in time, kept in UTC. Postgres also calls it `timestamptz` |", text)
+        self.assertIn("| `double precision` |", text)
 
     def test_explains_keys_and_line_ends(self):
         text = glossary()
-        for term in ("| PK |", "| FK |", "| PK,FK |", "| Set by |", "| Two bars |", "| A bar and a circle |", "| A circle and three prongs |"):
+        for term in ("| PK |", "| FK |", "| PK, FK |", "| Set by |", "| Two bars |", "| A bar and a circle |", "| A circle and three prongs |"):
             self.assertIn(term, text)
 
     # A pipe inside a cell splits the row, even in backticks.

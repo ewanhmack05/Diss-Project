@@ -393,148 +393,162 @@ fails if this falls behind the schema.
 
 ```mermaid
 erDiagram
-  "Collections" {
-    CollectionId uuid PK "not null"
-    CollectionName text "not null"
-    Created timestamptz "not null"
-    Deleted timestamptz "null"
-    EditPolicy text "not null"
-    Ended timestamptz "null"
-    Kind text "not null"
-    MaxEditors integer "not null"
-    Shared boolean "not null"
-    SlideId text "not null"
-    UserId text "not null"
-  }
-  "CollectionMembers" {
-    CollectionId uuid PK,FK "not null"
-    UserId text PK "not null"
-    Added timestamptz "not null"
-    DisplayName text "not null"
-    Role text "not null"
-  }
-  "CollectionInvites" {
-    Code text PK "not null"
-    CollectionId uuid FK "not null"
-    Created timestamptz "not null"
-    CreatedById text "not null"
-    Expires timestamptz "not null"
-    Role text "not null"
-    Stopped timestamptz "null"
-  }
-  "AnnotationGroups" {
-    Id uuid PK "not null"
-    CollectionId uuid FK "not null"
-    Created timestamptz "not null"
-    Name text "not null"
-    Notes text "not null"
-  }
-  "Annotations" {
-    Id uuid PK "not null"
-    CollectionId uuid FK "not null"
-    Colour text "not null"
-    Created timestamptz "not null"
-    CreatedById text "not null"
-    CreatedByName text "not null"
-    GeoJson text "not null"
-    GroupId uuid FK "null"
-    Label text "not null"
-    LineStyle text "not null"
-    LineThickness integer "not null"
-    Notes text "not null"
-    Shape text "not null"
-    SlideId text "not null"
-  }
-  "CellCounts" {
-    Id uuid PK "not null"
-    CollectionId uuid FK "not null"
-    ColourCountsJson text "null"
-    Count integer "not null"
-    Created timestamptz "not null"
-    CreatedById text "not null"
-    CreatedByName text "not null"
-    DotSize integer "not null"
-    Dots text "not null"
-    Label text "not null"
-    LocationX double "null"
-    LocationY double "null"
-    Notes text "not null"
-    PlacedByCountsJson text "null"
-    SlideId text "not null"
-    WithAnnotation boolean "not null"
-    WithRoi boolean "not null"
-  }
-  "RegionsOfInterest" {
-    Id uuid PK "not null"
-    CellCountId uuid FK "not null"
-    Created timestamptz "not null"
-    GeoJson text "not null"
-  }
-  "ImageAdjustments" {
-    ImageAdjustmentId uuid PK "not null"
-    AdjustmentName text "not null"
-    Adjustments text "not null"
-    CollectionId uuid FK "not null"
-    Created timestamptz "not null"
-    SlideId text "not null"
-    UserId text "not null"
-  }
-  "history.ChangeSets" {
-    Id uuid PK "not null"
-    CollectionId uuid FK "not null"
-    Created timestamptz "not null"
-    UserId text "not null"
-    UserName text "not null"
-    What text "not null"
-  }
-  "history.Entries" {
-    Id bigint PK "not null"
-    After jsonb "null"
-    Before jsonb "null"
-    ChangeSetId uuid FK "not null"
-    CollectionId uuid "not null"
-    Entity text "not null"
-    EntityId uuid "not null"
-    Op text "not null"
-  }
-  "history.Snapshots" {
-    Id bigint PK "not null"
-    CollectionId uuid FK "not null"
-    Created timestamptz "not null"
-    Rows jsonb "not null"
-    UpToEntry bigint "not null"
-  }
-  "Collections" ||--o{ "Annotations" : "Annotations(CollectionId) -> Collections(CollectionId)"
-  "AnnotationGroups" |o--o{ "Annotations" : "Annotations(GroupId) -> AnnotationGroups(Id)"
-  "Collections" ||--o{ "AnnotationGroups" : "AnnotationGroups(CollectionId) -> Collections(CollectionId)"
-  "Collections" ||--o{ "CellCounts" : "CellCounts(CollectionId) -> Collections(CollectionId)"
-  "CellCounts" ||--o| "RegionsOfInterest" : "RegionsOfInterest(CellCountId) -> CellCounts(Id)"
-  "Collections" ||--o{ "CollectionInvites" : "CollectionInvites(CollectionId) -> Collections(CollectionId)"
-  "Collections" ||--o{ "CollectionMembers" : "CollectionMembers(CollectionId) -> Collections(CollectionId)"
-  "Collections" ||--o{ "history.ChangeSets" : "history.ChangeSets(CollectionId) -> Collections(CollectionId)"
-  "Collections" ||--o{ "history.Snapshots" : "history.Snapshots(CollectionId) -> Collections(CollectionId)"
-  "history.ChangeSets" ||--o{ "history.Entries" : "history.Entries(ChangeSetId) -> history.ChangeSets(Id)"
-  "Collections" ||--o{ "ImageAdjustments" : "ImageAdjustments(CollectionId) -> Collections(CollectionId)"
+
+    AnnotationGroups {
+        Id uuid PK "not null"
+        CollectionId uuid FK "not null"
+        Name text "not null"
+        Notes text "not null"
+        Created timestamp_with_time_zone "not null"
+    }
+
+    Annotations {
+        Id uuid PK "not null"
+        CollectionId uuid FK "not null"
+        GroupId uuid FK "null"
+        LineThickness integer "not null"
+        Colour text "not null"
+        CreatedById text "not null"
+        CreatedByName text "not null"
+        GeoJson text "not null"
+        Label text "not null"
+        LineStyle text "not null"
+        Notes text "not null"
+        Shape text "not null"
+        SlideId text "not null"
+        Created timestamp_with_time_zone "not null"
+    }
+
+    CellCounts {
+        Id uuid PK "not null"
+        CollectionId uuid FK "not null"
+        WithAnnotation boolean "not null"
+        WithRoi boolean "not null"
+        Count integer "not null"
+        DotSize integer "not null"
+        CreatedById text "not null"
+        CreatedByName text "not null"
+        Dots text "not null"
+        Label text "not null"
+        Notes text "not null"
+        SlideId text "not null"
+        Created timestamp_with_time_zone "not null"
+        LocationX double_precision "null"
+        LocationY double_precision "null"
+        ColourCountsJson text "null"
+        PlacedByCountsJson text "null"
+    }
+
+    CollectionInvites {
+        Code text PK "not null"
+        CollectionId uuid FK "not null"
+        CreatedById text "not null"
+        Role text "not null"
+        Created timestamp_with_time_zone "not null"
+        Expires timestamp_with_time_zone "not null"
+        Stopped timestamp_with_time_zone "null"
+    }
+
+    CollectionMembers {
+        CollectionId uuid PK, FK "not null"
+        UserId text PK "not null"
+        DisplayName text "not null"
+        Role text "not null"
+        Added timestamp_with_time_zone "not null"
+    }
+
+    Collections {
+        CollectionId uuid PK "not null"
+        Shared boolean "not null"
+        MaxEditors integer "not null"
+        CollectionName text "not null"
+        EditPolicy text "not null"
+        Kind text "not null"
+        SlideId text "not null"
+        UserId text "not null"
+        Created timestamp_with_time_zone "not null"
+        Deleted timestamp_with_time_zone "null"
+        Ended timestamp_with_time_zone "null"
+    }
+
+    "history.ChangeSets" {
+        Id uuid PK "not null"
+        CollectionId uuid FK "not null"
+        UserId text "not null"
+        UserName text "not null"
+        What text "not null"
+        Created timestamp_with_time_zone "not null"
+    }
+
+    "history.Entries" {
+        Id bigint PK "not null"
+        ChangeSetId uuid FK "not null"
+        Entity text "not null"
+        Op text "not null"
+        CollectionId uuid "not null"
+        EntityId uuid "not null"
+        After jsonb "null"
+        Before jsonb "null"
+    }
+
+    "history.Snapshots" {
+        Id bigint PK "not null"
+        CollectionId uuid FK "not null"
+        UpToEntry bigint "not null"
+        Rows jsonb "not null"
+        Created timestamp_with_time_zone "not null"
+    }
+
+    ImageAdjustments {
+        ImageAdjustmentId uuid PK "not null"
+        CollectionId uuid FK "not null"
+        AdjustmentName text "not null"
+        Adjustments text "not null"
+        SlideId text "not null"
+        UserId text "not null"
+        Created timestamp_with_time_zone "not null"
+    }
+
+    RegionsOfInterest {
+        Id uuid PK "not null"
+        CellCountId uuid FK "not null"
+        GeoJson text "not null"
+        Created timestamp_with_time_zone "not null"
+    }
+
+    AnnotationGroups |o--o{ Annotations : "Annotations(GroupId) -> AnnotationGroups(Id)"
+    CellCounts ||--o| RegionsOfInterest : "RegionsOfInterest(CellCountId) -> CellCounts(Id)"
+    Collections ||--o{ AnnotationGroups : "AnnotationGroups(CollectionId) -> Collections(CollectionId)"
+    Collections ||--o{ Annotations : "Annotations(CollectionId) -> Collections(CollectionId)"
+    Collections ||--o{ CellCounts : "CellCounts(CollectionId) -> Collections(CollectionId)"
+    Collections ||--o{ CollectionInvites : "CollectionInvites(CollectionId) -> Collections(CollectionId)"
+    Collections ||--o{ CollectionMembers : "CollectionMembers(CollectionId) -> Collections(CollectionId)"
+    Collections ||--o{ "history.ChangeSets" : "history.ChangeSets(CollectionId) -> Collections(CollectionId)"
+    Collections ||--o{ "history.Snapshots" : "history.Snapshots(CollectionId) -> Collections(CollectionId)"
+    Collections ||--o{ ImageAdjustments : "ImageAdjustments(CollectionId) -> Collections(CollectionId)"
+    "history.ChangeSets" ||--o{ "history.Entries" : "history.Entries(ChangeSetId) -> history.ChangeSets(Id)"
 ```
 
 ### Reading the diagram and tables
+
+The diagram puts underscores in a type with spaces, since it can't draw them otherwise.
 
 | Type | What it is |
 |---|---|
 | `uuid` | A 128-bit random id, like `33afa424-ed8b-4489-ab20-ee917f31880c`. Used for most ids, since the viewer can make one itself before saving |
 | `bigint` | A 64-bit whole number. Used where ids count up, so their order means something |
 | `integer` | A 32-bit whole number |
-| `double` | Short for `double precision`. A 64-bit decimal number |
+| `double precision` | A 64-bit decimal number |
 | `boolean` | True or false |
 | `text` | A string of any length. Also holds some JSON that's only stored and handed back, like `GeoJson` and `Dots` |
 | `jsonb` | JSON that Postgres has parsed, so the database can read inside it. Used by the history, which pulls fields out of it in SQL |
-| `timestamptz` | Short for `timestamp with time zone`. A moment in time, kept in UTC |
+| `timestamp with time zone` | A moment in time, kept in UTC. Postgres also calls it `timestamptz` |
 
 | Term | What it means |
 |---|---|
 | PK | Primary key - what identifies a row. Two together, as on `CollectionMembers`, means the pair is what's unique |
 | FK | Foreign key - a column pointing at another table's row. The database won't let it point at one that isn't there |
-| PK,FK | Both - part of what identifies the row, and pointing at another table |
+| PK, FK | Both - part of what identifies the row, and pointing at another table |
 | not null / null | Whether a column has to have a value, or can be empty |
 | Index | A lookup kept by the database, so finding rows by that column doesn't read the whole table |
 | Unique index | An index that also refuses two rows with the same value |
@@ -555,16 +569,16 @@ A workspace for one slide, and what everything else hangs off. `Kind` says which
 | Column | Type | Key | Set by | Notes |
 |---|---|---|---|---|
 | `CollectionId` | uuid | PK | server | The id everything in it points at |
-| `CollectionName` | text |  | client or server | What it's called in the Collections panel. Sent when a session starts, otherwise made from your name. Can be renamed |
-| `Created` | timestamptz |  | server |  |
-| `Deleted` | timestamptz, null |  | server | Set when it's deleted, so it's hidden. Never sent or taken over JSON |
-| `EditPolicy` | text |  | host | `LastWriteWins` or `FirstComeWins` - what happens when two people change the same thing. A personal one stays `LastWriteWins` |
-| `Ended` | timestamptz, null |  | host | Sessions only. Once set it's read only for everyone and its links stop working |
-| `Kind` | text |  | server | `Personal` or `Session` |
-| `MaxEditors` | integer |  | host | Sessions only. How many editors an edit link lets in before anyone else joins view only |
 | `Shared` | boolean |  | owner | Personal only. On, anyone signed in can look at it, read only |
+| `MaxEditors` | integer |  | host | Sessions only. How many editors an edit link lets in before anyone else joins view only |
+| `CollectionName` | text |  | client or server | What it's called in the Collections panel. Sent when a session starts, otherwise made from your name. Can be renamed |
+| `EditPolicy` | text |  | host | `LastWriteWins` or `FirstComeWins` - what happens when two people change the same thing. A personal one stays `LastWriteWins` |
+| `Kind` | text |  | server | `Personal` or `Session` |
 | `SlideId` | text |  | client | The tiler's id for the slide. Not a foreign key - slides are files, not rows |
 | `UserId` | text |  | server | The owner's Keycloak id, from their token. For a session, the host. They're in `CollectionMembers` as well |
+| `Created` | timestamp with time zone |  | server |  |
+| `Deleted` | timestamp with time zone, null |  | server | Set when it's deleted, so it's hidden. Never sent or taken over JSON |
+| `Ended` | timestamp with time zone, null |  | host | Sessions only. Once set it's read only for everyone and its links stop working |
 
 - Unique index on `SlideId, UserId` where `"Kind" = 'Personal' AND "Deleted" IS NULL`
 
@@ -576,11 +590,11 @@ Who's in a collection and as what. One row per person per collection, and what e
 
 | Column | Type | Key | Set by | Notes |
 |---|---|---|---|---|
-| `CollectionId` | uuid | PK,FK | server | Half of the key |
+| `CollectionId` | uuid | PK, FK | server | Half of the key |
 | `UserId` | text | PK | server | Their Keycloak id. The other half of the key |
-| `Added` | timestamptz |  | server |  |
 | `DisplayName` | text |  | server | Their name then, from their token, so the panel can list people without asking Keycloak |
 | `Role` | text |  | server, host can change | `Viewer`, `Editor` or `Owner` |
+| `Added` | timestamp with time zone |  | server |  |
 
 - Index on `UserId`
 - `CollectionId` points at `Collections.CollectionId`. Deleted with it
@@ -595,11 +609,11 @@ A link or code that lets someone into a collection, as a set role, until it runs
 |---|---|---|---|---|
 | `Code` | text | PK | server | What's in the link, and the key |
 | `CollectionId` | uuid | FK | server | From the URL |
-| `Created` | timestamptz |  | server |  |
 | `CreatedById` | text |  | server | Who made it, from their token |
-| `Expires` | timestamptz |  | server | Now plus the hours asked for, up to a week |
 | `Role` | text |  | client | What joining with it makes you. An edit link past `MaxEditors` lets you in view only |
-| `Stopped` | timestamptz, null |  | server | Set when it's stopped early, so it stops working |
+| `Created` | timestamp with time zone |  | server |  |
+| `Expires` | timestamp with time zone |  | server | Now plus the hours asked for, up to a week |
+| `Stopped` | timestamp with time zone, null |  | server | Set when it's stopped early, so it stops working |
 
 - Index on `CollectionId`
 - `CollectionId` points at `Collections.CollectionId`. Deleted with it
@@ -614,9 +628,9 @@ A named set of annotations in one collection. One level only, and an annotation 
 |---|---|---|---|---|
 | `Id` | uuid | PK | server |  |
 | `CollectionId` | uuid | FK | client | Which collection it's in |
-| `Created` | timestamptz |  | server |  |
 | `Name` | text |  | client | Up to 64 characters |
 | `Notes` | text |  | client | Up to 10,000 characters |
+| `Created` | timestamp with time zone |  | server |  |
 
 - Index on `CollectionId`
 - `CollectionId` points at `Collections.CollectionId`. Deleted with it
@@ -631,18 +645,18 @@ One shape someone drew on a slide. The shape itself is fixed once saved - only t
 |---|---|---|---|---|
 | `Id` | uuid | PK | client or server | Made by the store if it's left out |
 | `CollectionId` | uuid | FK | client | Which collection it's in |
+| `GroupId` | uuid, null | FK | client | The group it's in, if any. Can change. Goes to null if the group's deleted |
+| `LineThickness` | integer |  | client | In pixels |
 | `Colour` | text |  | client | Hex. Can change |
-| `Created` | timestamptz |  | server |  |
 | `CreatedById` | text |  | server | Who drew it, from their token |
 | `CreatedByName` | text |  | server | Their name then |
 | `GeoJson` | text |  | client | The drawn feature, in slide pixels, coordinates rounded to a tenth on save. Fixed once saved |
-| `GroupId` | uuid, null | FK | client | The group it's in, if any. Can change. Goes to null if the group's deleted |
 | `Label` | text |  | client | Can change. Merged live with Yjs while it's being edited |
 | `LineStyle` | text |  | client | `solid` or `dashed` |
-| `LineThickness` | integer |  | client | In pixels |
 | `Notes` | text |  | client | Can change. Merged live with Yjs while it's being edited |
 | `Shape` | text |  | client | `line`, `freehand`, `polygon`, `arrow`, `rectangle` or `circle`. The viewer can't show anything else, and the store doesn't check |
 | `SlideId` | text |  | server | Copied from the collection, never taken from the client |
+| `Created` | timestamp with time zone |  | server |  |
 
 - Index on `CollectionId`
 - Index on `GroupId`
@@ -660,21 +674,21 @@ A manual count of cells, such as mitotic figures: every dot placed, and the tall
 |---|---|---|---|---|
 | `Id` | uuid | PK | client or server | Made by the store if it's left out |
 | `CollectionId` | uuid | FK | client | Which collection it's in |
-| `ColourCountsJson` | text, null |  | server | How many dots of each colour, worked out from `Dots`. Null on rows older than this column until they're first listed. Not a change anyone made, so not in the history |
-| `Count` | integer |  | client | The tally. Can be more than the dots, since a click with `WithAnnotation` off counts without placing one |
-| `Created` | timestamptz |  | server |  |
-| `CreatedById` | text |  | server | Who saved it, the host for a shared count |
-| `CreatedByName` | text |  | server | Their name then |
-| `DotSize` | integer |  | client | Marker size on the map |
-| `Dots` | text |  | client | JSON array of `{x, y, colour}`, in slide pixels, with `placedBy` on a shared count. Fixed once saved |
-| `Label` | text |  | client | Can change |
-| `LocationX` | double, null |  | client | Where it was counted, for going back there. Null for a count with no location |
-| `LocationY` | double, null |  | client | See `LocationX` |
-| `Notes` | text |  | client | Can change |
-| `PlacedByCountsJson` | text, null |  | server | How many dots each person placed, the same way as `ColourCountsJson` |
-| `SlideId` | text |  | server | Copied from the collection |
 | `WithAnnotation` | boolean |  | client | Whether clicks placed dots, or only counted |
 | `WithRoi` | boolean |  | client | Whether it was counted inside a region of interest |
+| `Count` | integer |  | client | The tally. Can be more than the dots, since a click with `WithAnnotation` off counts without placing one |
+| `DotSize` | integer |  | client | Marker size on the map |
+| `CreatedById` | text |  | server | Who saved it, the host for a shared count |
+| `CreatedByName` | text |  | server | Their name then |
+| `Dots` | text |  | client | JSON array of `{x, y, colour}`, in slide pixels, with `placedBy` on a shared count. Fixed once saved |
+| `Label` | text |  | client | Can change |
+| `Notes` | text |  | client | Can change |
+| `SlideId` | text |  | server | Copied from the collection |
+| `Created` | timestamp with time zone |  | server |  |
+| `LocationX` | double precision, null |  | client | Where it was counted, for going back there. Null for a count with no location |
+| `LocationY` | double precision, null |  | client | See `LocationX` |
+| `ColourCountsJson` | text, null |  | server | How many dots of each colour, worked out from `Dots`. Null on rows older than this column until they're first listed. Not a change anyone made, so not in the history |
+| `PlacedByCountsJson` | text, null |  | server | How many dots each person placed, the same way as `ColourCountsJson` |
 
 - Index on `CollectionId`
 - Index on `SlideId`
@@ -690,8 +704,8 @@ The box a cell count was taken inside. At most one per count, and it's fixed onc
 |---|---|---|---|---|
 | `Id` | uuid | PK | client or server |  |
 | `CellCountId` | uuid | FK | server | Its count. The unique index is what makes it one to one |
-| `Created` | timestamptz |  | server | The same as its count's |
 | `GeoJson` | text |  | client | The box, rounded the same way as an annotation's |
+| `Created` | timestamp with time zone |  | server | The same as its count's |
 
 - Unique index on `CellCountId`
 - `CellCountId` points at `CellCounts.Id`. Deleted with it
@@ -705,12 +719,12 @@ A saved preset of brightness, contrast, gamma and colour. Personal, so the viewe
 | Column | Type | Key | Set by | Notes |
 |---|---|---|---|---|
 | `ImageAdjustmentId` | uuid | PK | client or server | Made by the store if it's left out |
+| `CollectionId` | uuid | FK | client | Which collection it's in |
 | `AdjustmentName` | text |  | client | What it's called in the list |
 | `Adjustments` | text |  | client | The settings, as JSON text |
-| `CollectionId` | uuid | FK | client | Which collection it's in |
-| `Created` | timestamptz |  | server |  |
 | `SlideId` | text |  | server | Copied from the collection |
 | `UserId` | text |  | server | Who saved it, from their token |
+| `Created` | timestamp with time zone |  | server |  |
 
 - Index on `CollectionId`
 - Index on `SlideId`
@@ -726,10 +740,10 @@ One change someone made, like a commit - a single save, or a 21,000 row delete s
 |---|---|---|---|---|
 | `Id` | uuid | PK | client or server | From the `Change-Set-Id` header, or made by the store |
 | `CollectionId` | uuid | FK | server | The collection it changed |
-| `Created` | timestamptz |  | server |  |
 | `UserId` | text |  | server | Who made it, from their token |
 | `UserName` | text |  | server | Their name then |
 | `What` | text |  | server | What the first request in it did, such as `delete annotations` or `restore collection` |
+| `Created` | timestamp with time zone |  | server |  |
 
 - Index on `CollectionId, Created`
 - `CollectionId` points at `Collections.CollectionId`. Deleted with it
@@ -743,13 +757,13 @@ What one change did to one row, and the only place anything that was there is ke
 | Column | Type | Key | Set by | Notes |
 |---|---|---|---|---|
 | `Id` | bigint | PK | server | Identity, so it's the order they were written in. Handed out before a save commits, so a higher one can be visible before a lower one |
+| `ChangeSetId` | uuid | FK | server | The change it's part of |
+| `Entity` | text |  | server | `annotation`, `group`, `cellCount`, `regionOfInterest`, `imageAdjustment` or `collection` |
+| `Op` | text |  | server | `Create`, `Update` or `Delete` |
+| `CollectionId` | uuid |  | server | Copied from the change set, for reading one row's history. Not a foreign key of its own |
+| `EntityId` | uuid |  | server | The row it's about. Not a foreign key, since that row may be gone |
 | `After` | jsonb, null |  | server | An update: the same columns, as they became. A group's delete in a merge: `{ "MergedInto": id }` |
 | `Before` | jsonb, null |  | server | A delete: the whole row. An update: the columns it changed, as they were |
-| `ChangeSetId` | uuid | FK | server | The change it's part of |
-| `CollectionId` | uuid |  | server | Copied from the change set, for reading one row's history. Not a foreign key of its own |
-| `Entity` | text |  | server | `annotation`, `group`, `cellCount`, `regionOfInterest`, `imageAdjustment` or `collection` |
-| `EntityId` | uuid |  | server | The row it's about. Not a foreign key, since that row may be gone |
-| `Op` | text |  | server | `Create`, `Update` or `Delete` |
 
 - Index on `ChangeSetId`
 - Index on `CollectionId, Entity, EntityId`
@@ -765,9 +779,9 @@ What can change in a whole collection at one moment, so putting it back doesn't 
 |---|---|---|---|---|
 | `Id` | bigint | PK | server |  |
 | `CollectionId` | uuid | FK | server | The collection it's of |
-| `Created` | timestamptz |  | server |  |
-| `Rows` | jsonb |  | server | Kind of row to row id to column to value |
 | `UpToEntry` | bigint |  | server | The last entry that's in it. Not a foreign key |
+| `Rows` | jsonb |  | server | Kind of row to row id to column to value |
+| `Created` | timestamp with time zone |  | server |  |
 
 - Index on `CollectionId, UpToEntry`
 - `CollectionId` points at `Collections.CollectionId`. Deleted with it
