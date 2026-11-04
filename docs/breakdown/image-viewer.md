@@ -285,6 +285,24 @@ the History tab - the only way to a row that isn't in a Saved list.
 The wording and paths are plain functions in
 [itemVersions.ts](../../image-viewer/src/components/collections/history/itemVersions.ts).
 
+### A whole collection back to a change
+
+A change opened in the History tab has **Put whole collection back to here…**
+for editors, from
+[CollectionRollbackPanel.tsx](../../image-viewer/src/components/collections/history/CollectionRollbackPanel.tsx).
+It asks the store what that would do and says so in plain lines ("3 annotations
+go back how they were"), which is the confirm.
+
+There can be too many rows to send to everyone, so nothing's sent per row. The
+store answers with counts, every viewer loads the collection again, and everyone
+else is told once with a `collection` op carrying `rolledBack` (`rollbackOp` in
+[realtime.ts](../../image-viewer/src/components/realtime/realtime.ts)) - the hub
+needed no change, since it passes a collection nudge on as it is. The annotation,
+cell count and group contexts each have a `reload`, which clears what's marked
+deleted and what's selected, and loads again. Everyone else gets a toast saying
+someone did it. If someone's changed something since the preview it's a 409, and
+the panel shows what it would do now.
+
 ### History - putting deletes back
 
 How this fits with the store's change sets is in

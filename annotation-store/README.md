@@ -266,6 +266,21 @@ it holds everything in it. Nothing in the history is purged.
   409 and nothing changes, whatever the session's edit policy. Left out, not
   checked. Editors only (403 for a viewer, 404 for someone not in it or an
   entry that isn't this row's, 409 for an ended session)
+- `GET /changesets/{id}/rollback` - what putting the whole collection back to
+  just after that change would do, changing nothing: `{ annotations, groups,
+  cellCounts, latest, entriesWalked, fromSnapshot }`. The first three are `{
+  back, changed, gone }`, how many of each kind come back, go back how they
+  were and are taken out. `latest` is the collection's newest entry.
+  `entriesWalked` and `fromSnapshot` say what it took to work out, and
+  `snapshots=false` works it out without a snapshot, for timing the two. Same
+  access as the change set list, guests too. 409 if the change recorded nothing
+- `POST /changesets/{id}/rollback?latest=` - does it, as its own change set
+  (`restore collection`), in one transaction. Answers the same counts, not the
+  rows - there can be too many, so the viewer loads them again. Image adjustments
+  stay as they are. If it's already so, zeros and no change set. `latest` is the
+  newest entry the person saw: if there's a newer one it's a 409 and nothing
+  changes, whatever the session's edit policy. Left out, not checked. Editors
+  only (403 for a viewer, 404 for someone not in it, 409 for an ended session)
 
 - `GET /annotations?collectionId=` - every annotation in the collection,
   newest first. What the map loads

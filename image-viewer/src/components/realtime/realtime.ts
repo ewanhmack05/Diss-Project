@@ -274,6 +274,16 @@ function applyOp<T extends { id: string }>(items: T[], op: AnnotationOp): T[] {
   }
 }
 
+// The whole collection's been put back, which can be too many rows to send, so
+// everyone's told once and loads it again.
+function rollbackOp(collectionId: string): AnnotationOp {
+  return { kind: 'update', entity: 'collection', id: collectionId, data: { rolledBack: true } }
+}
+
+function isRollbackOp(op: AnnotationOp): boolean {
+  return op.entity === 'collection' && !!op.data && typeof op.data === 'object' && 'rolledBack' in op.data
+}
+
 // What someone can actually see, as a closed ring: their unrotated box
 // turned by their rotation round the centre. Same maths OL uses for its own
 // rotated viewport. Starts at their top-left.
@@ -489,6 +499,8 @@ export {
   panelChanges,
   tabChanges,
   applyOp,
+  rollbackOp,
+  isRollbackOp,
   viewportRing,
   viewportShown,
   viewportDisplay,

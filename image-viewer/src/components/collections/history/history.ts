@@ -70,6 +70,7 @@ const LABELS: Record<string, (deleted: number) => string> = {
   restore: () => 'Put back a change',
   'restore annotation': () => 'Put an annotation back',
   'restore cell count': () => 'Put a cell count back',
+  'restore collection': () => 'Put the whole collection back',
 }
 
 function changeLabel({ what, deleted }: Pick<ChangeSet, 'what' | 'deleted'>): string {

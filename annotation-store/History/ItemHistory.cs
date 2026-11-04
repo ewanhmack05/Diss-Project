@@ -40,10 +40,12 @@ public record WalkedBack(Dictionary<string, JsonElement> Columns, bool Whole, bo
 public static class ItemHistory
 {
     // What someone can change on a row. Everything else is fixed once saved,
-    // so going back never needs to touch it.
-    private static readonly Dictionary<string, string[]> Changeable = new()
+    // so going back never needs to touch it. Snapshots.StateJsonAsync has the
+    // same list.
+    internal static readonly Dictionary<string, string[]> Changeable = new()
     {
         [HistoryLog.Annotation] = [nameof(Annotation.Label), nameof(Annotation.Notes), nameof(Annotation.Colour), nameof(Annotation.GroupId)],
+        [HistoryLog.Group] = [nameof(AnnotationGroup.Name), nameof(AnnotationGroup.Notes)],
         [HistoryLog.CellCount] = [nameof(CellCount.Label), nameof(CellCount.Notes), nameof(CellCount.WithAnnotation), nameof(CellCount.WithRoi), nameof(CellCount.Count), nameof(CellCount.DotSize)],
     };
 

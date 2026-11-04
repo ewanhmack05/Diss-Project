@@ -86,6 +86,7 @@ layers for annotations and cell-count dots.
 | `simulate_cell_counts.py` | Same, and the editors count cells live in what they're looking at - see [below](#drawing-and-counting) |
 | `simulate_conflicts.py` | Same, and the editors keep recolouring the same few annotations, for measuring a session's edit policy - see [below](#people-changing-the-same-thing) |
 | `time_api.py`      | Times every read the viewer makes of annotation-store, slowest first - see [below](#timing-the-api) |
+| `time_rollback.py` | Times putting a whole collection back, with a snapshot and without - see [below](#timing-rollback) |
 | `seed_history.py`  | A session with a few days of made-up changes, for the History tab - see [below](#history-test-data) |
 | `teardown_users.py` | Removes test users from Keycloak, and from the sessions they joined - see [below](#removing-test-users) |
 | `keycloak_login.py` | Signs the Python scripts in - not run on its own                      |
@@ -312,6 +313,23 @@ python scripts/time_api.py --runs 20 --json before.json        # keep the number
 
 Timing both ways shows what's the store and what's the way there - see
 [docs/timing.md](../docs/timing.md) for what it found.
+
+## Timing rollback
+
+`time_rollback.py` makes a collection of its own on a made-up slide, fills it,
+waits for the store's background check to take a snapshot, and changes every row
+several more times. Then it times working out a rollback from that snapshot
+against from what's there now, on the same data, and times rollbacks of each size
+with `--sizes`, for a recolour and for a delete.
+
+It leaves the collection there, so point it at a throwaway database:
+
+```bash
+python scripts/time_rollback.py --store http://localhost:5253 --rows 20000 --sizes 1 1000 20000
+```
+
+Results for the write-up are in
+[version-control.md](../docs/breakdown/version-control.md#putting-a-whole-collection-back).
 
 ## History test data
 

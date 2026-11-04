@@ -92,6 +92,11 @@ function HistoryList({ collection }: { collection: Collection }) {
         onRestore={putBackOpened}
         onBack={() => setOpened(null)}
         onOpenItem={setOpenedItem}
+        onRolledBack={() => {
+          setOpened(null)
+          setPage(0)
+          setRestores((n) => n + 1)
+        }}
       />
     )
   }

@@ -129,6 +129,7 @@ public static class ChangeSetEndpoints
 
         app.MapChangeSetChanges();
         app.MapItemHistory();
+        app.MapCollectionRollback();
 
         // How many there are, for the History list's pager - with the same
         // filters as the list.

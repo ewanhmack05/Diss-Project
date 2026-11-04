@@ -6,7 +6,7 @@ import { useEmitEvent } from './EventContext'
 import { useCollectionContext } from './CollectionContext'
 import { useRealtimeContext } from './RealtimeContext'
 import { useAuthContext } from './AuthContext'
-import { applyOp } from '../components/realtime/realtime'
+import { applyOp, isRollbackOp } from '../components/realtime/realtime'
 import { useSavedTotalAt } from '../components/saved/useSavedTotal'
 import type { SavedFilters } from '../components/saved/filters'
 import { changeSetHeaders, deleteAsOneChange, inBatches, jsonHeaders, newChangeSet } from '../components/annotation/bulk'
@@ -91,6 +91,8 @@ interface AnnotationStoreContextValue {
   // if they're already here. Here only - whoever restored them tells
   // everyone else.
   addRestored: (annotations: Annotation[]) => void
+  // Loads the lot again, after the whole collection's been put back.
+  reload: () => void
   // Many at once, from the Select tab - one request, one toast.
   updateMany: (ids: string[], patch: BulkPatch) => void
   // Gone straight away and sent straight away, as one change set. Returns
@@ -174,6 +176,17 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
   useEffect(() => {
     annotationsRef.current = annotations
   })
+  // The whole collection was put back, here or by someone else - load it all
+  // again. What was deleted may not be now, and whatever's open may be gone.
+  const [reloads, setReloads] = useState(0)
+  const reload = useCallback(() => {
+    deletedIdsRef.current.clear()
+    setRemovals([])
+    setSelectedAnnotationId(null)
+    setViewedAnnotationId(null)
+    setReloads((current) => current + 1)
+    bumpRevision()
+  }, [bumpRevision])
 
   // Load whatever's already saved for this slide - the reason to have a
   // backend at all is that this survives a reload, unlike plain React state.
@@ -210,13 +223,17 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
     return () => {
       cancelled = true
     }
-  }, [baseUrl, slideId, collectionId, collectionStatus, emit, authFetch, remember])
+  }, [baseUrl, slideId, collectionId, collectionStatus, emit, authFetch, remember, reloads])
 
   // Someone else's change, already saved by them - just mirror it locally.
   // No toast/emit here, those are for your own actions.
   useEffect(
     () =>
       onOp(({ op }) => {
+        if (isRollbackOp(op)) {
+          reload()
+          emit('collection:rolled-back')
+        }
         if (op.entity !== 'annotation') return
         if (op.kind === 'delete') deletedIdsRef.current.add(op.id)
         // Put back by someone else.
@@ -231,7 +248,7 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
         if (op.kind !== 'update' || (op.data && typeof op.data === 'object' && 'groupId' in op.data))
           bumpRevision()
       }),
-    [onOp, remember]
+    [onOp, remember, reload, emit]
   )
 
   // Writes are optimistic - update local state immediately for a responsive
@@ -532,6 +549,7 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
         addAnnotation,
         addImported,
         addRestored,
+        reload,
         updateMany,
         deleteMany,
         markGrouped,

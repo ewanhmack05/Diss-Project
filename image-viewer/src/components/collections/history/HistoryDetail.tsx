@@ -1,8 +1,10 @@
 import { formatFullDate, timeAgo } from '../../saved/savedDates'
 import ChangeIcon from './ChangeIcon'
 import ChangeList from './ChangeList'
+import CollectionRollbackPanel from './CollectionRollbackPanel'
 import { canRestore, changeKind, changeLabel, initials, restoreNote, restoreStatus, shortId, wasPutBack, type ChangeSet } from './history'
 import type { Item } from './itemVersions'
+import { canRollBack } from './rollback'
 import Icon from '../../../icons/Icon'
 import chevronLeftSvg from '../../../icons/chevron-left.svg?raw'
 
@@ -16,12 +18,14 @@ interface HistoryDetailProps {
   onBack: () => void
   // One of the rows it deleted, opened on its own timeline.
   onOpenItem: (item: Item) => void
+  // The whole collection's been put back to this change.
+  onRolledBack: () => void
 }
 
 // One change opened up - who, exactly when, what it changed from and to,
 // and what's still deleted. This is the confirm too: Put back here does it
 // straight away.
-function HistoryDetail({ changeSet, canEdit, restoring, putBack, onRestore, onBack, onOpenItem }: HistoryDetailProps) {
+function HistoryDetail({ changeSet, canEdit, restoring, putBack, onRestore, onBack, onOpenItem, onRolledBack }: HistoryDetailProps) {
   const current = putBack ? { ...changeSet, deleted: 0 } : changeSet
   const kind = changeKind(changeSet.what)
   const status = restoreStatus(current)
@@ -81,6 +85,8 @@ function HistoryDetail({ changeSet, canEdit, restoring, putBack, onRestore, onBa
         current.deleted > 0 &&
         !canEdit && <p className="collections-note">Only editors can put things back.</p>
       )}
+
+      {canRollBack(changeSet, canEdit) && <CollectionRollbackPanel changeSet={changeSet} onDone={onRolledBack} />}
     </section>
   )
 }

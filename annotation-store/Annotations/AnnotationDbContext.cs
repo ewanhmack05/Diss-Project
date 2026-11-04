@@ -20,6 +20,7 @@ public class AnnotationDbContext(DbContextOptions<AnnotationDbContext> options) 
     public DbSet<CollectionInvite> CollectionInvites => Set<CollectionInvite>();
     public DbSet<ChangeSet> ChangeSets => Set<ChangeSet>();
     public DbSet<HistoryEntry> HistoryEntries => Set<HistoryEntry>();
+    public DbSet<CollectionSnapshot> Snapshots => Set<CollectionSnapshot>();
 
     // The change set this request's writes go in - set by ChangeSetAsync.
     // Every save writes what it did to versioned rows under it (HistoryLog).
@@ -189,10 +190,20 @@ public class AnnotationDbContext(DbContextOptions<AnnotationDbContext> options) 
             .WithMany()
             .HasForeignKey(e => e.ChangeSetId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<CollectionSnapshot>().ToTable("Snapshots", "history");
+        modelBuilder.Entity<CollectionSnapshot>().HasIndex(s => new { s.CollectionId, s.UpToEntry });
+        modelBuilder.Entity<CollectionSnapshot>()
+            .HasOne<Collections.Collections>()
+            .WithMany()
+            .HasForeignKey(s => s.CollectionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         if (Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL")
         {
             modelBuilder.Entity<HistoryEntry>().Property(e => e.Before).HasColumnType("jsonb");
             modelBuilder.Entity<HistoryEntry>().Property(e => e.After).HasColumnType("jsonb");
+            modelBuilder.Entity<CollectionSnapshot>().Property(s => s.Rows).HasColumnType("jsonb");
         }
 
         modelBuilder.Entity<Collections.Collections>().HasQueryFilter(c => c.Deleted == null);

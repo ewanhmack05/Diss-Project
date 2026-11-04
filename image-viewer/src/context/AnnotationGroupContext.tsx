@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { isRollbackOp } from '../components/realtime/realtime'
 import type { AnnotationGroup } from '../interfaces/AnnotationGroup'
 import { useAuthContext } from './AuthContext'
 import { useCollectionContext } from './CollectionContext'
@@ -32,6 +33,8 @@ interface AnnotationGroupContextValue {
   // Put back by a restore - shown again, here only. Whoever restored them
   // tells everyone else.
   addRestored: (groups: AnnotationGroup[]) => void
+  // Loads them all again, after the whole collection's been put back.
+  reload: () => void
 }
 
 const AnnotationGroupContext = createContext<AnnotationGroupContextValue | null>(null)
@@ -56,6 +59,9 @@ function AnnotationGroupContextProvider({ baseUrl, children }: { baseUrl: string
     groupsRef.current = groups
   })
   const queueRef = useRef(oneAtATime())
+  // Same as AnnotationStoreContext - the whole collection was put back.
+  const [reloads, setReloads] = useState(0)
+  const reload = useCallback(() => setReloads((current) => current + 1), [])
 
   useEffect(() => {
     let cancelled = false
@@ -76,12 +82,13 @@ function AnnotationGroupContextProvider({ baseUrl, children }: { baseUrl: string
     return () => {
       cancelled = true
     }
-  }, [authFetch, baseUrl, collectionId])
+  }, [authFetch, baseUrl, collectionId, reloads])
 
   // Someone else's change to a group, already saved by them.
   useEffect(
     () =>
       onOp(({ op }) => {
+        if (isRollbackOp(op)) reload()
         if (op.entity !== 'annotationGroup') return
         if (op.kind === 'delete') forgetGroup(op.id)
         setGroups((current) => {
@@ -225,6 +232,7 @@ function AnnotationGroupContextProvider({ baseUrl, children }: { baseUrl: string
         showAll,
         addImported,
         addRestored,
+        reload,
         createGroup: (name, ids) =>
           createGroup(name, ids).catch((error: unknown) => {
             emit('annotationgroup:error')

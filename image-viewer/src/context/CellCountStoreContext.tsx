@@ -5,7 +5,7 @@ import { useEmitEvent } from './EventContext'
 import { useCollectionContext } from './CollectionContext'
 import { useRealtimeContext } from './RealtimeContext'
 import { useAuthContext } from './AuthContext'
-import { applyOp } from '../components/realtime/realtime'
+import { applyOp, isRollbackOp } from '../components/realtime/realtime'
 import { useSavedTotalAt } from '../components/saved/useSavedTotal'
 import { jsonHeaders } from '../components/annotation/bulk'
 
@@ -43,6 +43,8 @@ interface CellCountStoreContextValue {
   // Put back by a restore, without their dots - shown again, here only.
   // Whoever restored them tells everyone else.
   addRestored: (cellCounts: CellCount[]) => void
+  // Loads the lot again, after the whole collection's been put back.
+  reload: () => void
   // changeSet keeps every save of one edit as one change - see SavedCountEdit.
   updateCellCount: (id: string, patch: CellCountEdit, changeSet?: string) => void
   deleteCellCount: (id: string) => void
@@ -85,6 +87,17 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
   // deleted mustn't then PUT its last autosave to something that's gone.
   const deletedIdsRef = useRef(new Set<string>())
   const loadedForRef = useRef<string | null>(null)
+  // Same as AnnotationStoreContext - the whole collection was put back. The
+  // Saved list loads its own pages again from the revision.
+  const [reloads, setReloads] = useState(0)
+  const reload = useCallback(() => {
+    deletedIdsRef.current.clear()
+    loadedForRef.current = null
+    setSelectedCellCountId(null)
+    setViewedCellCountId(null)
+    setReloads((current) => current + 1)
+    setRevision((current) => current + 1)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -128,12 +141,13 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
     return () => {
       cancelled = true
     }
-  }, [baseUrl, slideId, collectionId, collectionStatus, emit, authFetch])
+  }, [baseUrl, slideId, collectionId, collectionStatus, emit, authFetch, reloads])
 
   // Same as AnnotationStoreContext - mirror someone else's saved change.
   useEffect(
     () =>
       onOp(({ op }) => {
+        if (isRollbackOp(op)) reload()
         if (op.entity !== 'cellCount') return
         if (op.kind === 'delete') deletedIdsRef.current.add(op.id)
         // Put back by someone else.
@@ -145,7 +159,7 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
         }
         if (op.kind !== 'update') setRevision((current) => current + 1)
       }),
-    [onOp]
+    [onOp, reload]
   )
 
   const addCellCount = (unstamped: CellCount) => {
@@ -310,6 +324,7 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
         addCellCount,
         addImported,
         addRestored,
+        reload,
         updateCellCount,
         deleteCellCount,
         setSelectedCellCountId,
