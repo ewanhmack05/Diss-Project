@@ -558,6 +558,25 @@ flowchart LR
 - **Restoring a collection** is the owner's alone, since nobody's role
   counts while it's deleted. A personal one can't come back while its owner
   has a newer one for that slide (409) - delete the newer one first.
+- **One row's timeline and going back on it** (`History/ItemHistory.cs`).
+  `GET /annotations/{id}/history` and `/cellcounts/{id}/history` list every
+  entry for that row. `POST .../history/{entryId}/restore` puts the row how it
+  was just after that entry, and `GET .../history/{entryId}` says what that
+  would do first. It's the other way round from a change set's restore, which
+  takes back one change and leaves later edits alone: this undoes everything
+  since, whoever did it, and it's a change of its own.
+  - How it was is worked out by `WalkBack`, going through the entries since,
+    newest first: an update puts back its columns, a delete brings back the
+    whole row, and the create that put a row back means it wasn't there, so the
+    delete before that takes over. Only the columns someone can change are ever
+    set (`Changeable`) - everything else is fixed once saved.
+  - It checks and changes the row with it locked (`FOR UPDATE`). A `latest`
+    older than the row's newest entry is a 409 whatever the edit policy -
+    going back undoes everything since, so it mustn't undo something they
+    haven't seen.
+  - A deleted row has nothing to lock, so two people bringing it back at once
+    are decided by the primary key - the second gets a 409, or if it looked just
+    after the first committed, zeros since it's already so.
 - **`GET /changesets?collectionId=`** lists a collection's change sets,
   newest first, paged like the Saved lists, each with how many rows it
   deleted that still aren't back. A row put back and deleted again by a later

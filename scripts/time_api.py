@@ -101,6 +101,17 @@ class Store:
         return took, len(data), (json.loads(data) if data else None)
 
 
+def timelines(annotation, cell_count):
+    """(name, method, path, body) for one annotation's and one count's history.
+    Each is a row as the lists give it, or None."""
+    q = urllib.parse.quote
+    found = []
+    for name, path, row in (("annotation", "annotations", annotation), ("biggest cell count", "cellcounts", cell_count)):
+        if row:
+            found.append((f"{name}'s timeline", "GET", f"/{path}/{q(row['id'])}/history?collectionId={q(row['collectionId'])}&skip=0&take=20", None))
+    return found
+
+
 def endpoints(slide, own, session, biggest_count, change_sets):
     """(name, method, path, body) for everything the viewer reads. own and
     session are collection ids (session may be None); biggest_count a cell
@@ -157,9 +168,11 @@ def main(argv=None):
         if change_set["what"] not in seen:
             seen.add(change_set["what"])
             picked.append(change_set)
+    _, _, newest = store.call("GET", f"/annotations?collectionId={history_of}&skip=0&take=1")
 
     rows, raw = [], {}
-    for name, method, path, body in endpoints(args.slide, own["collectionId"], session, biggest and biggest["id"], picked[:6]):
+    reads = endpoints(args.slide, own["collectionId"], session, biggest and biggest["id"], picked[:6]) + timelines(next(iter(newest), None), biggest)
+    for name, method, path, body in reads:
         for _ in range(args.warmup):
             store.call(method, path, body)
         times, sizes = [], []

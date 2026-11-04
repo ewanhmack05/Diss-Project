@@ -4,6 +4,7 @@ import { useAnnotationStoreContext } from '../../../context/AnnotationStoreConte
 import { ShapeOrder, ShapeTools } from '../Tools'
 import { LinePreview, ShapeGlyph } from '../ShapeGlyph'
 import SavedAnnotationEdit from './SavedAnnotationEdit'
+import ItemHistory from '../../collections/history/ItemHistory'
 import SavedRow, { SavedDetails } from '../../saved/SavedRow'
 import { formatLongDate, formatShortDate } from '../../saved/savedDates'
 import { SAVED_PAGE_SIZE, clampPage, isFiltered, mergePage } from '../../saved/paging'
@@ -55,6 +56,8 @@ function SavedAnnotationList({ onTotal }: { onTotal?: (total: ListTotal | null) 
   const { groups } = useAnnotationGroupContext()
   // One open at a time. Kept through an edit too, so Back lands on it.
   const [openId, setOpenId] = useState<string | null>(null)
+  // The one whose timeline is showing, in place of the list.
+  const [historyOf, setHistoryOf] = useState<{ id: string; name: string } | null>(null)
   // Kept through an edit too, and reset to the first page by a new search.
   const [page, setPage] = useState(0)
   // A page at a time from annotation-store, searched there too. The map
@@ -127,6 +130,10 @@ function SavedAnnotationList({ onTotal }: { onTotal?: (total: ListTotal | null) 
         onBack={() => setSelectedAnnotationId(null)}
       />
     )
+  }
+
+  if (historyOf) {
+    return <ItemHistory item={{ entity: 'annotation', ...historyOf }} backLabel="Saved" onBack={() => setHistoryOf(null)} />
   }
 
   if (status === 'loading' || savedPage.status === 'loading') {
@@ -223,6 +230,13 @@ function SavedAnnotationList({ onTotal }: { onTotal?: (total: ListTotal | null) 
                         onClick={() => setViewedAnnotationId(isViewing ? null : annotation.id)}
                       >
                         {isViewing ? 'Stop viewing' : 'View on map'}
+                      </button>
+                      <button
+                        type="button"
+                        className="saved-row-button"
+                        onClick={() => setHistoryOf({ id: annotation.id, name: annotation.label })}
+                      >
+                        History
                       </button>
                       <button
                         type="button"

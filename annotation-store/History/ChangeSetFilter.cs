@@ -28,8 +28,8 @@ public static class ChangeKinds
     public static string Of(string what) => what switch
     {
         "import" => Import,
-        "restore" => Restore,
         "merge groups" => Merge,
+        _ when what.StartsWith("restore") => Restore,
         _ when what.StartsWith("add") => Add,
         _ when what.StartsWith("delete") => Delete,
         _ => Change,
@@ -59,9 +59,9 @@ public static class ChangeKinds
                 || (delete && c.What.StartsWith("delete"))
                 || (merge && c.What == "merge groups")
                 || (import && c.What == "import")
-                || (restore && c.What == "restore")
+                || (restore && c.What.StartsWith("restore"))
                 || (change && !c.What.StartsWith("add") && !c.What.StartsWith("delete")
-                    && c.What != "merge groups" && c.What != "import" && c.What != "restore"));
+                    && c.What != "merge groups" && c.What != "import" && !c.What.StartsWith("restore")));
         }
         return query;
     }

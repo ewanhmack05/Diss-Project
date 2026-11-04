@@ -22,14 +22,16 @@ public record RestoreResult(int Annotations, int Groups, int CellCounts, int Ima
 // give them (counts as the Saved list has them, without dots), so the viewer
 // can show them and tell everyone else without loading them again.
 // ChangedAnnotations were already there and went back how they were - put
-// back in the group a delete or merge took them out of.
+// back in the group a delete or merge took them out of. ChangedCellCounts are
+// the same for counts.
 public record RestoredView(
     RestoreResult Counts,
     List<Annotation> Annotations,
     List<GroupView> Groups,
     List<CellCountListItem> CellCounts,
     List<ImageAdjustments.ImageAdjustments> ImageAdjustments,
-    List<Annotation> ChangedAnnotations);
+    List<Annotation> ChangedAnnotations,
+    List<CellCountListItem> ChangedCellCounts);
 
 public static class ChangeSetEndpoints
 {
@@ -126,6 +128,7 @@ public static class ChangeSetEndpoints
         }).AllowGuests();
 
         app.MapChangeSetChanges();
+        app.MapItemHistory();
 
         // How many there are, for the History list's pager - with the same
         // filters as the list.
@@ -221,8 +224,12 @@ public static class ChangeSetEndpoints
                 .Where(c => back.CellCounts.Contains(c.Id))
                 .NewestFirst()
                 .ListItemsAsync(db);
+            var changedCounts = await db.CellCounts
+                .Where(c => back.ChangedCellCounts.Contains(c.Id))
+                .NewestFirst()
+                .ListItemsAsync(db);
             var counts = new RestoreResult(annotations.Count, back.Groups.Count, back.CellCounts.Count, back.ImageAdjustments.Count, restoresCollection);
-            return Results.Ok(new RestoredView(counts, annotations, groups, cellCounts, back.ImageAdjustments, changed));
+            return Results.Ok(new RestoredView(counts, annotations, groups, cellCounts, back.ImageAdjustments, changed, changedCounts));
         });
     }
 
@@ -231,7 +238,8 @@ public static class ChangeSetEndpoints
         List<Guid> Groups,
         List<Guid> CellCounts,
         List<ImageAdjustments.ImageAdjustments> ImageAdjustments,
-        List<Guid> ChangedAnnotations);
+        List<Guid> ChangedAnnotations,
+        List<Guid> ChangedCellCounts);
 
     // Newest entry first, so a row changed twice in one change goes back to
     // how it was before the first. Annotations - which can be 20,000 - go
@@ -239,7 +247,7 @@ public static class ChangeSetEndpoints
     // added to the context, and the caller's save writes its history.
     private static async Task<PutBack> PutBackAsync(AnnotationDbContext db, Guid changeSetId, List<HistoryEntry> entries, List<HistoryEntry> history)
     {
-        var back = new PutBack([], [], [], [], []);
+        var back = new PutBack([], [], [], [], [], []);
         // A row put back and deleted again since belongs to that later delete -
         // bringing it back here would undo it.
         var later = (await db.HistoryEntries
@@ -305,7 +313,8 @@ public static class ChangeSetEndpoints
                 HistoryLog.ImageAdjustment => await db.ImageAdjustments.FindAsync(entry.EntityId),
                 _ => null,
             };
-            if (live is not null) HistoryLog.Revert(db.Entry(live), entry);
+            if (live is not null && HistoryLog.Revert(db.Entry(live), entry) && live is CellCount && !back.CellCounts.Contains(entry.EntityId))
+                back.ChangedCellCounts.Add(entry.EntityId);
         }
         return back;
     }
@@ -418,7 +427,7 @@ public static class ChangeSetEndpoints
     // Where an annotation's group is now: the same one if it's still here,
     // the one it was merged into if it was merged (and so on, if that was
     // merged too), otherwise none.
-    private static async Task<Guid?> GroupNowAsync(AnnotationDbContext db, Guid? groupId)
+    public static async Task<Guid?> GroupNowAsync(AnnotationDbContext db, Guid? groupId)
     {
         for (var hops = 0; groupId is { } id && hops < 20; hops++)
         {

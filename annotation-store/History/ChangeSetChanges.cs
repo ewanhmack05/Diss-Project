@@ -15,13 +15,17 @@ public record FieldChange(string Entity, string Column, JsonElement Before, Json
 // What one change set did, for the History tab's detail page. Changes is
 // every column it changed, grouped; Deleted how many rows it took out, with
 // the first few by name; Created how many it made. Groups names every group
-// a GroupId in Changes points at, gone ones included.
+// a GroupId in Changes points at, gone ones included. DeletedRows is the same
+// first few as DeletedNames with what they are, so one can be opened.
 public record ChangeSetChanges(
     List<FieldChange> Changes,
     int Created,
     int Deleted,
     List<string?> DeletedNames,
-    Dictionary<Guid, string> Groups);
+    Dictionary<Guid, string> Groups,
+    List<DeletedRow> DeletedRows);
+
+public record DeletedRow(string Entity, Guid Id, string? Name);
 
 public static class ChangeSetChangesEndpoint
 {
@@ -69,15 +73,17 @@ public static class ChangeSetChangesEndpoint
             var counted = db.HistoryEntries.Where(e => e.ChangeSetId == id && e.Entity != HistoryLog.RegionOfInterest);
             var deleted = await counted.CountAsync(e => e.Op == HistoryOp.Delete);
             var created = await counted.CountAsync(e => e.Op == HistoryOp.Create);
-            var deletedNames = (await NamesInHistoryAsync(db, id, null, NamesShown)).Select(n => n.Name).ToList();
+            var deletedRows = await NamesInHistoryAsync(db, id, null, NamesShown);
+            var deletedNames = deletedRows.Select(n => n.Name).ToList();
 
             var groups = new Dictionary<Guid, string>();
             foreach (var change in changes.Where(c => c.Column == "GroupId"))
                 foreach (var value in new[] { change.Before, change.After })
                     if (value.ValueKind == JsonValueKind.String && value.GetGuid() is var group && !groups.ContainsKey(group))
-                        groups[group] = await GroupNameAsync(db, changeSet.CollectionId, group);
+                        groups[group] = await GroupNameAsync(db, group);
 
-            return Results.Ok(new ChangeSetChanges(changes, created, deleted, deletedNames, groups));
+            return Results.Ok(new ChangeSetChanges(changes, created, deleted, deletedNames, groups,
+                deletedRows.Select(n => new DeletedRow(n.Entity, n.EntityId, n.Name)).ToList()));
         }).AllowGuests();
     }
 
@@ -105,14 +111,14 @@ public static class ChangeSetChangesEndpoint
     }
 
     // A group by name - from the live table, or from its delete if it's gone.
-    private static async Task<string> GroupNameAsync(AnnotationDbContext db, Guid collectionId, Guid id)
+    public static async Task<string> GroupNameAsync(AnnotationDbContext db, Guid id)
     {
         if (await db.AnnotationGroups.Where(g => g.Id == id).Select(g => g.Name).FirstOrDefaultAsync() is { } name) return name;
         var deleted = await NamesInHistoryAsync(db, null, id, 1);
         return deleted.FirstOrDefault()?.Name ?? "a deleted group";
     }
 
-    private record Named(Guid EntityId, string? Name);
+    private record Named(string Entity, Guid EntityId, string? Name);
 
     // Names out of delete entries, read in the database so the whole row
     // never comes back - by change set, or one row's latest delete. Only
@@ -126,7 +132,7 @@ public static class ChangeSetChangesEndpoint
         var entries = postgres ? "history.\"Entries\"" : "\"Entries\"";
         var byChangeSet = changeSetId is not null;
         var sql = string.Join(" ",
-            $"SELECT \"EntityId\", {name} AS \"Name\" FROM {entries}",
+            $"SELECT \"Entity\", \"EntityId\", {name} AS \"Name\" FROM {entries}",
             $"WHERE {(byChangeSet ? "\"ChangeSetId\"" : "\"EntityId\"")} = {{0}}",
             "AND \"Op\" = 'Delete' AND \"Entity\" <> 'regionOfInterest' AND \"Entity\" <> 'collection'",
             $"ORDER BY \"Id\" {(byChangeSet ? "" : "DESC")}",

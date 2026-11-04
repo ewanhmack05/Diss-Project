@@ -194,7 +194,15 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
   const addRestored = (restored: CellCount[]) => {
     if (restored.length === 0) return
     for (const c of restored) deletedIdsRef.current.delete(c.id)
-    setCellCounts((current) => [...current, ...restored.filter((c) => !current.some((known) => known.id === c.id))])
+    const byId = new Map(restored.map((c) => [c.id, c]))
+    setCellCounts((current) => [
+      // One already here keeps the dots it has - the store's answer leaves them out.
+      ...current.map((c) => {
+        const back = byId.get(c.id)
+        return back ? { ...c, ...back, dots: c.dots } : c
+      }),
+      ...restored.filter((c) => !current.some((known) => known.id === c.id)),
+    ])
     bumpRevision()
   }
 

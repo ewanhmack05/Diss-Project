@@ -2,6 +2,7 @@ import { formatFullDate, timeAgo } from '../../saved/savedDates'
 import ChangeIcon from './ChangeIcon'
 import ChangeList from './ChangeList'
 import { canRestore, changeKind, changeLabel, initials, restoreNote, restoreStatus, shortId, wasPutBack, type ChangeSet } from './history'
+import type { Item } from './itemVersions'
 import Icon from '../../../icons/Icon'
 import chevronLeftSvg from '../../../icons/chevron-left.svg?raw'
 
@@ -13,12 +14,14 @@ interface HistoryDetailProps {
   putBack: boolean
   onRestore: () => void
   onBack: () => void
+  // One of the rows it deleted, opened on its own timeline.
+  onOpenItem: (item: Item) => void
 }
 
 // One change opened up - who, exactly when, what it changed from and to,
 // and what's still deleted. This is the confirm too: Put back here does it
 // straight away.
-function HistoryDetail({ changeSet, canEdit, restoring, putBack, onRestore, onBack }: HistoryDetailProps) {
+function HistoryDetail({ changeSet, canEdit, restoring, putBack, onRestore, onBack, onOpenItem }: HistoryDetailProps) {
   const current = putBack ? { ...changeSet, deleted: 0 } : changeSet
   const kind = changeKind(changeSet.what)
   const status = restoreStatus(current)
@@ -60,7 +63,7 @@ function HistoryDetail({ changeSet, canEdit, restoring, putBack, onRestore, onBa
         </dd>
       </dl>
 
-      <ChangeList changeSetId={changeSet.id} />
+      <ChangeList changeSetId={changeSet.id} onOpenItem={onOpenItem} />
 
       {restorable ? (
         <>

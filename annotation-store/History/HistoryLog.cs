@@ -13,7 +13,8 @@ namespace AnnotationStore.History;
 // Writes the history for every save, from what EF is about to change, so no
 // endpoint has to remember to. Bulk changes to annotations - up to 20,000 at
 // a time - go through AnnotationBulk instead, which writes its own. The only
-// code that touches the history tables, along with ChangeSets.cs.
+// code that touches the history tables, along with ChangeSets.cs and
+// ItemHistory.cs.
 public static class HistoryLog
 {
     public const string Annotation = "annotation";
@@ -216,6 +217,8 @@ public static class HistoryLog
                 info.SetValue(row, value.Deserialize(property.ClrType, Json));
         return row;
     }
+
+    public static object? ValueOf(JsonElement value, Type type) => value.Deserialize(type, Json);
 
     // What an update would go back to: for each column it changed that's
     // still what it changed it to, the value from before. A column changed

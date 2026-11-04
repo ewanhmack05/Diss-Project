@@ -35,9 +35,9 @@ the one before:
 |---|------|-------|
 | 1 | Soft delete | Done, then replaced by step 2 - every write is in a change set, and a change set can be put back any time |
 | 2 | History log | Done in the store - a `history` schema, apart from the data, with what every change did to every row: a delete keeps the whole row, an edit the columns it changed, before and after. The live tables only hold what's there now. Not shown in the viewer yet |
-| 3 | Periodic snapshots | Not started |
-| 4 | Viewing history | Mostly done - the collection's timeline is the History tab, and opening a change shows what it changed, from and to. A timeline per annotation or count is next |
-| 5 | Rollback | Mostly there - putting a change set back brings back what it deleted and undoes what it changed, unless someone's changed it since. Putting one row back to a point in time isn't built |
+| 3 | Periodic snapshots | Not started, next up |
+| 4 | Viewing history | Done - the collection's timeline is the History tab, opening a change shows what it changed, from and to, and every annotation and count has a timeline of its own |
+| 5 | Rollback | Done for a change set and for one row - putting a change set back brings back what it deleted and undoes what it changed, unless someone's changed it since. Going back on one row puts it how it was at any point on its timeline. A whole collection to a point in time needs snapshots |
 | 6 | Policy for two people editing at once | Done - picked per session, last change wins or first change wins, for colour, group and a group's name and notes. Labels and notes are merged live with Yjs. See [section 8](#8-two-people-changing-the-same-thing) |
 | 7 | Evaluate it | The tools are there - `simulate_conflicts.py` and the dashboard's Edits row count what each policy does. No proper runs yet |
 
@@ -45,7 +45,9 @@ What works today, end to end: delete 21,000 annotations in one go, see it in
 the History tab as one change, and put it all back days later - for
 everyone in the session, live. Delete a group and put it back, and what was
 in it goes back in. Every edit's before and after is kept, and opening it in History shows
-each field from and to. What doesn't yet: a timeline for one annotation (see
+each field from and to. Open one annotation's or count's timeline, and put it
+back to how it was at any point - or bring back one row out of a delete. What
+doesn't yet: a whole collection back to a point in time (see
 [What's next](#11-whats-next)).
 
 ## 2. How the pieces fit
@@ -262,6 +264,34 @@ sequenceDiagram
   database, not sent through the app. Soft delete flipped a column instead,
   which was quicker; keeping deleted rows out of the live tables costs that.
 
+### Going back on one row
+
+`POST /annotations/{id}/history/{entryId}/restore`, and the same on
+`/cellcounts`, puts one row how it was just after that entry. The two kinds of
+putting back do opposite things when someone's edited since:
+
+| | A change set's Put back | Going back on one row |
+|---|---|---|
+| What it's for | Take back that one change | Put it how it was then |
+| A later edit by someone else | Left alone | Undone |
+| What it touches | Every row in the change | One row |
+| Row deleted since | Comes back, if this change deleted it | Comes back, as it was at that point |
+
+- **How it was isn't stored, it's worked out.** Each entry says what it
+  changed, so going through the entries since, newest first and undoing each,
+  lands on how it was - through deletes and put backs too.
+- **It can't undo what you haven't seen.** The request says the newest entry
+  the person was looking at. A newer one is a 409 under either edit policy, with
+  the row locked for the check, and the viewer shows them the timeline again.
+  Nothing's lost either way, but silently undoing a change made a moment ago is
+  the one thing this shouldn't do.
+- **It's a change of its own** (`restore annotation`, `restore cell count`), so
+  it's on the timeline and in the History tab, and can be gone back on.
+- **Going back to a delete** means how it was when it was deleted, so a row with
+  only its delete recorded can still come back.
+- **A group that's gone isn't brought back with it.** It's one row, so it goes
+  in the group that one was merged into, or none, and the confirm page says so.
+
 ## 6. In the viewer
 
 ### Undo on a bulk delete
@@ -304,6 +334,14 @@ In the Collections panel, for the collection you're in.
 See [image-viewer.md](image-viewer.md#history---putting-deletes-back) for
 how it's built.
 
+### One row's timeline
+
+**History** on a Saved row opens everything that's happened to that annotation
+or count, newest first, each change from and to. **Go back to this** opens a
+page saying what would change, which is the confirm. A deleted row is reached
+from its name on the change that deleted it. See
+[image-viewer.md](image-viewer.md#one-rows-timeline).
+
 ### Small things that had to change for it
 
 - Someone else's create op clears that id from your deleted ids - otherwise
@@ -325,6 +363,11 @@ check each side:
   [history.ts](../../image-viewer/src/components/collections/history/history.ts)
 - the Editor check on `POST /changesets/{id}/restore` in
   [ChangeSets.cs](../../annotation-store/History/ChangeSets.cs)
+
+Going back on one row is the same rule, in `canGoBack` in
+[itemVersions.ts](../../image-viewer/src/components/collections/history/itemVersions.ts)
+and the Editor check in
+[ItemHistory.cs](../../annotation-store/History/ItemHistory.cs).
 
 ## 8. Two people changing the same thing
 
@@ -436,12 +479,14 @@ the store's database. See the
 | Where | Tests | Covers |
 |-------|-------|--------|
 | annotation-store `HistoryTests` | 46 | A delete leaves the live table and keeps the whole row, an edit keeps only what changed, a create copies nothing, nothing versioned changes outside a change set, no history columns on the live tables. Batches in one change set (and at the same moment, Postgres only). Restore - its own change set only, editors only, collections by their owner, answers with the rows, a group back with what was in it, a recolour undone but never a later edit, a count back with its dots and ROI, an annotation following a merged group, ten restores at once putting it back once (Postgres only). What a change did, from and to. A row deleted again later belonging to the later delete. Narrowing by person, kind and date, oldest first, the facets. Who and what on every write, header rules, the list and total. One edit saved many times as one entry - columns back where they started dropping out, separate edits staying separate, nothing folding across a delete, a folded edit putting back to before it, saves at the same moment (Postgres only), and the fold itself |
+| annotation-store `ItemHistoryTests` | 22 | The walk back through edits, a delete and the create that put it back. A timeline for that row only, newest first, with who and what, paged, groups by name, never a deleted copy. Going back undoing everything since whoever did it, as its own change, which can itself be gone back on. A later change not seen turned down with nothing changed and no change set. Already how it was not being a change. The preview changing nothing. A deleted annotation coming back at that point, and its change set then having nothing left to put back. A delete entry meaning how it was when deleted, going back past a delete that was put back, a count with its dots and region, a gone group coming back as none and a merged one as where it went. Who can look and who can go back, an entry from another row, the History filter counting it as put back. Bringing back and going back at the same moment (Postgres only) |
 | annotation-store `HistoryMigrationTests` | 1 | Postgres only: soft-deleted rows become delete entries that rebuild exactly, and go back on the way down |
 | annotation-store `CollectionsTests` | 1 of 19 | 20 ensures at the same moment all get the one collection (Postgres only) |
 | annotation-store `PostgresPoolTests` | 1 | Every test class's connections fit in a stock Postgres |
-| viewer `changes.test.ts` | 14 | From and to for every kind of field - text, (empty), colours, groups by name, flags, numbers, image adjustment settings one by one - many rows on one line, deletes by name |
-| viewer `history.test.ts` | 26 | Labels for every kind of change, icons, initials, what's still deleted, who can put back, toast and note wording, day grouping, the ops sent to everyone else (creates, and updates for changed annotations) |
+| viewer `changes.test.ts` | 15 | From and to for every kind of field - text, (empty), colours, groups by name, flags, numbers, image adjustment settings one by one - many rows on one line, deletes by name |
+| viewer `history.test.ts` | 29 | Labels for every kind of change, icons, initials, what's still deleted, who can put back, toast and note wording, day grouping, the ops sent to everyone else (creates, and updates for changed annotations) |
 | annotation-store `EditConflictsTests` | 14 | The policy per session (and personal always last change wins), a colour from an old copy turned down with who and what, "use mine", last change wins letting it through and counting it, a label edit never putting back an old colour or conflicting, the same colour not a conflict, no was not checked, bulk recolour and regroup under each policy, a group rename, no change set for a refused save, checked batches at the same moment in one change set and saves from one copy at the same moment with only one through (Postgres only) |
+| viewer `itemVersions.test.ts` | 32 | Paths, a version's title and icon by what happened to that row, who can go back and when, lines from and to with groups by name, the confirm's wording, the toast by what it's called now |
 | viewer `editPolicy.test.ts` | 11 | The option's default, reading a 409, the card's wording (fields, who, when, singular and plural), when ops go out, saves to one item in order and carrying on after one fails |
 | scripts `test_simulate_conflicts.py` | 9 | Each person's copy - others' saves only once they're old enough, what they heard for themselves - picking a new colour, the summary under each policy |
 | viewer `bulk.test.ts` | 14 | Batches, one change set id per change, Undo only after the delete's in, an edit form's change set on each save |
@@ -454,14 +499,10 @@ same moment, and the real migrations. CI runs the store's suite on both.
 
 ## 11. What's next
 
-The history has what the next pieces need; they're mostly the viewer now.
-
-- **A timeline per annotation or count** - the other half of step 4. Every
-  entry for one row, by `CollectionId`, `Entity` and `EntityId` (indexed).
-- **Putting one row back to a point in time** - step 5's other half.
-- **Snapshots** (step 3), if replaying entries for a big collection gets
-  slow.
-
+- **Snapshots** (step 3) - next up. The whole collection saved every so often,
+  so a collection can go back to a point in time without walking every entry
+  of every row. `WalkBack` does that for one row now, and it's the same idea
+  across all of them.
 - **Running the comparison** (step 7) - matched sessions under each policy
   with `simulate_conflicts.py`, at a few `--notice` and `--people` settings.
 
@@ -478,7 +519,20 @@ games parallels for the write-up.
   every open form, so in a session your edit's change set can hold what
   someone else typed in the same box while you had it open.
 - **A restore can't be put back.** It reverts deletes and updates, and the
-  rows a restore brings back are creates, which aren't undone.
+  rows a restore brings back are creates, which aren't undone. One row can be
+  gone back on from its timeline, to before the restore or after it - but not
+  to not being there, since that's a delete.
+- **Only the first 5 deleted rows can be opened.** A change that deleted 2,140
+  links the 5 it names, and says how many more. The rest have a timeline but
+  nothing leads to it - a whole list of what a change deleted would.
+- **Going back while someone has the edit form open.** Their form still has the
+  old text, and saves it on their next pause. The same is true of a change set's
+  Put back. It's in the history and can be gone back on again.
+- **Group and image adjustment rows have no timeline.** Their entries are kept,
+  and shown in the History tab. Annotations and counts are what people work on.
+- **Timelines aren't told about other people's edits.** Ops for an update don't
+  bump the revision, so an open timeline can be out of date. Going back catches
+  it with the 409, and a save or delete settling loads it again.
 - **A column added later.** An old delete's copy of a row won't have a column
   added since - a new non-null column needs a default.
 - **Putting back 20,000 takes about 5 seconds**, where soft delete was
@@ -504,13 +558,14 @@ games parallels for the write-up.
 | [annotation-store/History/AnnotationBulk.cs](../../annotation-store/History/AnnotationBulk.cs) | Deleting and changing up to 20,000 annotations with their history |
 | [annotation-store/History/ChangeSets.cs](../../annotation-store/History/ChangeSets.cs) | `ChangeSetAsync`, `GET /changesets`, `/total`, restore |
 | [annotation-store/History/ChangeSetChanges.cs](../../annotation-store/History/ChangeSetChanges.cs) | `GET /changesets/{id}/changes` - what one change did, grouped |
+| [annotation-store/History/ItemHistory.cs](../../annotation-store/History/ItemHistory.cs) | One row's timeline, what going back would do, going back, `WalkBack` |
 | [annotation-store/Annotations/AnnotationDbContext.cs](../../annotation-store/Annotations/AnnotationDbContext.cs) | The `history` schema, and the save that writes history with every change |
 | [annotation-store/Migrations/20261021133213_HistoryArea.cs](../../annotation-store/Migrations/20261021133213_HistoryArea.cs) | The history schema, and moving soft-deleted rows into it |
 | [annotation-store/Conflicts/EditConflicts.cs](../../annotation-store/Conflicts/EditConflicts.cs) | `EditPolicy`, the per field check, the row locks, the 409 and the counter |
 | [image-viewer/src/components/realtime/editPolicy.ts](../../image-viewer/src/components/realtime/editPolicy.ts) | The policy choices, reading a 409, the card's wording, saves one at a time |
 | [scripts/simulate_conflicts.py](../../scripts/simulate_conflicts.py) | Simulated people changing the same things, and the tally |
 | [image-viewer/src/components/annotation/bulk.ts](../../image-viewer/src/components/annotation/bulk.ts) | Batches, one change set per bulk change, Undo |
-| [image-viewer/src/components/collections/history/](../../image-viewer/src/components/collections/history) | History list, detail, icons, the restore hook and the plain logic in `history.ts` |
+| [image-viewer/src/components/collections/history/](../../image-viewer/src/components/collections/history) | History list, detail, icons, one row's timeline (`ItemHistory.tsx`), the restore and go back hooks, and the plain logic in `history.ts` and `itemVersions.ts` |
 | [image-viewer/src/components/saved/savedDates.ts](../../image-viewer/src/components/saved/savedDates.ts) | Day headings, times, how long ago |
 | [image-viewer/src/context/](../../image-viewer/src/context) | `addRestored` on the annotation, cell count, group and adjustment contexts |
 | [scripts/seed_history.py](../../scripts/seed_history.py) | The test history |
@@ -524,6 +579,9 @@ games parallels for the write-up.
 - **Restore / put back** - undoing one change set: what it deleted comes
   back, and what it changed goes back if nobody's changed it since. The UI
   says "put back".
+- **Going back** - putting one row how it was at a point on its timeline,
+  undoing everything since. The other way round from a restore, which leaves
+  later edits alone.
 - **Undo** - the toast's button on a bulk delete: a restore of that change
   set, offered for 8 seconds.
 - **Edit policy** - what happens when two people change the same thing in

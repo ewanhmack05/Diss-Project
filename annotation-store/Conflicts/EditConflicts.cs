@@ -80,6 +80,12 @@ public static class EditConflicts
             await db.Database.ExecuteSqlAsync($"""SELECT 1 FROM "Annotations" WHERE "Id" = ANY({ids.ToArray()}) FOR UPDATE""");
     }
 
+    public static async Task LockCellCountAsync(AnnotationDbContext db, Guid id)
+    {
+        if (HistoryLog.IsPostgres(db))
+            await db.Database.ExecuteSqlAsync($"""SELECT 1 FROM "CellCounts" WHERE "Id" = {id} FOR UPDATE""");
+    }
+
     public static async Task LockGroupAsync(AnnotationDbContext db, Guid id)
     {
         if (HistoryLog.IsPostgres(db))

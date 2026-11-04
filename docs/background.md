@@ -30,6 +30,8 @@ Database Version Control - A Software Configuration Management Approach to Datab
 
 Temporal and Real-Time Databases: https://experts.arizona.edu/en/publications/temporal-and-real-time-databases-a-survey/
 
+Version Control Data Management: https://guides.library.ucdavis.edu/data-management/version-control
+
 ### Viewer/Wholeslide images
 
 Efficient Visualization of Whole Slide Images in Web-based Viewers for Digital Pathology: https://pubmed.ncbi.nlm.nih.gov/34979569/
@@ -40,6 +42,7 @@ Digital pathology in tau research: A comparison of QuPath and HALO: https://pubm
 
 Halo: https://indicalab.com/halo/
 QuPath: https://qupath.github.io/
+Sectra: https://medical.sectra.com/solutionarea/radiology-imaging/
 
 ### Ai tailored source control
 

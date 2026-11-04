@@ -37,6 +37,8 @@ interface Restored {
   // Were already there, and went back how they were - put back in the
   // group a delete or merge took them out of, or a recolour undone.
   changedAnnotations: Annotation[]
+  // The same for cell counts, without dots.
+  changedCellCounts?: CellCount[]
 }
 
 const number = (n: number) => n.toLocaleString('en-GB')
@@ -66,6 +68,8 @@ const LABELS: Record<string, (deleted: number) => string> = {
   import: () => 'Imported a GeoJSON file',
   'delete collection': () => 'Deleted the collection',
   restore: () => 'Put back a change',
+  'restore annotation': () => 'Put an annotation back',
+  'restore cell count': () => 'Put a cell count back',
 }
 
 function changeLabel({ what, deleted }: Pick<ChangeSet, 'what' | 'deleted'>): string {
@@ -140,7 +144,8 @@ function restoreNote({ what }: Pick<ChangeSet, 'what'>): string {
 type ChangeKind = 'add' | 'change' | 'delete' | 'merge' | 'import' | 'restore'
 
 function changeKind(what: string): ChangeKind {
-  if (what === 'import' || what === 'restore') return what
+  if (what === 'import') return what
+  if (what.startsWith('restore')) return 'restore'
   if (what === 'merge groups') return 'merge'
   if (what.startsWith('add')) return 'add'
   if (what.startsWith('delete')) return 'delete'
@@ -200,6 +205,9 @@ function restoredOps(restored: Restored): AnnotationOp[] {
     ...restored.annotations.map((a): AnnotationOp => ({ kind: 'create', entity: 'annotation', id: a.id, data: a })),
     ...(restored.changedAnnotations ?? []).map((a): AnnotationOp => ({ kind: 'update', entity: 'annotation', id: a.id, data: a })),
     ...restored.cellCounts.map((c): AnnotationOp => ({ kind: 'create', entity: 'cellCount', id: c.id, data: c })),
+    // Without dots, which the store left out - a null would wipe the ones
+    // they have loaded.
+    ...(restored.changedCellCounts ?? []).map(({ dots: _dots, ...c }): AnnotationOp => ({ kind: 'update', entity: 'cellCount', id: c.id, data: c })),
   ]
 }
 

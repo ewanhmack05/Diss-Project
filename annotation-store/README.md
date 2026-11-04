@@ -218,11 +218,12 @@ it holds everything in it. Nothing in the history is purged.
   changes and how many, and how many of each kind, for the filter popout
 - `GET /changesets/{id}/changes` - what one change set did, for the
   History tab's detail page: `{ changes, created, deleted, deletedNames,
-  groups }`. `changes` is every column it changed, grouped - `{ entity,
+  groups, deletedRows }`. `changes` is every column it changed, grouped - `{ entity,
   column, before, after, count, names }`, so a recolour of 48 annotations
   from red to blue is one, with the first 5 rows' names (null for one
-  that's gone since). `deletedNames` names the first 5 rows it deleted, and
-  `groups` names every group a `GroupId` in `changes` points at, gone ones
+  that's gone since). `deletedNames` names the first 5 rows it deleted,
+  `deletedRows` is the same 5 as `{ entity, id, name }` so one can be opened,
+  and `groups` names every group a `GroupId` in `changes` points at, gone ones
   included. Only reads the update entries and the names out of the deletes,
   never a deleted row's whole copy. Same access as the list
 - `GET /changesets/total?collectionId=` - how many change sets the
@@ -235,13 +236,36 @@ it holds everything in it. Nothing in the history is purged.
   anyone's change set - except a deleted collection, which only its owner
   can bring back (and not while they've a newer personal one for that slide
   - 409). Answers `{ counts, annotations, groups, cellCounts,
-  imageAdjustments, changedAnnotations }`: `counts` is `{ annotations,
+  imageAdjustments, changedAnnotations, changedCellCounts }`: `counts` is `{ annotations,
   groups, cellCounts, imageAdjustments, collection }`, how many of each came
   back, the lists are the rows that came back as the reads give them -
   groups with their member `count`, cell counts as the Saved list has them
-  (no `dots`) - and `changedAnnotations` are ones that were already there
-  and went back how they were. Restoring again answers zeros and empty
-  lists
+  (no `dots`) - and `changedAnnotations` and `changedCellCounts` are ones
+  that were already there and went back how they were. Restoring again
+  answers zeros and empty lists
+- `GET /annotations/{id}/history?collectionId=&skip=&take=`, and the same on
+  `/cellcounts/{id}/history` - one row's timeline, newest first: `{ versions,
+  total, latest, groups }`. Each version is `{ id, changeSetId, userId,
+  userName, what, created, op, changes }`, `op` being `create`, `update` or
+  `delete`, and `changes` the columns an update changed, in the same shape as
+  above. A delete's whole copy is never sent. `latest` is the newest entry.
+  Same access as the change set list, guests too
+- `GET /annotations/{id}/history/{entryId}`, and on `/cellcounts` - what going
+  back to that entry would do, changing nothing: `{ gone, changes, groups,
+  groupGone, latest }`. `gone` means it's deleted now, so `changes` is what
+  it'd come back as. `groupGone` names the group it was in, if that's gone
+  since. 409 if the history doesn't say how it was. Same access
+- `POST /annotations/{id}/history/{entryId}/restore?latest=`, and on
+  `/cellcounts` - puts the row how it was just after that entry, undoing every
+  change to it since, whoever made them. On a delete entry, that's how it was
+  when it was deleted. A row that's deleted comes back, a count with its dots
+  and region of interest. Its own change set (`restore annotation`,
+  `restore cell count`), so it can be gone back on as well. Answers the same as
+  a change set's restore. If it's already so, zeros and no change set.
+  `latest` is the newest entry the person saw: if there's a newer one it's a
+  409 and nothing changes, whatever the session's edit policy. Left out, not
+  checked. Editors only (403 for a viewer, 404 for someone not in it or an
+  entry that isn't this row's, 409 for an ended session)
 
 - `GET /annotations?collectionId=` - every annotation in the collection,
   newest first. What the map loads
