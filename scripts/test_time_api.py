@@ -4,7 +4,15 @@
 """
 import unittest
 
-from time_api import endpoints, parse_args, percentile, size_text, summary, table
+from time_api import (
+    endpoints,
+    parse_args,
+    percentile,
+    size_text,
+    summary,
+    table,
+    timelines,
+)
 
 
 class Percentile(unittest.TestCase):
@@ -60,6 +68,14 @@ class Endpoints(unittest.TestCase):
         names = [name for name, *_ in endpoints("003", "own-id", None, None, [])]
         self.assertFalse(any(name.startswith("session:") for name in names))
         self.assertNotIn("biggest cell count (with dots)", names)
+
+    def test_timelines_are_read_for_a_row_of_each_kind_that_exists(self):
+        annotation = {"id": "a 1", "collectionId": "c 1"}
+        count = {"id": "n1", "collectionId": "c2"}
+        found = {name: (method, path) for name, method, path, _ in timelines(annotation, count)}
+        self.assertEqual(("GET", "/annotations/a%201/history?collectionId=c%201&skip=0&take=20"), found["annotation's timeline"])
+        self.assertEqual(("GET", "/cellcounts/n1/history?collectionId=c2&skip=0&take=20"), found["biggest cell count's timeline"])
+        self.assertEqual([], timelines(None, None))
 
     def test_ids_go_in_the_path_escaped(self):
         found = {name: path for name, _, path, _ in endpoints("a b", "own id", None, None, [])}

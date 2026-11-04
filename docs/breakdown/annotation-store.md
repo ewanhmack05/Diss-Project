@@ -558,6 +558,48 @@ flowchart LR
 - **Restoring a collection** is the owner's alone, since nobody's role
   counts while it's deleted. A personal one can't come back while its owner
   has a newer one for that slide (409) - delete the newer one first.
+- **One row's timeline and going back on it** (`History/ItemHistory.cs`).
+  `GET /annotations/{id}/history` and `/cellcounts/{id}/history` list every
+  entry for that row. `POST .../history/{entryId}/restore` puts the row how it
+  was just after that entry, and `GET .../history/{entryId}` says what that
+  would do first. It's the other way round from a change set's restore, which
+  takes back one change and leaves later edits alone: this undoes everything
+  since, whoever did it, and it's a change of its own.
+  - How it was is worked out by `WalkBack`, going through the entries since,
+    newest first: an update puts back its columns, a delete brings back the
+    whole row, and the create that put a row back means it wasn't there, so the
+    delete before that takes over. Only the columns someone can change are ever
+    set (`Changeable`) - everything else is fixed once saved.
+  - It checks and changes the row with it locked (`FOR UPDATE`). A `latest`
+    older than the row's newest entry is a 409 whatever the edit policy -
+    going back undoes everything since, so it mustn't undo something they
+    haven't seen.
+  - A deleted row has nothing to lock, so two people bringing it back at once
+    are decided by the primary key - the second gets a 409, or if it looked just
+    after the first committed, zeros since it's already so.
+- **A whole collection back to a change** (`History/CollectionRollback.cs`).
+  `POST /changesets/{id}/rollback` puts everything how it was just after that
+  change, and `GET` says what that would do first. Rows added since are taken
+  out, rows deleted since come back from their delete's copy, and the rest go
+  back, whoever changed them. Image adjustments are left alone - they're one
+  person's own presets. How it works is in
+  [version-control.md](version-control.md#putting-a-whole-collection-back).
+  - It takes the collection row `FOR UPDATE`. Every new change set and row
+    points at it, so anything part way through finishes first and anything new
+    waits, then the `latest` check sees what's really newest.
+  - Annotations are rebuilt in the database with `jsonb_populate_record`, the
+    same as a change set's restore, so shapes don't come through the app.
+- **Snapshots** (`History/Snapshots.cs`, `history.Snapshots`). What can change
+  in a collection, as `jsonb`, and the last entry that's in it (`UpToEntry`).
+  `SnapshotService` looks every 30 seconds for collections with 5,000 entries
+  since their last one. A snapshot failing changes nothing - going back only has
+  more to undo.
+  - Entry ids are handed out before a save commits, so a higher id can be visible
+    while a lower one isn't. Taking one locks `history.Entries` in `SHARE` mode
+    for as long as it takes to read the rows: saves that have written history
+    finish first and saves that haven't wait, so nothing can be stamped as in the
+    snapshot without being in it. Reads carry on. It gives up after 2 seconds
+    rather than hold saves up, and tries again at the next check.
 - **`GET /changesets?collectionId=`** lists a collection's change sets,
   newest first, paged like the Saved lists, each with how many rows it
   deleted that still aren't back. A row put back and deleted again by a later
@@ -669,7 +711,7 @@ own (`annotationstore_test_<guid>`), built from the real migrations and
 dropped afterwards. That catches what SQLite can't: the migrations
 themselves, Npgsql's SQL, and requests at the same moment (`[PostgresFact]`
 tests, skipped on SQLite). Test classes run in parallel, each with its own
-pool, so each database is held to 8 connections (`PoolSizePerDatabase` in
+pool, so each database is held to 6 connections (`PoolSizePerDatabase` in
 `CellCountApiFactory`) - a stock Postgres, like CI's, takes 100, and a burst
 test opening one per request ran out. `PostgresPoolTests` fails if adding a
 test class would take them past it.

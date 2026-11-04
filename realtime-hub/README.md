@@ -20,6 +20,23 @@ someone is (`userId`, `displayName`) comes from the token. People without
 an account can join a session as view only [guests](#guests), from its
 invite link.
 
+## Data
+
+The hub has no database, and everything in it is gone when it restarts. What's
+saved is annotation-store's job - the hub only relays changes the viewer has already
+saved, or is about to. Who's allowed in a room, it asks annotation-store each time
+someone joins. People reconnect by themselves and load what's saved.
+
+| What | Where | Holds | When it goes |
+|---|---|---|---|
+| A room | `SlideRooms` | Everyone connected to one session, their roles and what they're looking at, and `seq`, the order ops went out in | When the last person leaves, so `seq` starts again - it's why it can't be used as a version number |
+| Shared text | `SlideRooms`, one doc per box | Raw Yjs updates for a label or notes box being edited, so someone joining late catches up | When the last person closes the box. What's kept is what the viewer saved to annotation-store |
+| A comparison or shared count | `SlideRooms`, on the room | Who's counting, and their dots until they're revealed | When it's finished, or the room empties. A shared count is saved as a cell count, under the host |
+| Who's online | `OnlineUsers` | Which users have a connection, for the Users tab | When they disconnect |
+
+More than one copy can't run, since each would have its own rooms - see
+[Notes](#notes).
+
 ## Running
 
 ```bash

@@ -71,11 +71,14 @@ builder.Services.AddOpenTelemetry()
         // keep up while you're watching them.
         // System.Runtime is .NET's built-in meter - CPU, memory, GC and
         // thread pool, for the dashboard's machine row.
-        metrics.AddAspNetCoreInstrumentation().AddMeter("System.Runtime").AddMeter(EditConflicts.MeterName).AddOtlpExporter((_, reader) =>
+        metrics.AddAspNetCoreInstrumentation().AddMeter("System.Runtime").AddMeter(EditConflicts.MeterName).AddMeter(Snapshots.MeterName).AddOtlpExporter((_, reader) =>
             reader.PeriodicExportingMetricReaderOptions.ExportIntervalMilliseconds = 5000);
         if (consoleTelemetry) metrics.AddConsoleExporter();
     })
     .WithLogging(logging => logging.AddOtlpExporter());
+
+// The tests take snapshots when they want them.
+if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<SnapshotService>();
 
 var app = builder.Build();
 app.UseCors();

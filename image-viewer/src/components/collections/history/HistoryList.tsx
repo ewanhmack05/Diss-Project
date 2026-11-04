@@ -13,6 +13,8 @@ import { SAVED_PAGE_SIZE, clampPage } from '../../saved/paging'
 import { dayHeading, formatFullDate, formatTime } from '../../saved/savedDates'
 import ChangeIcon from './ChangeIcon'
 import HistoryDetail from './HistoryDetail'
+import ItemHistory from './ItemHistory'
+import type { Item } from './itemVersions'
 import { KIND_LABELS, byDay, changeKind, changeLabel, initials, wasPutBack, type ChangeKind, type ChangeSet } from './history'
 import useRestoreChangeSet from './useRestoreChangeSet'
 import './HistoryList.css'
@@ -35,6 +37,8 @@ function HistoryList({ collection }: { collection: Collection }) {
   const [order, setOrder] = useState<'newest' | 'oldest'>('newest')
   // A copy of the one opened, so it stays put while the list refetches.
   const [opened, setOpened] = useState<ChangeSet | null>(null)
+  // One row the opened change deleted, on its own timeline. Back lands on the change.
+  const [openedItem, setOpenedItem] = useState<Item | null>(null)
   const [restoring, setRestoring] = useState(false)
   // Whether the one opened has been put back since.
   const [putBack, setPutBack] = useState(false)
@@ -63,6 +67,10 @@ function HistoryList({ collection }: { collection: Collection }) {
   }))
   const filtered = activeFilterCount(filters) > 0
 
+  if (openedItem) {
+    return <ItemHistory item={openedItem} backLabel="Change" onBack={() => setOpenedItem(null)} onWentBack={() => setRestores((n) => n + 1)} />
+  }
+
   if (opened) {
     const putBackOpened = () => {
       setRestoring(true)
@@ -83,6 +91,12 @@ function HistoryList({ collection }: { collection: Collection }) {
         putBack={putBack}
         onRestore={putBackOpened}
         onBack={() => setOpened(null)}
+        onOpenItem={setOpenedItem}
+        onRolledBack={() => {
+          setOpened(null)
+          setPage(0)
+          setRestores((n) => n + 1)
+        }}
       />
     )
   }

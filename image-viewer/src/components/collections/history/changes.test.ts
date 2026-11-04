@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { changeLines, deletedLine, type ChangeSetChanges, type FieldChange } from './changes'
+import { changeLines, deletedLine, deletedMore, type ChangeSetChanges, type FieldChange } from './changes'
 
 const none: ChangeSetChanges = { changes: [], created: 0, deleted: 0, deletedNames: [], groups: {} }
 
@@ -118,6 +118,14 @@ describe('changeLines', () => {
 
   it('is nothing for a change that changed nothing', () => {
     expect(changeLines(none)).toEqual([])
+  })
+})
+
+describe('deletedMore', () => {
+  it('says how many past the ones it names, or nothing', () => {
+    expect(deletedMore({ ...none, deleted: 2140, deletedNames: ['a', 'b', 'c', 'd', 'e'] })).toBe('and 2,135 more')
+    expect(deletedMore({ ...none, deleted: 1, deletedNames: ['a'] })).toBeNull()
+    expect(deletedMore(none)).toBeNull()
   })
 })
 

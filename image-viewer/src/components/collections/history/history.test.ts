@@ -62,6 +62,13 @@ describe('changeLabel', () => {
   })
 })
 
+describe('changeLabel for going back on one row', () => {
+  it('says what was put back', () => {
+    expect(changeLabel({ what: 'restore annotation', deleted: 0 })).toBe('Put an annotation back')
+    expect(changeLabel({ what: 'restore cell count', deleted: 0 })).toBe('Put a cell count back')
+  })
+})
+
 describe('wasPutBack', () => {
   it('is a delete with nothing left deleted', () => {
     expect(wasPutBack({ what: 'delete annotations', deleted: 0 })).toBe(true)
@@ -155,6 +162,8 @@ describe('changeKind', () => {
     expect(changeKind('merge groups')).toBe('merge')
     expect(changeKind('import')).toBe('import')
     expect(changeKind('restore')).toBe('restore')
+    expect(changeKind('restore annotation')).toBe('restore')
+    expect(changeKind('restore cell count')).toBe('restore')
     expect(changeKind('something new')).toBe('change')
   })
 })
@@ -223,6 +232,20 @@ describe('restoredOps', () => {
 
   it("leaves the store's member count off a group, like a made one", () => {
     expect(restoredOps(restored)[0].data).toEqual({ id: 'g1', collectionId: 'c', name: 'g', notes: 'n', created: '' })
+  })
+
+  it("updates a changed count without dots, which would wipe the ones others have loaded", () => {
+    const ops = restoredOps({
+      counts: none,
+      annotations: [],
+      groups: [],
+      cellCounts: [],
+      imageAdjustments: [],
+      changedAnnotations: [],
+      changedCellCounts: [{ id: 'c2', label: 'back', dots: null } as Restored['cellCounts'][number]],
+    })
+
+    expect(ops).toEqual([{ kind: 'update', entity: 'cellCount', id: 'c2', data: { id: 'c2', label: 'back' } }])
   })
 
   it('sends nothing for nothing', () => {

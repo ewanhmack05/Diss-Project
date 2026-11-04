@@ -1,24 +1,16 @@
 import { useEffect, useState } from 'react'
 import { useAuthContext } from '../../../context/AuthContext'
 import { useAnnotationStoreContext } from '../../../context/AnnotationStoreContext'
-import Icon from '../../../icons/Icon'
-import arrowSvg from '../../../icons/arrow-right.svg?raw'
-import { changeLines, deletedLine, type ChangeSetChanges, type Shown } from './changes'
+import ChangeLineItem from './ChangeLines'
+import { changeLines, deletedLine, deletedMore, type ChangeSetChanges } from './changes'
+import { isItemEntity, type Item } from './itemVersions'
 
 type Loaded = { status: 'loading' } | { status: 'error' } | { status: 'ready'; result: ChangeSetChanges }
 
-function Value({ shown }: { shown: Shown }) {
-  return (
-    <span className={`history-change-value${shown.empty ? ' history-change-value--empty' : ''}`} title={shown.text}>
-      {shown.colour && <span className="history-swatch" style={{ background: shown.colour }} />}
-      {shown.text}
-    </span>
-  )
-}
-
 // What one change did - each field it changed, from and to, and what it
-// deleted by name. Loaded when the change is opened, not with the list.
-function ChangeList({ changeSetId }: { changeSetId: string }) {
+// deleted by name, each one that has a timeline opening it. Loaded when the
+// change is opened, not with the list.
+function ChangeList({ changeSetId, onOpenItem }: { changeSetId: string; onOpenItem?: (item: Item) => void }) {
   const { authFetch } = useAuthContext()
   const { baseUrl } = useAnnotationStoreContext()
   const [loaded, setLoaded] = useState<Loaded>({ status: 'loading' })
@@ -60,6 +52,11 @@ function ChangeList({ changeSetId }: { changeSetId: string }) {
   // annotation shouldn't name it on every field. Not with a delete, or the
   // rows it names would read as the ones deleted.
   const rows = !deleted && lines.length > 0 && lines.every((line) => line.rows === lines[0].rows) ? lines[0].rows : null
+  // Links in place of the names, when every row it names can be opened - a
+  // change's deleted rows are all one kind unless something's odd.
+  const named = loaded.result.deletedRows ?? []
+  const openable = named.every((row) => isItemEntity(row.entity)) ? named : []
+  const more = deletedMore(loaded.result)
 
   return (
     <section className="history-changes">
@@ -71,25 +68,27 @@ function ChangeList({ changeSetId }: { changeSetId: string }) {
             <div className="history-change-head">
               <span className="history-change-field">Deleted</span>
             </div>
-            <div className="history-change-values">{deleted}</div>
+            {onOpenItem && openable.length > 0 ? (
+              <div className="history-deleted-rows">
+                {openable.map(({ entity, id, name }) => (
+                  <button
+                    type="button"
+                    key={id}
+                    className="history-deleted-row"
+                    onClick={() => onOpenItem({ entity: entity as Item['entity'], id, name })}
+                  >
+                    {name || 'one with no name'}
+                  </button>
+                ))}
+                {more && <span className="history-deleted-more">{more}</span>}
+              </div>
+            ) : (
+              <div className="history-change-values">{deleted}</div>
+            )}
           </li>
         )}
         {lines.map((line, i) => (
-          <li key={i} className="history-change">
-            <div className="history-change-head">
-              <span className="history-change-field">{line.field}</span>
-              {!rows && <span className="history-change-rows">{line.rows}</span>}
-            </div>
-            <div className={`history-change-values history-change-values--${line.kind}`}>
-              <span className="history-change-froms">
-                {line.from.map((from, j) => (
-                  <Value key={j} shown={from} />
-                ))}
-              </span>
-              <Icon svg={arrowSvg} size={12} className="history-change-arrow" />
-              <Value shown={line.to} />
-            </div>
-          </li>
+          <ChangeLineItem key={i} line={line} rows={rows ? undefined : line.rows} />
         ))}
       </ul>
     </section>

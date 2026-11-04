@@ -346,6 +346,34 @@ namespace AnnotationStore.Migrations
                     b.ToTable("ChangeSets", "history");
                 });
 
+            modelBuilder.Entity("AnnotationStore.History.CollectionSnapshot", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<Guid>("CollectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("Created")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Rows")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<long>("UpToEntry")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollectionId", "UpToEntry");
+
+                    b.ToTable("Snapshots", "history");
+                });
+
             modelBuilder.Entity("AnnotationStore.History.HistoryEntry", b =>
                 {
                     b.Property<long>("Id")
@@ -483,6 +511,15 @@ namespace AnnotationStore.Migrations
                 });
 
             modelBuilder.Entity("AnnotationStore.History.ChangeSet", b =>
+                {
+                    b.HasOne("AnnotationStore.Collections.Collections", null)
+                        .WithMany()
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AnnotationStore.History.CollectionSnapshot", b =>
                 {
                     b.HasOne("AnnotationStore.Collections.Collections", null)
                         .WithMany()

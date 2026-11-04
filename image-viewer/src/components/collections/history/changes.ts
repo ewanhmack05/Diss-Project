@@ -20,6 +20,14 @@ interface ChangeSetChanges {
   deletedNames: (string | null)[]
   // Every group a GroupId in changes points at, by name.
   groups: Record<string, string>
+  // The same first few as deletedNames, with what they are, to open one.
+  deletedRows?: DeletedRow[]
+}
+
+interface DeletedRow {
+  entity: string
+  id: string
+  name: string | null
 }
 
 type ValueKind = 'text' | 'colour' | 'group' | 'other'
@@ -176,5 +184,11 @@ function deletedLine(result: ChangeSetChanges): string | null {
   return `${names.join(', ')} and ${number(more)} more`
 }
 
-export { changeLines, deletedLine }
-export type { ChangeSetChanges, ChangeLine, FieldChange, Shown }
+// "and 2,138 more", for what's past the rows it names - or nothing.
+function deletedMore(result: ChangeSetChanges): string | null {
+  const more = result.deleted - result.deletedNames.length
+  return more > 0 ? `and ${number(more)} more` : null
+}
+
+export { changeLines, deletedLine, deletedMore }
+export type { ChangeSetChanges, ChangeLine, DeletedRow, FieldChange, Shown }

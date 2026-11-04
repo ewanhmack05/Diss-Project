@@ -66,10 +66,28 @@ an afternoon, medium a few days, large a week or more.
   live. The restore answers with the rows it put back, so nothing loads
   again. See
   [image-viewer.md](breakdown/image-viewer.md#history---putting-deletes-back)
+- **One row's timeline and going back on it** (version control steps 4 and 5,
+  the rest of them) - History on a Saved row lists everything that's happened
+  to that annotation or count, each change from and to. Editors can put it how
+  it was at any point, which undoes everything since, whoever did it, and is a
+  change of its own. A page first says what would change. If someone's changed
+  it since you opened it, it's turned down rather than undoing what you haven't
+  seen. A deleted row can come back on its own too, from its name on the change
+  that deleted it. See
+  [version-control.md](breakdown/version-control.md#going-back-on-one-row)
+
+- **Snapshots and putting a whole collection back** (version control steps 3
+  and 5) - a change opened in the History tab can put the whole collection back
+  to how it was just after it: rows added since are taken out, rows deleted
+  since come back, and everything else goes back, whoever changed it. It's a
+  change of its own, so it can be gone back on. A snapshot of what can change is
+  taken every 5,000 entries, so working that out only has to undo what's since
+  the nearest one. Everyone else's viewer loads the collection again. See
+  [version-control.md](breakdown/version-control.md#putting-a-whole-collection-back)
 
 ## 1. Version control
 
-Steps 1 and 2 are done in the store (see Done): every write is in a change
+Steps 1 to 6 are done (see Done): every write is in a change
 set that says who did what, and the history schema keeps what each change
 did to every row, before and after. How it's built, across the services, is
 in [version-control.md](breakdown/version-control.md). Edits are still last
@@ -85,9 +103,9 @@ Each one builds on the one before.
 | --- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | 1   | ~~Soft delete~~                                   | Done, then replaced by step 2 - deleted rows are kept in the history now, not hidden in the live tables                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | medium |
 | 2   | History log                                       | Done in the store - `history.Entries`, one row per row a change touched, under its change set. This is the "user log" too - who did what is in it, so it doesn't need a store of its own. The History tab's detail page shows each changed field from and to (label, notes, colour as swatches, groups by name, "10 annotations" for a bulk recolour). One edit is one History row too - an open edit form sends one `Change-Set-Id` with every autosave, and the store folds repeat updates to a row in one change set into one entry, from how it was when the form opened to how it was when it closed | large  |
-| 3   | Periodic snapshots                                | The whole collection's state saved every so often, so rolling back far doesn't mean replaying every change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | medium |
-| 4   | Viewing history                                   | Mostly done - the collection's timeline is the History tab, with put back, and each change shows what it changed, from and to. Still to do: a timeline per annotation or count in its Saved row - every entry for that row, which the history now has                                                                                                                                                                                                                                                                                                                                                     | medium |
-| 5   | Rollback                                          | Mostly done for a whole change set - putting it back brings back what it deleted and undoes what it changed, unless someone's changed it since, sent live. Still to do: one item back to an earlier point                                                                                                                                                                                                                                                                                                                                                                                                 | medium |
+| 3   | ~~Periodic snapshots~~                            | Done - a snapshot of what can change, every 5,000 entries, so a whole collection can go back to any change. See [version-control.md](breakdown/version-control.md#putting-a-whole-collection-back) | medium |
+| 4   | ~~Viewing history~~                               | Done - the collection's timeline is the History tab, with put back, and each change shows what it changed, from and to. Every annotation and count has a timeline of its own, from History on its Saved row | medium |
+| 5   | ~~Rollback~~                                      | Done at all three sizes - a change set (unless someone's changed it since), one row to any point on its timeline, and a whole collection to any change | medium |
 | 6   | ~~Policy for two or more people editing at once~~ | Done - labels and notes merge (Yjs); colour, group and a group's name and notes are last write wins or first come wins, picked per session; locking is for the write-up. Checked per field, from the value a save started from. See [version-control.md](breakdown/version-control.md#8-two-people-changing-the-same-thing)                                                                                                                                                                                                                                                                               | large  |
 | 7   | Evaluate it                                       | See [Evaluation](#2-evaluation). `simulate_conflicts.py` and the dashboard's Edits row are there to measure step 6                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | large  |
 
@@ -120,6 +138,11 @@ Each one builds on the one before.
   save, not a trigger, which keeps who did it and the change set id without
   extra work. A separate history service with its own database was ruled
   out - see [version-control.md](breakdown/version-control.md#why-not-a-separate-service).
+- **Who can put a whole collection back.** Any editor for now, the same as
+  putting a change back, though it undoes far more. It's one check each side if
+  it should be the host only: `canRollBack` in the viewer's
+  `collections/history/rollback.ts` and the Editor check on
+  `POST /changesets/{id}/rollback` in `History/CollectionRollback.cs`.
 - **Soft delete knock-ons.** Gone with soft delete - deleted rows are in
   the history, and a deleted group comes back with what was in it. Still
   open: a purge rule (nothing is purged now).
@@ -210,7 +233,7 @@ Guests are done (see Done). Still open:
 - Typed names bring back the ethics question of people putting in real
   names, even unsaved - needs a line in the write up
 - Is the default editor cap right? Hosts pick their own now, starting from
-  index.tsx's `maxEditors` (40 at the moment) - what they pick, saved as
+  index.tsx's `maxEditors` (6 at the moment) - what they pick, saved as
   `MaxEditors` on each session, is the data to measure it with
 
 ## 4. Viewport boxes - what's left
@@ -265,3 +288,7 @@ The per-person on/off is done (see Done). Still open:
 - Is NHS ethical approval needed? Ask early - it takes a long time
 
 ## Suggested order
+
+1. **Evaluation** (section 2) - the conflict comparison, rollback and history
+   cost, and latency
+2. **Reading list** for [background.md](background.md), alongside the others

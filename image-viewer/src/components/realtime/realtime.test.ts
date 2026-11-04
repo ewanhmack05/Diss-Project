@@ -20,7 +20,22 @@ import {
   viewportRing,
   watchView,
   type Participant,
+  rollbackOp,
+  isRollbackOp,
 } from './realtime'
+
+describe('rollbackOp', () => {
+  it('is a collection nudge that says the whole thing wants loading again', () => {
+    const op = rollbackOp('c1')
+    expect(op).toEqual({ kind: 'update', entity: 'collection', id: 'c1', data: { rolledBack: true } })
+    expect(isRollbackOp(op)).toBe(true)
+  })
+
+  it('is not any other nudge, or a change to a row', () => {
+    expect(isRollbackOp({ kind: 'update', entity: 'collection', id: 'c1' })).toBe(false)
+    expect(isRollbackOp({ kind: 'update', entity: 'annotation', id: 'a1', data: { rolledBack: true } })).toBe(false)
+  })
+})
 
 describe('applyOp', () => {
   const items = [

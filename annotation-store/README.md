@@ -218,11 +218,12 @@ it holds everything in it. Nothing in the history is purged.
   changes and how many, and how many of each kind, for the filter popout
 - `GET /changesets/{id}/changes` - what one change set did, for the
   History tab's detail page: `{ changes, created, deleted, deletedNames,
-  groups }`. `changes` is every column it changed, grouped - `{ entity,
+  groups, deletedRows }`. `changes` is every column it changed, grouped - `{ entity,
   column, before, after, count, names }`, so a recolour of 48 annotations
   from red to blue is one, with the first 5 rows' names (null for one
-  that's gone since). `deletedNames` names the first 5 rows it deleted, and
-  `groups` names every group a `GroupId` in `changes` points at, gone ones
+  that's gone since). `deletedNames` names the first 5 rows it deleted,
+  `deletedRows` is the same 5 as `{ entity, id, name }` so one can be opened,
+  and `groups` names every group a `GroupId` in `changes` points at, gone ones
   included. Only reads the update entries and the names out of the deletes,
   never a deleted row's whole copy. Same access as the list
 - `GET /changesets/total?collectionId=` - how many change sets the
@@ -235,13 +236,51 @@ it holds everything in it. Nothing in the history is purged.
   anyone's change set - except a deleted collection, which only its owner
   can bring back (and not while they've a newer personal one for that slide
   - 409). Answers `{ counts, annotations, groups, cellCounts,
-  imageAdjustments, changedAnnotations }`: `counts` is `{ annotations,
+  imageAdjustments, changedAnnotations, changedCellCounts }`: `counts` is `{ annotations,
   groups, cellCounts, imageAdjustments, collection }`, how many of each came
   back, the lists are the rows that came back as the reads give them -
   groups with their member `count`, cell counts as the Saved list has them
-  (no `dots`) - and `changedAnnotations` are ones that were already there
-  and went back how they were. Restoring again answers zeros and empty
-  lists
+  (no `dots`) - and `changedAnnotations` and `changedCellCounts` are ones
+  that were already there and went back how they were. Restoring again
+  answers zeros and empty lists
+- `GET /annotations/{id}/history?collectionId=&skip=&take=`, and the same on
+  `/cellcounts/{id}/history` - one row's timeline, newest first: `{ versions,
+  total, latest, groups }`. Each version is `{ id, changeSetId, userId,
+  userName, what, created, op, changes }`, `op` being `create`, `update` or
+  `delete`, and `changes` the columns an update changed, in the same shape as
+  above. A delete's whole copy is never sent. `latest` is the newest entry.
+  Same access as the change set list, guests too
+- `GET /annotations/{id}/history/{entryId}`, and on `/cellcounts` - what going
+  back to that entry would do, changing nothing: `{ gone, changes, groups,
+  groupGone, latest }`. `gone` means it's deleted now, so `changes` is what
+  it'd come back as. `groupGone` names the group it was in, if that's gone
+  since. 409 if the history doesn't say how it was. Same access
+- `POST /annotations/{id}/history/{entryId}/restore?latest=`, and on
+  `/cellcounts` - puts the row how it was just after that entry, undoing every
+  change to it since, whoever made them. On a delete entry, that's how it was
+  when it was deleted. A row that's deleted comes back, a count with its dots
+  and region of interest. Its own change set (`restore annotation`,
+  `restore cell count`), so it can be gone back on as well. Answers the same as
+  a change set's restore. If it's already so, zeros and no change set.
+  `latest` is the newest entry the person saw: if there's a newer one it's a
+  409 and nothing changes, whatever the session's edit policy. Left out, not
+  checked. Editors only (403 for a viewer, 404 for someone not in it or an
+  entry that isn't this row's, 409 for an ended session)
+- `GET /changesets/{id}/rollback` - what putting the whole collection back to
+  just after that change would do, changing nothing: `{ annotations, groups,
+  cellCounts, latest, entriesWalked, fromSnapshot }`. The first three are `{
+  back, changed, gone }`, how many of each kind come back, go back how they
+  were and are taken out. `latest` is the collection's newest entry.
+  `entriesWalked` and `fromSnapshot` say what it took to work out, and
+  `snapshots=false` works it out without a snapshot, for timing the two. Same
+  access as the change set list, guests too. 409 if the change recorded nothing
+- `POST /changesets/{id}/rollback?latest=` - does it, as its own change set
+  (`restore collection`), in one transaction. Answers the same counts, not the
+  rows - there can be too many, so the viewer loads them again. Image adjustments
+  stay as they are. If it's already so, zeros and no change set. `latest` is the
+  newest entry the person saw: if there's a newer one it's a 409 and nothing
+  changes, whatever the session's edit policy. Left out, not checked. Editors
+  only (403 for a viewer, 404 for someone not in it, 409 for an ended session)
 
 - `GET /annotations?collectionId=` - every annotation in the collection,
   newest first. What the map loads
@@ -320,80 +359,431 @@ ties, so no row turns up on two pages.
 
 ## Schema
 
-`Annotations/Annotation.cs`:
+Everything is in one Postgres database. The tables in the `public` schema only
+hold what's there now, and the `history` schema holds everything that happened.
+Only this service reads or writes either - everyone else goes through the API.
 
-| field           | type          | notes                                                                                               |
-| --------------- | ------------- | --------------------------------------------------------------------------------------------------- |
-| `Id`            | uuid, PK      | client-generated (matches `image-viewer`'s `crypto.randomUUID()`) if provided, else server-assigned |
-| `SlideId`       | text, indexed | which slide this annotation belongs to                                                              |
-| `Label`         | text          |                                                                                                     |
-| `Notes`         | text          |                                                                                                     |
-| `Colour`        | text          |                                                                                                     |
-| `Shape`         | text          | `line` / `freehand` / `polygon` / `arrow` / `rectangle` / `circle`                                  |
-| `LineStyle`     | text          | `solid` / `dashed`                                                                                  |
-| `LineThickness` | int           |                                                                                                     |
-| `GeoJson`       | text          | the drawn feature, as written by `image-viewer`'s `featureToGeoJson` - coordinates to a tenth, rounded on save if not |
-| `GroupId`       | uuid, null    | the `AnnotationGroup` it's in, if any - always one in the same collection                           |
-| `Created`       | timestamptz   | server-assigned                                                                                     |
+Everything hangs off `Collections`, so removing a collection's row would remove
+everything in it, history included (a cascading foreign key). The API never does
+that - deleting a collection only sets `Deleted`, which hides it, so its owner can
+bring it back.
 
-`CellCounts/CellCount.cs` - a user-placed dot marker for manually counting
-cells (e.g. mitotic figures) within a region:
+Each line on the diagram is a foreign key, and says which column points at which:
+`Annotations(GroupId) -> AnnotationGroups(Id)`.
 
-| field            | type          | notes                                                         |
-| ---------------- | ------------- | ------------------------------------------------------------- |
-| `Id`             | uuid, PK      | server-assigned if omitted, same convention as `Annotation`   |
-| `SlideId`        | text, indexed | which slide this count belongs to                             |
-| `Label`          | text          |                                                               |
-| `Notes`          | text          |                                                               |
-| `Dots`           | text          | JSON array of `{x, y, colour}`, one per dot placed - lets the viewer redraw the tally (and derive a colour breakdown for its saved-list swatch) instead of just zooming to it |
-| `WithAnnotation` | bool          | tied to a specific drawn annotation, rather than freestanding |
-| `WithRoi`        | bool          | scoped to a region of interest                                |
-| `Count`          | int           | the running tally                                             |
-| `DotSize`        | int           | marker size for the placed dots                               |
-| `LocationX`      | double, null  | where the count was taken (slide pixel space), fixed at creation - null for a count with no recorded location |
-| `LocationY`      | double, null  | see `LocationX`                                                |
-| `Created`        | timestamptz   | server-assigned                                               |
+Some things point outside the database, so they aren't foreign keys:
 
-Collections also have `Deleted` (timestamptz, null) - set when it's
-deleted, never in JSON. Nothing else has: a deleted row is only in the
-history.
+- **`SlideId`** is the tiler's id for a slide file.
+- **`UserId`, `CreatedById`** and similar are Keycloak ids, from the token. Names
+  are copied in when the row's written, so a list doesn't have to ask Keycloak and
+  history says what someone was called then. Guests are view only, so they're never
+  in these.
+- **`history.Entries.EntityId`** is the row it's about, which may be gone.
 
-The `history` schema, in `History/ChangeSet.cs`. `history.ChangeSets` is one
-change, like a commit:
+`Set by` says where a value comes from: `client` is in the request, `server` is
+the store, and anything the store sets is ignored if a client sends it. See
+[How the history works](../docs/breakdown/version-control.md) for the `history`
+schema in full.
 
-| field          | type        | notes                                                  |
-| -------------- | ----------- | ------------------------------------------------------ |
-| `Id`           | uuid, PK    | from the `Change-Set-Id` header, or server-assigned    |
-| `CollectionId` | uuid        | the collection it changed - indexed with `Created`     |
-| `UserId`       | text        | who, from the token                                    |
-| `UserName`     | text        | their name then                                        |
-| `What`         | text        | what the first request in it did, e.g. `delete annotations` |
-| `Created`      | timestamptz | server-assigned                                        |
+Written by `python scripts/db_docs.py` from the migrations and
+[schema-notes.json](schema-notes.json), so change the notes there, not here. A test
+fails if this falls behind the schema.
 
-`history.Entries` is what one change did to one row:
+<!-- schema:start - written by scripts/db_docs.py, don't edit by hand -->
 
-| field          | type          | notes                                                  |
-| -------------- | ------------- | ------------------------------------------------------ |
-| `Id`           | bigint, PK    | identity - the order they happened in                  |
-| `ChangeSetId`  | uuid, indexed | the change it's part of                                |
-| `CollectionId` | uuid          | indexed with `Entity` and `EntityId`, for one row's history |
-| `Entity`       | text          | `annotation`, `group`, `cellCount`, `regionOfInterest`, `imageAdjustment` or `collection` |
-| `EntityId`     | uuid          | the row's id                                           |
-| `Op`           | text          | `Create`, `Update` or `Delete`                         |
-| `Before`       | jsonb, null   | a delete: the whole row. An update: the columns it changed, as they were |
-| `After`        | jsonb, null   | an update: the same columns, as they became. A group's delete in a merge: `{ "MergedInto": id }` |
+```mermaid
+erDiagram
 
-Column names as they are in the table, so a row's `Before` is the same as
-Postgres' `to_jsonb` of it. A create keeps nothing - the live row has it, or
-a later delete's `Before` does.
+    AnnotationGroups {
+        Id uuid PK "not null"
+        CollectionId uuid FK "not null"
+        Name text "not null"
+        Notes text "not null"
+        Created timestamp_with_time_zone "not null"
+    }
 
-`Annotations/AnnotationGroup.cs` - a named set of annotations in one
-collection:
+    Annotations {
+        Id uuid PK "not null"
+        CollectionId uuid FK "not null"
+        GroupId uuid FK "null"
+        LineThickness integer "not null"
+        Colour text "not null"
+        CreatedById text "not null"
+        CreatedByName text "not null"
+        GeoJson text "not null"
+        Label text "not null"
+        LineStyle text "not null"
+        Notes text "not null"
+        Shape text "not null"
+        SlideId text "not null"
+        Created timestamp_with_time_zone "not null"
+    }
 
-| field          | type     | notes                                             |
-| -------------- | -------- | ------------------------------------------------- |
-| `Id`           | uuid, PK | server-assigned                                   |
-| `CollectionId` | uuid     | which collection it's in                          |
-| `Name`         | text     | up to 64 characters                               |
-| `Notes`        | text     | up to 10,000 characters                           |
-| `Created`      | timestamptz | server-assigned                                |
+    CellCounts {
+        Id uuid PK "not null"
+        CollectionId uuid FK "not null"
+        WithAnnotation boolean "not null"
+        WithRoi boolean "not null"
+        Count integer "not null"
+        DotSize integer "not null"
+        CreatedById text "not null"
+        CreatedByName text "not null"
+        Dots text "not null"
+        Label text "not null"
+        Notes text "not null"
+        SlideId text "not null"
+        Created timestamp_with_time_zone "not null"
+        LocationX double_precision "null"
+        LocationY double_precision "null"
+        ColourCountsJson text "null"
+        PlacedByCountsJson text "null"
+    }
+
+    CollectionInvites {
+        Code text PK "not null"
+        CollectionId uuid FK "not null"
+        CreatedById text "not null"
+        Role text "not null"
+        Created timestamp_with_time_zone "not null"
+        Expires timestamp_with_time_zone "not null"
+        Stopped timestamp_with_time_zone "null"
+    }
+
+    CollectionMembers {
+        CollectionId uuid PK, FK "not null"
+        UserId text PK "not null"
+        DisplayName text "not null"
+        Role text "not null"
+        Added timestamp_with_time_zone "not null"
+    }
+
+    Collections {
+        CollectionId uuid PK "not null"
+        Shared boolean "not null"
+        MaxEditors integer "not null"
+        CollectionName text "not null"
+        EditPolicy text "not null"
+        Kind text "not null"
+        SlideId text "not null"
+        UserId text "not null"
+        Created timestamp_with_time_zone "not null"
+        Deleted timestamp_with_time_zone "null"
+        Ended timestamp_with_time_zone "null"
+    }
+
+    "history.ChangeSets" {
+        Id uuid PK "not null"
+        CollectionId uuid FK "not null"
+        UserId text "not null"
+        UserName text "not null"
+        What text "not null"
+        Created timestamp_with_time_zone "not null"
+    }
+
+    "history.Entries" {
+        Id bigint PK "not null"
+        ChangeSetId uuid FK "not null"
+        Entity text "not null"
+        Op text "not null"
+        CollectionId uuid "not null"
+        EntityId uuid "not null"
+        After jsonb "null"
+        Before jsonb "null"
+    }
+
+    "history.Snapshots" {
+        Id bigint PK "not null"
+        CollectionId uuid FK "not null"
+        UpToEntry bigint "not null"
+        Rows jsonb "not null"
+        Created timestamp_with_time_zone "not null"
+    }
+
+    ImageAdjustments {
+        ImageAdjustmentId uuid PK "not null"
+        CollectionId uuid FK "not null"
+        AdjustmentName text "not null"
+        Adjustments text "not null"
+        SlideId text "not null"
+        UserId text "not null"
+        Created timestamp_with_time_zone "not null"
+    }
+
+    RegionsOfInterest {
+        Id uuid PK "not null"
+        CellCountId uuid FK "not null"
+        GeoJson text "not null"
+        Created timestamp_with_time_zone "not null"
+    }
+
+    AnnotationGroups |o--o{ Annotations : "Annotations(GroupId) -> AnnotationGroups(Id)"
+    CellCounts ||--o| RegionsOfInterest : "RegionsOfInterest(CellCountId) -> CellCounts(Id)"
+    Collections ||--o{ AnnotationGroups : "AnnotationGroups(CollectionId) -> Collections(CollectionId)"
+    Collections ||--o{ Annotations : "Annotations(CollectionId) -> Collections(CollectionId)"
+    Collections ||--o{ CellCounts : "CellCounts(CollectionId) -> Collections(CollectionId)"
+    Collections ||--o{ CollectionInvites : "CollectionInvites(CollectionId) -> Collections(CollectionId)"
+    Collections ||--o{ CollectionMembers : "CollectionMembers(CollectionId) -> Collections(CollectionId)"
+    Collections ||--o{ "history.ChangeSets" : "history.ChangeSets(CollectionId) -> Collections(CollectionId)"
+    Collections ||--o{ "history.Snapshots" : "history.Snapshots(CollectionId) -> Collections(CollectionId)"
+    Collections ||--o{ ImageAdjustments : "ImageAdjustments(CollectionId) -> Collections(CollectionId)"
+    "history.ChangeSets" ||--o{ "history.Entries" : "history.Entries(ChangeSetId) -> history.ChangeSets(Id)"
+```
+
+### Reading the diagram and tables
+
+The diagram puts underscores in a type with spaces, since it can't draw them otherwise.
+
+| Type | What it is |
+|---|---|
+| `uuid` | A 128-bit random id, like `33afa424-ed8b-4489-ab20-ee917f31880c`. Used for most ids, since the viewer can make one itself before saving |
+| `bigint` | A 64-bit whole number. Used where ids count up, so their order means something |
+| `integer` | A 32-bit whole number |
+| `double precision` | A 64-bit decimal number |
+| `boolean` | True or false |
+| `text` | A string of any length. Also holds some JSON that's only stored and handed back, like `GeoJson` and `Dots` |
+| `jsonb` | JSON that Postgres has parsed, so the database can read inside it. Used by the history, which pulls fields out of it in SQL |
+| `timestamp with time zone` | A moment in time, kept in UTC. Postgres also calls it `timestamptz` |
+
+| Term | What it means |
+|---|---|
+| PK | Primary key - what identifies a row. Two together, as on `CollectionMembers`, means the pair is what's unique |
+| FK | Foreign key - a column pointing at another table's row. The database won't let it point at one that isn't there |
+| PK, FK | Both - part of what identifies the row, and pointing at another table |
+| not null / null | Whether a column has to have a value, or can be empty |
+| Index | A lookup kept by the database, so finding rows by that column doesn't read the whole table |
+| Unique index | An index that also refuses two rows with the same value |
+| Set by | Where a value comes from: `client` is in the request, `server` is the store, `host` or `owner` is that person choosing it through the API |
+
+| Line end | How many rows of the table it's next to |
+|---|---|
+| Two bars | Exactly one |
+| A bar and a circle | Zero or one |
+| A circle and three prongs | Zero or more |
+
+### Collections
+
+A workspace for one slide, and what everything else hangs off. `Kind` says which sort: `Personal` is one person's own for that slide, made the first time they open it, and `Session` is one people work in together. Deleting one only sets `Deleted`, since it holds everything in it, and its owner can bring it back.
+
+**To make one:** `POST /collections/ensure` with `slideId` gets your personal one, making it if needed. `POST /sessions` with `slideId` starts a session, and can take its name, `maxEditors` and `editPolicy`.
+
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `CollectionId` | uuid | PK | server | The id everything in it points at |
+| `Shared` | boolean |  | owner | Personal only. On, anyone signed in can look at it, read only |
+| `MaxEditors` | integer |  | host | Sessions only. How many editors an edit link lets in before anyone else joins view only |
+| `CollectionName` | text |  | client or server | What it's called in the Collections panel. Sent when a session starts, otherwise made from your name. Can be renamed |
+| `EditPolicy` | text |  | host | `LastWriteWins` or `FirstComeWins` - what happens when two people change the same thing. A personal one stays `LastWriteWins` |
+| `Kind` | text |  | server | `Personal` or `Session` |
+| `SlideId` | text |  | client | The tiler's id for the slide. Not a foreign key - slides are files, not rows |
+| `UserId` | text |  | server | The owner's Keycloak id, from their token. For a session, the host. They're in `CollectionMembers` as well |
+| `Created` | timestamp with time zone |  | server |  |
+| `Deleted` | timestamp with time zone, null |  | server | Set when it's deleted, so it's hidden. Never sent or taken over JSON |
+| `Ended` | timestamp with time zone, null |  | host | Sessions only. Once set it's read only for everyone and its links stop working |
+
+- Unique index on `SlideId, UserId` where `"Kind" = 'Personal' AND "Deleted" IS NULL`
+
+### CollectionMembers
+
+Who's in a collection and as what. One row per person per collection, and what every access check reads.
+
+**To make one:** Accepting an invite with `POST /invites/{code}/accept` adds you. The owner gets a row when the collection's made.
+
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `CollectionId` | uuid | PK, FK | server | Half of the key |
+| `UserId` | text | PK | server | Their Keycloak id. The other half of the key |
+| `DisplayName` | text |  | server | Their name then, from their token, so the panel can list people without asking Keycloak |
+| `Role` | text |  | server, host can change | `Viewer`, `Editor` or `Owner` |
+| `Added` | timestamp with time zone |  | server |  |
+
+- Index on `UserId`
+- `CollectionId` points at `Collections.CollectionId`. Deleted with it
+
+### CollectionInvites
+
+A link or code that lets someone into a collection, as a set role, until it runs out or is stopped.
+
+**To make one:** `POST /collections/{id}/invites` with the `role` and how many hours it lasts. The store makes the code.
+
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `Code` | text | PK | server | What's in the link, and the key |
+| `CollectionId` | uuid | FK | server | From the URL |
+| `CreatedById` | text |  | server | Who made it, from their token |
+| `Role` | text |  | client | What joining with it makes you. An edit link past `MaxEditors` lets you in view only |
+| `Created` | timestamp with time zone |  | server |  |
+| `Expires` | timestamp with time zone |  | server | Now plus the hours asked for, up to a week |
+| `Stopped` | timestamp with time zone, null |  | server | Set when it's stopped early, so it stops working |
+
+- Index on `CollectionId`
+- `CollectionId` points at `Collections.CollectionId`. Deleted with it
+
+### AnnotationGroups
+
+A named set of annotations in one collection. One level only, and an annotation is in at most one. Deleting a group leaves what's in it, just ungrouped.
+
+**To make one:** `POST /annotationgroups` with `collectionId` and `name`, and optionally the annotation `ids` to put in it. Editors only.
+
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `Id` | uuid | PK | server |  |
+| `CollectionId` | uuid | FK | client | Which collection it's in |
+| `Name` | text |  | client | Up to 64 characters |
+| `Notes` | text |  | client | Up to 10,000 characters |
+| `Created` | timestamp with time zone |  | server |  |
+
+- Index on `CollectionId`
+- `CollectionId` points at `Collections.CollectionId`. Deleted with it
+
+### Annotations
+
+One shape someone drew on a slide. The shape itself is fixed once saved - only the label, notes, colour and group can change. Going back through history only ever touches those four.
+
+**To make one:** `POST /annotations` with `collectionId`, `label`, `colour`, `shape`, `lineStyle`, `lineThickness` and `geoJson`. Editors only. `notes` and `groupId` are optional, and the group has to be in the same collection. `id` is optional too - the viewer sends its own, so it can draw the shape before the save comes back.
+
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `Id` | uuid | PK | client or server | Made by the store if it's left out |
+| `CollectionId` | uuid | FK | client | Which collection it's in |
+| `GroupId` | uuid, null | FK | client | The group it's in, if any. Can change. Goes to null if the group's deleted |
+| `LineThickness` | integer |  | client | In pixels |
+| `Colour` | text |  | client | Hex. Can change |
+| `CreatedById` | text |  | server | Who drew it, from their token |
+| `CreatedByName` | text |  | server | Their name then |
+| `GeoJson` | text |  | client | The drawn feature, in slide pixels, coordinates rounded to a tenth on save. Fixed once saved |
+| `Label` | text |  | client | Can change. Merged live with Yjs while it's being edited |
+| `LineStyle` | text |  | client | `solid` or `dashed` |
+| `Notes` | text |  | client | Can change. Merged live with Yjs while it's being edited |
+| `Shape` | text |  | client | `line`, `freehand`, `polygon`, `arrow`, `rectangle` or `circle`. The viewer can't show anything else, and the store doesn't check |
+| `SlideId` | text |  | server | Copied from the collection, never taken from the client |
+| `Created` | timestamp with time zone |  | server |  |
+
+- Index on `CollectionId`
+- Index on `GroupId`
+- Index on `SlideId`
+- `CollectionId` points at `Collections.CollectionId`. Deleted with it
+- `GroupId` points at `AnnotationGroups.Id`. Goes to null if that's deleted
+
+### CellCounts
+
+A manual count of cells, such as mitotic figures: every dot placed, and the tally. The dots can run to tens of megabytes, so the Saved list gets `ColourCountsJson` and `PlacedByCountsJson` instead, and only `GET /cellcounts/{id}` sends the dots.
+
+**To make one:** `POST /cellcounts` with `collectionId`, `label`, `dots` and `count`, and `regionOfInterest` if it was counted in a box. Editors only. Up to 80MB, about a million dots.
+
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `Id` | uuid | PK | client or server | Made by the store if it's left out |
+| `CollectionId` | uuid | FK | client | Which collection it's in |
+| `WithAnnotation` | boolean |  | client | Whether clicks placed dots, or only counted |
+| `WithRoi` | boolean |  | client | Whether it was counted inside a region of interest |
+| `Count` | integer |  | client | The tally. Can be more than the dots, since a click with `WithAnnotation` off counts without placing one |
+| `DotSize` | integer |  | client | Marker size on the map |
+| `CreatedById` | text |  | server | Who saved it, the host for a shared count |
+| `CreatedByName` | text |  | server | Their name then |
+| `Dots` | text |  | client | JSON array of `{x, y, colour}`, in slide pixels, with `placedBy` on a shared count. Fixed once saved |
+| `Label` | text |  | client | Can change |
+| `Notes` | text |  | client | Can change |
+| `SlideId` | text |  | server | Copied from the collection |
+| `Created` | timestamp with time zone |  | server |  |
+| `LocationX` | double precision, null |  | client | Where it was counted, for going back there. Null for a count with no location |
+| `LocationY` | double precision, null |  | client | See `LocationX` |
+| `ColourCountsJson` | text, null |  | server | How many dots of each colour, worked out from `Dots`. Null on rows older than this column until they're first listed. Not a change anyone made, so not in the history |
+| `PlacedByCountsJson` | text, null |  | server | How many dots each person placed, the same way as `ColourCountsJson` |
+
+- Index on `CollectionId`
+- Index on `SlideId`
+- `CollectionId` points at `Collections.CollectionId`. Deleted with it
+
+### RegionsOfInterest
+
+The box a cell count was taken inside. At most one per count, and it's fixed once saved. It goes when its count goes, and comes back with it.
+
+**To make one:** Sent inside the cell count, as `regionOfInterest` with `geoJson`. There's no endpoint of its own.
+
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `Id` | uuid | PK | client or server |  |
+| `CellCountId` | uuid | FK | server | Its count. The unique index is what makes it one to one |
+| `GeoJson` | text |  | client | The box, rounded the same way as an annotation's |
+| `Created` | timestamp with time zone |  | server | The same as its count's |
+
+- Unique index on `CellCountId`
+- `CellCountId` points at `CellCounts.Id`. Deleted with it
+
+### ImageAdjustments
+
+A saved preset of brightness, contrast, gamma and colour. Personal, so the viewer keeps them in your own collection whichever one you're working in, and putting a whole collection back leaves them alone.
+
+**To make one:** `POST /imageadjustments` with `collectionId`, `adjustmentName` and `adjustments`. Editors only.
+
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `ImageAdjustmentId` | uuid | PK | client or server | Made by the store if it's left out |
+| `CollectionId` | uuid | FK | client | Which collection it's in |
+| `AdjustmentName` | text |  | client | What it's called in the list |
+| `Adjustments` | text |  | client | The settings, as JSON text |
+| `SlideId` | text |  | server | Copied from the collection |
+| `UserId` | text |  | server | Who saved it, from their token |
+| `Created` | timestamp with time zone |  | server |  |
+
+- Index on `CollectionId`
+- Index on `SlideId`
+- `CollectionId` points at `Collections.CollectionId`. Deleted with it
+
+### history.ChangeSets
+
+One change someone made, like a commit - a single save, or a 21,000 row delete sent in batches under one id. Nothing can change a versioned row outside one.
+
+**To make one:** Made by any write. Send a `Change-Set-Id` header to choose the id, so several requests count as one change. Left out, the write gets its own. An id already used by someone else or in another collection is a 400.
+
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `Id` | uuid | PK | client or server | From the `Change-Set-Id` header, or made by the store |
+| `CollectionId` | uuid | FK | server | The collection it changed |
+| `UserId` | text |  | server | Who made it, from their token |
+| `UserName` | text |  | server | Their name then |
+| `What` | text |  | server | What the first request in it did, such as `delete annotations` or `restore collection` |
+| `Created` | timestamp with time zone |  | server |  |
+
+- Index on `CollectionId, Created`
+- `CollectionId` points at `Collections.CollectionId`. Deleted with it
+
+### history.Entries
+
+What one change did to one row, and the only place anything that was there is kept. A delete keeps the whole row in `Before`. An update keeps only the columns it changed, before and after. A create keeps nothing, since the live row has it, or a later delete's `Before` will. Column names are as they are in the table, so `Before` is the same as Postgres' `to_jsonb` of the row.
+
+**To make one:** Never by hand. `HistoryLog` writes them with every save, in the same transaction, from what EF is about to change. Bulk changes go through `AnnotationBulk`, which writes its own with one `COPY`.
+
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `Id` | bigint | PK | server | Identity, so it's the order they were written in. Handed out before a save commits, so a higher one can be visible before a lower one |
+| `ChangeSetId` | uuid | FK | server | The change it's part of |
+| `Entity` | text |  | server | `annotation`, `group`, `cellCount`, `regionOfInterest`, `imageAdjustment` or `collection` |
+| `Op` | text |  | server | `Create`, `Update` or `Delete` |
+| `CollectionId` | uuid |  | server | Copied from the change set, for reading one row's history. Not a foreign key of its own |
+| `EntityId` | uuid |  | server | The row it's about. Not a foreign key, since that row may be gone |
+| `After` | jsonb, null |  | server | An update: the same columns, as they became. A group's delete in a merge: `{ "MergedInto": id }` |
+| `Before` | jsonb, null |  | server | A delete: the whole row. An update: the columns it changed, as they were |
+
+- Index on `ChangeSetId`
+- Index on `CollectionId, Entity, EntityId`
+- `ChangeSetId` points at `history.ChangeSets.Id`. Deleted with it
+
+### history.Snapshots
+
+What can change in a whole collection at one moment, so putting it back doesn't have to undo everything since. Shapes and dots are left out, since they never change: for 20,000 annotations it's 820KB against 25MB of whole rows. Only a shortcut - going back works without one.
+
+**To make one:** Never by hand. `SnapshotService` checks every 30 seconds for collections with 5,000 entries since their last one.
+
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `Id` | bigint | PK | server |  |
+| `CollectionId` | uuid | FK | server | The collection it's of |
+| `UpToEntry` | bigint |  | server | The last entry that's in it. Not a foreign key |
+| `Rows` | jsonb |  | server | Kind of row to row id to column to value |
+| `Created` | timestamp with time zone |  | server |  |
+
+- Index on `CollectionId, UpToEntry`
+- `CollectionId` points at `Collections.CollectionId`. Deleted with it
+
+<!-- schema:end -->

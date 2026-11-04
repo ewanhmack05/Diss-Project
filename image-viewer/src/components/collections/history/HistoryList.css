@@ -33,7 +33,7 @@
   width: 100%;
   padding: 0.3em 0.4em;
   font-family: var(--sans);
-  font-size: 0.84em;
+  font-size: 0.92em;
   color: var(--chrome-text);
   text-align: left;
   background: none;
@@ -57,7 +57,7 @@
 
 .history-row-time {
   flex-shrink: 0;
-  font-size: 0.85em;
+  font-size: 0.92em;
   color: var(--chrome-text-secondary);
   font-variant-numeric: tabular-nums;
 }
@@ -77,9 +77,9 @@
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  width: 1.7em;
-  height: 1.7em;
-  font-size: 0.7em;
+  width: 2.2em;
+  height: 2.2em;
+  font-size: 0.82em;
   font-weight: 600;
   color: #9fd4d4;
   background: rgba(var(--accent-rgb), 0.16);
@@ -257,6 +257,122 @@
 
 .history-change-arrow {
   color: var(--chrome-text-secondary);
+}
+
+/* Rows a change deleted, each opening its own timeline. */
+.history-deleted-rows {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3em;
+}
+
+.history-deleted-row {
+  padding: 0.1em 0.4em;
+  font-family: var(--sans);
+  font-size: 0.95em;
+  color: var(--accent);
+  overflow-wrap: anywhere;
+  text-align: left;
+  background: var(--white-06);
+  border: none;
+  border-radius: 0.3125rem;
+  cursor: pointer;
+}
+
+.history-deleted-row:hover,
+.history-deleted-row:focus-visible {
+  text-decoration: underline;
+}
+
+.history-deleted-more {
+  align-self: center;
+  color: var(--chrome-text-secondary);
+}
+
+/* What putting the whole collection back would do. */
+.history-rollback-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+  margin: 0;
+  padding: 0;
+  font-size: 0.85em;
+  list-style: none;
+}
+
+/* One annotation's or count's timeline. */
+.history-item-title {
+  overflow-wrap: anywhere;
+}
+
+.history-versions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.history-version {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35em;
+  padding: 0.35em 0.4em;
+  border-radius: 0.3125rem;
+}
+
+.history-version:hover {
+  background: var(--white-06);
+}
+
+/* The icons get a column of their own, and everything else lines up with the
+   label. Icons have space inside their box that differs by icon, so lining
+   text up with the box's edge never looks straight. 16px is ChangeIcon's size. */
+.history-version {
+  --history-version-gap: 0.4rem;
+  --history-version-indent: calc(16px + var(--history-version-gap));
+}
+
+.history-version-head {
+  display: flex;
+  align-items: center;
+  gap: var(--history-version-gap);
+  font-size: 0.92em;
+}
+
+.history-version-now {
+  flex-shrink: 0;
+  padding: 0 0.4em;
+  font-size: 0.85em;
+  font-weight: 600;
+  color: #9fd4d4;
+  background: rgba(var(--accent-rgb), 0.16);
+  border-radius: 0.3125rem;
+}
+
+.history-version-changes {
+  gap: 0.35em;
+  padding-left: var(--history-version-indent);
+}
+
+.history-version-back {
+  align-self: flex-start;
+  margin-left: var(--history-version-indent);
+  padding: 0;
+  font-family: var(--sans);
+  font-size: 0.8em;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.history-version-back:hover,
+.history-version-back:focus-visible {
+  text-decoration: underline;
 }
 
 .history-swatch {

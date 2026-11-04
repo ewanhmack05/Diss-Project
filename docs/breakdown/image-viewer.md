@@ -256,6 +256,53 @@ become cell counts. Names and colours are taken from `label`/`name`/QuPath's
 `classification` and `colour`/`color`. A file where nothing has y above 0
 is taken to be in the map's own space already and isn't flipped.
 
+### One row's timeline
+
+[ItemHistory.tsx](../../image-viewer/src/components/collections/history/ItemHistory.tsx)
+is everything that's happened to one annotation or cell count, newest first,
+under day headings, each change from and to. It opens from **History** on a
+Saved row, in place of the list, and from a deleted row's name on a change in
+the History tab - the only way to a row that isn't in a Saved list.
+
+- **Anyone in the collection can look.** Editors get **Go back to this** on
+  every version but the newest, which is marked **Now**. If the newest deleted
+  it, that one can be gone back to as well, meaning how it was when deleted.
+- **The next page is the confirm**, the same as a change in the History tab:
+  what would change, from and to, or if it's deleted, what it'd come back as,
+  from `GET .../history/{entryId}`. A line says it undoes every change since,
+  whoever made it, and says so if the group it was in has gone.
+- **Going back** is
+  [useGoBackItem.ts](../../image-viewer/src/components/collections/history/useGoBackItem.ts).
+  It sends the newest entry the page knew about, so if someone's changed it
+  since it gets a 409, says so in a toast, and the timeline loads again with
+  their change on it. Otherwise the answer goes through the same `addRestored`
+  and `restoredOps` as a change set's restore, so it changes on the map and in
+  the lists for everyone without loading anything.
+- **A cell count keeps its dots.** The store's answer leaves them out, so
+  `addRestored` keeps the ones already loaded, and `restoredOps` leaves `dots`
+  off the update - a null would wipe them for everyone else.
+
+The wording and paths are plain functions in
+[itemVersions.ts](../../image-viewer/src/components/collections/history/itemVersions.ts).
+
+### A whole collection back to a change
+
+A change opened in the History tab has **Put whole collection back to here…**
+for editors, from
+[CollectionRollbackPanel.tsx](../../image-viewer/src/components/collections/history/CollectionRollbackPanel.tsx).
+It asks the store what that would do and says so in plain lines ("3 annotations
+go back how they were"), which is the confirm.
+
+There can be too many rows to send to everyone, so nothing's sent per row. The
+store answers with counts, every viewer loads the collection again, and everyone
+else is told once with a `collection` op carrying `rolledBack` (`rollbackOp` in
+[realtime.ts](../../image-viewer/src/components/realtime/realtime.ts)) - the hub
+needed no change, since it passes a collection nudge on as it is. The annotation,
+cell count and group contexts each have a `reload`, which clears what's marked
+deleted and what's selected, and loads again. Everyone else gets a toast saying
+someone did it. If someone's changed something since the preview it's a 409, and
+the panel shows what it would do now.
+
 ### History - putting deletes back
 
 How this fits with the store's change sets is in

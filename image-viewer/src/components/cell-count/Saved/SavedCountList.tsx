@@ -5,6 +5,7 @@ import { countSummary } from "../CellCountDots";
 import { toggleViewedCellCountId } from "../CellCountView";
 import CellCountColourSwatch from "../CellCountColourSwatch";
 import SavedCountEdit from "./SavedCountEdit";
+import ItemHistory from "../../collections/history/ItemHistory";
 import SavedRow, { SavedDetails } from "../../saved/SavedRow";
 import { formatLongDate, formatShortDate } from "../../saved/savedDates";
 import { SAVED_PAGE_SIZE, clampPage, isFiltered, mergePage } from "../../saved/paging";
@@ -38,9 +39,10 @@ interface SavedCountRowProps {
   cellCount: CellCount;
   open: boolean;
   onToggle: () => void;
+  onHistory: () => void;
 }
 
-function SavedCountRow({ cellCount, open, onToggle }: SavedCountRowProps) {
+function SavedCountRow({ cellCount, open, onToggle, onHistory }: SavedCountRowProps) {
   const { viewedCellCountId, setSelectedCellCountId, setViewedCellCountId } =
     useCellCountStoreContext();
   const { canEdit } = useCollectionContext();
@@ -142,6 +144,9 @@ function SavedCountRow({ cellCount, open, onToggle }: SavedCountRowProps) {
             >
               {isViewing ? "Hide from map" : "View on map"}
             </button>
+            <button type="button" className="saved-row-button" onClick={onHistory}>
+              History
+            </button>
             <button
               type="button"
               className="saved-row-button saved-row-button--primary"
@@ -180,6 +185,8 @@ function SavedCountList({ onTotal }: { onTotal?: (total: ListTotal | null) => vo
   const [filters, setFilters] = useState<SavedFilters>(NO_FILTERS);
   // One open at a time. Kept through an edit too, so Back lands on it.
   const [openId, setOpenId] = useState<string | null>(null);
+  // The one whose timeline is showing, in place of the list.
+  const [historyOf, setHistoryOf] = useState<{ id: string; name: string } | null>(null);
   // Kept through an edit too, and reset to the first page by a new search.
   const [page, setPage] = useState(0);
   // A page at a time from annotation-store, searched there too - all of
@@ -232,6 +239,10 @@ function SavedCountList({ onTotal }: { onTotal?: (total: ListTotal | null) => vo
         onBack={() => setSelectedCellCountId(null)}
       />
     );
+  }
+
+  if (historyOf) {
+    return <ItemHistory item={{ entity: "cellCount", ...historyOf }} backLabel="Saved" onBack={() => setHistoryOf(null)} />;
   }
 
   if (status === "loading" || savedPage.status === "loading") {
@@ -288,6 +299,7 @@ function SavedCountList({ onTotal }: { onTotal?: (total: ListTotal | null) => vo
               cellCount={cellCount}
               open={openId === cellCount.id}
               onToggle={() => setOpenId((current) => (current === cellCount.id ? null : cellCount.id))}
+              onHistory={() => setHistoryOf({ id: cellCount.id, name: cellCount.label })}
             />
           ))}
         </ul>
