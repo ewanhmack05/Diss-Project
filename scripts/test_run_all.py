@@ -2,6 +2,9 @@
 
     python -m unittest discover -s scripts
 """
+import os
+import subprocess
+import sys
 import unittest
 from pathlib import Path
 
@@ -10,8 +13,10 @@ from run_all import (
     choose,
     is_ready,
     lookup,
+    network_address,
     parse_args,
     plan,
+    share_line,
     summary,
     warnings,
     with_ports,
@@ -174,6 +179,49 @@ class Summary(unittest.TestCase):
         self.assertIn("http://localhost:5095", lines[0])
         self.assertIn("waiting", lines[1])
         self.assertIn("https://localhost:5173", lines[1])
+
+
+
+class Sharing(unittest.TestCase):
+    def test_other_machines_get_the_network_address(self):
+        line = share_line(choose(), {"viewer": "ready"}, False, "192.168.1.174")
+        self.assertEqual("Other machines: https://192.168.1.174:5173", line)
+
+    def test_someone_elses_viewer_might_not_be_on_the_network(self):
+        line = share_line(choose(), {"viewer": "already running"}, False, "10.0.0.5")
+        self.assertIn("https://10.0.0.5:5173", line)
+        self.assertIn("--host", line)
+
+    def test_http_is_localhost_only(self):
+        services = with_ports(choose(), http=True)
+        self.assertIn("localhost only", share_line(services, {"viewer": "ready"}, True, "10.0.0.5"))
+
+    def test_no_address(self):
+        self.assertIn("can't reach", share_line(choose(), {"viewer": "ready"}, False, None))
+
+    def test_nothing_to_say_without_a_viewer_up(self):
+        self.assertIsNone(share_line(choose(skip=["viewer"]), {}, False, "10.0.0.5"))
+        self.assertIsNone(share_line(choose(), {"viewer": "failed"}, False, "10.0.0.5"))
+        self.assertIsNone(share_line(choose(), {}, False, "10.0.0.5"))
+
+    def test_network_address_is_never_loopback(self):
+        address = network_address()
+        if address is not None:
+            self.assertFalse(address.startswith("127."))
+            self.assertEqual(4, len(address.split(".")))
+
+
+
+class Printing(unittest.TestCase):
+    def test_characters_the_console_cant_show_dont_stop_the_output(self):
+        # Vite prints arrows, which cp1252 (a redirected stdout on Windows) has no code for.
+        code = ("import sys; sys.path.insert(0, 'scripts'); import run_all; "
+                "o = run_all.Output(False, 7); o.line('viewer', '\u279c  Local'); o.line('viewer', 'next')")
+        result = subprocess.run([sys.executable, "-c", code], capture_output=True, check=False,
+                                cwd=Path(__file__).resolve().parent.parent,
+                                env={**os.environ, "PYTHONIOENCODING": "cp1252"})
+        self.assertEqual(b"", result.stderr)
+        self.assertEqual(["viewer  | ?  Local", "viewer  | next"], result.stdout.decode("cp1252").splitlines())
 
 
 if __name__ == "__main__":

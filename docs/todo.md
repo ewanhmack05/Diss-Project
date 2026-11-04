@@ -81,15 +81,15 @@ last person closes it.
 
 Each one builds on the one before.
 
-| # | Step | What it means here | Size |
-|---|------|--------------------|------|
-| 1 | ~~Soft delete~~ | Done, then replaced by step 2 - deleted rows are kept in the history now, not hidden in the live tables | medium |
-| 2 | History log | Done in the store - `history.Entries`, one row per row a change touched, under its change set. This is the "user log" too - who did what is in it, so it doesn't need a store of its own. The History tab's detail page shows each changed field from and to (label, notes, colour as swatches, groups by name, "10 annotations" for a bulk recolour). One edit is one History row too - an open edit form sends one `Change-Set-Id` with every autosave, and the store folds repeat updates to a row in one change set into one entry, from how it was when the form opened to how it was when it closed | large |
-| 3 | Periodic snapshots | The whole collection's state saved every so often, so rolling back far doesn't mean replaying every change | medium |
-| 4 | Viewing history | Mostly done - the collection's timeline is the History tab, with put back, and each change shows what it changed, from and to. Still to do: a timeline per annotation or count in its Saved row - every entry for that row, which the history now has | medium |
-| 5 | Rollback | Mostly done for a whole change set - putting it back brings back what it deleted and undoes what it changed, unless someone's changed it since, sent live. Still to do: one item back to an earlier point | medium |
-| 6 | ~~Policy for two or more people editing at once~~ | Done - labels and notes merge (Yjs); colour, group and a group's name and notes are last write wins or first come wins, picked per session; locking is for the write-up. Checked per field, from the value a save started from. See [version-control.md](breakdown/version-control.md#8-two-people-changing-the-same-thing) | large |
-| 7 | Evaluate it | See [Evaluation](#2-evaluation). `simulate_conflicts.py` and the dashboard's Edits row are there to measure step 6 | large |
+| #   | Step                                              | What it means here                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Size   |
+| --- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| 1   | ~~Soft delete~~                                   | Done, then replaced by step 2 - deleted rows are kept in the history now, not hidden in the live tables                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | medium |
+| 2   | History log                                       | Done in the store - `history.Entries`, one row per row a change touched, under its change set. This is the "user log" too - who did what is in it, so it doesn't need a store of its own. The History tab's detail page shows each changed field from and to (label, notes, colour as swatches, groups by name, "10 annotations" for a bulk recolour). One edit is one History row too - an open edit form sends one `Change-Set-Id` with every autosave, and the store folds repeat updates to a row in one change set into one entry, from how it was when the form opened to how it was when it closed | large  |
+| 3   | Periodic snapshots                                | The whole collection's state saved every so often, so rolling back far doesn't mean replaying every change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | medium |
+| 4   | Viewing history                                   | Mostly done - the collection's timeline is the History tab, with put back, and each change shows what it changed, from and to. Still to do: a timeline per annotation or count in its Saved row - every entry for that row, which the history now has                                                                                                                                                                                                                                                                                                                                                     | medium |
+| 5   | Rollback                                          | Mostly done for a whole change set - putting it back brings back what it deleted and undoes what it changed, unless someone's changed it since, sent live. Still to do: one item back to an earlier point                                                                                                                                                                                                                                                                                                                                                                                                 | medium |
+| 6   | ~~Policy for two or more people editing at once~~ | Done - labels and notes merge (Yjs); colour, group and a group's name and notes are last write wins or first come wins, picked per session; locking is for the write-up. Checked per field, from the value a save started from. See [version-control.md](breakdown/version-control.md#8-two-people-changing-the-same-thing)                                                                                                                                                                                                                                                                               | large  |
+| 7   | Evaluate it                                       | See [Evaluation](#2-evaluation). `simulate_conflicts.py` and the dashboard's Edits row are there to measure step 6                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | large  |
 
 ### Things to decide before building
 
@@ -145,12 +145,12 @@ Each one builds on the one before.
 
 ### Policies for two people editing the same thing
 
-| Policy | How it behaves | Built with | Games / tools parallel |
-|--------|----------------|------------|------------------------|
-| Last write wins (built - a session's "Last change wins") | Later save silently replaces the earlier one, and the store counts it | Nothing, plus the save's was so the store can count what it overwrote | Simple state sync where the server takes the latest input |
-| First come wins (built - "First change wins") | Second save is refused with a 409, and they're shown what changed and by whom, and choose | Per field, not a row version: the save sends the value it started from, and it's refused if that's changed since and it would change it again. A row version would call a regroup and a recolour a conflict | Perforce's exclusive checkout |
-| Locking | Whoever starts editing holds it until they finish or time out | A lock per item on the hub, shown on the map | Locking an actor in Unreal's Multi-User Editing |
-| Merge | Both changes are kept | Yjs (CRDT) - already used for labels and notes | Collaborative editors |
+| Policy                                                   | How it behaves                                                                            | Built with                                                                                                                                                                                                  | Games / tools parallel                                    |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Last write wins (built - a session's "Last change wins") | Later save silently replaces the earlier one, and the store counts it                     | Nothing, plus the save's was so the store can count what it overwrote                                                                                                                                       | Simple state sync where the server takes the latest input |
+| First come wins (built - "First change wins")            | Second save is refused with a 409, and they're shown what changed and by whom, and choose | Per field, not a row version: the save sends the value it started from, and it's refused if that's changed since and it would change it again. A row version would call a regroup and a recolour a conflict | Perforce's exclusive checkout                             |
+| Locking                                                  | Whoever starts editing holds it until they finish or time out                             | A lock per item on the hub, shown on the map                                                                                                                                                                | Locking an actor in Unreal's Multi-User Editing           |
+| Merge                                                    | Both changes are kept                                                                     | Yjs (CRDT) - already used for labels and notes                                                                                                                                                              | Collaborative editors                                     |
 
 Comparing at least two of these on the same field, with numbers, is the
 strongest thing the evaluation can show.
@@ -166,18 +166,18 @@ strongest thing the evaluation can show.
 
 ### Reading to add to [background.md](background.md)
 
-Already there: *Database Version Control - A Software Configuration
-Management Approach*, *Temporal and Real-Time Databases*. Worth finding and
+Already there: _Database Version Control - A Software Configuration
+Management Approach_, _Temporal and Real-Time Databases_. Worth finding and
 adding with links:
 
-- Shapiro et al., *Conflict-free Replicated Data Types* (2011) - the theory
+- Shapiro et al., _Conflict-free Replicated Data Types_ (2011) - the theory
   behind Yjs
-- Ellis and Gibbs, *Concurrency Control in Groupware Systems* (1989) -
+- Ellis and Gibbs, _Concurrency Control in Groupware Systems_ (1989) -
   operational transformation, what Google Docs-style editors came from
-- Kleppmann, *Designing Data-Intensive Applications* - the chapters on
+- Kleppmann, _Designing Data-Intensive Applications_ - the chapters on
   replication and on transactions/lost updates
-- Fowler, *Event Sourcing* - logging changes vs saving state
-- Glenn Fiedler's *Gaffer on Games* articles and the GGPO rollback
+- Fowler, _Event Sourcing_ - logging changes vs saving state
+- Glenn Fiedler's _Gaffer on Games_ articles and the GGPO rollback
   netcode write-ups - the games side
 
 ## 2. Evaluation

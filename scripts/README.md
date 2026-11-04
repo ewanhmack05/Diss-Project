@@ -19,8 +19,16 @@ run_all |   tiler   ready            http://localhost:5095
 run_all |   store   ready            http://localhost:5252
 run_all |   hub     ready            http://localhost:5180
 run_all |   viewer  ready            https://localhost:5173
+run_all | Other machines: https://192.168.8.167:5173
 run_all | Ctrl+C to stop
 ```
+
+The last line is the address to give anyone on the LAN or VPN - this
+machine's address on the network with the default route. The viewer passes
+everything else through to the services (see the root README), so that's
+the only port they need. If the viewer was already running before, it
+can't tell whether that one was started with `--host`, and says so. With
+`--http` it says other machines can't reach it.
 
 Ctrl+C stops tiler, annotation-store, realtime-hub and the viewer. Keycloak
 and the dashboard are Docker and keep running, like when they're started by

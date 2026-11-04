@@ -208,8 +208,13 @@ class Output:
         return f"\033[{code}m{text}\033[0m"
 
     def line(self, name, text):
+        text = f"{self.tag(name)} | {text}"
+        # Redirected to a file on Windows, stdout is cp1252, and Vite's arrows
+        # would throw and stop that service's output for good.
+        encoding = sys.stdout.encoding or "utf-8"
+        text = text.encode(encoding, errors="replace").decode(encoding)
         with self.lock:
-            print(f"{self.tag(name)} | {text}", flush=True)
+            print(text, flush=True)
 
     def note(self, text):
         self.line("run_all", text)
@@ -322,6 +327,34 @@ def summary(services, state):
     return "\n".join(lines)
 
 
+def network_address():
+    """This machine's address on the network with the default route - the one
+    other machines on the LAN or VPN would use. Connecting a UDP socket sends
+    nothing, it just makes the OS pick the address."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("192.0.2.1", 80))  # documentation range, never reached
+            address = s.getsockname()[0]
+    except OSError:
+        return None
+    return None if address.startswith("127.") or address == "0.0.0.0" else address
+
+
+def share_line(services, state, http, address):
+    """Where other machines open the viewer, or why they can't. None if the
+    viewer isn't part of this run or isn't up."""
+    viewer = next((s for s in services if s.name == "viewer"), None)
+    if not viewer or state.get(viewer.name) not in ("ready", "already running"):
+        return None
+    if http:
+        return "Other machines can't reach the viewer - --http is localhost only"
+    if not address:
+        return "No network address found - other machines can't reach this one"
+    url = f"https://{address}:{viewer.port}"
+    # Something else started it, so it may not have --host.
+    return f"Other machines: {url}" + (" (if it was started with --host)" if state[viewer.name] == "already running" else "")
+
+
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     names = ", ".join(s.name for s in SERVICES)
@@ -416,6 +449,9 @@ def main(argv=None):
 
         for row in summary(args.services, state).splitlines():
             output.note(row)
+        share = share_line(args.services, state, args.http, network_address())
+        if share:
+            output.note(share)
         local = [step for step, _ in runner.running.values() if not step.detached]
         if not local:
             output.note("Nothing left running here.")
