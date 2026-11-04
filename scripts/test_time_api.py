@@ -4,7 +4,15 @@
 """
 import unittest
 
-from time_api import endpoints, parse_args, percentile, size_text, summary, table, timelines
+from time_api import (
+    endpoints,
+    parse_args,
+    percentile,
+    size_text,
+    summary,
+    table,
+    timelines,
+)
 
 
 class Percentile(unittest.TestCase):
