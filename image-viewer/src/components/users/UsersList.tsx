@@ -3,6 +3,7 @@ import { usePresenceContext } from '../../context/PresenceContext'
 import { useCollectionContext } from '../../context/CollectionContext'
 import { useImageViewerContext } from '../../context/ImageViewerContext'
 import { useEmitEvent } from '../../context/EventContext'
+import { useMessagingContext } from '../../context/MessagingContext'
 import { describeUser, whyCantInvite, type ListedUser } from './presence'
 import './Users.css'
 
@@ -24,6 +25,7 @@ function UsersList() {
   const { session, loadInvites, createInvite } = useCollectionContext()
   const { source } = useImageViewerContext()
   const emit = useEmitEvent()
+  const { status: messaging, messageUser } = useMessagingContext()
   const [sending, setSending] = useState<string | null>(null)
   // Who's been asked into which session, so the button says so.
   const [asked, setAsked] = useState<{ sessionId: string | null; userIds: string[] }>({ sessionId: null, userIds: [] })
@@ -69,6 +71,11 @@ function UsersList() {
           </span>
           <span className="users-where">{describeUser(person.online, me)}</span>
         </span>
+        {messaging !== 'off' && (
+          <button type="button" className="realtime-button" aria-label={`Message ${person.displayName}`} onClick={() => messageUser(person.userId)}>
+            Message
+          </button>
+        )}
         {me.hosting && person.online && (
           <button
             type="button"

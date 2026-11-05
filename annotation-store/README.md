@@ -89,7 +89,7 @@ viewer, without being a member.
 | `POST /sessions` | anyone | Start a session on `{ slideId, collectionName?, maxEditors?, editPolicy? }`, hosted by you. `editPolicy` is `lastWriteWins` (the default) or `firstComeWins` - see below. One at a time per slide - with one not ended, it's a 409 with that one instead |
 | `PUT /collections/{id}` | owner | Rename |
 | `PUT /collections/{id}/sharing` | owner | Personal only - `{ shared }`. Lets anyone signed in view it, read-only |
-| `POST /collections/{id}/import` | editor, owner | `{ annotations, cellCounts }` from a GeoJSON import, saved together and stamped as you |
+| `POST /collections/{id}/import` | editor, owner | `{ annotations, cellCounts, groups?, source? }` from a GeoJSON import or something sent in a message, saved together and stamped as you. `source` says where it came from - see [where a change came from](#where-a-change-came-from) |
 | `DELETE /collections/{id}` | owner | Delete, with everything in it |
 | `POST /collections/{id}/end` | host | End a session |
 | `PUT /collections/{id}/members/{userId}` | host | Change someone's role - `{ displayName, role: "editor" \| "viewer" }` |
@@ -203,7 +203,7 @@ it holds everything in it. Nothing in the history is purged.
 
 - `GET /changesets?collectionId=&skip=&take=` - the collection's change
   sets, newest first: `{ id, collectionId, userId, userName, what, created,
-  deleted }`, `deleted` being how many rows it deleted that are still
+  deleted, source }`, `source` being where it came from or null, and `deleted` being how many rows it deleted that are still
   deleted - and haven't been put back and deleted again by something later,
   which makes them that change's. Anyone who can read the collection, guests
   included. Narrowed with the Saved lists' names (`ChangeSetFilter` in
@@ -226,6 +226,8 @@ it holds everything in it. Nothing in the history is purged.
   and `groups` names every group a `GroupId` in `changes` points at, gone ones
   included. Only reads the update entries and the names out of the deletes,
   never a deleted row's whole copy. Same access as the list
+- `GET /changesets/{id}/changes` also has `copiedFrom` for something sent in a
+  message - `[{ entity, from, to }]`, which row each new one was copied from
 - `GET /changesets/total?collectionId=` - how many change sets the
   collection has, for the viewer's History pager. Same access as the list
 - `POST /changesets/{id}/restore` - puts it back how it was before that
@@ -357,6 +359,30 @@ isn't one and adding the file's notes for it.
 Bad `skip`/`take` is a 400. Paging is newest first with the id breaking
 ties, so no row turns up on two pages.
 
+## Where a change came from
+
+Adding something sent in a [message](../messaging/README.md) is an import with a `source`:
+
+```ts
+interface ImportSource {
+  messageId: string
+  fromUserId: string
+  fromName: string
+  kind: string // annotations, group, cellCount or collection
+  name: string // what the sender called it
+  collectionId: string | null // what it was copied from
+  slideId: string | null
+  rows?: { entity: 'annotation' | 'cellCount'; from: string; to: string }[]
+}
+```
+
+Its change set's `what` is then `add from message`, and it counts as an `add` in the History
+filter. The rows are new, with new ids and you as their author, and the original author is in
+the source. It's what the viewer read from the message, since messages are another service's,
+so all that's checked here is that it says who and what, each up to 300 characters, and that
+`rows` are rows in this import. Anything else is a 400. You still have to be able to edit the
+collection. See [docs/messaging.md](../docs/messaging.md#where-it-came-from).
+
 ## Schema
 
 Everything is in one Postgres database. The tables in the `public` schema only
@@ -478,6 +504,8 @@ erDiagram
         UserName text "not null"
         What text "not null"
         Created timestamp_with_time_zone "not null"
+        Source jsonb "null"
+        SourceRows jsonb "null"
     }
 
     "history.Entries" {
@@ -744,6 +772,8 @@ One change someone made, like a commit - a single save, or a 21,000 row delete s
 | `UserName` | text |  | server | Their name then |
 | `What` | text |  | server | What the first request in it did, such as `delete annotations` or `restore collection` |
 | `Created` | timestamp with time zone |  | server |  |
+| `Source` | jsonb, null |  | client | Where it came from, when it's something sent in a message: who sent it, the message, the collection and how many of each it added. `What` is then `add from message` |
+| `SourceRows` | jsonb, null |  | client | Which row each new one was copied from. Apart from `Source` since it's two ids a row, and the History list reads `Source` for every line |
 
 - Index on `CollectionId, Created`
 - `CollectionId` points at `Collections.CollectionId`. Deleted with it

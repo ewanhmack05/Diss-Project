@@ -126,7 +126,9 @@
       "Id": ["client or server", "From the `Change-Set-Id` header, or made by the store"],
       "UserId": ["server", "Who made it, from their token"],
       "UserName": ["server", "Their name then"],
-      "What": ["server", "What the first request in it did, such as `delete annotations` or `restore collection`"]
+      "What": ["server", "What the first request in it did, such as `delete annotations` or `restore collection`"],
+      "Source": ["client", "Where it came from, when it's something sent in a message: who sent it, the message, the collection and how many of each it added. `What` is then `add from message`"],
+      "SourceRows": ["client", "Which row each new one was copied from. Apart from `Source` since it's two ids a row, and the History list reads `Source` for every line"]
     }
   },
   "history.Entries": {

@@ -1,0 +1,457 @@
+.messages-wrap {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Same as Collaboration's and Collections' tabs. */
+.messages-tabs {
+  display: flex;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--white-10);
+  background: var(--chrome-bg);
+}
+
+.messages-tab {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4em;
+  padding: 0.6em;
+  font-family: var(--sans);
+  font-size: 0.9em;
+  font-weight: 600;
+  color: var(--chrome-text-secondary);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+
+.messages-tab:hover {
+  color: var(--chrome-text);
+}
+
+.messages-tab--active {
+  color: var(--chrome-text);
+  border-bottom-color: var(--accent);
+}
+
+/* Scrolls itself, like the other panels - the panel body clips (see
+   DraggablePanel.css). */
+.messages-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.8em;
+}
+
+.messages-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.messages-section-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+}
+
+.messages-heading {
+  margin: 0;
+  font-size: 0.72em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--chrome-text-secondary);
+}
+
+.messages-note {
+  margin: 0;
+  font-size: 0.82em;
+  line-height: 1.45;
+  color: var(--chrome-text-secondary);
+}
+
+.messages-alone {
+  padding: 0.8em;
+}
+
+.messages-button,
+.messages-icon-button {
+  flex-shrink: 0;
+  font-family: var(--sans);
+  font-weight: 600;
+  color: var(--chrome-text);
+  background: var(--white-08);
+  border: none;
+  border-radius: 0.3125rem;
+  cursor: pointer;
+  transition: color 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.messages-button {
+  padding: 0.35em 0.65em;
+  font-size: 0.82em;
+}
+
+.messages-button:hover:not(:disabled),
+.messages-icon-button:hover {
+  color: var(--accent);
+}
+
+.messages-button:disabled {
+  color: var(--disabled);
+  cursor: not-allowed;
+}
+
+.messages-button--accent {
+  color: var(--accent);
+}
+
+.messages-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5em;
+  height: 1.5em;
+  padding: 0;
+  color: var(--chrome-text-secondary);
+  background: none;
+}
+
+.messages-search,
+.messages-input,
+.messages-send-select {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.4em 0.5em;
+  font-family: var(--sans);
+  font-size: 0.9em;
+  color: var(--chrome-text);
+  background: var(--white-06);
+  border: 1px solid var(--white-10);
+  border-radius: 0.3125rem;
+}
+
+.messages-search:focus,
+.messages-input:focus,
+.messages-send-select:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.messages-send-select option {
+  color: var(--chrome-text);
+  background: var(--chrome-bg);
+}
+
+/* The list of conversations, or of people to start one with */
+.messages-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.messages-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.5em 0.3em;
+  font-family: var(--sans);
+  font-size: 1em;
+  color: var(--chrome-text);
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--white-06);
+  cursor: pointer;
+}
+
+.messages-row:hover {
+  background: var(--white-06);
+}
+
+.messages-row--conversation {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.15em;
+}
+
+.messages-row-top {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  min-width: 0;
+}
+
+.messages-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.messages-row-name--unread {
+  font-weight: 700;
+}
+
+.messages-row-when {
+  flex-shrink: 0;
+  font-size: 0.78em;
+  color: var(--chrome-text-secondary);
+}
+
+.messages-row-preview {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.82em;
+  color: var(--chrome-text-secondary);
+}
+
+.messages-unread {
+  flex-shrink: 0;
+  min-width: 1.5em;
+  box-sizing: border-box;
+  padding: 0.05em 0.35em;
+  font-size: 0.74em;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--chrome-bg);
+  text-align: center;
+  background: var(--accent);
+  border-radius: 1em;
+}
+
+/* One conversation */
+.messages-chat {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.messages-chat-top {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.5em 0.8em;
+  border-bottom: 1px solid var(--white-10);
+}
+
+.messages-chat-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 1em;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.messages-scroll {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 8em;
+  overflow-y: auto;
+  padding: 0.6em 0.8em;
+  gap: 0.35em;
+}
+
+.messages-older {
+  align-self: center;
+}
+
+.messages-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+}
+
+.messages-day {
+  margin: 0.4em 0 0.1em;
+  font-size: 0.72em;
+  font-weight: 600;
+  color: var(--chrome-text-secondary);
+  text-align: center;
+}
+
+.messages-message {
+  display: flex;
+  flex-direction: column;
+  align-self: flex-start;
+  gap: 0.2em;
+  box-sizing: border-box;
+  max-width: 88%;
+  padding: 0.4em 0.6em;
+  background: var(--white-06);
+  border-radius: 0.5em;
+}
+
+.messages-message--mine {
+  align-self: flex-end;
+  background: rgba(var(--accent-rgb), 0.16);
+}
+
+.messages-from {
+  font-size: 0.78em;
+  font-weight: 700;
+  color: var(--chrome-text-secondary);
+}
+
+.messages-body {
+  margin: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.messages-time {
+  align-self: flex-end;
+  font-size: 0.7em;
+  color: var(--chrome-text-secondary);
+}
+
+/* Something sent */
+.messages-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+  margin: 0.15em 0;
+  padding: 0.45em 0.55em;
+  background: var(--white-06);
+  border-left: 2px solid var(--accent);
+  border-radius: 0.3125rem;
+}
+
+.messages-card-kind {
+  font-size: 0.7em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--chrome-text-secondary);
+  text-transform: uppercase;
+}
+
+.messages-card-name {
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.messages-card-meta {
+  font-size: 0.78em;
+  color: var(--chrome-text-secondary);
+}
+
+.messages-card .messages-button {
+  align-self: flex-start;
+  margin-top: 0.25em;
+}
+
+/* Writing */
+.messages-write {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 0.4em;
+  padding: 0.6em 0.8em;
+  border-top: 1px solid var(--white-10);
+}
+
+.messages-read-only {
+  flex-shrink: 0;
+  padding: 0.6em 0.8em;
+  border-top: 1px solid var(--white-10);
+}
+
+.messages-input {
+  display: block;
+  resize: vertical;
+}
+
+.messages-write-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.messages-send {
+  margin-left: auto;
+}
+
+.messages-count {
+  font-size: 0.78em;
+  color: var(--chrome-text-secondary);
+}
+
+.messages-count--over {
+  color: #e87c7c;
+}
+
+.messages-staged {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  padding: 0.2em 0.2em 0.2em 0.5em;
+  font-size: 0.86em;
+  background: rgba(var(--accent-rgb), 0.12);
+  border-radius: 0.3125rem;
+}
+
+.messages-staged-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.messages-send-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  padding: 0.45em;
+  background: var(--white-06);
+  border-radius: 0.3125rem;
+}
+
+.messages-send-from {
+  margin: 0 0 0.1em;
+  font-size: 0.78em;
+  color: var(--chrome-text-secondary);
+}
+
+.messages-send-item {
+  padding: 0.35em 0.5em;
+  font-family: var(--sans);
+  font-size: 0.9em;
+  color: var(--chrome-text);
+  text-align: left;
+  background: var(--white-08);
+  border: none;
+  border-radius: 0.3125rem;
+  cursor: pointer;
+}
+
+.messages-send-item:hover:not(:disabled) {
+  color: var(--accent);
+}
+
+.messages-send-item:disabled {
+  color: var(--disabled);
+  cursor: not-allowed;
+}

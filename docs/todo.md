@@ -271,8 +271,8 @@ collection, a group, an annotation or an invite link. Size: large - a new servic
 across the hub and viewer. Decided and drafted in [messaging.md](messaging.md): its
 own service, a copy rather than a live link, one to one and session chat, and kept
 until deleted for now. The [service](../messaging/README.md) and the hub's side are
-built. Still to do: the viewer's tab, showing where something came from, and sending
-invites as messages in place of `InviteUser`.
+built, along with the viewer's tab and where something came from. Still to do: taking
+`InviteUser` out now that invites can be sent as messages.
 
 For the write up: a copy between collections keeps where it came from, which makes
 it close to the merge in

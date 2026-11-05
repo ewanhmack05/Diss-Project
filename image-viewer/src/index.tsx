@@ -21,6 +21,7 @@ createRoot(document.getElementById('root')!).render(
       tilerServiceUrl={`${backend}/tiler`}
       annotationStoreUrl={`${backend}/store`}
       realtimeHubUrl={`${backend}/hub`}
+      messagingUrl={`${backend}/messaging`}
       auth={{ authority: `${backend}/auth/realms/diss`, clientId: 'image-viewer' }}
       options={{
         fontSize: '11px',
@@ -34,7 +35,8 @@ createRoot(document.getElementById('root')!).render(
           'ruler',
           'adjustments',
           'realtime',
-          'collections'
+          'collections',
+          'messages'
         ]
       }}
       on={(event, payload) => {

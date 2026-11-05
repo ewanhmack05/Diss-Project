@@ -1,3 +1,4 @@
+import { useCollectionContext } from '../../../context/CollectionContext'
 import { formatFullDate, timeAgo } from '../../saved/savedDates'
 import ChangeIcon from './ChangeIcon'
 import ChangeList from './ChangeList'
@@ -31,6 +32,11 @@ function HistoryDetail({ changeSet, canEdit, restoring, putBack, onRestore, onBa
   const status = restoreStatus(current)
   const restorable = canRestore(current, canEdit)
   const stillDeleted = kind === 'delete' && !wasPutBack(current)
+  const { collections, open } = useCollectionContext()
+  const source = changeSet.source
+  // You can only go and look if you've access to where it came from - the
+  // copy doesn't give you any.
+  const original = source?.collectionId ? collections.find((c) => c.collectionId === source.collectionId) : null
 
   return (
     <section className="history-detail">
@@ -55,6 +61,24 @@ function HistoryDetail({ changeSet, canEdit, restoring, putBack, onRestore, onBa
           {formatFullDate(changeSet.created)}
           <span className="history-fact-sub">{timeAgo(changeSet.created)}</span>
         </dd>
+        {source && (
+          <>
+            <dt>Sent by</dt>
+            <dd>{source.fromName}</dd>
+            <dt>Sent as</dt>
+            <dd>{source.name}</dd>
+            {original && original.collectionId !== changeSet.collectionId && (
+              <>
+                <dt>Copied from</dt>
+                <dd>
+                  <button type="button" className="collections-button" onClick={() => open(original.collectionId)}>
+                    {original.collectionName}
+                  </button>
+                </dd>
+              </>
+            )}
+          </>
+        )}
         {status && (
           <>
             <dt>Deleted</dt>

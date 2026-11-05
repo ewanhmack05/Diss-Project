@@ -20,7 +20,8 @@ dotnet run --urls http://localhost:5260
 database and brings it up to date when it starts. It needs Keycloak running to check tokens,
 and annotation-store for session chat. `python scripts/run_all.py` runs it with everything else.
 
-The viewer reaches it through its own dev server at `/messaging`.
+The viewer reaches it through its own dev server at `/messaging`, and the Messages tool is
+built on this - see `image-viewer/src/context/MessagingContext.tsx`.
 
 ### Tests
 

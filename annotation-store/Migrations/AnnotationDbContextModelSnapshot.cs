@@ -327,6 +327,12 @@ namespace AnnotationStore.Migrations
                     b.Property<DateTimeOffset>("Created")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Source")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("SourceRows")
+                        .HasColumnType("jsonb");
+
                     b.Property<string>("UserId")
                         .IsRequired()
                         .HasColumnType("text");

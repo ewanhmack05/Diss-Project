@@ -10,6 +10,8 @@ import rotateIconSvg from '../../icons/rotate.svg?raw'
 import rulerIconSvg from '../../icons/ruler.svg?raw'
 import realtimeIconSvg from '../../icons/realtime.svg?raw'
 import collectionsIconSvg from '../../icons/collections.svg?raw'
+import messagesIconSvg from '../../icons/messages.svg?raw'
+import { useMessagingContext } from '../../context/MessagingContext'
 import './Toolbar.css'
 
 // Global shortcuts (like F for fullscreen) shouldn't fire while the user is
@@ -25,9 +27,9 @@ function Icon({ svg }: { svg: string }) {
   return <span className="toolbar-icon" dangerouslySetInnerHTML={{ __html: svg }} />
 }
 
-type ToolName = 'fullscreen' | 'annotations' | 'cellcount' | 'rotate' | 'ruler' | 'adjustments' | 'realtime' | 'collections'
+type ToolName = 'fullscreen' | 'annotations' | 'cellcount' | 'rotate' | 'ruler' | 'adjustments' | 'realtime' | 'collections' | 'messages'
 
-const DEFAULT_TOOLS: ToolName[] = ['fullscreen', 'annotations', 'cellcount', 'rotate', 'ruler', 'adjustments', 'realtime', 'collections']
+const DEFAULT_TOOLS: ToolName[] = ['fullscreen', 'annotations', 'cellcount', 'rotate', 'ruler', 'adjustments', 'realtime', 'collections', 'messages']
 
 interface ToolbarProps {
   tools?: ToolName[]
@@ -36,8 +38,10 @@ interface ToolbarProps {
 function Toolbar({ tools: wanted = DEFAULT_TOOLS }: ToolbarProps) {
   const { activeTools, toggleTool } = useToolbarContext()
   const { user } = useAuthContext()
-  // A guest has no collections of their own - only the session they came in on.
-  const tools = user.guest ? wanted.filter((tool) => tool !== 'collections') : wanted
+  const { unread } = useMessagingContext()
+  // A guest has no collections of their own - only the session they came in on -
+  // and isn't a named person anyone can message.
+  const tools = user.guest ? wanted.filter((tool) => tool !== 'collections' && tool !== 'messages') : wanted
   const [isFullscreen, setIsFullscreen] = useState(false)
 
   const toggleFullscreen = () => {
@@ -145,6 +149,17 @@ function Toolbar({ tools: wanted = DEFAULT_TOOLS }: ToolbarProps) {
           onClick={() => toggleTool('collections')}
         >
           <Icon svg={collectionsIconSvg} />
+        </button>
+      )}
+      {tools.includes('messages') && (
+        <button
+          type="button"
+          className={`toolbar-button toolbar-button--badged${activeTools.includes('messages') ? ' toolbar-button--active' : ''}`}
+          title={unread > 0 ? `Messages (${unread} unread)` : 'Messages'}
+          onClick={() => toggleTool('messages')}
+        >
+          <Icon svg={messagesIconSvg} />
+          {unread > 0 && <span className="toolbar-badge">{unread > 99 ? '99+' : unread}</span>}
         </button>
       )}
     </div>

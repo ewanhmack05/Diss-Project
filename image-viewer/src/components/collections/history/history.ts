@@ -15,6 +15,20 @@ interface ChangeSet {
   what: string
   created: string
   deleted: number
+  // Where it came from, when it's something sent in a message.
+  source?: ChangeSetSource | null
+}
+
+interface ChangeSetSource {
+  messageId: string
+  fromUserId: string
+  fromName: string
+  kind: string
+  name: string
+  collectionId: string | null
+  slideId: string | null
+  annotations: number
+  cellCounts: number
 }
 
 interface RestoreCounts {
@@ -73,7 +87,17 @@ const LABELS: Record<string, (deleted: number) => string> = {
   'restore collection': () => 'Put the whole collection back',
 }
 
-function changeLabel({ what, deleted }: Pick<ChangeSet, 'what' | 'deleted'>): string {
+// "12 annotations and a cell count", or what it was called if that says nothing.
+function sentList({ annotations, cellCounts, name }: ChangeSetSource): string {
+  const parts = [
+    annotations === 1 ? 'an annotation' : annotations > 1 && plural(annotations, 'annotation', 'annotations'),
+    cellCounts === 1 ? 'a cell count' : cellCounts > 1 && plural(cellCounts, 'cell count', 'cell counts'),
+  ].filter((part): part is string => !!part)
+  return parts.length > 0 ? parts.join(' and ') : name
+}
+
+function changeLabel({ what, deleted, source }: Pick<ChangeSet, 'what' | 'deleted'> & Pick<Partial<ChangeSet>, 'source'>): string {
+  if (what === 'add from message') return source ? `Added ${sentList(source)} from ${source.fromName}` : 'Added something from a message'
   const label = LABELS[what]
   if (label) return label(deleted)
   // Anything newer than this list still reads as something.
@@ -227,4 +251,4 @@ export {
   byDay,
   restoredOps,
 }
-export type { ChangeSet, ChangeKind, Restored, RestoreCounts }
+export type { ChangeSetSource, ChangeSet, ChangeKind, Restored, RestoreCounts }

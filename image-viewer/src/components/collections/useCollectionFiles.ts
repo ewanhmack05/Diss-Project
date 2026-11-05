@@ -7,6 +7,7 @@ import type { AnnotationGroup } from '../../interfaces/AnnotationGroup'
 import { useCollectionContext } from '../../context/CollectionContext'
 import type { Annotation } from '../../interfaces/Annotation'
 import type { CellCount } from '../../interfaces/CellCount'
+import type { ImportSource } from '../messages/messages'
 import { collectionToGeoJson, exportFileName, type FullCollection, type ParsedImport } from './collectionGeoJson'
 
 function download(fileName: string, contents: string) {
@@ -39,13 +40,14 @@ function useCollectionFiles() {
   )
 
   // Into the one you're in, it shows straight away, and goes to everyone
-  // else in a session. Anywhere else, it's there next time it's opened.
+  // else in a session. Anywhere else, it's there next time it's opened. source
+  // says it was sent in a message, rather than read from a file.
   const importInto = useCallback(
-    async (collectionId: string, parsed: ParsedImport) => {
+    async (collectionId: string, parsed: ParsedImport & { source?: ImportSource }) => {
       const response = await authFetch(`${baseUrl}/collections/${collectionId}/import`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ annotations: parsed.annotations, cellCounts: parsed.cellCounts, groups: parsed.groups }),
+        body: JSON.stringify({ annotations: parsed.annotations, cellCounts: parsed.cellCounts, groups: parsed.groups, source: parsed.source }),
       })
       if (!response.ok) throw new Error(String(response.status))
       const saved = (await response.json()) as { annotations: Annotation[]; cellCounts: CellCount[]; groups: AnnotationGroup[] }

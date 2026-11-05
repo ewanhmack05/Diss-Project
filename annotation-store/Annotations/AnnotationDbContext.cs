@@ -175,6 +175,11 @@ public class AnnotationDbContext(DbContextOptions<AnnotationDbContext> options) 
         // what's there now. See History/.
         modelBuilder.Entity<ChangeSet>().ToTable("ChangeSets", "history");
         modelBuilder.Entity<ChangeSet>().HasIndex(c => new { c.CollectionId, c.Created });
+        if (Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL")
+        {
+            modelBuilder.Entity<ChangeSet>().Property(c => c.Source).HasColumnType("jsonb");
+            modelBuilder.Entity<ChangeSet>().Property(c => c.SourceRows).HasColumnType("jsonb");
+        }
         modelBuilder.Entity<ChangeSet>()
             .HasOne<Collections.Collections>()
             .WithMany()

@@ -17,13 +17,16 @@ public record FieldChange(string Entity, string Column, JsonElement Before, Json
 // the first few by name; Created how many it made. Groups names every group
 // a GroupId in Changes points at, gone ones included. DeletedRows is the same
 // first few as DeletedNames with what they are, so one can be opened.
+// CopiedFrom is which row each new one came from, when it's something sent in
+// a message.
 public record ChangeSetChanges(
     List<FieldChange> Changes,
     int Created,
     int Deleted,
     List<string?> DeletedNames,
     Dictionary<Guid, string> Groups,
-    List<DeletedRow> DeletedRows);
+    List<DeletedRow> DeletedRows,
+    List<SourceRow>? CopiedFrom = null);
 
 public record DeletedRow(string Entity, Guid Id, string? Name);
 
@@ -83,7 +86,8 @@ public static class ChangeSetChangesEndpoint
                         groups[group] = await GroupNameAsync(db, group);
 
             return Results.Ok(new ChangeSetChanges(changes, created, deleted, deletedNames, groups,
-                deletedRows.Select(n => new DeletedRow(n.Entity, n.EntityId, n.Name)).ToList()));
+                deletedRows.Select(n => new DeletedRow(n.Entity, n.EntityId, n.Name)).ToList(),
+                changeSet.SourceRows is null ? null : JsonSerializer.Deserialize<List<SourceRow>>(changeSet.SourceRows)));
         }).AllowGuests();
     }
 

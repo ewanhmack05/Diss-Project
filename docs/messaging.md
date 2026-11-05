@@ -1,8 +1,8 @@
-# Messaging and sending things - draft
+# Messaging and sending things
 
-**Status: being built.** The service and the hub's side are done - the API and the
-tables are in [messaging/README.md](../messaging/README.md), which is what's right if this
-page ever disagrees. Still to come: the viewer's tab, and where it came from.
+**Status: built, apart from replacing `InviteUser`** - see [Building it](#building-it). The
+API and the tables are in [messaging/README.md](../messaging/README.md), which is what's right
+if this page ever disagrees.
 
 People with an account can message each other one to one, and chat in a session, and
 send a group, some annotations, a collection or an invite link. Today the only thing
@@ -118,12 +118,17 @@ changing once it's been used.
 The part that matters for the dissertation. Adding something sent makes a change set
 in the usual way, and says where it came from:
 
-- **`history.ChangeSets` gets a nullable `Source`** (`jsonb`): who sent it, the message,
-  the collection and the rows it was copied from.
+- **`history.ChangeSets` has a nullable `Source`** (`jsonb`): who sent it, the message, the
+  collection, what it was called and how many of each it added. **`SourceRows`** beside it
+  has which row each new one was copied from. Apart, since that's two ids a row and the
+  History list reads `Source` for every line.
+- **annotation-store can't check it**, since messages are another service's. It's what the
+  adder's viewer read from the message, held only to the rows being in that import. So it's
+  a record of where something came from, not proof.
 - **Rows get new ids and the adder as `CreatedBy`**, as an import does. The original
   author is in `Source`.
-- **`What` is `add from message`**, so the History tab can say "Added 12 annotations
-  from Alice", and open what it came from.
+- **`What` is `add from message`**, so the History tab says "Added 12 annotations from
+  Alice", and opening it links to what it came from if you've access to that too.
 - **Adding twice** adds them twice, since someone may have changed the first lot. The
   button says when you last added it, per person, since everyone in a session's chat can
   add the same thing.
@@ -213,13 +218,19 @@ invites are messages.
 
 ## In the viewer
 
-- **The Users tab** gets a **Message** button on each person, and an unread count.
-- **A conversation** opens in the same panel: messages, a box to type in, anything
-  sent as a card with **Add to my collection** or **Join**.
-- **The Collaboration panel** gets a **Chat** tab for the session you're in.
-- **Send to...** on a Saved row, the Select tab, a group and a collection, picking
-  who from the same list.
-- **The name filter** (`isClean`, `censorText`) runs over messages as it does names.
+- **A Messages tool on the toolbar**, with a badge for how many are unread. Guests don't
+  get it.
+- **People and Session tabs** in its panel. People is your conversations, and **New message**
+  finds anyone with an account. Session is the chat of the session you're in, and is only there
+  while you're in one.
+- **The Users tab** has a **Message** button on each person, which opens it on them.
+- **A conversation** has its messages, a box to type in, and anything sent as a card with
+  **Add to my collection**, or **Have a look** for an invite. You don't get those on your own.
+- **Attach...** by the box sends from the collection you're in: what's selected on the Select
+  tab, a group, a cell count, the whole collection, or if you're hosting an invite to your
+  session. They're read when it goes, and something over the limit is turned down before uploading.
+- **A toast** says who it's from if a message arrives with the panel shut.
+- **The name filter** (`censorText`) runs over messages and names as they're shown.
 
 ## What can go wrong
 
@@ -238,7 +249,8 @@ invites are messages.
 
 ## Building it
 
-Each is its own piece, in this order, and useful without the next:
+Each is its own piece, and useful without the next. All built, apart from taking `InviteUser` out
+in step 2. It's still there next to invites as messages, and can go once those have been used.
 
 1. **messaging service and text messages** - `messaging/` with its own database, tests,
    CI and Dockerfile, in `run_all.py` and `docker-compose.yml`. Users tab and the panel.
@@ -269,6 +281,9 @@ Still open:
 - **Viewers in session chat.** Drafted as able to write. Worth a second look if view only is
   meant to mean silent.
 - **The 5MB limit**, which is a starting guess.
+
+Left out for now: **Send to...** on a Saved row, the Select tab, a group or a collection, since
+**Attach...** reaches all of them from the conversation.
 
 Left out on purpose: group chats beyond sessions, attachments other than these, read receipts
 shown to the sender, blocking people, and guests using any of it.

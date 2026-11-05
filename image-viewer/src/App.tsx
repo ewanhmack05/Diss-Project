@@ -36,6 +36,8 @@ import RulerPanel from './components/ruler/RulerPanel'
 import AdjustmentsPanel from './components/adjustments/AdjustmentsPanel'
 import RealTimePanel from './components/realtime/RealTimePanel'
 import CollectionsPanel from './components/collections/CollectionsPanel'
+import MessagesPanel from './components/messages/MessagesPanel'
+import { MessagingContextProvider } from './context/MessagingContext'
 import { AnnotationGroupContextProvider } from './context/AnnotationGroupContext'
 import { AnnotationSelectContextProvider } from './context/AnnotationSelectContext'
 import InviteGate from './components/realtime/InviteGate'
@@ -118,6 +120,8 @@ interface AppProps {
   annotationStoreUrl: string
   // Optional - without it the viewer works on its own, just not live.
   realtimeHubUrl?: string
+  // Optional too - without it the Messages tab says it can't reach it.
+  messagingUrl?: string
   // Keycloak - everything needs a signed-in user, or a guest from an invite
   // link (see AuthContext and docs/guests.md).
   auth: AuthOptions
@@ -125,63 +129,65 @@ interface AppProps {
   on?: (event: string, payload: unknown) => void
 }
 
-function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, auth, options, on }: AppProps) {
+function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, messagingUrl, auth, options, on }: AppProps) {
   const imageSource: ImageSource = { tilerUrl: tilerServiceUrl, slideId: source }
 
   return (
     <ToastContextProvider>
       <DialogContextProvider>
-      <EventContextProvider on={on}>
-        <AuthContextProvider auth={auth} storeUrl={annotationStoreUrl} hubUrl={realtimeHubUrl}>
-        <ImageViewerContextProvider source={imageSource}>
-          {/* Collections decide which session you're in, and so which
+        <EventContextProvider on={on}>
+          <AuthContextProvider auth={auth} storeUrl={annotationStoreUrl} hubUrl={realtimeHubUrl}>
+            <ImageViewerContextProvider source={imageSource}>
+              {/* Collections decide which session you're in, and so which
               realtime room - working alone there's no room at all. An
               invite link is dealt with before the viewer opens. Presence
               (who's online) is connected the whole time, room or not. */}
-          <CollectionContextProvider
-            baseUrl={annotationStoreUrl}
-            maxEditors={options?.maxEditors}
-            editPolicy={options?.editPolicy}
-          >
-            <InviteGate>
-            <PresenceContextProvider hubUrl={realtimeHubUrl}>
-            <RealtimeContextProvider hubUrl={realtimeHubUrl}>
-            <ViewportsContextProvider>
-              <AnnotationStoreContextProvider baseUrl={annotationStoreUrl}>
-                <AnnotationGroupContextProvider baseUrl={annotationStoreUrl}>
-                <AnnotationSelectContextProvider>
-                <CellCountStoreContextProvider baseUrl={annotationStoreUrl}>
-                  <CellCountDrawContextProvider>
-                    <DrawContextProvider>
-                      <RotationContextProvider>
-                        <RulerContextProvider>
-                          <AdjustmentsContextProvider baseUrl={annotationStoreUrl}>
-                            <ToolbarContextProvider>
-                              <NavigationContextProvider>
-                              <ComparisonContextProvider>
-                                <SharedCountContextProvider>
-                                  <ViewerShell fontSize={options?.fontSize} tools={options?.tools} />
-                                </SharedCountContextProvider>
-                              </ComparisonContextProvider>
-                              </NavigationContextProvider>
-                            </ToolbarContextProvider>
-                          </AdjustmentsContextProvider>
-                        </RulerContextProvider>
-                      </RotationContextProvider>
-                    </DrawContextProvider>
-                  </CellCountDrawContextProvider>
-                </CellCountStoreContextProvider>
-                </AnnotationSelectContextProvider>
-                </AnnotationGroupContextProvider>
-              </AnnotationStoreContextProvider>
-            </ViewportsContextProvider>
-            </RealtimeContextProvider>
-            </PresenceContextProvider>
-            </InviteGate>
-          </CollectionContextProvider>
-        </ImageViewerContextProvider>
-        </AuthContextProvider>
-      </EventContextProvider>
+              <CollectionContextProvider
+                baseUrl={annotationStoreUrl}
+                maxEditors={options?.maxEditors}
+                editPolicy={options?.editPolicy}
+              >
+                <InviteGate>
+                  <PresenceContextProvider hubUrl={realtimeHubUrl}>
+                    <RealtimeContextProvider hubUrl={realtimeHubUrl}>
+                      <ViewportsContextProvider>
+                        <AnnotationStoreContextProvider baseUrl={annotationStoreUrl}>
+                          <AnnotationGroupContextProvider baseUrl={annotationStoreUrl}>
+                            <AnnotationSelectContextProvider>
+                              <CellCountStoreContextProvider baseUrl={annotationStoreUrl}>
+                                <CellCountDrawContextProvider>
+                                  <DrawContextProvider>
+                                    <RotationContextProvider>
+                                      <RulerContextProvider>
+                                        <AdjustmentsContextProvider baseUrl={annotationStoreUrl}>
+                                          <ToolbarContextProvider>
+                                            <NavigationContextProvider>
+                                              <ComparisonContextProvider>
+                                                <SharedCountContextProvider>
+                                                  <MessagingContextProvider baseUrl={messagingUrl}>
+                                                    <ViewerShell fontSize={options?.fontSize} tools={options?.tools} />
+                                                  </MessagingContextProvider>
+                                                </SharedCountContextProvider>
+                                              </ComparisonContextProvider>
+                                            </NavigationContextProvider>
+                                          </ToolbarContextProvider>
+                                        </AdjustmentsContextProvider>
+                                      </RulerContextProvider>
+                                    </RotationContextProvider>
+                                  </DrawContextProvider>
+                                </CellCountDrawContextProvider>
+                              </CellCountStoreContextProvider>
+                            </AnnotationSelectContextProvider>
+                          </AnnotationGroupContextProvider>
+                        </AnnotationStoreContextProvider>
+                      </ViewportsContextProvider>
+                    </RealtimeContextProvider>
+                  </PresenceContextProvider>
+                </InviteGate>
+              </CollectionContextProvider>
+            </ImageViewerContextProvider>
+          </AuthContextProvider>
+        </EventContextProvider>
       </DialogContextProvider>
     </ToastContextProvider>
   )
@@ -234,6 +240,7 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
     'adjustments-panel': createRef<HTMLDivElement>(),
     'realtime': createRef<HTMLDivElement>(),
     'collections': createRef<HTMLDivElement>(),
+    'messages': createRef<HTMLDivElement>(),
   }).current
   // One hidden, always-mounted probe per edge, sized/positioned exactly
   // like a real DockEdge (see .dock-edge--probe in DockEdge.css) purely so
@@ -253,6 +260,7 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
     { id: 'adjustments-panel', title: 'Adjustments', tool: 'adjustments', content: <AdjustmentsPanel /> },
     { id: 'realtime', title: 'Collaboration', tool: 'realtime', content: <RealTimePanel /> },
     { id: 'collections', title: 'Collections', tool: 'collections', content: <CollectionsPanel /> },
+    { id: 'messages', title: 'Messages', tool: 'messages', content: <MessagesPanel /> },
   ]
 
   // Only set while dragging a panel that started out docked - see

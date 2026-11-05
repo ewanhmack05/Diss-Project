@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using AnnotationStore.Annotations;
@@ -44,7 +45,24 @@ public record SharingRequest(bool Shared);
 
 // A GeoJSON import, already turned into rows by the viewer. Saved together,
 // so it all goes in or none of it does.
-public record ImportRequest(List<Annotation> Annotations, List<CellCount> CellCounts, List<ImportGroup>? Groups = null);
+public record ImportRequest(
+    List<Annotation> Annotations,
+    List<CellCount> CellCounts,
+    List<ImportGroup>? Groups = null,
+    ImportSource? Source = null);
+
+// Set when this is something sent in a message rather than a file - the change
+// set then says where it came from. Rows says which row each new one was copied
+// from, so its ids have to be ones in this request.
+public record ImportSource(
+    Guid MessageId,
+    string FromUserId,
+    string FromName,
+    string Kind,
+    string Name,
+    Guid? CollectionId,
+    string? SlideId,
+    List<SourceRow>? Rows = null);
 
 // Annotations from the file that were in a group, by its name. Goes into
 // the collection's group of that name, made if there isn't one. Notes are
@@ -96,6 +114,35 @@ public record MembershipView(Guid CollectionId, string SlideId, CollectionKind K
 // always comes from the token, never from the request.
 public static class CollectionEndpoints
 {
+    // What a change set's What is when it's something sent in a message.
+    public const string AddFromMessage = "add from message";
+
+    private const int MaxSourceText = 300;
+
+    // Null when it's fine. What's in it can't be checked against the message,
+    // but it can be held to what this import is actually adding.
+    private static string? SourceProblem(ImportSource source, ImportRequest request)
+    {
+        if (source.MessageId == Guid.Empty) return "source.messageId is required";
+        if (string.IsNullOrWhiteSpace(source.FromUserId) || string.IsNullOrWhiteSpace(source.FromName)) return "source says who it's from";
+        if (string.IsNullOrWhiteSpace(source.Kind) || string.IsNullOrWhiteSpace(source.Name)) return "source says what it is";
+        if (new[] { source.FromUserId, source.FromName, source.Kind, source.Name, source.SlideId ?? "" }.Any(s => s.Length > MaxSourceText))
+            return $"source's values are at most {MaxSourceText} characters";
+        var annotations = request.Annotations.Select(a => a.Id).ToHashSet();
+        var cellCounts = request.CellCounts.Select(c => c.Id).ToHashSet();
+        foreach (var row in source.Rows ?? [])
+        {
+            var here = row.Entity switch
+            {
+                HistoryLog.Annotation => annotations.Contains(row.To),
+                HistoryLog.CellCount => cellCounts.Contains(row.To),
+                _ => false,
+            };
+            if (!here || row.From == Guid.Empty || row.To == Guid.Empty) return "source.rows has to be rows in this import";
+        }
+        return null;
+    }
+
     public const int MaxInviteHours = 24 * 7;
 
     public static void MapCollectionEndpoints(this WebApplication app)
@@ -303,7 +350,15 @@ public static class CollectionEndpoints
         app.MapPost("/collections/{id:guid}/import", [RequestSizeLimit(CellCountLimits.MaxRequestBytes)] async (Guid id, ImportRequest request, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
             if (await db.RequireAsync(id, user, CollectionRole.Editor) is { } denied) return denied;
-            if ((await db.ChangeSetAsync(http, id, user, "import")).Problem is { } problem) return problem;
+            if (request.Source is { } source && SourceProblem(source, request) is { } invalid) return Results.BadRequest(invalid);
+            var (changeSet, problem) = await db.ChangeSetAsync(http, id, user, request.Source is null ? "import" : AddFromMessage);
+            if (problem is not null) return problem;
+            if (request.Source is { } sent)
+            {
+                changeSet!.Source = JsonSerializer.Serialize(new ChangeSetSource(sent.MessageId, sent.FromUserId, sent.FromName, sent.Kind, sent.Name,
+                    sent.CollectionId, sent.SlideId, request.Annotations.Count, request.CellCounts.Count));
+                changeSet.SourceRows = sent.Rows is { Count: > 0 } ? JsonSerializer.Serialize(sent.Rows) : null;
+            }
             var collection = await db.Collections.FirstAsync(c => c.CollectionId == id);
             var now = DateTimeOffset.UtcNow;
 

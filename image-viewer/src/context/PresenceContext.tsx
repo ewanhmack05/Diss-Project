@@ -15,6 +15,7 @@ import {
   type PresenceWhere,
   type UserOffline,
 } from '../components/users/presence'
+import type { MessageWaitingNote } from './MessagingContext'
 import { useInviteGate } from '../components/realtime/InviteGate'
 import { useAuthContext } from './AuthContext'
 import { useCollectionContext } from './CollectionContext'
@@ -38,6 +39,11 @@ interface PresenceContextValue {
   // Sends them your session's invite code - it comes up for them to look
   // at and say yes or no to. Rejects with the hub's reason.
   inviteUser: (userId: string, code: string) => Promise<void>
+  // Says something's waiting in messaging, to their tabs and your other ones.
+  // Rejects if the hub can't be reached - it's saved, so they find it anyway.
+  notifyUser: (userId: string, conversationId: string, messageId: string) => Promise<void>
+  // Returns an unsubscribe.
+  onMessageWaiting: (handler: (waiting: MessageWaitingNote) => void) => () => void
 }
 
 const PresenceContext = createContext<PresenceContextValue | null>(null)
@@ -61,6 +67,7 @@ function PresenceContextProvider({ hubUrl, children }: { hubUrl?: string; childr
   const [directory, setDirectory] = useState<DirectoryUser[] | null>(null)
   const connectionRef = useRef<HubConnection | null>(null)
   const connectedRef = useRef(false)
+  const messageHandlersRef = useRef(new Set<(waiting: MessageWaitingNote) => void>())
 
   const where: PresenceWhere = {
     slideId: source.slideId,
@@ -131,6 +138,7 @@ function PresenceContextProvider({ hubUrl, children }: { hubUrl?: string; childr
 
     connection.on('UserOnline', (online: OnlineUser) => setState((current) => applyOnline(current, online)))
     connection.on('UserOffline', (offline: UserOffline) => setState((current) => applyOffline(current, offline)))
+    connection.on('MessageWaiting', (waiting: MessageWaitingNote) => messageHandlersRef.current.forEach((handler) => handler(waiting)))
     connection.on('InviteReceived', (invite: UserInvite) => {
       const { showDialog, openInvite, emit } = handlersRef.current
       emit('user:invite-received', { from: invite.fromUserId })
@@ -179,6 +187,20 @@ function PresenceContextProvider({ hubUrl, children }: { hubUrl?: string; childr
     await connection.invoke('InviteUser', userId, code)
   }, [])
 
+  const notifyUser = useCallback(async (userId: string, conversationId: string, messageId: string) => {
+    const connection = connectionRef.current
+    if (!connection || !connectedRef.current) throw new Error("Can't reach the real-time hub")
+    await connection.invoke('NotifyUser', userId, conversationId, messageId)
+  }, [])
+
+  const onMessageWaiting = useCallback((handler: (waiting: MessageWaitingNote) => void) => {
+    const handlers = messageHandlersRef.current
+    handlers.add(handler)
+    return () => {
+      handlers.delete(handler)
+    }
+  }, [])
+
   return (
     <PresenceContext.Provider
       value={{
@@ -191,6 +213,8 @@ function PresenceContextProvider({ hubUrl, children }: { hubUrl?: string; childr
             ? new Set(onlineUsers(state, user.id).flatMap((u) => (u.sessionId ? [u.sessionId] : [])))
             : null,
         inviteUser,
+        notifyUser,
+        onMessageWaiting,
       }}
     >
       {children}
