@@ -19,7 +19,8 @@ Rough price idea:
 | annotation-store | **Container Apps** | scales to zero | ~£0–10 |
 | Keycloak | **Container Apps** | **always 1 copy running** (Java, 512 MB–1 GB), optimised image, realm imported from JSON | ~£15–30 |
 | Real-time hub (later) | **Container Apps** | exactly 1 copy, WebSockets | ~£0–10 |
-| Postgres | **Azure Database for PostgreSQL Flexible**, B1ms | two databases: `annotationstore` and `keycloak`, backups included | ~£12–15 |
+| messaging | **Container Apps** | scales to zero | ~£0–10 |
+| Postgres | **Azure Database for PostgreSQL Flexible**, B1ms | three databases: `annotationstore`, `messaging` and `keycloak`, backups included | ~£12–15 |
 | Container images | **GitHub Container Registry** (free) or **Azure Container Registry Basic** | stores the built images | £0 or ~£4 |
 
 Roughly **£30-70/month**. Estimates - check against the Azure pricing calculator.
@@ -37,7 +38,8 @@ than per service:
 | annotation-store | container | ~150 MB | included |
 | Keycloak | container, always on | 0.7–1 GB | included |
 | Real-time hub (later) | container | ~150 MB | included |
-| Postgres | container + volume, two databases | 0.3–0.5 GB | included |
+| messaging | container | ~150 MB | included |
+| Postgres | container + volume, three databases | 0.3–0.5 GB | included |
 | Stats | Grafana `otel-lgtm`, reached over an SSH tunnel only | 1–2 GB | included |
 | **VM** | **B2ms** - 2 vCPU, 8 GB (~3.5–5 GB used) | | **~£50–55** |
 | OS disk | Standard SSD, 64 GB | | ~£4–5 |

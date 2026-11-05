@@ -540,19 +540,19 @@ The diagram puts underscores in a type with spaces, since it can't draw them oth
 | `integer` | A 32-bit whole number |
 | `double precision` | A 64-bit decimal number |
 | `boolean` | True or false |
-| `text` | A string of any length. Also holds some JSON that's only stored and handed back, like `GeoJson` and `Dots` |
-| `jsonb` | JSON that Postgres has parsed, so the database can read inside it. Used by the history, which pulls fields out of it in SQL |
+| `text` | A string of any length. Can also hold JSON that's only stored and handed back |
+| `jsonb` | JSON that Postgres has parsed and checked, so the database can read inside it |
 | `timestamp with time zone` | A moment in time, kept in UTC. Postgres also calls it `timestamptz` |
 
 | Term | What it means |
 |---|---|
-| PK | Primary key - what identifies a row. Two together, as on `CollectionMembers`, means the pair is what's unique |
+| PK | Primary key - what identifies a row. Two together means the pair is what's unique |
 | FK | Foreign key - a column pointing at another table's row. The database won't let it point at one that isn't there |
 | PK, FK | Both - part of what identifies the row, and pointing at another table |
 | not null / null | Whether a column has to have a value, or can be empty |
 | Index | A lookup kept by the database, so finding rows by that column doesn't read the whole table |
 | Unique index | An index that also refuses two rows with the same value |
-| Set by | Where a value comes from: `client` is in the request, `server` is the store, `host` or `owner` is that person choosing it through the API |
+| Set by | Where a value comes from: `client` is in the request, `server` is the service itself, `host` or `owner` is that person choosing it through the API |
 
 | Line end | How many rows of the table it's next to |
 |---|---|

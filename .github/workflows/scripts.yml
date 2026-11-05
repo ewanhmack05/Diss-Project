@@ -10,6 +10,9 @@ on:
       - annotation-store/Migrations/**
       - annotation-store/schema-notes.json
       - annotation-store/README.md
+      - messaging/Migrations/**
+      - messaging/schema-notes.json
+      - messaging/README.md
   workflow_dispatch:
 
 concurrency:

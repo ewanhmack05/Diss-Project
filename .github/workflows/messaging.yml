@@ -1,0 +1,58 @@
+name: messaging
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - messaging/**
+      - .github/workflows/messaging.yml
+      - .github/workflows/dotnet.yml
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  dotnet:
+    uses: ./.github/workflows/dotnet.yml
+    with:
+      directory: messaging
+      project: Messaging.csproj
+      tests: Tests/Messaging.Tests.csproj
+
+  # The same tests on Postgres rather than SQLite - the migrations themselves, and
+  # the [PostgresFact] ones that need requests at the same moment.
+  postgres:
+    name: Tests on Postgres
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      MESSAGING_TEST_POSTGRES: Host=localhost;Port=5432;Username=postgres;Password=postgres
+    defaults:
+      run:
+        working-directory: messaging
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Test
+        run: dotnet test Tests/Messaging.Tests.csproj -c Release --logger "console;verbosity=normal"

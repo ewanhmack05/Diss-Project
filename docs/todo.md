@@ -101,11 +101,11 @@ Each one builds on the one before.
 | --- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | 1   | ~~Soft delete~~                                   | Done, then replaced by step 2 - deleted rows are kept in the history now, not hidden in the live tables                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | medium |
 | 2   | History log                                       | Done in the store - `history.Entries`, one row per row a change touched, under its change set. This is the "user log" too - who did what is in it, so it doesn't need a store of its own. The History tab's detail page shows each changed field from and to (label, notes, colour as swatches, groups by name, "10 annotations" for a bulk recolour). One edit is one History row too - an open edit form sends one `Change-Set-Id` with every autosave, and the store folds repeat updates to a row in one change set into one entry, from how it was when the form opened to how it was when it closed | large  |
-| 3   | ~~Periodic snapshots~~                            | Done - a snapshot of what can change, every 5,000 entries, so a whole collection can go back to any change. See [version-control.md](breakdown/version-control.md#putting-a-whole-collection-back) | medium |
-| 4   | ~~Viewing history~~                               | Done - the collection's timeline is the History tab, with put back, and each change shows what it changed, from and to. Every annotation and count has a timeline of its own, from History on its Saved row | medium |
-| 5   | ~~Rollback~~                                      | Done at all three sizes - a change set (unless someone's changed it since), one row to any point on its timeline, and a whole collection to any change | medium |
+| 3   | ~~Periodic snapshots~~                            | Done - a snapshot of what can change, every 5,000 entries, so a whole collection can go back to any change. See [version-control.md](breakdown/version-control.md#putting-a-whole-collection-back)                                                                                                                                                                                                                                                                                                                                                                                                        | medium |
+| 4   | ~~Viewing history~~                               | Done - the collection's timeline is the History tab, with put back, and each change shows what it changed, from and to. Every annotation and count has a timeline of its own, from History on its Saved row                                                                                                                                                                                                                                                                                                                                                                                               | medium |
+| 5   | ~~Rollback~~                                      | Done at all three sizes - a change set (unless someone's changed it since), one row to any point on its timeline, and a whole collection to any change                                                                                                                                                                                                                                                                                                                                                                                                                                                    | medium |
 | 6   | ~~Policy for two or more people editing at once~~ | Done - labels and notes merge (Yjs); colour, group and a group's name and notes are last write wins or first come wins, picked per session; locking is for the write-up. Checked per field, from the value a save started from. See [version-control.md](breakdown/version-control.md#8-two-people-changing-the-same-thing)                                                                                                                                                                                                                                                                               | large  |
-| 7   | ~~Evaluate it~~                                   | Measured - see [evaluation.md](evaluation.md). Everything's simulated, so real people are still to come | large  |
+| 7   | ~~Evaluate it~~                                   | Measured - see [evaluation.md](evaluation.md). Everything's simulated, so real people are still to come                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | large  |
 
 ### Things to decide before building
 
@@ -264,21 +264,37 @@ The per-person on/off is done (see Done). Still open:
 - **Azure** - two options costed in [azure.md](azure.md), nothing deployed
   yet. Tiler runs on linux now, so it isn't blocked
 
-## 7. Design
+## 7. Messaging and sending things
+
+People with an account can message each other, chat in a session, and send a
+collection, a group, an annotation or an invite link. Size: large - a new service
+across the hub and viewer. Decided and drafted in [messaging.md](messaging.md): its
+own service, a copy rather than a live link, one to one and session chat, and kept
+until deleted for now. The [service](../messaging/README.md) and the hub's side are
+built. Still to do: the viewer's tab, showing where something came from, and sending
+invites as messages in place of `InviteUser`.
+
+For the write up: a copy between collections keeps where it came from, which makes
+it close to the merge in
+[Personal vs session as branches](#things-to-decide-before-building). It needs a
+line in the ethics question (section 10) too, since notes and slides may be patient
+data, and a sent copy outlives losing access to the original.
+
+## 8. Design
 
 - Dark and light mode, following the system setting. The CSS already uses
   variables, so it's mostly a second set of values
 - Top and bottom dock layout
 - Overhaul designs generally
 
-## 8. Maybe - probably cut
+## 9. Maybe - probably cut
 
 - **Language support** - is it worth the effort? Adds nothing to the version
   control argument
 - **ML annotation suggestions** - needs training data, and moves away from
   the dissertation (could change the spec)
 
-## 9. Questions to ask (supervisor / work)
+## 10. Questions to ask (supervisor / work)
 
 - Can I use work's data?
 - Can I use work's resources, e.g. Azure?
@@ -288,6 +304,5 @@ The per-person on/off is done (see Done). Still open:
 
 ## Suggested order
 
-1. **Evaluation** (section 2) - the conflict comparison, rollback and history
-   cost, and latency
-2. **Reading list** for [background.md](background.md), alongside the others
+1. **Reading list** for [background.md](background.md), alongside the others
+2. **Messaging and sending things** (section 7) - the decisions first

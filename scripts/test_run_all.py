@@ -2,6 +2,7 @@
 
     python -m unittest discover -s scripts
 """
+import json
 import os
 import subprocess
 import sys
@@ -29,9 +30,36 @@ def names(services):
     return [s.name for s in services]
 
 
+class DotnetServices(unittest.TestCase):
+    # Without it dotnet run comes up as Production, which doesn't migrate, so every
+    # call that reaches the database is a 500.
+    def test_each_starts_in_development(self):
+        repo = Path(__file__).resolve().parent.parent
+        dotnet = [s for s in SERVICES if s.kind == "dotnet"]
+        self.assertGreater(len(dotnet), 0)
+        for service in dotnet:
+            with self.subTest(service.name):
+                settings = json.loads((repo / service.folder / "Properties" / "launchSettings.json").read_text(encoding="utf-8-sig"))
+                first = next(iter(settings["profiles"].values()))
+                self.assertEqual("Development", first["environmentVariables"]["ASPNETCORE_ENVIRONMENT"])
+
+
+    # COPY . . would put Windows' obj/ over what the image restored, which breaks
+    # the build, and bake .env into the image.
+    def test_each_keeps_local_files_out_of_its_image(self):
+        repo = Path(__file__).resolve().parent.parent
+        for service in (s for s in SERVICES if s.kind == "dotnet"):
+            with self.subTest(service.name):
+                ignored = (repo / service.folder / ".dockerignore").read_text(encoding="utf-8").split()
+                self.assertIn("bin/", ignored)
+                self.assertIn("obj/", ignored)
+                if (repo / service.folder / ".env.example").exists():
+                    self.assertIn(".env", ignored)
+
+
 class Choosing(unittest.TestCase):
     def test_everything_but_the_dashboard_by_default(self):
-        self.assertEqual(["auth", "tiler", "store", "hub", "viewer"], names(choose()))
+        self.assertEqual(["auth", "tiler", "store", "hub", "messaging", "viewer"], names(choose()))
 
     def test_dashboard_when_asked(self):
         self.assertIn("dashboard", names(choose(dashboard=True)))
@@ -43,7 +71,7 @@ class Choosing(unittest.TestCase):
         self.assertEqual(["dashboard"], names(choose(only=["dashboard"])))
 
     def test_skip(self):
-        self.assertEqual(["auth", "tiler", "store", "viewer"], names(choose(skip=["hub"])))
+        self.assertEqual(["auth", "tiler", "store", "messaging", "viewer"], names(choose(skip=["hub"])))
 
     def test_folder_names_and_aliases_work(self):
         self.assertEqual("store", lookup("annotation-store").name)
@@ -109,9 +137,9 @@ class DockerPlanning(unittest.TestCase):
         stack = steps[0]
         self.assertEqual(ROOT, stack.cwd)
         self.assertEqual(["docker", "compose", "up", "-d", "--build", "--no-deps",
-                          "keycloak-db", "keycloak", "tiler", "annotation-db", "annotation-store", "realtime-hub"],
+                          "keycloak-db", "keycloak", "tiler", "annotation-db", "annotation-store", "realtime-hub", "messaging-db", "messaging"],
                          stack.command)
-        self.assertEqual(["auth", "tiler", "store", "hub"], names(stack.services))
+        self.assertEqual(["auth", "tiler", "store", "hub", "messaging"], names(stack.services))
         self.assertTrue(stack.detached)
 
     def test_keycloak_already_running_isnt_started_twice(self):

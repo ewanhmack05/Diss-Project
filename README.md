@@ -8,6 +8,7 @@ image-viewer/      React + TypeScript + OpenLayers frontend. See image-viewer/RE
 tiler/              .NET tile server for .mrxs whole-slide images. See tiler/README.md
 annotation-store/   .NET + Postgres backend for persisted annotations. See annotation-store/README.md
 realtime-hub/       .NET SignalR hub - rooms per slide, live annotation ops and viewports. See realtime-hub/README.md
+messaging/          .NET + Postgres service for messages, session chat and sending things. See messaging/README.md
 auth/               Keycloak (Docker) - sign-in, with a realm and test users. See auth/README.md
 dashboard/          Grafana (Docker) - load, timing and error stats for the services. See dashboard/README.md
 scripts/            Dev scripts - stress-test data, SQL. See scripts/README.md
@@ -23,7 +24,7 @@ the workflow itself). They can also be run by hand from the Actions tab.
 
 | Workflow | Runs |
 | --- | --- |
-| [annotation-store](.github/workflows/annotation-store.yml), [realtime-hub](.github/workflows/realtime-hub.yml) | `dotnet format` check, build with warnings as errors, xUnit tests, Docker build |
+| [annotation-store](.github/workflows/annotation-store.yml), [realtime-hub](.github/workflows/realtime-hub.yml), [messaging](.github/workflows/messaging.yml) | `dotnet format` check, build with warnings as errors, xUnit tests, Docker build |
 | [tiler](.github/workflows/tiler.yml) | the same, minus tests (none yet). Docker build without LFS, so slide 003 is pointer files |
 | [image-viewer](.github/workflows/image-viewer.yml) | `npm ci`, oxlint, vitest, `tsc -b` + Vite build |
 | [auth](.github/workflows/auth.yml) | shellcheck, compose check, realm has its clients, Keycloak starts and imports the realm |
@@ -46,6 +47,7 @@ what still needs filling in listed at the top.
 [![tiler](https://github.com/ewanhmack05/Diss-Project/actions/workflows/tiler.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/tiler.yml)
 [![annotation-store](https://github.com/ewanhmack05/Diss-Project/actions/workflows/annotation-store.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/annotation-store.yml)
 [![realtime-hub](https://github.com/ewanhmack05/Diss-Project/actions/workflows/realtime-hub.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/realtime-hub.yml)
+[![messaging](https://github.com/ewanhmack05/Diss-Project/actions/workflows/messaging.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/messaging.yml)
 [![auth](https://github.com/ewanhmack05/Diss-Project/actions/workflows/auth.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/auth.yml)
 [![dashboard](https://github.com/ewanhmack05/Diss-Project/actions/workflows/dashboard.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/dashboard.yml)
 [![scripts](https://github.com/ewanhmack05/Diss-Project/actions/workflows/scripts.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/scripts.yml)
@@ -66,7 +68,7 @@ One terminal, everything in it:
 python scripts/run_all.py
 ```
 
-Starts Keycloak, tiler, annotation-store, realtime-hub and the viewer, shows
+Starts Keycloak, tiler, annotation-store, realtime-hub, messaging and the viewer, shows
 their output together and stops them on Ctrl+C. `--dashboard` adds Grafana,
 `--docker` runs the backend in containers. See
 [scripts/README.md](scripts/README.md#running-everything).
@@ -88,6 +90,9 @@ dotnet build && dotnet run --urls http://localhost:5252
 
 cd realtime-hub/     # optional - the viewer works without it, just not live
 dotnet build && dotnet run --urls http://localhost:5180
+
+cd messaging/        # optional - needs a .env, see messaging/README.md
+dotnet build && dotnet run --urls http://localhost:5260
 ```
 
 **Keycloak set up before the Users tab?** If your Keycloak was first started

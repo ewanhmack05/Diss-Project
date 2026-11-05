@@ -1,0 +1,7 @@
+bin/
+obj/
+Tests/
+Properties/
+# Local settings - the container gets its own from the environment.
+.env
+.env.*

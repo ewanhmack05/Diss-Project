@@ -10,6 +10,7 @@ public interface IPresenceClient
     Task UserOnline(OnlineUser user);
     Task UserOffline(UserOffline user);
     Task InviteReceived(UserInvite invite);
+    Task MessageWaiting(MessageWaiting waiting);
 }
 
 // Who's online, and everyone with an account, for the viewer's Users tab.
@@ -60,6 +61,21 @@ public partial class PresenceHub(OnlineUsers online, IUserDirectory directory, I
 
     // Goes to every tab they have open. The hub doesn't check the code -
     // annotation-store does when they open it.
+    // Says something's waiting in messaging, to every tab they have open and your
+    // own other tabs. Nothing happens if they're offline - it's saved, and they
+    // find it on their next load.
+    public async Task NotifyUser(string userId, Guid conversationId, Guid messageId)
+    {
+        if (string.IsNullOrWhiteSpace(userId)) throw new HubException("userId is required");
+        if (conversationId == Guid.Empty || messageId == Guid.Empty) throw new HubException("conversationId and messageId are required");
+        var targets = online.ConnectionsOf(userId)
+            .Concat(online.ConnectionsOf(Context.User!.UserId()))
+            .Where(connection => connection != Context.ConnectionId)
+            .Distinct()
+            .ToList();
+        if (targets.Count > 0) await Clients.Clients(targets).MessageWaiting(new MessageWaiting(conversationId, messageId));
+    }
+
     public async Task InviteUser(string userId, string code)
     {
         if (string.IsNullOrWhiteSpace(userId)) throw new HubException("userId is required");

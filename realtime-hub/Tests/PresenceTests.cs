@@ -194,6 +194,47 @@ public class PresenceHubTests : IClassFixture<HubFactory>
     }
 
     [Fact]
+    public async Task NotifyUser_ReachesTheirTabs_AndYourOtherOnes_NotThisOne()
+    {
+        var aliceId = NewUser("alice");
+        var bobId = NewUser("bob");
+        await using var aliceHere = await ConnectAsync(aliceId);
+        await using var aliceElsewhere = await ConnectAsync(aliceId);
+        await using var bobTab1 = await ConnectAsync(bobId);
+        await using var bobTab2 = await ConnectAsync(bobId);
+        await using var carol = await ConnectAsync(NewUser("carol"));
+        var (conversation, message) = (Guid.NewGuid(), Guid.NewGuid());
+        var got = new[] { aliceElsewhere, bobTab1, bobTab2 }.Select(c => Listen<MessageWaiting>(c, nameof(IPresenceClient.MessageWaiting), _ => true)).ToList();
+        var here = Listen<MessageWaiting>(aliceHere, nameof(IPresenceClient.MessageWaiting), _ => true);
+        var carolGot = Listen<MessageWaiting>(carol, nameof(IPresenceClient.MessageWaiting), _ => true);
+
+        await aliceHere.InvokeAsync("NotifyUser", bobId, conversation, message);
+
+        foreach (var tab in got) Assert.Equal(new MessageWaiting(conversation, message), await tab.Task.WaitAsync(Timeout));
+        await Task.Delay(200);
+        Assert.False(here.Task.IsCompleted);
+        Assert.False(carolGot.Task.IsCompleted);
+    }
+
+    [Fact]
+    public async Task NotifyUser_WhenTheyreOffline_IsFine()
+    {
+        await using var alice = await ConnectAsync(NewUser("alice"));
+
+        await alice.InvokeAsync("NotifyUser", NewUser("nobody-here"), Guid.NewGuid(), Guid.NewGuid());
+    }
+
+    [Fact]
+    public async Task NotifyUser_NeedsWhoAndWhat()
+    {
+        await using var alice = await ConnectAsync(NewUser("alice"));
+
+        await Assert.ThrowsAsync<HubException>(() => alice.InvokeAsync("NotifyUser", " ", Guid.NewGuid(), Guid.NewGuid()));
+        await Assert.ThrowsAsync<HubException>(() => alice.InvokeAsync("NotifyUser", "bob", Guid.Empty, Guid.NewGuid()));
+        await Assert.ThrowsAsync<HubException>(() => alice.InvokeAsync("NotifyUser", "bob", Guid.NewGuid(), Guid.Empty));
+    }
+
+    [Fact]
     public async Task InviteUser_ReachesEveryTabTheyHave_FromWhoTheTokenSays()
     {
         var aliceId = NewUser("alice");

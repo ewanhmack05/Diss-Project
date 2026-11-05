@@ -58,6 +58,7 @@ over `services.json`, then `docker compose restart`.
 |--------------------|-------------------------------------------------|------------------------|------|
 | `tiler`            | ASP.NET requests, Kestrel, .NET runtime (CPU, memory, GC, threads) | every incoming request | yes  |
 | `annotation-store` | same                                            | every incoming request | yes  |
+| `messaging`        | same, and messages sent and things added, by kind (`messaging.messages_sent`, `messaging.attachments_added`) | every incoming request | yes  |
 
 Metrics are sent every 5 seconds. Traces and logs are in Grafana's
 **Explore** page (Tempo and Loki). Database queries aren't traced yet.
