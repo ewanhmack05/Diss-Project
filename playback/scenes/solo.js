@@ -818,13 +818,67 @@ export async function tabDocking({ sam }) {
   sam.did('dock-bottom')
   await sam.pause(800)
 
+  await sam.caption('Closing the bottom one gives its space back to the sides', 500)
+  await dragPanel(sam, 'Ruler', { x: 8, y: 300 })
+  await expect(page.locator('.draggable-panel--docked-left')).toHaveCount(1)
+  const bottomOf = async (selector) => {
+    const box = await page.locator(selector).first().boundingBox()
+    return box.y + box.height
+  }
+  const toolbarTop = (await page.locator('.toolbar').boundingBox()).y
+  const scaleBar = '.ol-scalebar'
+  const raised = await bottomOf(scaleBar)
+  expect(await bottomOf('.dock-edge--right:not(.dock-edge--probe)')).toBeLessThan(toolbarTop - 100)
+  await sam.pause(800)
+  await closePanel(sam, 'Adjustments')
+  await expect(sam.panel('Adjustments')).toHaveCount(0)
+  await expect.poll(() => bottomOf('.dock-edge--right:not(.dock-edge--probe)')).toBeCloseTo(toolbarTop, 0)
+  await expect.poll(() => bottomOf('.dock-edge--left:not(.dock-edge--probe)')).toBeCloseTo(toolbarTop, 0)
+  expect(await bottomOf(scaleBar)).toBeGreaterThan(raised + 100)
+  await sam.pause(1200)
+  sam.did('dock-close-fills')
+
+  await sam.caption('Open it again and it goes back where it was', 500)
+  await sam.tool('Adjustments')
+  await expect(page.locator('.draggable-panel--docked-bottom')).toHaveCount(1)
+  await expect.poll(() => bottomOf('.dock-edge--right:not(.dock-edge--probe)')).toBeLessThan(toolbarTop - 100)
+  await sam.pause(1000)
+  sam.did('dock-reopen')
+
   await sam.caption('Close from the panel, or its toolbar button', 500)
   await closePanel(sam, 'Adjustments')
   await expect(sam.panel('Adjustments')).toHaveCount(0)
   await sam.tool('Rotate image')
   await expect(sam.panel('Rotate')).toHaveCount(0)
+  await sam.tool('Measure distance')
+  await expect(sam.panel('Ruler')).toHaveCount(0)
   sam.did('panel-close')
   await sam.pause(700)
+
+  // A top dock is wide and short, so each panel has to lay itself out sideways.
+  for (const [tool, title] of [
+    ['Annotations', 'Annotations'], ['Cell Count', 'Cell Count'], ['Rotate image', 'Rotate'], ['Measure distance', 'Ruler'],
+    ['Adjustments', 'Adjustments'], ['Collaboration', 'Collaboration'], ['Collections', 'Collections'],
+  ]) {
+    // Said first, or the last one's caption is still up while this one opens.
+    await sam.caption(`${title}, across the top`, 0)
+    await sam.tool(tool)
+    await dragPanel(sam, title, { x: width / 2, y: 6 }, 6)
+    const docked = page.locator('.draggable-panel--docked-top')
+    await expect(docked).toHaveCount(1)
+    const dockedAt = Date.now()
+    await expect(docked.locator('.draggable-panel-title')).toHaveText(title)
+    expect((await docked.boundingBox()).width).toBe(width)
+    // Five seconds on screen, measured from the video. The drop settling before
+    // this line and the click after it take the other 1.5.
+    const close = sam.button(`Close ${title}`)
+    await sam.moveTo(await sam.center(close))
+    await sam.pause(Math.max(0, 3500 - (Date.now() - dockedAt)))
+    await sam.click(close, 0)
+    await expect(docked).toHaveCount(0)
+  }
+  sam.did('dock-top-every-tab')
+  await sam.pause(500)
 }
 
 export async function collections({ sam }) {

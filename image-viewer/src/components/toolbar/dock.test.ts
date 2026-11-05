@@ -5,6 +5,7 @@ import {
   emptyDockAssignments,
   dockPanel,
   undockPanel,
+  openDockAssignments,
   sideOfPanel,
   resolvesToStart,
   computePreviewRect,
@@ -160,5 +161,27 @@ describe('computePreviewRect', () => {
       width: 400,
       height: 256,
     })
+  })
+})
+
+describe('openDockAssignments', () => {
+  const docked = { left: ['a'], right: ['b', 'c'], top: [], bottom: ['d'] }
+
+  it('leaves out closed panels, so they hold no space', () => {
+    expect(openDockAssignments(docked, ['a', 'b', 'c'])).toEqual({ left: ['a'], right: ['b', 'c'], top: [], bottom: [] })
+  })
+
+  it('leaves an edge shared by the one still open', () => {
+    expect(openDockAssignments(docked, ['c']).right).toEqual(['c'])
+  })
+
+  it('keeps the order along an edge', () => {
+    expect(openDockAssignments({ ...docked, right: ['c', 'b'] }, ['b', 'c']).right).toEqual(['c', 'b'])
+  })
+
+  it('does not change the assignments, so a closed panel reopens where it was', () => {
+    const before = structuredClone(docked)
+    openDockAssignments(docked, [])
+    expect(docked).toEqual(before)
   })
 })

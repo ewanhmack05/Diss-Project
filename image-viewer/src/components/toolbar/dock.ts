@@ -47,6 +47,18 @@ function undockPanel(assignments: DockAssignments, panelId: string): DockAssignm
   return withoutPanel(assignments, panelId)
 }
 
+// Just the panels that are open. A closed one keeps its place in the
+// assignments, so it reopens where it was, but it shouldn't hold any space.
+function openDockAssignments(assignments: DockAssignments, openIds: string[]): DockAssignments {
+  const onlyOpen = (ids: string[]) => ids.filter((id) => openIds.includes(id))
+  return {
+    left: onlyOpen(assignments.left),
+    right: onlyOpen(assignments.right),
+    top: onlyOpen(assignments.top),
+    bottom: onlyOpen(assignments.bottom),
+  }
+}
+
 function sideOfPanel(assignments: DockAssignments, panelId: string): DockSide | null {
   return DOCK_SIDES.find((side) => assignments[side].includes(panelId)) ?? null
 }
@@ -118,6 +130,7 @@ export {
   emptyDockAssignments,
   dockPanel,
   undockPanel,
+  openDockAssignments,
   sideOfPanel,
   resolvesToStart,
   computePreviewRect,

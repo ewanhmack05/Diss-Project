@@ -44,7 +44,7 @@ One person:
 | `rotation.mp4` | Quick buttons, the dial, a typed angle, reset |
 | `ruler.mp4` | Measuring, measuring again, clearing |
 | `image-adjustments.mp4` | All six sliders, reset, and presets - saving, applying, updating, deleting |
-| `tab-docking.mp4` | Floating, bringing to the front, docking to all four edges, sharing an edge, undocking, closing |
+| `tab-docking.mp4` | Floating, bringing to the front, docking to all four edges, sharing an edge, undocking, a closed panel giving its space back and reopening where it was, then 5 seconds of every tab across the top |
 | `collections.mp4` | Renaming, sharing, importing GeoJSON with its preview, exporting, paging a long list |
 | `history.mp4` | The list, its order and filter, one change, putting back, one annotation's timeline and going back on it, putting the whole collection back |
 

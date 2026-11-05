@@ -115,6 +115,9 @@ export const FEATURES = {
   'dock-bottom': 'Docking bottom',
   'dock-share': 'Two panels sharing an edge',
   'dock-undock': 'Pulling a panel off again',
+  'dock-close-fills': 'Closing a docked panel giving its space back',
+  'dock-reopen': 'A closed panel reopening where it was docked',
+  'dock-top-every-tab': 'Every tab laid out across the top',
 
   // Collections and history
   'collection-rename': 'Renaming your collection',

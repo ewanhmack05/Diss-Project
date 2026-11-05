@@ -120,10 +120,10 @@ export function filterSection(person, title) {
   })
 }
 
-export async function dragPanel(person, title, to) {
+export async function dragPanel(person, title, to, stepsEach = 20) {
   const handle = person.panel(title).locator('.draggable-panel-handle')
   const from = await person.center(handle)
-  await person.drag([from, around(from, 12, 12), to], { stepsEach: 20, stepMs: 14 })
+  await person.drag([from, around(from, 12, 12), to], { stepsEach, stepMs: 14 })
   await person.pause(400)
 }
 

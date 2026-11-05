@@ -50,6 +50,7 @@ import {
   emptyDockAssignments,
   dockPanel,
   undockPanel,
+  openDockAssignments,
   sideOfPanel,
   resolvesToStart,
   computePreviewRect,
@@ -338,7 +339,7 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
       return
     }
     const id = String(event.active.id)
-    const hasOccupant = dockAssignments[target.side].some((panelId) => panelId !== id)
+    const hasOccupant = openDocks[target.side].some((panelId) => panelId !== id)
     setPreviewRect(computePreviewRect(target.side, target.activeRect, target.zoneRect, edgeRect, hasOccupant))
   }
 
@@ -369,6 +370,7 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
   }
 
   const activePanelDefs = panelDefs.filter((panel) => activeTools.includes(panel.tool))
+  const openDocks = openDockAssignments(dockAssignments, activePanelDefs.map((panel) => panel.id))
   const floatingPanelDefs = activePanelDefs.filter((panel) => !sideOfPanel(dockAssignments, panel.id))
   const dockedGroups = DOCK_SIDES.map((side) => ({
     side,
@@ -459,12 +461,12 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
   // width, left/right just get whatever vertical space is left over.
   const shellStyle = {
     ...(fontSize ? { fontSize } : undefined),
-    '--dock-top-inset': dockAssignments.top.length > 0 ? EDGE_CROSS_SIZE : '0em',
-    '--dock-bottom-inset': dockAssignments.bottom.length > 0 ? EDGE_CROSS_SIZE : '0em',
+    '--dock-top-inset': openDocks.top.length > 0 ? EDGE_CROSS_SIZE : '0em',
+    '--dock-bottom-inset': openDocks.bottom.length > 0 ? EDGE_CROSS_SIZE : '0em',
     // Lets the bottom-right scale bar (see MapNode.css's .ol-scalebar) step
     // out of the way of a right-docked panel, the same way the two insets
     // above already do for left/right and top/bottom.
-    '--dock-right-inset': dockAssignments.right.length > 0 ? `${FLOATING_PANEL_WIDTH_EM}em` : '0em',
+    '--dock-right-inset': openDocks.right.length > 0 ? `${FLOATING_PANEL_WIDTH_EM}em` : '0em',
   } as CSSProperties
 
   return (
