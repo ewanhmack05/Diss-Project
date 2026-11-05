@@ -11,6 +11,7 @@ from time_rollback import (
     parse_args,
     recolour_body,
     report,
+    rollback_rows,
     shape,
     unique_colour,
 )
@@ -58,10 +59,17 @@ class Compare(unittest.TestCase):
         self.assertIsNone(compare({"entries": 1, "ms": [5]}, {"entries": 0, "ms": [0]})["times_faster"])
 
 
+class RollbackRows(unittest.TestCase):
+    def test_median_and_range_for_each_size_and_kind(self):
+        rows = rollback_rows({(1000, "delete"): [30, 10, 20], (1, "recolour"): [5]})
+        self.assertEqual({"rows": 1000, "what": "delete", "ms": 20, "fastest": 10, "slowest": 30, "runs": 3}, rows[0])
+        self.assertEqual((5, 5, 5, 1), (rows[1]["ms"], rows[1]["fastest"], rows[1]["slowest"], rows[1]["runs"]))
+
+
 class Report(unittest.TestCase):
     def test_reads_both_ways_and_each_rollback(self):
         text = report({"from_now_ms": 812.4, "from_now_entries": 30_000, "from_snapshot_ms": 95.1, "from_snapshot_entries": 5000},
-                      [{"rows": 1000, "what": "delete", "ms": 420.0}])
+                      [{"rows": 1000, "what": "delete", "ms": 420.0, "fastest": 400.0, "slowest": 500.0, "runs": 3}])
         self.assertIn("812 ms, undoing 30,000 entries", text)
         self.assertIn("95 ms, undoing 5,000 entries", text)
         self.assertIn("1,000  delete", text)

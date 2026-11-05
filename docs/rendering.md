@@ -23,8 +23,9 @@ are now in use:
 
 - Test with lots of data: `python scripts/seed_stress.py` (see [scripts/README.md](../scripts/README.md))
 - Measure with `scripts/map_bench.js` - results below
-- Still not compared against canvas - a `?renderer=canvas` switch would give
-  the GPU-vs-canvas numbers
+- Compared against canvas with `?renderer=canvas` - see
+  [evaluation.md](evaluation.md#canvas-against-webgl). Open the Annotations tool first,
+  or the layer isn't drawing
 
 ## Where the map breaks - measured 2026-10-13
 

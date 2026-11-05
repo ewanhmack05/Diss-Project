@@ -11,6 +11,7 @@ snapshot part way through, so it takes a minute or two. Standard library only.
     python scripts/time_rollback.py --rows 20000 --rounds 6 --json rollback.json
 """
 import argparse
+import itertools
 import json
 import statistics
 import time
@@ -32,6 +33,7 @@ def parse_args(argv=None):
     parser.add_argument("--rounds", type=int, default=6, help="recolours of every row after the snapshot (default: %(default)s)")
     parser.add_argument("--runs", type=int, default=5, help="timed previews each way (default: %(default)s)")
     parser.add_argument("--sizes", type=int, nargs="*", default=[1, 1000, 5000], help="rows to change or delete, then put back (default: %(default)s)")
+    parser.add_argument("--repeats", type=int, default=1, help="rollbacks of each size and kind, reporting the median and range (default: %(default)s)")
     parser.add_argument("--wait", type=int, default=90, help="seconds to wait for a snapshot (default: %(default)s)")
     parser.add_argument("--json", help="also write the results to this file")
     add_login_args(parser)
@@ -74,14 +76,22 @@ def compare(from_now, from_snapshot):
     }
 
 
+def rollback_rows(times):
+    """Median and range for each size and kind, from every timed rollback."""
+    rows = []
+    for (size, what), ms in times.items():
+        rows.append({"rows": size, "what": what, "ms": statistics.median(ms), "fastest": min(ms), "slowest": max(ms), "runs": len(ms)})
+    return rows
+
+
 def report(comparison, rollbacks):
     lines = [
         f"Working it out, from what's there now: {comparison['from_now_ms']:.0f} ms, undoing {comparison['from_now_entries']:,} entries",
         f"Working it out, from a snapshot:       {comparison['from_snapshot_ms']:.0f} ms, undoing {comparison['from_snapshot_entries']:,} entries",
         "",
-        f"{'rows':>8}  {'what':<8}  {'rollback':>10}",
+        f"{'rows':>8}  {'what':<8}  {'median':>10}  {'fastest':>10}  {'slowest':>10}  runs",
     ]
-    lines += [f"{r['rows']:>8,}  {r['what']:<8}  {r['ms']:>7.0f} ms" for r in rollbacks]
+    lines += [f"{r['rows']:>8,}  {r['what']:<8}  {r['ms']:>7.0f} ms  {r['fastest']:>7.0f} ms  {r['slowest']:>7.0f} ms  {r['runs']}" for r in rollbacks]
     return "\n".join(lines)
 
 
@@ -150,16 +160,20 @@ def main(argv=None):
 
     comparison = compare(store.timed_previews(point, False, args.runs), store.timed_previews(point, True, args.runs))
 
-    rollbacks = []
-    for step, size in enumerate(args.sizes):
+    times = {}
+    steps = itertools.count()
+    # Round the sizes in turn rather than all of one size together, so anything that
+    # changes over a run, like the history getting longer, doesn't favour one size.
+    for _, size in itertools.product(range(args.repeats), args.sizes):
         some = ids[:size]
-        before = store.recolour(collection_id, ids[:1], unique_colour(step * 3))
-        store.recolour(collection_id, some, unique_colour(step * 3 + 1))
-        rollbacks.append({"rows": size, "what": "recolour", "ms": store.rollback(before)})
-        before = store.recolour(collection_id, ids[:1], unique_colour(step * 3 + 2))
+        before = store.recolour(collection_id, ids[:1], unique_colour(next(steps)))
+        store.recolour(collection_id, some, unique_colour(next(steps)))
+        times.setdefault((size, "recolour"), []).append(store.rollback(before))
+        before = store.recolour(collection_id, ids[:1], unique_colour(next(steps)))
         for batch in batches(some):
             store.call("POST", "/annotations/bulk-delete", {"collectionId": collection_id, "ids": batch})
-        rollbacks.append({"rows": size, "what": "delete", "ms": store.rollback(before)})
+        times.setdefault((size, "delete"), []).append(store.rollback(before))
+    rollbacks = rollback_rows(times)
 
     print()
     print(report(comparison, rollbacks))

@@ -90,10 +90,8 @@ an afternoon, medium a few days, large a week or more.
 Steps 1 to 6 are done (see Done): every write is in a change
 set that says who did what, and the history schema keeps what each change
 did to every row, before and after. How it's built, across the services, is
-in [version-control.md](breakdown/version-control.md). Edits are still last
-write wins - the old value is kept now, but nothing stops it being
-overwritten. The Yjs history for a label or notes box is dropped when the
-last person closes it.
+in [version-control.md](breakdown/version-control.md). The Yjs history for a
+label or notes box is dropped when the last person closes it.
 
 ### The steps, in order
 
@@ -107,7 +105,7 @@ Each one builds on the one before.
 | 4   | ~~Viewing history~~                               | Done - the collection's timeline is the History tab, with put back, and each change shows what it changed, from and to. Every annotation and count has a timeline of its own, from History on its Saved row | medium |
 | 5   | ~~Rollback~~                                      | Done at all three sizes - a change set (unless someone's changed it since), one row to any point on its timeline, and a whole collection to any change | medium |
 | 6   | ~~Policy for two or more people editing at once~~ | Done - labels and notes merge (Yjs); colour, group and a group's name and notes are last write wins or first come wins, picked per session; locking is for the write-up. Checked per field, from the value a save started from. See [version-control.md](breakdown/version-control.md#8-two-people-changing-the-same-thing)                                                                                                                                                                                                                                                                               | large  |
-| 7   | Evaluate it                                       | See [Evaluation](#2-evaluation). `simulate_conflicts.py` and the dashboard's Edits row are there to measure step 6                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | large  |
+| 7   | ~~Evaluate it~~                                   | Measured - see [evaluation.md](evaluation.md). Everything's simulated, so real people are still to come | large  |
 
 ### Things to decide before building
 
@@ -205,6 +203,9 @@ adding with links:
 
 ## 2. Evaluation
 
+Measured, simulated - results and how far to trust them in
+[evaluation.md](evaluation.md). What's left is real people, if ethics allow it.
+
 - **Latency** - how long a change takes to reach everyone else. The hub
   already stamps each op with `serverTime`
 - **Conflicts** - two people editing the same annotation or count at once:
@@ -215,9 +216,7 @@ adding with links:
 - **Yjs vs last write wins** for labels and notes
 - **History cost** - how much the log grows per change, and how long a
   rollback of 1, 1k and 20k items takes
-- **Canvas vs WebGL frame times** - the WebGL side is measured in
-  [rendering.md](rendering.md) (2026-10-13). Still needed: the same
-  `map_bench.js` run with annotations drawn on a canvas, to compare against
+- **Canvas vs WebGL frame times**
 - Already there to build on: the hub's `/rooms/{roomId}/docs` endpoint (doc
   sizes), the Grafana [dashboard](../dashboard/README.md),
   `scripts/seed_stress.py`

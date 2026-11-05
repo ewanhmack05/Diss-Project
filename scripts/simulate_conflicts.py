@@ -96,6 +96,10 @@ class Tally:
                 else:
                     setattr(self, name, getattr(self, name) + n)
 
+    def counts(self, policy):
+        return {"policy": policy, "saves": self.saves, "collided": self.collided, "refused": self.refused, "overwrote": self.overwrote,
+                "used_mine": self.used_mine, "kept_theirs": self.kept_theirs, "ms": self.ms}
+
     def summary(self, policy):
         def share(n):
             return f"{n} ({100 * n / self.saves:.1f}%)" if self.saves else str(n)
@@ -220,6 +224,7 @@ def main():
     parser.add_argument("--notice", type=float, default=2, help="seconds before someone sees another person's change (default: %(default)s)")
     parser.add_argument("--use-mine", type=float, default=0.5, help="how often, 0 to 1, someone turned down puts theirs over it anyway (default: %(default)s)")
     parser.add_argument("--clean", action="store_true", help="remove every annotation sim people made in the session, and stop")
+    parser.add_argument("--json", help="also write the counts and every save's time to this file")
     args, _ = parser.parse_known_args()
     if args.targets < 1 or args.change_every <= 0 or args.notice < 0 or not 0 <= args.use_mine <= 1:
         parser.error("--targets at least 1, --change-every above 0, --notice 0 or more, --use-mine from 0 to 1")
@@ -228,6 +233,9 @@ def main():
     if TALLY.saves:
         print()
         print(TALLY.summary(BOARD.policy))
+    if args.json:
+        with open(args.json, "w", encoding="utf-8") as file:
+            json.dump(TALLY.counts(BOARD.policy), file)
 
 
 if __name__ == "__main__":

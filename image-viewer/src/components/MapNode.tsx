@@ -43,6 +43,7 @@ import {
 import { featureToGeoJson, geoJsonToFeature } from './open-layers/GeoJSON'
 import { LessDetail } from './open-layers/LessDetail'
 import { translatePending } from './open-layers/TranslatePending'
+import { annotationRenderer } from './open-layers/renderer'
 import { useAnnotationGroupContext } from '../context/AnnotationGroupContext'
 import { useMapSelection } from './annotation/Select/useMapSelection'
 import { matchesSearch, passes } from './saved/filters'
@@ -252,7 +253,7 @@ function MapNode() {
   // Whether our measurement is out there, so closing the ruler only clears
   // our sketch when it's a ruler one, not an annotation half drawn.
   const rulerSentRef = useRef(false)
-  const annotationsLayerRef = useRef<WebGLVectorLayer<VectorSource> | null>(null)
+  const annotationsLayerRef = useRef<WebGLVectorLayer<VectorSource> | VectorLayer<VectorSource> | null>(null)
   const annotationArrowsLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const viewedAnnotationLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   const drawLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
@@ -314,12 +315,23 @@ function MapNode() {
         // when zoomed out (see LessDetail); everything else reads the
         // shapes as saved from annotationsSource.
         lessDetail = new LessDetail(annotationsSource)
-        const annotationsLayer = new WebGLVectorLayer({
-          source: lessDetail.source,
-          style: annotationFlatStyle,
-          visible: annotationsVisible,
-          disableHitDetection: true,
-        })
+        const annotationsLayer =
+          annotationRenderer(window.location.search) === 'canvas'
+            ? new VectorLayer({
+                source: lessDetail.source,
+                style: annotationStyle,
+                visible: annotationsVisible,
+                // Redraws while moving, as WebGL does. By default it waits until the
+                // view stops, which would look quick without doing the same work.
+                updateWhileAnimating: true,
+                updateWhileInteracting: true,
+              })
+            : new WebGLVectorLayer({
+                source: lessDetail.source,
+                style: annotationFlatStyle,
+                visible: annotationsVisible,
+                disableHitDetection: true,
+              })
         annotationsLayer.set('savedAnnotations', true)
         const annotationArrowsLayer = new VectorLayer({
           source: annotationsSource,

@@ -1,0 +1,60 @@
+{
+ "rows": 20000,
+ "comparison": {
+  "from_now_entries": 140000,
+  "from_snapshot_entries": 20000,
+  "from_now_ms": 952.8962999902433,
+  "from_snapshot_ms": 331.07830000517424,
+  "times_faster": 2.8781599397343496
+ },
+ "rollbacks": [
+  {
+   "rows": 1,
+   "what": "recolour",
+   "ms": 301.13220000930596,
+   "fastest": 275.1764999993611,
+   "slowest": 486.3193999917712,
+   "runs": 5
+  },
+  {
+   "rows": 1,
+   "what": "delete",
+   "ms": 329.4179000076838,
+   "fastest": 241.31099999067374,
+   "slowest": 452.6974999898812,
+   "runs": 5
+  },
+  {
+   "rows": 1000,
+   "what": "recolour",
+   "ms": 575.4318000108469,
+   "fastest": 435.9812000038801,
+   "slowest": 771.5024999924935,
+   "runs": 5
+  },
+  {
+   "rows": 1000,
+   "what": "delete",
+   "ms": 564.0841999993427,
+   "fastest": 527.9822000011336,
+   "slowest": 820.3440000070259,
+   "runs": 5
+  },
+  {
+   "rows": 20000,
+   "what": "recolour",
+   "ms": 1590.7624999963446,
+   "fastest": 1460.1473000075202,
+   "slowest": 3031.7462000093656,
+   "runs": 5
+  },
+  {
+   "rows": 20000,
+   "what": "delete",
+   "ms": 7214.5144999958575,
+   "fastest": 6787.9105000029085,
+   "slowest": 7864.891899997019,
+   "runs": 5
+  }
+ ]
+}
