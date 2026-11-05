@@ -22,16 +22,16 @@ GitHub Actions in [.github/workflows](.github/workflows). Each folder has
 its own workflow, run on a push to any branch that changes that folder (or
 the workflow itself). They can also be run by hand from the Actions tab.
 
-| Workflow | Runs |
-| --- | --- |
-| [annotation-store](.github/workflows/annotation-store.yml), [realtime-hub](.github/workflows/realtime-hub.yml), [messaging](.github/workflows/messaging.yml) | `dotnet format` check, build with warnings as errors, xUnit tests, Docker build |
-| [tiler](.github/workflows/tiler.yml) | the same, minus tests (none yet). Docker build without LFS, so slide 003 is pointer files |
-| [image-viewer](.github/workflows/image-viewer.yml) | `npm ci`, oxlint, vitest, `tsc -b` + Vite build |
-| [auth](.github/workflows/auth.yml) | shellcheck, compose check, realm has its clients, Keycloak starts and imports the realm |
-| [dashboard](.github/workflows/dashboard.yml) | compose check, provisioning YAML and dashboard JSON parse |
-| [scripts](.github/workflows/scripts.yml) | ruff, Python compiles |
-| [playback](.github/workflows/playback.yml) | `npm ci`, the recorder's tests. Recording itself stays local |
-| [stack](.github/workflows/stack.yml) | root `docker-compose.yml` is valid |
+| Workflow                                                                                                                                                     | Runs                                                                                      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| [annotation-store](.github/workflows/annotation-store.yml), [realtime-hub](.github/workflows/realtime-hub.yml), [messaging](.github/workflows/messaging.yml) | `dotnet format` check, build with warnings as errors, xUnit tests, Docker build           |
+| [tiler](.github/workflows/tiler.yml)                                                                                                                         | the same, minus tests (none yet). Docker build without LFS, so slide 003 is pointer files |
+| [image-viewer](.github/workflows/image-viewer.yml)                                                                                                           | `npm ci`, oxlint, vitest, `tsc -b` + Vite build                                           |
+| [auth](.github/workflows/auth.yml)                                                                                                                           | shellcheck, compose check, realm has its clients, Keycloak starts and imports the realm   |
+| [dashboard](.github/workflows/dashboard.yml)                                                                                                                 | compose check, provisioning YAML and dashboard JSON parse                                 |
+| [scripts](.github/workflows/scripts.yml)                                                                                                                     | ruff, Python compiles                                                                     |
+| [playback](.github/workflows/playback.yml)                                                                                                                   | `npm ci`, the recorder's tests. Recording itself stays local                              |
+| [stack](.github/workflows/stack.yml)                                                                                                                         | root `docker-compose.yml` is valid                                                        |
 
 The three .NET workflows share their steps through
 [dotnet.yml](.github/workflows/dotnet.yml), a reusable workflow that
@@ -150,25 +150,27 @@ the same proxy.
 This is the base setup for the real-time collaboration - all of this is
 rough work and to be taken as proof of concept.
 
-
 ## Planning - real-time collaboration
 
 Todos and notes, split by area, in [docs/](docs):
 
-| Area                                       | What's in it                                                                      |
-| ------------------------------------------ | --------------------------------------------------------------------------------- |
-| [Auth](docs/auth.md)                       | ory / authentik / keycloak - leaning Keycloak, how it connects to collections     |
-| [Azure](docs/azure.md)                     | separate apps vs one VM, price tables, what has to change first                   |
-| [Libraries](docs/libraries.md)             | Yjs / Automerge / Loro, the WebSocket (SignalR) hub, CRDT vs server-authoritative |
-| [Thought process](docs/thought-process.md) | how users connect, guest vs authenticated, host controls, navigation modes        |
-| [Guests](docs/guests.md)                   | joining without an account - the token, what's never saved, the name filter      |
-| [Rendering](docs/rendering.md)             | WebGPU question, what's on WebGL now, what the panning delay turned out to be     |
-| [Timing](docs/timing.md)                  | what annotation-store's reads take, the 40ms the dev proxy adds, what would help  |
+| Area                                       | What's in it                                                                                                                                             |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Auth](docs/auth.md)                       | ory / authentik / keycloak - leaning Keycloak, how it connects to collections                                                                            |
+| [Azure](docs/azure.md)                     | separate apps vs one VM, price tables, what has to change first                                                                                          |
+| [Libraries](docs/libraries.md)             | Yjs / Automerge / Loro, the WebSocket (SignalR) hub, CRDT vs server-authoritative                                                                        |
+| [Thought process](docs/thought-process.md) | how users connect, guest vs authenticated, host controls, navigation modes                                                                               |
+| [Guests](docs/guests.md)                   | joining without an account - the token, what's never saved, the name filter                                                                              |
+| [Rendering](docs/rendering.md)             | WebGPU question, what's on WebGL now, what the panning delay turned out to be                                                                            |
+| [Timing](docs/timing.md)                   | what annotation-store's reads take, the 40ms the dev proxy adds, what would help                                                                         |
 | [Breakdowns](docs/breakdown)               | how each service works, plus [version control](docs/breakdown/version-control.md) across all of them - change sets, putting things back, the History tab |
 
 ### Data
+
 All example slide data has been sourced from https://openslide.cs.cmu.edu/download/openslide-testdata/Mirax/
+
 ## Playback videos
+
 Most, if not all Pull requests will have videos showing what has been added
 
 To remake them, `cd playback && node record.js` with everything running saves
@@ -209,3 +211,8 @@ Two people side by side, each screen showing what the other does live:
 | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
 | [![Session admin](https://img.youtube.com/vi/9Wq3UmFiga0/hqdefault.jpg)](https://youtu.be/9Wq3UmFiga0) | [![Guests](https://img.youtube.com/vi/HW5iUOAhO1A/hqdefault.jpg)](https://youtu.be/HW5iUOAhO1A) |
 | [Watch](https://youtu.be/9Wq3UmFiga0)                                                                  | [Watch](https://youtu.be/HW5iUOAhO1A)                                                           |
+
+| Messaging                                                                                          |
+| -------------------------------------------------------------------------------------------------- |
+| [![Messaging](https://img.youtube.com/vi/C_5mDSey0iM/hqdefault.jpg)](https://youtu.be/C_5mDSey0iM) |
+| [Watch](https://youtu.be/C_5mDSey0iM)                                                              |

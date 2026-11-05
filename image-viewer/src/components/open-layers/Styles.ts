@@ -547,11 +547,11 @@ function remoteViewportOverviewStyle(feature: FeatureLike, overviewWidth: number
 }
 
 // Something sent in a message, being looked at - drawn as what it is, in its
-// own colours. Only a sent area has none, so it gets a box.
+// own colours. Only a sent area has none, so it gets a box - just an edge, since
+// it's as big as the screen and a fill would change how the tissue looks.
 const SENT_AREA_COLOUR = "#ffb300";
 const sentAreaBox = new Style({
 	stroke: new Stroke({ color: SENT_AREA_COLOUR, width: 2, lineDash: [8, 6] }),
-	fill: new Fill({ color: "rgba(255, 179, 0, 0.08)" }),
 });
 
 function sentAreaStyle(feature: FeatureLike, resolution: number): Style | Style[] {
