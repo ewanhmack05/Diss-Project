@@ -169,14 +169,38 @@ Most, if not all Pull requests will have videos showing what has been added
 To remake them, `cd playback && node record.js` with everything running saves
 one MP4 per feature in `playback/videos/`. See [playback/README.md](playback/README.md).
 
-Per tab videos:
+All of them in one place: [the playlist](https://www.youtube.com/playlist?list=PLJ5hluEkJsLg).
 
-| Annotations                                                                                          | Cell Counter                                                                                          | Rotation                                                                                          |
-| ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| [![Annotations](https://img.youtube.com/vi/yB8OqfuKgpo/hqdefault.jpg)](https://youtu.be/yB8OqfuKgpo) | [![Cell Counter](https://img.youtube.com/vi/1cxGNTCnqkg/hqdefault.jpg)](https://youtu.be/1cxGNTCnqkg) | [![Rotation](https://img.youtube.com/vi/FFpnNC7cnAU/hqdefault.jpg)](https://youtu.be/FFpnNC7cnAU) |
-| [Watch](https://youtu.be/yB8OqfuKgpo)                                                                | [Watch](https://youtu.be/1cxGNTCnqkg)                                                                 | [Watch](https://youtu.be/FFpnNC7cnAU)                                                             |
+One person, per part of the viewer:
+
+| Signing in                                                                                          | Map navigation                                                                                          | Annotations                                                                                          |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| [![Signing in](https://img.youtube.com/vi/oMp3sp8JLJ4/hqdefault.jpg)](https://youtu.be/oMp3sp8JLJ4) | [![Map navigation](https://img.youtube.com/vi/iLF-rKk9Elw/hqdefault.jpg)](https://youtu.be/iLF-rKk9Elw) | [![Annotations](https://img.youtube.com/vi/guR-X97zOIU/hqdefault.jpg)](https://youtu.be/guR-X97zOIU) |
+| [Watch](https://youtu.be/oMp3sp8JLJ4)                                                               | [Watch](https://youtu.be/iLF-rKk9Elw)                                                                   | [Watch](https://youtu.be/guR-X97zOIU)                                                                |
+
+| Annotation groups                                                                                          | Cell Counter                                                                                          | Rotation                                                                                          |
+| ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| [![Annotation groups](https://img.youtube.com/vi/Gu4RAf3r_fw/hqdefault.jpg)](https://youtu.be/Gu4RAf3r_fw) | [![Cell Counter](https://img.youtube.com/vi/Q98UeVWBciE/hqdefault.jpg)](https://youtu.be/Q98UeVWBciE) | [![Rotation](https://img.youtube.com/vi/mhmj0b-bIkY/hqdefault.jpg)](https://youtu.be/mhmj0b-bIkY) |
+| [Watch](https://youtu.be/Gu4RAf3r_fw)                                                                      | [Watch](https://youtu.be/Q98UeVWBciE)                                                                 | [Watch](https://youtu.be/mhmj0b-bIkY)                                                             |
 
 | Ruler                                                                                          | Image Adjustments                                                                                          | Tab docking                                                                                          |
 | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| [![Ruler](https://img.youtube.com/vi/A7aCQ3hAo0c/hqdefault.jpg)](https://youtu.be/A7aCQ3hAo0c) | [![Image Adjustments](https://img.youtube.com/vi/ofGUGfLdAzM/hqdefault.jpg)](https://youtu.be/ofGUGfLdAzM) | [![Tab docking](https://img.youtube.com/vi/CwzYsNc_thQ/hqdefault.jpg)](https://youtu.be/CwzYsNc_thQ) |
-| [Watch](https://youtu.be/A7aCQ3hAo0c)                                                          | [Watch](https://youtu.be/ofGUGfLdAzM)                                                                      | [Watch](https://youtu.be/CwzYsNc_thQ)                                                                |
+| [![Ruler](https://img.youtube.com/vi/NOe85CuJPU8/hqdefault.jpg)](https://youtu.be/NOe85CuJPU8) | [![Image Adjustments](https://img.youtube.com/vi/5jnYVwugFS4/hqdefault.jpg)](https://youtu.be/5jnYVwugFS4) | [![Tab docking](https://img.youtube.com/vi/gtuWrasKtj8/hqdefault.jpg)](https://youtu.be/gtuWrasKtj8) |
+| [Watch](https://youtu.be/NOe85CuJPU8)                                                          | [Watch](https://youtu.be/5jnYVwugFS4)                                                                      | [Watch](https://youtu.be/gtuWrasKtj8)                                                                |
+
+| Collections                                                                                          | History                                                                                          |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| [![Collections](https://img.youtube.com/vi/yQWMZNl5pSI/hqdefault.jpg)](https://youtu.be/yQWMZNl5pSI) | [![History](https://img.youtube.com/vi/tbZCod-o8-U/hqdefault.jpg)](https://youtu.be/tbZCod-o8-U) |
+| [Watch](https://youtu.be/yQWMZNl5pSI)                                                                | [Watch](https://youtu.be/tbZCod-o8-U)                                                            |
+
+Two people side by side, each screen showing what the other does live:
+
+| Collaboration                                                                                          | Counting together                                                                                          |
+| ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| [![Collaboration](https://img.youtube.com/vi/Nycuogm4dnI/hqdefault.jpg)](https://youtu.be/Nycuogm4dnI) | [![Counting together](https://img.youtube.com/vi/EFAjKzoh0Ok/hqdefault.jpg)](https://youtu.be/EFAjKzoh0Ok) |
+| [Watch](https://youtu.be/Nycuogm4dnI)                                                                  | [Watch](https://youtu.be/EFAjKzoh0Ok)                                                                      |
+
+| Session admin                                                                                          | Guests                                                                                          |
+| ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| [![Session admin](https://img.youtube.com/vi/9Wq3UmFiga0/hqdefault.jpg)](https://youtu.be/9Wq3UmFiga0) | [![Guests](https://img.youtube.com/vi/HW5iUOAhO1A/hqdefault.jpg)](https://youtu.be/HW5iUOAhO1A) |
+| [Watch](https://youtu.be/9Wq3UmFiga0)                                                                  | [Watch](https://youtu.be/HW5iUOAhO1A)                                                           |
