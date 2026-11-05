@@ -44,6 +44,12 @@ Halo: https://indicalab.com/halo/
 QuPath: https://qupath.github.io/
 Sectra: https://medical.sectra.com/solutionarea/radiology-imaging/
 
+Collaberative viewers:
+CytoBrowser: https://github.com/MIDA-group/CytoBrowser - https://ljmu.primo.exlibrisgroup.com/permalink/44JMU_INST/ilfgop/cdi_swepub_primary_oai_DiVA_org_uu_457604
+PathCollab: https://github.com/PABannier/PathCollab
+Pathhub: https://pathhub.com/pages/pathhub-digital
+PathVU: https://www.prr.ai/pathvu/
+
 ### Ai tailored source control
 
 Redesigning source control at Anthropic: https://www.anthropic.com/research/redesigning-source-control

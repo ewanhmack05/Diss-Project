@@ -1,0 +1,14 @@
+{
+  "name": "diss-playback",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "record": "node record.js",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "playwright": "^1.64.1",
+    "pngjs": "^7.0.0"
+  }
+}

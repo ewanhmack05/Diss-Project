@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import Projection from 'ol/proj/Projection'
 import View from 'ol/View'
 import {
@@ -12,7 +12,45 @@ import {
   niceScaleValue,
   chooseScaleBarLength,
   formatScaleLength,
+  mapInteractions,
 } from './OpenLayers'
+import MouseWheelZoom from 'ol/interaction/MouseWheelZoom'
+import DragPan from 'ol/interaction/DragPan'
+import KeyboardPan from 'ol/interaction/KeyboardPan'
+import KeyboardZoom from 'ol/interaction/KeyboardZoom'
+
+describe('mapInteractions', () => {
+  // DragZoom makes its box's div when it's built, and these tests have no DOM.
+  beforeAll(() => vi.stubGlobal('document', { createElement: () => ({ style: {} }) }))
+  afterAll(() => vi.unstubAllGlobals())
+
+  // A target with a tabindex that hasn't got focus - the pointer's over the map
+  // while you're typing in a panel. A focus check would look at the target.
+  const event = {
+    map: {
+      getTargetElement: () => {
+        throw new Error('asked whether the map has focus')
+      },
+    },
+    originalEvent: { pointerId: 1, button: 0, isPrimary: true, altKey: false, ctrlKey: false, metaKey: false, shiftKey: false },
+  }
+  const conditionOf = (type: new () => object) => {
+    const found = mapInteractions().getArray().find((interaction) => interaction instanceof type)
+    expect(found).toBeDefined()
+    return (found as unknown as { condition_: (e: typeof event) => boolean }).condition_
+  }
+
+  it('scrolls and drags without the map needing focus', () => {
+    expect(conditionOf(MouseWheelZoom)(event)).toBe(true)
+    expect(conditionOf(DragPan)(event)).toBe(true)
+  })
+
+  it('still has the keyboard ones, for arrow keys and +/-', () => {
+    const types = mapInteractions().getArray()
+    expect(types.some((interaction) => interaction instanceof KeyboardPan)).toBe(true)
+    expect(types.some((interaction) => interaction instanceof KeyboardZoom)).toBe(true)
+  })
+})
 
 describe('computeResolutionLadder', () => {
   it('halves both dimensions until they fit in one tile', () => {

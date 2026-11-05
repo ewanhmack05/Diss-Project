@@ -11,6 +11,7 @@ realtime-hub/       .NET SignalR hub - rooms per slide, live annotation ops and 
 auth/               Keycloak (Docker) - sign-in, with a realm and test users. See auth/README.md
 dashboard/          Grafana (Docker) - load, timing and error stats for the services. See dashboard/README.md
 scripts/            Dev scripts - stress-test data, SQL. See scripts/README.md
+playback/           Records the viewer being used and saves the videos as MP4s. See playback/README.md
 docs/               Planning notes - auth, Azure, real-time libraries, sessions, rendering
 ```
 
@@ -28,6 +29,7 @@ the workflow itself). They can also be run by hand from the Actions tab.
 | [auth](.github/workflows/auth.yml) | shellcheck, compose check, realm has its clients, Keycloak starts and imports the realm |
 | [dashboard](.github/workflows/dashboard.yml) | compose check, provisioning YAML and dashboard JSON parse |
 | [scripts](.github/workflows/scripts.yml) | ruff, Python compiles |
+| [playback](.github/workflows/playback.yml) | `npm ci`, the recorder's tests. Recording itself stays local |
 | [stack](.github/workflows/stack.yml) | root `docker-compose.yml` is valid |
 
 The three .NET workflows share their steps through
@@ -47,6 +49,7 @@ what still needs filling in listed at the top.
 [![auth](https://github.com/ewanhmack05/Diss-Project/actions/workflows/auth.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/auth.yml)
 [![dashboard](https://github.com/ewanhmack05/Diss-Project/actions/workflows/dashboard.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/dashboard.yml)
 [![scripts](https://github.com/ewanhmack05/Diss-Project/actions/workflows/scripts.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/scripts.yml)
+[![playback](https://github.com/ewanhmack05/Diss-Project/actions/workflows/playback.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/playback.yml)
 [![stack](https://github.com/ewanhmack05/Diss-Project/actions/workflows/stack.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/stack.yml)
 [![deploy-azure](https://github.com/ewanhmack05/Diss-Project/actions/workflows/deploy-azure.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/deploy-azure.yml)
 
@@ -162,6 +165,9 @@ Todos and notes, split by area, in [docs/](docs):
 All example slide data has been sourced from https://openslide.cs.cmu.edu/download/openslide-testdata/Mirax/
 ## Playback videos
 Most, if not all Pull requests will have videos showing what has been added
+
+To remake them, `cd playback && node record.js` with everything running saves
+one MP4 per feature in `playback/videos/`. See [playback/README.md](playback/README.md).
 
 Per tab videos:
 

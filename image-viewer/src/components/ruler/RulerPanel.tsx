@@ -13,7 +13,7 @@ function RulerPanel() {
 
   return (
     <div className="ruler-panel">
-      <p className="ruler-panel-hint">Click and drag on the slide to measure a distance.</p>
+      <p className="ruler-panel-hint">Click two points on the slide to measure the distance between them.</p>
       <div className="ruler-panel-readout">{readout ?? '-'}</div>
       <button
         type="button"
