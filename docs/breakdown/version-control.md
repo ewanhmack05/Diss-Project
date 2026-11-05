@@ -39,7 +39,7 @@ the one before:
 | 4 | Viewing history | Done - the collection's timeline is the History tab, opening a change shows what it changed, from and to, and every annotation and count has a timeline of its own |
 | 5 | Rollback | Done for a change set and for one row - putting a change set back brings back what it deleted and undoes what it changed, unless someone's changed it since. Going back on one row puts it how it was at any point on its timeline. A whole collection goes back to any change |
 | 6 | Policy for two people editing at once | Done - picked per session, last change wins or first change wins, for colour, group and a group's name and notes. Labels and notes are merged live with Yjs. See [section 8](#8-two-people-changing-the-same-thing) |
-| 7 | Evaluate it | The tools are there - `simulate_conflicts.py` and the dashboard's Edits row count what each policy does. No proper runs yet |
+| 7 | Evaluate it | Measured - see [evaluation.md](../evaluation.md). Everything's simulated, so real people are still to come |
 
 What works today, end to end: delete 21,000 annotations in one go, see it in
 the History tab as one change, and put it all back days later - for
@@ -322,10 +322,11 @@ flowchart LR
   them it only undoes what's between the point and the next snapshot, so that
   stops growing with the history. That stretch is 5,000 entries or more: the check
   runs every 30 seconds, and one bulk change can be 20,000. Measured with 20,000
-  annotations, with 120,000 entries after the snapshot: 1,078ms undoing 140,000
-  entries from what's there now, 514ms undoing 20,000 from the snapshot. So it's
-  about twice as quick there and the gap grows with the history, but it isn't
-  free either way, since both still read everything in the collection.
+  annotations, with 120,000 entries after the snapshot: 953ms undoing 140,000
+  entries from what's there now, 331ms undoing 20,000 from the snapshot. So it's
+  about three times as quick there and the gap grows with the history, but it isn't
+  free either way, since both still read everything in the collection. See
+  [evaluation.md](../evaluation.md#rolling-back).
 - **A snapshot only holds what can change** - label, notes, colour and group; a
   group's name and notes; a count's details. Shapes and dots are fixed once saved,
   and they're nearly all of a row. For those 20,000 annotations a snapshot is 820KB
@@ -346,19 +347,10 @@ flowchart LR
   the change before it. A test goes back to every point in a story of 14 changes in
   turn, checks it matches what was recorded there at the time, shapes and dots
   included, then goes forward to the end again and checks that too.
-- **How long.** From [time_rollback.py](../../scripts/time_rollback.py), on Postgres
-  in Docker on a dev laptop, a collection of 20,000 freehand annotations, one run
-  of each, so treat them as a rough size rather than a result:
-
-  | Rows changed | Recolour undone | Delete undone |
-  |---|---|---|
-  | 1 | 297ms | 317ms |
-  | 1,000 | 1,743ms | 625ms |
-  | 20,000 | 1,501ms | 8,270ms |
-
-  Most of the cost for small changes is working it out, which reads the whole
-  collection however little changed. The 1,000 recolour being slower than the
-  20,000 one isn't explained yet - it wants repeat runs before it's written up.
+- **How long.** On a collection of 20,000 annotations, about 300ms for one row, up to
+  about 7 seconds to bring back all 20,000. Most of the cost for small changes is
+  working it out, which reads the whole collection however little changed. Full numbers
+  in [evaluation.md](../evaluation.md#rolling-back).
 
 ## 6. In the viewer
 
@@ -581,8 +573,8 @@ same moment, and the real migrations. CI runs the store's suite on both.
 
 ## 11. What's next
 
-- **Running the comparison** (step 7) - matched sessions under each policy
-  with `simulate_conflicts.py`, at a few `--notice` and `--people` settings.
+- **Trying it with real people**, if ethics allow it - everything in
+  [evaluation.md](../evaluation.md) is simulated.
 
 The decisions still open - where the order comes from, text fields,
 privacy - are listed in

@@ -87,6 +87,9 @@ layers for annotations and cell-count dots.
 | `simulate_conflicts.py` | Same, and the editors keep recolouring the same few annotations, for measuring a session's edit policy - see [below](#people-changing-the-same-thing) |
 | `time_api.py`      | Times every read the viewer makes of annotation-store, slowest first - see [below](#timing-the-api) |
 | `db_docs.py`       | Writes annotation-store's database diagram and columns into its README, from the migrations and `schema-notes.json`. Run it after changing the schema - a test fails until you do |
+| `eval_conflicts.py` | Runs `simulate_conflicts.py` under both policies at several sizes and notice delays, and adds it up - see [docs/evaluation.md](../docs/evaluation.md) |
+| `eval_text_merge.mjs` | Simulated typing through real Yjs and a plain last-save-wins box |
+| `eval_latency.py` | How long an op takes to reach everyone, at several room sizes, using `eval_latency.mjs` |
 | `time_rollback.py` | Times putting a whole collection back, with a snapshot and without - see [below](#timing-rollback) |
 | `seed_history.py`  | A session with a few days of made-up changes, for the History tab - see [below](#history-test-data) |
 | `teardown_users.py` | Removes test users from Keycloak, and from the sessions they joined - see [below](#removing-test-users) |
@@ -321,16 +324,15 @@ Timing both ways shows what's the store and what's the way there - see
 waits for the store's background check to take a snapshot, and changes every row
 several more times. Then it times working out a rollback from that snapshot
 against from what's there now, on the same data, and times rollbacks of each size
-with `--sizes`, for a recolour and for a delete.
+with `--sizes`, for a recolour and for a delete, `--repeats` times each.
 
 It leaves the collection there, so point it at a throwaway database:
 
 ```bash
-python scripts/time_rollback.py --store http://localhost:5253 --rows 20000 --sizes 1 1000 20000
+python scripts/time_rollback.py --store http://localhost:5253 --rows 20000 --sizes 1 1000 20000 --repeats 5
 ```
 
-Results for the write-up are in
-[version-control.md](../docs/breakdown/version-control.md#putting-a-whole-collection-back).
+Results for the write-up are in [docs/evaluation.md](../docs/evaluation.md#rolling-back).
 
 ## History test data
 

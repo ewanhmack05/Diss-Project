@@ -361,6 +361,7 @@ def add_session_args(parser, people=8):
     parser.add_argument("--tiler", default="http://localhost:5095", help="tiler URL, for the slide's size (default: %(default)s)")
     parser.add_argument("--seconds", type=float, default=0, help="stop after this long - 0 runs until Ctrl+C (default: %(default)s)")
     parser.add_argument("--every", type=float, default=0.5, help="seconds between viewport moves (default: %(default)s)")
+    parser.add_argument("--seed", type=int, default=0, help="seed for what they each do, so repeat runs can differ (default: %(default)s)")
     parser.add_argument("--leave", action="store_true", help="take the simulated people out of the session and stop")
     parser.add_argument("--keycloak", default="http://localhost:8080/auth", help="Keycloak URL (default: %(default)s)")
     parser.add_argument("--realm", default="diss", help="Keycloak realm (default: %(default)s)")
@@ -431,7 +432,7 @@ def go_live(args, people, tokens, preview, roles, act=None):
         hub.start()
         hub.invoke("JoinSession", preview["collectionId"])
         person = Person(info, tokens[info["username"]], roles[info["username"]], hub,
-                        preview["collectionId"], args.store, random.Random(i), bounds)
+                        preview["collectionId"], args.store, random.Random(args.seed * 1000 + i), bounds)
         live.append(person)
         threading.Thread(target=look_round, args=(person, stop, args.every, act), daemon=True).start()
     print(f"{len(live)} people live on slide {preview['slideId']} - " + ("Ctrl+C to stop" if not args.seconds else f"for {args.seconds:g}s"))

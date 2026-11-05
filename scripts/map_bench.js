@@ -19,6 +19,8 @@
 //
 // Zooms in and back out by the same number of wheel ticks, and the pans are
 // circles, so the map ends up roughly where it started. Reload between runs anyway
+// Annotations are only drawn while the Annotations tool is open, so open it first -
+// it warns if the layer's off.
 // so each starts from the slide fitted to the screen. The first run after
 // loading data is slower than the next - run it twice and use the second.
 
@@ -134,6 +136,19 @@ window.mapBench = async function mapBench({ seconds = 3, zoomTicks = 5 } = {}) {
     return { 'p50 ms': +times[times.length >> 1].toFixed(1), 'max ms': +times[times.length - 1].toFixed(1) }
   }
 
+  // Which layers are drawing. A layer that's switched off costs nothing, and the
+  // annotations are off unless the Annotations tool is open - so a run with them
+  // off only times the tiles, and looks wonderful. It says so rather than letting
+  // that pass.
+  const showing = window.viewerMap
+    ? Object.fromEntries(Object.entries(window.viewerMap.layers).filter(([, layer]) => layer.getVisible()).map(([name, layer]) =>
+        [name, `${layer.constructor.name}${layer.getSource?.()?.getFeatures ? `, ${layer.getSource().getFeatures().length} features` : ''}`]))
+    : null
+  if (showing) {
+    console.log('Layers drawing:', showing)
+    if (!showing.annotations) console.warn('The annotations layer is off, so this only times the tiles. Open the Annotations tool first.')
+  }
+
   const results = []
   results.push(await measure('idle', () => wait(1000)))
   results.push(await measure('pan', pan))
@@ -143,5 +158,6 @@ window.mapBench = async function mapBench({ seconds = 3, zoomTicks = 5 } = {}) {
   results.push(await measure('pan back out', pan))
   if (window.viewerMap) results.push({ step: 'settle (redraw ms)', ...await settleCost() })
   console.table(results)
+  results.showing = showing
   return results
 }
