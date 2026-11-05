@@ -3,6 +3,7 @@ import WebGLTileLayer, { type Options as WebGLTileLayerOptions } from 'ol/layer/
 import Zoomify from 'ol/source/Zoomify'
 import Projection from 'ol/proj/Projection'
 import OverviewMap from 'ol/control/OverviewMap'
+import { defaults as defaultInteractions } from 'ol/interaction/defaults'
 import Control from 'ol/control/Control'
 import { getCenter, getHeight, getWidth, scaleFromCenter } from 'ol/extent'
 import type BaseLayer from 'ol/layer/Base'
@@ -385,6 +386,13 @@ function buildScaleBarControl(view: View, mppX: number | null): Control {
   return new Control({ element })
 }
 
+// Asked for rather than left to Map, whose own default is onFocusOnly - with a
+// tabindex on the target, scrolling and dragging would then do nothing until
+// the map had focus, so not while you're in a panel.
+export function mapInteractions() {
+  return defaultInteractions()
+}
+
 export function OpenLayerMap(
   target: HTMLElement,
   size: ImageSize,
@@ -404,7 +412,11 @@ export function OpenLayerMap(
     target,
     layers: [baseLayer, ...extraLayers],
     view: olView(projection, viewResolutions),
+    interactions: mapInteractions(),
   })
+  // OL only hears arrow keys and +/- on its target while focus is inside it,
+  // and a plain div can't take focus.
+  target.tabIndex = 0
 
   // Overview panel: a close-up around the current viewport (the whole slide
   // once you're zoomed out far enough), with a box showing the viewport -

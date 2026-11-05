@@ -4,6 +4,17 @@
   background: var(--canvas-bg);
 }
 
+/* Takes focus so the arrow and +/- keys work. A ring only for someone who got
+   here with the keyboard - not on every click. */
+.map-node:focus {
+  outline: none;
+}
+
+.map-node:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
 .map-node--error {
   display: flex;
   align-items: center;
