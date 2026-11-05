@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useCollectionContext, type Collection } from '../../../context/CollectionContext'
 import { useEmitEvent } from '../../../context/EventContext'
+import { useMessagingContext } from '../../../context/MessagingContext'
 import CollectionRow from '../CollectionRow'
 import UserCollectionForm from './UserCollectionForm'
 
@@ -16,6 +17,7 @@ interface UserCollectionProps {
 function UserCollection({ collection, here, onExport, onImport }: UserCollectionProps) {
   const { leaveSession: showMine, setShared, renameCollection } = useCollectionContext()
   const emit = useEmitEvent()
+  const { status: messaging, sendToSomeone } = useMessagingContext()
   const [sharing, setSharing] = useState(false)
 
   const toggleShared = (shared: boolean) => {
@@ -41,6 +43,15 @@ function UserCollection({ collection, here, onExport, onImport }: UserCollection
         <button type="button" className="collections-button" onClick={onExport}>
           Export
         </button>
+        {messaging !== 'off' && (
+          <button
+            type="button"
+            className="collections-button"
+            onClick={() => sendToSomeone({ label: `the whole of ${collection.collectionName}`, pick: { kind: 'collection', collectionId: collection.collectionId } })}
+          >
+            Send
+          </button>
+        )}
         <button type="button" className="collections-button" onClick={onImport}>
           Import
         </button>

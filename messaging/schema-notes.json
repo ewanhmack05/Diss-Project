@@ -39,10 +39,10 @@
     "columns": {
       "MessageId": ["client", "The message it came with"],
       "Bytes": ["server", "The size of `Payload`"],
-      "Kind": ["client", "`Annotations`, `Group`, `CellCount`, `Collection` or `Invite`"],
+      "Kind": ["client", "`Annotations`, `Group`, `CellCount`, `Collection`, `Invite` or `Area`"],
       "Name": ["client", "What to call it on the card. Up to 200 characters"],
       "InviteCode": ["client", "Invites only. Opened with annotation-store's invite preview, as a link would be"],
-      "Payload": ["client", "Everything but invites: the rows, as a JSON object. Only sent by `GET /messages/{id}/attachment`, since it can be megabytes"],
+      "Payload": ["client", "Everything but invites: the rows, or for an area where it is, as a JSON object. Only sent by `GET /messages/{id}/attachment`, since it can be megabytes"],
       "SlideId": ["client", "Which slide it's from. Not a foreign key"],
       "SourceCollectionId": ["client", "Which collection it was copied from, for where it came from. Not a foreign key"]
     }

@@ -47,6 +47,13 @@ interface CellCountStoreContextValue {
   reload: () => void
   // changeSet keeps every save of one edit as one change - see SavedCountEdit.
   updateCellCount: (id: string, patch: CellCountEdit, changeSet?: string) => void
+  // Local only, no request - for groups. markGrouped also tells everyone else,
+  // after annotation-store has already moved them; forgetGroup is for a group
+  // that's gone or was merged into another, which everyone hears about
+  // themselves. theirGroups is what someone else moved them to first.
+  markGrouped: (ids: string[], groupId: string | null) => void
+  forgetGroup: (groupId: string, into?: string | null) => void
+  theirGroups: (groups: { id: string; groupId: string | null }[]) => void
   deleteCellCount: (id: string) => void
   setSelectedCellCountId: (id: string | null) => void
   setViewedCellCountId: (id: string | null) => void
@@ -220,6 +227,24 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
     bumpRevision()
   }
 
+  const markGrouped = (ids: string[], groupId: string | null) => {
+    if (ids.length === 0) return
+    const wanted = new Set(ids)
+    setCellCounts((current) => current.map((c) => (wanted.has(c.id) ? { ...c, groupId } : c)))
+    for (const id of ids) sendOp({ kind: 'update', entity: 'cellCount', id, data: { groupId } })
+    bumpRevision()
+  }
+
+  const forgetGroup = useCallback((groupId: string, into: string | null = null) => {
+    setCellCounts((current) => current.map((c) => (c.groupId === groupId ? { ...c, groupId: into } : c)))
+    setRevision((current) => current + 1)
+  }, [])
+
+  const theirGroups = useCallback((groups: { id: string; groupId: string | null }[]) => {
+    const byId = new Map(groups.map((g) => [g.id, g.groupId]))
+    setCellCounts((current) => current.map((c) => (byId.has(c.id) ? { ...c, groupId: byId.get(c.id) } : c)))
+  }, [])
+
   // annotation-store's PUT replaces all of these together, so pass them all.
   const updateCellCount = (id: string, patch: CellCountEdit, changeSet?: string) => {
     if (deletedIdsRef.current.has(id)) return
@@ -326,6 +351,9 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
         addRestored,
         reload,
         updateCellCount,
+        markGrouped,
+        forgetGroup,
+        theirGroups,
         deleteCellCount,
         setSelectedCellCountId,
         setViewedCellCountId,

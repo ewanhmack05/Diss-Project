@@ -18,6 +18,7 @@ public static class HistoryLog
 {
     public const string Annotation = "annotation";
     public const string Group = "group";
+    public const string CellCountGroup = "cellCountGroup";
     public const string CellCount = "cellCount";
     public const string RegionOfInterest = "regionOfInterest";
     public const string ImageAdjustment = "imageAdjustment";
@@ -30,6 +31,7 @@ public static class HistoryLog
     {
         [typeof(Annotation)] = Annotation,
         [typeof(AnnotationGroup)] = Group,
+        [typeof(CellCounts.CellCountGroup)] = CellCountGroup,
         [typeof(CellCount)] = CellCount,
         [typeof(RegionOfInterest)] = RegionOfInterest,
         [typeof(ImageAdjustments.ImageAdjustments)] = ImageAdjustment,

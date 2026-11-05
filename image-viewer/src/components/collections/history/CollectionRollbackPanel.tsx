@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAuthContext } from '../../../context/AuthContext'
 import { useAnnotationStoreContext } from '../../../context/AnnotationStoreContext'
 import { useAnnotationGroupContext } from '../../../context/AnnotationGroupContext'
+import { useCellCountGroupContext } from '../../../context/CellCountGroupContext'
 import { useCellCountStoreContext } from '../../../context/CellCountStoreContext'
 import { useRealtimeContext } from '../../../context/RealtimeContext'
 import { useToastContext } from '../../../context/ToastContext'
@@ -19,6 +20,7 @@ function CollectionRollbackPanel({ changeSet, onDone }: { changeSet: ChangeSet; 
   const annotationStore = useAnnotationStoreContext()
   const cellCountStore = useCellCountStoreContext()
   const groups = useAnnotationGroupContext()
+  const countGroups = useCellCountGroupContext()
   const { sendOp } = useRealtimeContext()
   const { addToast } = useToastContext()
   const [step, setStep] = useState<Step>({ step: 'idle' })
@@ -48,6 +50,7 @@ function CollectionRollbackPanel({ changeSet, onDone }: { changeSet: ChangeSet; 
         annotationStore.reload()
         cellCountStore.reload()
         groups.reload()
+        countGroups.reload()
         sendOp(rollbackOp(changeSet.collectionId))
         addToast('Put the collection back to that point', 'success')
         onDone()

@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using AnnotationStore.Annotations;
+using AnnotationStore.CellCounts;
 using AnnotationStore.Auth;
 using AnnotationStore.Collections;
 using Microsoft.EntityFrameworkCore;
@@ -106,6 +107,7 @@ public static class ChangeSetChangesEndpoint
         {
             HistoryLog.Annotation => await db.Annotations.Where(a => ids.Contains(a.Id)).Select(a => new { a.Id, Name = a.Label }).ToListAsync(),
             HistoryLog.Group => await db.AnnotationGroups.Where(g => ids.Contains(g.Id)).Select(g => new { g.Id, g.Name }).ToListAsync(),
+            HistoryLog.CellCountGroup => await db.CellCountGroups.Where(g => ids.Contains(g.Id)).Select(g => new { g.Id, g.Name }).ToListAsync(),
             HistoryLog.CellCount => await db.CellCounts.Where(c => ids.Contains(c.Id)).Select(c => new { c.Id, Name = c.Label }).ToListAsync(),
             HistoryLog.ImageAdjustment => await db.ImageAdjustments.Where(a => ids.Contains(a.ImageAdjustmentId)).Select(a => new { Id = a.ImageAdjustmentId, Name = a.AdjustmentName }).ToListAsync(),
             _ => [],
@@ -118,6 +120,7 @@ public static class ChangeSetChangesEndpoint
     public static async Task<string> GroupNameAsync(AnnotationDbContext db, Guid id)
     {
         if (await db.AnnotationGroups.Where(g => g.Id == id).Select(g => g.Name).FirstOrDefaultAsync() is { } name) return name;
+        if (await db.CellCountGroups.Where(g => g.Id == id).Select(g => g.Name).FirstOrDefaultAsync() is { } countGroup) return countGroup;
         var deleted = await NamesInHistoryAsync(db, null, id, 1);
         return deleted.FirstOrDefault()?.Name ?? "a deleted group";
     }

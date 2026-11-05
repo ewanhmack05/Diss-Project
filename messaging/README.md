@@ -39,7 +39,7 @@ apart from user ids, which are Keycloak's.
 
 ```ts
 type ConversationKind = 'direct' | 'session'
-type AttachmentKind = 'annotations' | 'group' | 'cellCount' | 'collection' | 'invite'
+type AttachmentKind = 'annotations' | 'group' | 'cellCount' | 'collection' | 'invite' | 'area'
 
 interface Conversation {
   id: string
@@ -93,7 +93,10 @@ interface SendMessage {
     slideId?: string
     sourceCollectionId?: string
     inviteCode?: string // invites
-    payload?: unknown // everything else: any JSON object, up to 5MB
+    // Everything else: any JSON object, up to 5MB. Rows, or for an area where it
+    // is - { center, resolution, rotation, extent }. messaging doesn't read it, so
+    // whoever gets it has to check it before using it.
+    payload?: unknown
   }
 }
 ```
@@ -105,13 +108,13 @@ interface SendMessage {
 | `GET /conversations/{id}/messages?skip=&take=` | `{ messages: Message[], total: number }` | Newest first. `take` is 1 to 100, 50 by default |
 | `POST /messages` | `Message`, 201 | Makes the conversation if needed. The same `id` again answers the first one with a 200 |
 | `GET /messages/{id}/attachment` | `Attachment & { payload: unknown }` | With the rows. 404 if there's none |
-| `POST /messages/{id}/added` | `Attachment` | Say you've added it to a collection, after the store's said yes |
+| `POST /messages/{id}/added` | `Attachment` | Say you've added it to a collection, after the store's said yes. A 400 for an invite or an area, which can't be added |
 | `POST /conversations/{id}/read` | 204 | Marks it read up to now |
 | `DELETE /conversations/{id}` | 204 | Direct: hides it for you, and it's gone once you both have. A new message brings it back. Session: the host removes it for everyone |
 
 What can go wrong:
 
-- **400** - nothing to send, too long, a bad invite code, messaging yourself, an id that isn't a GUID, or both or neither of `toUserId` and `sessionId`.
+- **400** - saying you added an invite or an area, nothing to send, too long, a bad invite code, messaging yourself, an id that isn't a GUID, or both or neither of `toUserId` and `sessionId`.
 - **403** - deleting a session's chat when you're not the host.
 - **404** - it doesn't exist, or you're not in it. The two aren't told apart.
 - **409** - the session's ended, so its chat is read only. Or that message `id` is someone else's.
@@ -274,9 +277,9 @@ What was sent with a message, as it was when it was sent. It's a copy, so it sta
 |---|---|---|---|---|
 | `MessageId` | uuid | PK, FK | client | The message it came with |
 | `Bytes` | integer |  | server | The size of `Payload` |
-| `Kind` | text |  | client | `Annotations`, `Group`, `CellCount`, `Collection` or `Invite` |
+| `Kind` | text |  | client | `Annotations`, `Group`, `CellCount`, `Collection`, `Invite` or `Area` |
 | `Name` | text |  | client | What to call it on the card. Up to 200 characters |
-| `Payload` | jsonb, null |  | client | Everything but invites: the rows, as a JSON object. Only sent by `GET /messages/{id}/attachment`, since it can be megabytes |
+| `Payload` | jsonb, null |  | client | Everything but invites: the rows, or for an area where it is, as a JSON object. Only sent by `GET /messages/{id}/attachment`, since it can be megabytes |
 | `InviteCode` | text, null |  | client | Invites only. Opened with annotation-store's invite preview, as a link would be |
 | `SlideId` | text, null |  | client | Which slide it's from. Not a foreign key |
 | `SourceCollectionId` | uuid, null |  | client | Which collection it was copied from, for where it came from. Not a foreign key |

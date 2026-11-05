@@ -1,11 +1,12 @@
 import type { Annotation } from '../../interfaces/Annotation'
 import type { CellCount } from '../../interfaces/CellCount'
+import type { Viewport } from '../realtime/realtime'
 import { newId } from '../../newId'
 import type { FullCollection } from '../collections/collectionGeoJson'
 
 // As messaging gives them - see messaging/README.md.
 type ConversationKind = 'direct' | 'session'
-type AttachmentKind = 'annotations' | 'group' | 'cellCount' | 'collection' | 'invite'
+type AttachmentKind = 'annotations' | 'group' | 'cellCount' | 'collection' | 'invite' | 'area'
 
 interface Attachment {
   kind: AttachmentKind
@@ -43,6 +44,7 @@ interface SentRows {
   annotations: Annotation[]
   cellCounts: CellCount[]
   groups: { name: string; notes?: string; annotationIds: string[] }[]
+  cellCountGroups?: { name: string; notes?: string; cellCountIds: string[] }[]
 }
 
 interface NewAttachment {
@@ -51,7 +53,8 @@ interface NewAttachment {
   slideId?: string
   sourceCollectionId?: string
   inviteCode?: string
-  payload?: SentRows
+  // The rows, or for an area where it is.
+  payload?: SentRows | Viewport
 }
 
 interface SendMessage {
@@ -60,12 +63,17 @@ interface SendMessage {
   attachment?: NewAttachment
 }
 
-// What's being sent, picked from the Send menu. The rows are read when it goes.
+// What's being sent, from a Send button where it's saved. The rows are read when
+// it goes. A collection is the one you're in unless it says otherwise.
 type SendPick =
   | { kind: 'annotations'; ids: string[] }
   | { kind: 'group'; id: string }
   | { kind: 'cellCount'; id: string }
-  | { kind: 'collection' }
+  | { kind: 'cellCountGroup'; id: string }
+  | { kind: 'collection'; collectionId?: string }
+
+// What's going with a message, before it's sent.
+type Staged = { label: string; pick: SendPick } | { label: string; invite: true } | { label: string; area: Viewport }
 
 // Who a conversation's with, before there's necessarily a conversation.
 type ChatTarget = { kind: 'direct'; userId: string } | { kind: 'session'; sessionId: string }
@@ -83,6 +91,7 @@ const NOUNS: Record<AttachmentKind, string> = {
   cellCount: 'Cell count',
   collection: 'Collection',
   invite: 'Invite',
+  area: 'Area',
 }
 
 function attachmentNoun(kind: AttachmentKind): string {
@@ -130,6 +139,13 @@ function groupsFor(full: FullCollection, annotations: Annotation[]): SentRows['g
   })
 }
 
+function countGroupsFor(full: FullCollection, cellCounts: CellCount[]): NonNullable<SentRows['cellCountGroups']> {
+  return (full.cellCountGroups ?? []).flatMap((group) => {
+    const cellCountIds = cellCounts.filter((c) => c.groupId === group.id).map((c) => c.id)
+    return cellCountIds.length > 0 ? [{ name: group.name, notes: group.notes, cellCountIds }] : []
+  })
+}
+
 // The rows for what was picked, from the whole collection, and what to call
 // it. Null if there's nothing there to send, like a group that's been emptied.
 function buildPayload(full: FullCollection, pick: SendPick): { name: string; payload: SentRows } | null {
@@ -146,13 +162,16 @@ function buildPayload(full: FullCollection, pick: SendPick): { name: string; pay
   } else if (pick.kind === 'cellCount') {
     cellCounts = full.cellCounts.filter((c) => c.id === pick.id)
     name = cellCounts[0]?.label || 'Cell count'
+  } else if (pick.kind === 'cellCountGroup') {
+    cellCounts = full.cellCounts.filter((c) => c.groupId === pick.id)
+    name = full.cellCountGroups?.find((g) => g.id === pick.id)?.name ?? 'A group'
   } else {
     annotations = full.annotations
     cellCounts = full.cellCounts
     name = full.collectionName
   }
   if (annotations.length === 0 && cellCounts.length === 0) return null
-  return { name: name.slice(0, MAX_NAME), payload: { annotations, cellCounts, groups: groupsFor(full, annotations) } }
+  return { name: name.slice(0, MAX_NAME), payload: { annotations, cellCounts, groups: groupsFor(full, annotations), cellCountGroups: countGroupsFor(full, cellCounts) } }
 }
 
 // Its size if it's over the limit, so it can be turned down before the upload.
@@ -192,7 +211,7 @@ function addRequest(rows: SentRows, message: Pick<Message, 'id' | 'fromUserId' |
     const id = newId()
     newIds.set(cellCount.id, id)
     const region = cellCount.regionOfInterest
-    return { ...cellCount, id, regionOfInterest: region ? { ...region, id: newId() } : null }
+    return { ...cellCount, id, groupId: null, regionOfInterest: region ? { ...region, id: newId() } : null }
   })
   const source: ImportSource = {
     messageId: message.id,
@@ -214,7 +233,33 @@ function addRequest(rows: SentRows, message: Pick<Message, 'id' | 'fromUserId' |
       return moved ? [moved] : []
     }),
   }))
-  return { annotations, cellCounts, groups, skipped: [], source }
+  const cellCountGroups = (rows.cellCountGroups ?? []).map((group) => ({
+    ...group,
+    cellCountIds: group.cellCountIds.flatMap((id) => {
+      const moved = newIds.get(id)
+      return moved ? [moved] : []
+    }),
+  }))
+  return { annotations, cellCounts, groups, cellCountGroups, skipped: [], source }
+}
+
+// Whether this message gets a name and time, or carries on from the last one:
+// the same person, the same day, and within a few minutes.
+const RUN_WITHIN_MS = 5 * 60 * 1000
+
+function startsRun(before: Message | undefined, message: Message): boolean {
+  if (!before || before.fromUserId !== message.fromUserId) return true
+  const gap = new Date(message.sent).getTime() - new Date(before.sent).getTime()
+  return !(gap >= 0 && gap <= RUN_WITHIN_MS)
+}
+
+// Below this there's no room for the list beside a thread you can read. A side
+// dock is 20em. Only when docked: floating, the panel's own width follows the
+// list, so folding it mustn't then stop you unfolding it.
+const ROOM_FOR_THE_LIST_EM = 26
+
+function isCramped(docked: boolean, widthPx: number, fontSizePx: number): boolean {
+  return docked && widthPx > 0 && widthPx / fontSizePx < ROOM_FOR_THE_LIST_EM
 }
 
 // What to tell someone when a call to messaging fails.
@@ -237,10 +282,12 @@ export {
   buildPayload,
   conversationName,
   formatBytes,
+  isCramped,
   mergeMessages,
   overLimit,
   previewOf,
   problemText,
+  startsRun,
   totalUnread,
 }
 export type {
@@ -254,4 +301,5 @@ export type {
   SendMessage,
   SendPick,
   SentRows,
+  Staged,
 }

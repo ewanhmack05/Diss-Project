@@ -81,11 +81,12 @@ any edge of the screen - two panels on the same edge split it evenly.
     (can edit, 24 hours). Kept up to date over realtime-hub's presence hub
     (`src/context/PresenceContext.tsx`, `src/components/users/presence.ts`).
     If Keycloak's list can't be had, it shows just who's online
-- **Messages** - one to one conversations with anyone with an account, and a chat for the
-  session you're in, with a badge for how many are unread. **Attach...** sends what's selected,
-  a group, a cell count, the whole collection, or if you're hosting an invite. What's sent is a
-  copy, and **Add to my collection** adds it as new rows, which the History tab says came from
-  them. Needs [messaging](../messaging/README.md) running, at the `messagingUrl` prop. Without
+- **Messages** - an inbox of one to one conversations with anyone with an account, and a chat for
+  the session you're in, with a badge for how many are unread. The list folds down to a rail of
+  initials. **Send** on a saved row, a group or a collection asks who to. **Attach** sends what's selected,
+  the area you're looking at, or if you're hosting an invite. Cards show a small preview of the area. **View** takes the map to what was
+  sent and draws it in its own colours, without saving anything. What's sent is a copy, and **Add to my collection** adds it as new rows, which the
+  History tab says came from them. Needs [messaging](../messaging/README.md) running, at the `messagingUrl` prop. Without
   it the panel says so and everything else works. Not for guests.
 - **Collections** - **Mine** and **Shared** tabs, each collection with how
   many annotations and cell counts it has and when one was last added

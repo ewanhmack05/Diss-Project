@@ -4,6 +4,7 @@ import { useCollectionContext } from '../../../context/CollectionContext'
 import { useAnnotationStoreContext } from '../../../context/AnnotationStoreContext'
 import { useCellCountStoreContext } from '../../../context/CellCountStoreContext'
 import { useAnnotationGroupContext } from '../../../context/AnnotationGroupContext'
+import { useCellCountGroupContext } from '../../../context/CellCountGroupContext'
 import { useAdjustmentsContext } from '../../../context/AdjustmentsContext'
 import { useRealtimeContext } from '../../../context/RealtimeContext'
 import { useEmitEvent } from '../../../context/EventContext'
@@ -21,6 +22,7 @@ function useRestoreChangeSet(): (changeSet: ChangeSet) => Promise<void> {
   const annotationStore = useAnnotationStoreContext()
   const cellCountStore = useCellCountStoreContext()
   const groups = useAnnotationGroupContext()
+  const countGroups = useCellCountGroupContext()
   const adjustments = useAdjustmentsContext()
   const { sendOp } = useRealtimeContext()
   const emit = useEmitEvent()
@@ -46,7 +48,8 @@ function useRestoreChangeSet(): (changeSet: ChangeSet) => Promise<void> {
     if (collectionIdRef.current === changeSet.collectionId) {
       groups.addRestored(restored.groups)
       annotationStore.addRestored([...restored.annotations, ...(restored.changedAnnotations ?? [])])
-      cellCountStore.addRestored(restored.cellCounts)
+      countGroups.addRestored(restored.cellCountGroups ?? [])
+      cellCountStore.addRestored([...restored.cellCounts, ...(restored.changedCellCounts ?? [])])
       adjustments.addRestored(restored.imageAdjustments)
       for (const op of restoredOps(restored)) sendOp(op)
     }

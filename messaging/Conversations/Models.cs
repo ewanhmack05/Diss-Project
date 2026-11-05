@@ -2,7 +2,7 @@ namespace Messaging.Conversations;
 
 public enum ConversationKind { Direct, Session }
 
-public enum AttachmentKind { Annotations, Group, CellCount, Collection, Invite }
+public enum AttachmentKind { Annotations, Group, CellCount, Collection, Invite, Area }
 
 // Either two people or a session. Two people's ids are kept in a fixed order
 // with a unique index, so they only ever have the one between them. Neither

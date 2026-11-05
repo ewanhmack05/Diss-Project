@@ -71,10 +71,22 @@
       "SlideId": ["server", "Copied from the collection, never taken from the client"]
     }
   },
+  "CellCountGroups": {
+    "summary": "A named set of cell counts in one collection, the same as `AnnotationGroups` is for annotations. One level, and a count is in at most one.",
+    "make": "`POST /cellcountgroups` with `collectionId`, `name` and optionally `cellCountIds`. An import can make them too, matched by name.",
+    "columns": {
+      "CollectionId": ["client", "The collection it's in"],
+      "Created": ["server", ""],
+      "Id": ["server", ""],
+      "Name": ["client", "Up to 64 characters"],
+      "Notes": ["client", "Up to 10,000 characters"]
+    }
+  },
   "CellCounts": {
     "summary": "A manual count of cells, such as mitotic figures: every dot placed, and the tally. The dots can run to tens of megabytes, so the Saved list gets `ColourCountsJson` and `PlacedByCountsJson` instead, and only `GET /cellcounts/{id}` sends the dots.",
     "make": "`POST /cellcounts` with `collectionId`, `label`, `dots` and `count`, and `regionOfInterest` if it was counted in a box. Editors only. Up to 80MB, about a million dots.",
     "columns": {
+      "GroupId": ["client", "The group it's in, if any. Set with `PUT /cellcounts/group`, not by saving the count. Deleting the group empties this"],
       "CollectionId": ["client", "Which collection it's in"],
       "ColourCountsJson": ["server", "How many dots of each colour, worked out from `Dots`. Null on rows older than this column until they're first listed. Not a change anyone made, so not in the history"],
       "Count": ["client", "The tally. Can be more than the dots, since a click with `WithAnnotation` off counts without placing one"],

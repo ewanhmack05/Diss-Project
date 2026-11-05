@@ -17,6 +17,7 @@ import { ViewportsContextProvider } from './context/ViewportsContext'
 import { PresenceContextProvider } from './context/PresenceContext'
 import { AnnotationStoreContextProvider } from './context/AnnotationStoreContext'
 import { CellCountStoreContextProvider } from './context/CellCountStoreContext'
+import { CellCountGroupContextProvider } from './context/CellCountGroupContext'
 import { CellCountDrawContextProvider } from './context/CellCountDrawContext'
 import { DrawContextProvider } from './context/DrawContext'
 import { RotationContextProvider } from './context/RotationContext'
@@ -155,6 +156,7 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, mess
                           <AnnotationGroupContextProvider baseUrl={annotationStoreUrl}>
                             <AnnotationSelectContextProvider>
                               <CellCountStoreContextProvider baseUrl={annotationStoreUrl}>
+                              <CellCountGroupContextProvider baseUrl={annotationStoreUrl}>
                                 <CellCountDrawContextProvider>
                                   <DrawContextProvider>
                                     <RotationContextProvider>
@@ -176,6 +178,7 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, mess
                                     </RotationContextProvider>
                                   </DrawContextProvider>
                                 </CellCountDrawContextProvider>
+                              </CellCountGroupContextProvider>
                               </CellCountStoreContextProvider>
                             </AnnotationSelectContextProvider>
                           </AnnotationGroupContextProvider>

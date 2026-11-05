@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { problemText, totalUnread, type Attachment, type ChatTarget, type Conversation, type Message, type SendMessage, type SentRows } from '../components/messages/messages'
+import { problemText, totalUnread, type Attachment, type ChatTarget, type Conversation, type Message, type SendMessage, type Staged } from '../components/messages/messages'
+import type { ShownArea } from '../components/messages/sentArea'
 import { useAuthContext } from './AuthContext'
 import { useCollectionContext } from './CollectionContext'
 import { useEmitEvent } from './EventContext'
@@ -36,13 +37,25 @@ interface MessagingContextValue {
   closeConversation: () => void
   // The last thing the hub said was waiting, for whatever's on screen to fetch.
   lastWaiting: MessageWaitingNote | null
+  // Something sent that's being looked at on the map, not saved anywhere.
+  shownArea: ShownArea | null
+  showArea: (area: ShownArea | null) => void
+  // The list folded down to a rail. Kept here so it's as you left it when the
+  // panel's opened again.
+  sideCollapsed: boolean
+  // Something being sent from where it's saved: opens the tab to ask who to.
+  pendingSend: Staged | null
+  sendToSomeone: (staged: Staged) => void
+  // Clears it, answering what it was.
+  takePendingSend: () => Staged | null
+  setSideCollapsed: (collapsed: boolean) => void
   refresh: () => Promise<void>
   loadMessages: (conversationId: string, skip: number, take: number) => Promise<{ messages: Message[]; total: number }>
   // Saved, then tells the hub. Rejects with what to show.
   send: (target: ChatTarget, message: SendMessage) => Promise<Message>
   markRead: (conversationId: string) => Promise<void>
   deleteConversation: (conversationId: string) => Promise<void>
-  loadAttachment: (messageId: string) => Promise<Attachment & { payload: SentRows }>
+  loadAttachment: (messageId: string) => Promise<Attachment & { payload: unknown }>
   markAdded: (messageId: string) => Promise<Attachment>
 }
 
@@ -81,6 +94,9 @@ function MessagingContextProvider({ baseUrl, children }: { baseUrl?: string; chi
   const [openUserId, setOpenUserId] = useState<string | null>(null)
   const [openRequests, setOpenRequests] = useState(0)
   const [lastWaiting, setLastWaiting] = useState<MessageWaitingNote | null>(null)
+  const [shownArea, showArea] = useState<ShownArea | null>(null)
+  const [sideCollapsed, setSideCollapsed] = useState(false)
+  const [pendingSend, setPendingSend] = useState<Staged | null>(null)
 
   const call = useCallback(
     async (path: string, init?: RequestInit) => {
@@ -167,6 +183,20 @@ function MessagingContextProvider({ baseUrl, children }: { baseUrl?: string; chi
     [openTool]
   )
 
+  const sendToSomeone = useCallback(
+    (staged: Staged) => {
+      setPendingSend(staged)
+      openTool('messages')
+    },
+    [openTool]
+  )
+
+  const takePendingSend = useCallback(() => {
+    const taken = pendingSend
+    setPendingSend(null)
+    return taken
+  }, [pendingSend])
+
   const closeConversation = useCallback(() => setOpenUserId(null), [])
 
   const loadMessages = useCallback(
@@ -217,7 +247,7 @@ function MessagingContextProvider({ baseUrl, children }: { baseUrl?: string; chi
   )
 
   const loadAttachment = useCallback(
-    async (messageId: string) => (await call(`/messages/${messageId}/attachment`)).json() as Promise<Attachment & { payload: SentRows }>,
+    async (messageId: string) => (await call(`/messages/${messageId}/attachment`)).json() as Promise<Attachment & { payload: unknown }>,
     [call]
   )
 
@@ -238,6 +268,13 @@ function MessagingContextProvider({ baseUrl, children }: { baseUrl?: string; chi
       messageUser,
       closeConversation,
       lastWaiting,
+      shownArea,
+      showArea,
+      sideCollapsed,
+      setSideCollapsed,
+      pendingSend,
+      sendToSomeone,
+      takePendingSend,
       refresh,
       loadMessages,
       send,
@@ -257,6 +294,11 @@ function MessagingContextProvider({ baseUrl, children }: { baseUrl?: string; chi
       messageUser,
       closeConversation,
       lastWaiting,
+      shownArea,
+      sideCollapsed,
+      pendingSend,
+      sendToSomeone,
+      takePendingSend,
       refresh,
       loadMessages,
       send,

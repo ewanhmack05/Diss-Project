@@ -49,7 +49,11 @@ public record ImportRequest(
     List<Annotation> Annotations,
     List<CellCount> CellCounts,
     List<ImportGroup>? Groups = null,
-    ImportSource? Source = null);
+    ImportSource? Source = null,
+    List<ImportCellCountGroup>? CellCountGroups = null);
+
+// The same as ImportGroup, for cell counts.
+public record ImportCellCountGroup(string Name, List<Guid> CellCountIds, string? Notes = null);
 
 // Set when this is something sent in a message rather than a file - the change
 // set then says where it came from. Rows says which row each new one was copied
@@ -70,10 +74,10 @@ public record ImportSource(
 public record ImportGroup(string Name, List<Guid> AnnotationIds, string? Notes = null);
 
 // Groups is every group the import put something in, new or not.
-public record ImportResult(List<Annotation> Annotations, List<CellCount> CellCounts, List<AnnotationGroup> Groups);
+public record ImportResult(List<Annotation> Annotations, List<CellCount> CellCounts, List<AnnotationGroup> Groups, List<CellCountGroup>? CellCountGroups = null);
 
 public record ExportView(
-    Guid CollectionId, string SlideId, string CollectionName, List<Annotation> Annotations, List<CellCount> CellCounts, List<AnnotationGroup> Groups);
+    Guid CollectionId, string SlideId, string CollectionName, List<Annotation> Annotations, List<CellCount> CellCounts, List<AnnotationGroup> Groups, List<CellCountGroup> CellCountGroups);
 
 public record MemberRequest(string DisplayName, CollectionRole Role);
 
@@ -227,7 +231,8 @@ public static class CollectionEndpoints
                 .OrderBy(c => c.Created)
                 .ToListAsync();
             var groups = await db.AnnotationGroups.AsNoTracking().Where(g => g.CollectionId == id).ToListAsync();
-            return Results.Ok(new ExportView(collection.CollectionId, collection.SlideId, collection.CollectionName, annotations, cellCounts, groups));
+            var countGroups = await db.CellCountGroups.AsNoTracking().Where(g => g.CollectionId == id).ToListAsync();
+            return Results.Ok(new ExportView(collection.CollectionId, collection.SlideId, collection.CollectionName, annotations, cellCounts, groups, countGroups));
         });
 
         // For the realtime hub, checking someone's allowed in a session's room.
@@ -378,6 +383,7 @@ public static class CollectionEndpoints
                 cellCount.CollectionId = id;
                 cellCount.SlideId = collection.SlideId;
                 cellCount.Created = now;
+                cellCount.GroupId = null;
                 CellCountSummary.Stamp(cellCount);
                 cellCount.CreatedById = user.UserId();
                 cellCount.CreatedByName = user.DisplayName();
@@ -414,10 +420,33 @@ public static class CollectionEndpoints
                     if (byId.TryGetValue(annotationId, out var annotation)) annotation.GroupId = group.Id;
             }
 
+            var countsById = request.CellCounts.ToDictionary(c => c.Id);
+            var usedCountGroups = new List<CellCountGroup>();
+            foreach (var wanted in request.CellCountGroups ?? [])
+            {
+                var name = wanted.Name.Trim();
+                if (name.Length is 0 or > AnnotationGroupEndpoints.MaxNameLength) continue;
+                var group = db.CellCountGroups.Local.FirstOrDefault(g => g.CollectionId == id && g.Name == name)
+                    ?? await db.CellCountGroups.FirstOrDefaultAsync(g => g.CollectionId == id && g.Name == name);
+                if (group is null)
+                {
+                    group = new CellCountGroup { Id = Guid.NewGuid(), CollectionId = id, Name = name, Created = now };
+                    db.CellCountGroups.Add(group);
+                }
+                if (!usedCountGroups.Contains(group))
+                {
+                    usedCountGroups.Add(group);
+                    if (wanted.Notes is { } notes && !group.Notes.Contains(notes.Trim()))
+                        group.Notes = AnnotationGroupEndpoints.JoinNotes(group.Notes, notes);
+                }
+                foreach (var countId in wanted.CellCountIds)
+                    if (countsById.TryGetValue(countId, out var count)) count.GroupId = group.Id;
+            }
+
             db.Annotations.AddRange(request.Annotations);
             db.CellCounts.AddRange(request.CellCounts);
             await db.SaveChangesAsync();
-            return Results.Ok(new ImportResult(request.Annotations, request.CellCounts, used));
+            return Results.Ok(new ImportResult(request.Annotations, request.CellCounts, used, usedCountGroups));
         });
 
         // Owner only. Hides it and everything in it from everyone - what's

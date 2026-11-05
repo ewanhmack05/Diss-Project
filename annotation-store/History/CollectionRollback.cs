@@ -117,6 +117,10 @@ public static class CollectionRollback
             if (entity == HistoryLog.Annotation && row.TryGetValue(nameof(Annotation.GroupId), out var group)
                 && group.ValueKind == JsonValueKind.String && !target.ContainsKey((HistoryLog.Group, group.GetGuid())))
                 row[nameof(Annotation.GroupId)] = JsonSerializer.SerializeToElement<Guid?>(null);
+        foreach (var ((entity, _), row) in target)
+            if (entity == HistoryLog.CellCount && row.TryGetValue(nameof(CellCount.GroupId), out var group)
+                && group.ValueKind == JsonValueKind.String && !target.ContainsKey((HistoryLog.CellCountGroup, group.GetGuid())))
+                row[nameof(CellCount.GroupId)] = JsonSerializer.SerializeToElement<Guid?>(null);
 
         var add = new Dictionary<(string, Guid), RowState>();
         var change = new Dictionary<(string, Guid), RowState>();
@@ -157,7 +161,9 @@ public static class CollectionRollback
             plan.Add.Keys.Count(k => k.Entity == entity),
             plan.Change.Keys.Count(k => k.Entity == entity),
             plan.Remove.Count(k => k.Entity == entity));
-        return new RollbackView(Counts(HistoryLog.Annotation), Counts(HistoryLog.Group), Counts(HistoryLog.CellCount), latest, plan.EntriesWalked, plan.FromSnapshot);
+        var (groups, countGroups) = (Counts(HistoryLog.Group), Counts(HistoryLog.CellCountGroup));
+        var allGroups = new RollbackCounts(groups.Back + countGroups.Back, groups.Changed + countGroups.Changed, groups.Gone + countGroups.Gone);
+        return new RollbackView(Counts(HistoryLog.Annotation), allGroups, Counts(HistoryLog.CellCount), latest, plan.EntriesWalked, plan.FromSnapshot);
     }
 
     private static Task<long?> LatestAsync(AnnotationDbContext db, Guid collectionId) =>
@@ -228,6 +234,8 @@ public static class CollectionRollback
 
         await AddBackAsync<AnnotationGroup>(db, collectionId, HistoryLog.Group, Of(plan.Add, HistoryLog.Group));
         await ChangeTrackedAsync(db, Of(plan.Change, HistoryLog.Group));
+        await AddBackAsync<CellCountGroup>(db, collectionId, HistoryLog.CellCountGroup, Of(plan.Add, HistoryLog.CellCountGroup));
+        await ChangeTrackedAsync(db, Of(plan.Change, HistoryLog.CellCountGroup));
         await db.SaveChangesAsync();
 
         await AddAnnotationsBackAsync(db, collectionId, Of(plan.Add, HistoryLog.Annotation));
@@ -244,6 +252,8 @@ public static class CollectionRollback
 
         var groupsGone = plan.Remove.Where(k => k.Entity == HistoryLog.Group).Select(k => k.Id).ToList();
         db.AnnotationGroups.RemoveRange(await db.AnnotationGroups.Where(g => groupsGone.Contains(g.Id)).ToListAsync());
+        var countGroupsGone = plan.Remove.Where(k => k.Entity == HistoryLog.CellCountGroup).Select(k => k.Id).ToList();
+        db.CellCountGroups.RemoveRange(await db.CellCountGroups.Where(g => countGroupsGone.Contains(g.Id)).ToListAsync());
         await db.SaveChangesAsync();
     }
 
@@ -293,7 +303,12 @@ public static class CollectionRollback
     {
         foreach (var ((entity, id), columns) in rows)
         {
-            object? live = entity == HistoryLog.Group ? await db.AnnotationGroups.FindAsync(id) : await db.CellCounts.FindAsync(id);
+            object? live = entity switch
+            {
+                HistoryLog.Group => await db.AnnotationGroups.FindAsync(id),
+                HistoryLog.CellCountGroup => await db.CellCountGroups.FindAsync(id),
+                _ => await db.CellCounts.FindAsync(id),
+            };
             if (live is null) continue;
             var entry = db.Entry(live);
             foreach (var (name, value) in columns)

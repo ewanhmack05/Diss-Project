@@ -141,6 +141,23 @@ public class SlideHubTests : IClassFixture<HubFactory>
     }
 
     [Fact]
+    public async Task ACellCountGroupOp_GoesToOthers()
+    {
+        var room = NewRoom();
+        await using var alice = await ConnectAsync("alice");
+        await using var bob = await ConnectAsync("bob");
+        await Join(alice, room);
+        await Join(bob, room);
+        var got = Listen<StampedOp>(bob, nameof(ISlideClient.AnnotationOp));
+        var id = Guid.NewGuid();
+
+        await alice.InvokeAsync<StampedOp>("SendAnnotationOp", new AnnotationOp(OpKind.Delete, OpEntity.CellCountGroup, id));
+
+        var op = (await got.Task.WaitAsync(Timeout)).Op;
+        Assert.Equal((OpEntity.CellCountGroup, id), (op.Entity, op.Id));
+    }
+
+    [Fact]
     public async Task NotifySession_NeedsARoom_AndIds()
     {
         await using var alice = await ConnectAsync("alice");

@@ -267,6 +267,9 @@ public static partial class Endpoints
         if (message?.Attachment is null) return Results.NotFound();
         if (await InConversationAsync(message.ConversationId, http, user, db, sessions, cancellationToken) is null) return Results.NotFound();
 
+        // These are only looked at or opened, so there's nothing to have added.
+        if (message.Attachment.Kind is AttachmentKind.Invite or AttachmentKind.Area) return Results.BadRequest("That can't be added to a collection");
+
         var me = user.UserId();
         var now = DateTimeOffset.UtcNow;
         var add = await db.AttachmentAdds.FirstOrDefaultAsync(a => a.MessageId == id && a.UserId == me, cancellationToken);

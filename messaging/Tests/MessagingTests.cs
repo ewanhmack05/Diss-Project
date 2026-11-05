@@ -351,6 +351,43 @@ public class MessagingTests(MessagingApiFactory factory) : IClassFixture<Messagi
     }
 
     [Fact]
+    public async Task AnArea_IsSentAndReadBack_ButCantBeAdded()
+    {
+        var bobId = NewUser("bob");
+        var area = new { center = new[] { 100.5, -200.25 }, resolution = 2.5, rotation = 0.5, extent = new[] { 0.0, -400, 200, 0 } };
+        var sent = await SendToAsync(factory.As(NewUser("alice")), bobId, "Look here", new { kind = "area", name = "Area of slide 003", slideId = "003", payload = area });
+
+        Assert.Equal((AttachmentKind.Area, "Area of slide 003", "003"), (sent.Attachment!.Kind, sent.Attachment.Name, sent.Attachment.SlideId));
+        var seen = await factory.As(bobId).GetFromJsonAsync<AttachmentWithPayload>($"/messages/{sent.Id}/attachment", Json);
+        Assert.Equal(100.5, seen!.Payload!.Value.GetProperty("center")[0].GetDouble());
+        Assert.Equal(2.5, seen.Payload!.Value.GetProperty("resolution").GetDouble());
+        Assert.Equal(HttpStatusCode.BadRequest, (await factory.As(bobId).PostAsync($"/messages/{sent.Id}/added", null)).StatusCode);
+    }
+
+    [Fact]
+    public async Task AnInvite_CantBeAdded()
+    {
+        var bobId = NewUser("bob");
+        var sent = await SendToAsync(factory.As(NewUser("alice")), bobId, "", new { kind = "invite", name = "Friday's session", inviteCode = "juyhsUFHC4gB" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await factory.As(bobId).PostAsync($"/messages/{sent.Id}/added", null)).StatusCode);
+    }
+
+    [Fact]
+    public async Task AnArea_NeedsWhereItIs()
+    {
+        var response = await factory.As(NewUser("alice")).PostAsJsonAsync("/messages", new
+        {
+            id = Guid.NewGuid(),
+            toUserId = NewUser("bob"),
+            body = "",
+            attachment = new { kind = "area", name = "Nowhere" },
+        }, Json);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Added_IsPerPerson()
     {
         var session = Guid.NewGuid();

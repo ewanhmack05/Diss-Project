@@ -52,6 +52,8 @@ interface RealtimeContextValue {
   others: Participant[]
   sendOp: (op: AnnotationOp) => void
   sendViewport: (viewport: Viewport) => void
+  // Where you're looking now, in a session or not.
+  currentViewport: () => Viewport | null
   // One per tool - a new one for a tool replaces its last one.
   sendSketch: (sketch: Sketch) => void
   // Done or given up with that tool. Goes straight away.
@@ -377,6 +379,8 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
     throttledViewportRef.current?.(viewport)
   }, [])
 
+  const currentViewport = useCallback(() => lastViewportRef.current, [])
+
   const sendSketch = useCallback((sketch: Sketch) => {
     lastSketchesRef.current.set(sketch.tool, sketch)
     sketchSenderRef.current?.send(sketch)
@@ -541,6 +545,7 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
         notifySession,
         onMessageWaiting,
         sendViewport,
+        currentViewport,
         sendSketch,
         clearSketch,
         sendScreen,

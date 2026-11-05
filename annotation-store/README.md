@@ -226,6 +226,13 @@ it holds everything in it. Nothing in the history is purged.
   and `groups` names every group a `GroupId` in `changes` points at, gone ones
   included. Only reads the update entries and the names out of the deletes,
   never a deleted row's whole copy. Same access as the list
+- `GET /cellcountgroups?collectionId=` lists a collection's groups of cell counts with how many are
+  in each, `POST /cellcountgroups` makes one from `{ collectionId, name, cellCountIds? }`, and `PUT`
+  and `DELETE /cellcountgroups/{id}` change `{ name?, notes? }` or remove it, leaving its counts.
+  `PUT /cellcounts/group` with `{ collectionId, ids, groupId }` moves counts in, or out with no
+  `groupId`. `POST /cellcountgroups/{id}/merge` with `{ intoId }` moves everything in it across and
+  removes it. The same as annotation groups, first change wins included: `wasName`, `wasNotes` and
+  `wasGroups` say what a save started from. `group=` narrows `GET /cellcounts`, as it does annotations
 - `GET /changesets/{id}/changes` also has `copiedFrom` for something sent in a
   message - `[{ entity, from, to }]`, which row each new one was copied from
 - `GET /changesets/total?collectionId=` - how many change sets the
@@ -445,9 +452,18 @@ erDiagram
         Created timestamp_with_time_zone "not null"
     }
 
+    CellCountGroups {
+        Id uuid PK "not null"
+        CollectionId uuid FK "not null"
+        Name text "not null"
+        Notes text "not null"
+        Created timestamp_with_time_zone "not null"
+    }
+
     CellCounts {
         Id uuid PK "not null"
         CollectionId uuid FK "not null"
+        GroupId uuid FK "null"
         WithAnnotation boolean "not null"
         WithRoi boolean "not null"
         Count integer "not null"
@@ -545,9 +561,11 @@ erDiagram
     }
 
     AnnotationGroups |o--o{ Annotations : "Annotations(GroupId) -> AnnotationGroups(Id)"
+    CellCountGroups |o--o{ CellCounts : "CellCounts(GroupId) -> CellCountGroups(Id)"
     CellCounts ||--o| RegionsOfInterest : "RegionsOfInterest(CellCountId) -> CellCounts(Id)"
     Collections ||--o{ AnnotationGroups : "AnnotationGroups(CollectionId) -> Collections(CollectionId)"
     Collections ||--o{ Annotations : "Annotations(CollectionId) -> Collections(CollectionId)"
+    Collections ||--o{ CellCountGroups : "CellCountGroups(CollectionId) -> Collections(CollectionId)"
     Collections ||--o{ CellCounts : "CellCounts(CollectionId) -> Collections(CollectionId)"
     Collections ||--o{ CollectionInvites : "CollectionInvites(CollectionId) -> Collections(CollectionId)"
     Collections ||--o{ CollectionMembers : "CollectionMembers(CollectionId) -> Collections(CollectionId)"
@@ -692,6 +710,23 @@ One shape someone drew on a slide. The shape itself is fixed once saved - only t
 - `CollectionId` points at `Collections.CollectionId`. Deleted with it
 - `GroupId` points at `AnnotationGroups.Id`. Goes to null if that's deleted
 
+### CellCountGroups
+
+A named set of cell counts in one collection, the same as `AnnotationGroups` is for annotations. One level, and a count is in at most one.
+
+**To make one:** `POST /cellcountgroups` with `collectionId`, `name` and optionally `cellCountIds`. An import can make them too, matched by name.
+
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `Id` | uuid | PK | server |  |
+| `CollectionId` | uuid | FK | client | The collection it's in |
+| `Name` | text |  | client | Up to 64 characters |
+| `Notes` | text |  | client | Up to 10,000 characters |
+| `Created` | timestamp with time zone |  | server |  |
+
+- Index on `CollectionId`
+- `CollectionId` points at `Collections.CollectionId`. Deleted with it
+
 ### CellCounts
 
 A manual count of cells, such as mitotic figures: every dot placed, and the tally. The dots can run to tens of megabytes, so the Saved list gets `ColourCountsJson` and `PlacedByCountsJson` instead, and only `GET /cellcounts/{id}` sends the dots.
@@ -702,6 +737,7 @@ A manual count of cells, such as mitotic figures: every dot placed, and the tall
 |---|---|---|---|---|
 | `Id` | uuid | PK | client or server | Made by the store if it's left out |
 | `CollectionId` | uuid | FK | client | Which collection it's in |
+| `GroupId` | uuid, null | FK | client | The group it's in, if any. Set with `PUT /cellcounts/group`, not by saving the count. Deleting the group empties this |
 | `WithAnnotation` | boolean |  | client | Whether clicks placed dots, or only counted |
 | `WithRoi` | boolean |  | client | Whether it was counted inside a region of interest |
 | `Count` | integer |  | client | The tally. Can be more than the dots, since a click with `WithAnnotation` off counts without placing one |
@@ -719,8 +755,10 @@ A manual count of cells, such as mitotic figures: every dot placed, and the tall
 | `PlacedByCountsJson` | text, null |  | server | How many dots each person placed, the same way as `ColourCountsJson` |
 
 - Index on `CollectionId`
+- Index on `GroupId`
 - Index on `SlideId`
 - `CollectionId` points at `Collections.CollectionId`. Deleted with it
+- `GroupId` points at `CellCountGroups.Id`. Goes to null if that's deleted
 
 ### RegionsOfInterest
 

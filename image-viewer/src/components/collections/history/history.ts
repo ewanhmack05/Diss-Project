@@ -1,6 +1,7 @@
 import type { Annotation } from '../../../interfaces/Annotation'
 import type { AnnotationGroup } from '../../../interfaces/AnnotationGroup'
 import type { CellCount } from '../../../interfaces/CellCount'
+import type { CellCountGroup } from '../../../interfaces/CellCountGroup'
 import type { ImageAdjustmentPreset } from '../../../interfaces/ImageAdjustment'
 import type { AnnotationOp } from '../../realtime/realtime'
 
@@ -38,6 +39,7 @@ interface RestoreCounts {
   imageAdjustments: number
   // The change deleted the collection itself.
   collection: boolean
+  cellCountGroups?: number
 }
 
 // What POST /changesets/{id}/restore answers - the counts, and the rows it
@@ -53,6 +55,7 @@ interface Restored {
   changedAnnotations: Annotation[]
   // The same for cell counts, without dots.
   changedCellCounts?: CellCount[]
+  cellCountGroups?: CellCountGroup[]
 }
 
 const number = (n: number) => n.toLocaleString('en-GB')
@@ -73,6 +76,10 @@ const LABELS: Record<string, (deleted: number) => string> = {
   'change group': () => 'Changed a group',
   'merge groups': () => 'Merged two groups',
   'delete group': () => 'Deleted a group',
+  'add cell count group': () => 'Added a group of cell counts',
+  'change cell count group': () => 'Changed a group of cell counts',
+  'delete cell count group': () => 'Deleted a group of cell counts',
+  'change cell counts': () => 'Moved cell counts between groups',
   'add cell count': () => 'Added a cell count',
   'change cell count': () => 'Changed a cell count',
   'delete cell count': () => 'Deleted a cell count',
@@ -123,7 +130,7 @@ function canRestore(changeSet: Pick<ChangeSet, 'deleted' | 'what'>, canEdit: boo
 function restoredList(counts: Omit<RestoreCounts, 'collection'>): string {
   const parts = [
     counts.annotations > 0 && plural(counts.annotations, 'annotation', 'annotations'),
-    counts.groups > 0 && plural(counts.groups, 'group', 'groups'),
+    counts.groups + (counts.cellCountGroups ?? 0) > 0 && plural(counts.groups + (counts.cellCountGroups ?? 0), 'group', 'groups'),
     counts.cellCounts > 0 && plural(counts.cellCounts, 'cell count', 'cell counts'),
     counts.imageAdjustments > 0 && plural(counts.imageAdjustments, 'image adjustment', 'image adjustments'),
   ].filter((part): part is string => !!part)
@@ -146,6 +153,7 @@ const DELETED_NOUNS: Record<string, [string, string]> = {
   'delete annotation': ['annotation', 'annotations'],
   'delete annotations': ['annotation', 'annotations'],
   'delete group': ['group', 'groups'],
+  'delete cell count group': ['group', 'groups'],
   'merge groups': ['group', 'groups'],
   'delete cell count': ['cell count', 'cell counts'],
   'delete image adjustment': ['image adjustment', 'image adjustments'],
@@ -227,6 +235,7 @@ function restoredOps(restored: Restored): AnnotationOp[] {
       id: group.id,
       data: { ...group, notes: group.notes ?? '' },
     })),
+    ...(restored.cellCountGroups ?? []).map((group): AnnotationOp => ({ kind: 'create', entity: 'cellCountGroup', id: group.id, data: group })),
     ...restored.annotations.map((a): AnnotationOp => ({ kind: 'create', entity: 'annotation', id: a.id, data: a })),
     ...(restored.changedAnnotations ?? []).map((a): AnnotationOp => ({ kind: 'update', entity: 'annotation', id: a.id, data: a })),
     ...restored.cellCounts.map((c): AnnotationOp => ({ kind: 'create', entity: 'cellCount', id: c.id, data: c })),

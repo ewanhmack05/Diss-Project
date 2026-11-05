@@ -147,6 +147,9 @@ namespace AnnotationStore.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid?>("GroupId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Label")
                         .IsRequired()
                         .HasColumnType("text");
@@ -178,9 +181,38 @@ namespace AnnotationStore.Migrations
 
                     b.HasIndex("CollectionId");
 
+                    b.HasIndex("GroupId");
+
                     b.HasIndex("SlideId");
 
                     b.ToTable("CellCounts");
+                });
+
+            modelBuilder.Entity("AnnotationStore.CellCounts.CellCountGroup", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CollectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("Created")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollectionId");
+
+                    b.ToTable("CellCountGroups");
                 });
 
             modelBuilder.Entity("AnnotationStore.CellCounts.RegionOfInterest", b =>
@@ -484,6 +516,20 @@ namespace AnnotationStore.Migrations
                 {
                     b.HasOne("AnnotationStore.Collections.Collections", null)
                         .WithMany("CellCounts")
+                        .HasForeignKey("CollectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AnnotationStore.CellCounts.CellCountGroup", null)
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("AnnotationStore.CellCounts.CellCountGroup", b =>
+                {
+                    b.HasOne("AnnotationStore.Collections.Collections", null)
+                        .WithMany()
                         .HasForeignKey("CollectionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();

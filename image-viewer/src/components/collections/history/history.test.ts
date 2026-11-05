@@ -62,6 +62,20 @@ describe('changeLabel', () => {
   })
 })
 
+describe('changeLabel for groups of cell counts', () => {
+  it('reads as what it did', () => {
+    expect(changeLabel({ what: 'add cell count group', deleted: 0 })).toBe('Added a group of cell counts')
+    expect(changeLabel({ what: 'delete cell count group', deleted: 1 })).toBe('Deleted a group of cell counts')
+    expect(changeLabel({ what: 'change cell counts', deleted: 0 })).toBe('Moved cell counts between groups')
+  })
+
+  it('counts as the right kind, and a delete can be put back', () => {
+    expect(changeKind('add cell count group')).toBe('add')
+    expect(changeKind('delete cell count group')).toBe('delete')
+    expect(changeKind('change cell counts')).toBe('change')
+  })
+})
+
 describe('changeLabel for something sent in a message', () => {
   const source = { messageId: 'm', fromUserId: 'alice', fromName: 'Alice', kind: 'group', name: 'Tumour', collectionId: null, slideId: null, annotations: 0, cellCounts: 0 }
   const label = (counts: { annotations?: number; cellCounts?: number }) =>

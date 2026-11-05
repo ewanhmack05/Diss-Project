@@ -108,6 +108,7 @@ A chat per session, with everyone in it, as well as one to one.
 | A cell count           | The same, dots included                                                                  | Fetched whole first                                                                                              |
 | A session              | The invite code, from its working link. The preview shows what it's for before they join | Host only, the same as today. Anyone else gets told to ask the host                                              |
 | A whole collection     | A copy, up to the size limit                                                             | A personal collection can't be joined, so it's the only way to give someone one                                  |
+| An area of the slide   | Where you're looking. They press **View** and their map goes there, with a dashed box    | Pointing someone at something shouldn't mean copying anything, and it works with nothing in common but the slide |
 | Too big to copy        | Turned down, saying how big and what the limit is                                        | 27,000 annotations is 25MB, and a count can be 80MB. A message isn't the place. A session is                     |
 
 **The limit** is 5MB a message to start with, about 5,000 annotations, and worth
@@ -220,15 +221,28 @@ invites are messages.
 
 - **A Messages tool on the toolbar**, with a badge for how many are unread. Guests don't
   get it.
-- **People and Session tabs** in its panel. People is your conversations, and **New message**
-  finds anyone with an account. Session is the chat of the session you're in, and is only there
-  while you're in one.
+- **An inbox in its panel**, wider than the others and solid so text isn't read over the slide.
+  Your conversations run down the side with the thread beside them, the pencil finds anyone with
+  an account, and the chat of the session you're in sits at the bottom of the list while you're in
+  one. The side folds down to a rail of initials, with unread counts, so the panel covers less of
+  the slide. In a side dock, which is only 20em, it stays a rail.
 - **The Users tab** has a **Message** button on each person, which opens it on them.
 - **A conversation** has its messages, a box to type in, and anything sent as a card with
   **Add to my collection**, or **Have a look** for an invite. You don't get those on your own.
-- **Attach...** by the box sends from the collection you're in: what's selected on the Select
-  tab, a group, a cell count, the whole collection, or if you're hosting an invite to your
-  session. They're read when it goes, and something over the limit is turned down before uploading.
+- **Send** is where things are saved: on a row of the Saved tabs, a group of annotations or cell
+  counts, what's picked on the Select tab, and a collection. It asks who to, opens that conversation
+  with it attached, and you can add words before it goes. The rows are read when it goes, and
+  something over the limit is turned down before uploading.
+- **Attach** by the box is only for what has no Saved tab: the area you're looking at, which is
+  where you are when you pick it, and if you're hosting an invite to your session.
+- **View** on a card takes the map to it and draws it in its own colours, without adding it to anything,
+  so someone can see what they've been sent before deciding. **Stop showing** or shutting the
+  panel takes it off. Not offered for something from another slide.
+- **A small preview** on each card shows that part of the slide with what was sent drawn on it in
+  its own colours, turned as it was seen, and pressing it does the same as **View**. It's drawn in the browser from
+  the tiler's tiles, since the tiler can't render a region. It's fetched once the card's on screen,
+  and anything over 1MB waits for **Preview**, so scrolling past doesn't download megabytes. It works
+  for another slide's too, which is the one way to see those for now.
 - **A toast** says who it's from if a message arrives with the panel shut.
 - **The name filter** (`censorText`) runs over messages and names as they're shown.
 

@@ -4,13 +4,14 @@ import { useDialogContext } from '../../context/DialogContext'
 import { useMessagingContext } from '../../context/MessagingContext'
 import { useToastContext } from '../../context/ToastContext'
 import Icon from '../../icons/Icon'
-import chevronLeftSvg from '../../icons/chevron-left.svg?raw'
+import paperclipSvg from '../../icons/paperclip.svg?raw'
+import sendSvg from '../../icons/send.svg?raw'
 import { newId } from '../../newId'
 import { censorText } from '../../textFilter'
 import { dayHeading, formatTime } from '../saved/savedDates'
 import AttachmentCard from './AttachmentCard'
-import SendMenu, { type Staged } from './SendMenu'
-import { BODY_COUNT_FROM, MAX_BODY, mergeMessages, type Attachment, type ChatTarget, type Conversation, type Message } from './messages'
+import SendMenu from './SendMenu'
+import { BODY_COUNT_FROM, MAX_BODY, mergeMessages, startsRun, type Attachment, type ChatTarget, type Conversation, type Message, type Staged } from './messages'
 import { useSentThings } from './useSentThings'
 
 const PAGE = 50
@@ -24,20 +25,20 @@ interface ConversationViewProps {
   readOnlyNote?: string
   canDelete: boolean
   deleteLabel: string
-  onBack?: () => void
   onDeleted?: () => void
 }
 
 // One conversation: its messages, oldest at the top, and the box to write in.
-function ConversationView({ target, conversation, title, readOnlyNote, canDelete, deleteLabel, onBack, onDeleted }: ConversationViewProps) {
+function ConversationView({ target, conversation, title, readOnlyNote, canDelete, deleteLabel, onDeleted }: ConversationViewProps) {
   const { user } = useAuthContext()
-  const { loadMessages, send, markRead, deleteConversation, lastWaiting } = useMessagingContext()
-  const { rowsFor, inviteFor } = useSentThings()
+  const { loadMessages, send, markRead, deleteConversation, lastWaiting, pendingSend, takePendingSend } = useMessagingContext()
+  const { rowsFor, inviteFor, areaFor } = useSentThings()
   const { addToast } = useToastContext()
   const { showDialog } = useDialogContext()
   const [messages, setMessages] = useState<Message[]>([])
   const [total, setTotal] = useState(0)
   const [problem, setProblem] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState(false)
   const [body, setBody] = useState('')
   const [staged, setStaged] = useState<Staged | null>(null)
   const [sending, setSending] = useState(false)
@@ -52,6 +53,12 @@ function ConversationView({ target, conversation, title, readOnlyNote, canDelete
 
   const conversationId = conversation?.id ?? null
 
+  // Something sent from where it's saved, once it's been said who to. Only ever
+  // here once that's settled - see MessagesPanel.
+  useEffect(() => {
+    if (pendingSend) setStaged(takePendingSend())
+  }, [pendingSend, takePendingSend])
+
   const loadNewest = useCallback(() => {
     if (!conversationId) return
     loadMessages(conversationId, 0, PAGE)
@@ -59,6 +66,7 @@ function ConversationView({ target, conversation, title, readOnlyNote, canDelete
         setMessages((current) => mergeMessages(current, page.messages))
         setTotal(page.total)
         setProblem(null)
+        setLoaded(true)
       })
       .catch((error: Error) => setProblem(error.message))
   }, [conversationId, loadMessages])
@@ -76,10 +84,12 @@ function ConversationView({ target, conversation, title, readOnlyNote, canDelete
     if (conversationId && unread > 0) markRead(conversationId).catch(() => {})
   }, [conversationId, unread, markRead])
 
-  useLayoutEffect(() => {
+  const keepToBottom = useCallback(() => {
     const scroller = scrollRef.current
     if (scroller && stickToBottom.current) scroller.scrollTop = scroller.scrollHeight
-  }, [messages])
+  }, [])
+
+  useLayoutEffect(keepToBottom, [messages, keepToBottom])
 
   const older = () => {
     if (!conversationId) return
@@ -104,7 +114,13 @@ function ConversationView({ target, conversation, title, readOnlyNote, canDelete
     if (!canSend) return
     setSending(true)
     try {
-      const attachment = !staged ? undefined : 'invite' in staged ? await inviteFor() : await rowsFor(staged.pick)
+      const attachment = !staged
+        ? undefined
+        : 'invite' in staged
+          ? await inviteFor()
+          : 'area' in staged
+            ? areaFor(staged.area)
+            : await rowsFor(staged.pick)
       const saved = await send(target, { id: draftId.current, body: body.trim(), attachment })
       stickToBottom.current = true
       setMessages((current) => mergeMessages(current, [saved]))
@@ -147,11 +163,6 @@ function ConversationView({ target, conversation, title, readOnlyNote, canDelete
   return (
     <div className="messages-chat">
       <header className="messages-chat-top">
-        {onBack && (
-          <button type="button" className="messages-icon-button" aria-label="Back to your messages" onClick={onBack}>
-            <Icon svg={chevronLeftSvg} size={12} />
-          </button>
-        )}
         <h3 className="messages-chat-title" title={title}>
           {title}
         </h3>
@@ -176,26 +187,28 @@ function ConversationView({ target, conversation, title, readOnlyNote, canDelete
           </button>
         )}
         {problem && <p className="messages-note">{problem}</p>}
-        {!problem && messages.length === 0 && (
+        {!problem && messages.length === 0 && (!conversationId || loaded) && (
           <p className="messages-note">{conversationId ? 'No messages yet.' : `Write something to start talking to ${title}.`}</p>
         )}
         {messages.map((message, index) => {
           const mine = message.fromUserId === user.id
           const before = messages[index - 1]
           const newDay = !before || dayHeading(before.sent) !== dayHeading(message.sent)
-          const sameSender = !newDay && before.fromUserId === message.fromUserId
+          const starts = newDay || startsRun(before, message)
           return (
-            <div key={message.id} className="messages-entry">
+            <div key={message.id}>
               {newDay && <p className="messages-day">{dayHeading(message.sent)}</p>}
-              <div className={`messages-message${mine ? ' messages-message--mine' : ''}`}>
-                {!mine && !sameSender && <span className="messages-from">{censorText(message.fromName)}</span>}
+              <div className={`messages-message${mine ? ' messages-message--mine' : ''}${starts ? ' messages-message--starts' : ''}`}>
+                {starts && (
+                  <span className="messages-from">
+                    <span className="messages-from-name">{mine ? 'You' : censorText(message.fromName)}</span>{' '}
+                    <time dateTime={message.sent}>{formatTime(message.sent)}</time>
+                  </span>
+                )}
                 {message.body && <p className="messages-body">{censorText(message.body)}</p>}
                 {message.attachment && (
-                  <AttachmentCard message={message} attachment={message.attachment} mine={mine} onChanged={(a) => updateAttachment(message.id, a)} />
+                  <AttachmentCard message={message} attachment={message.attachment} mine={mine} onChanged={(a) => updateAttachment(message.id, a)} onGrew={keepToBottom} />
                 )}
-                <time className="messages-time" dateTime={message.sent}>
-                  {formatTime(message.sent)}
-                </time>
               </div>
             </div>
           )
@@ -217,31 +230,31 @@ function ConversationView({ target, conversation, title, readOnlyNote, canDelete
               </button>
             </div>
           )}
-          <textarea
-            className="messages-input"
-            rows={2}
-            aria-label="Write a message"
-            placeholder="Write a message"
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                submit()
-              }
-            }}
-          />
+          {body.length >= BODY_COUNT_FROM && (
+            <span className={`messages-count${body.length > MAX_BODY ? ' messages-count--over' : ''}`}>
+              {body.length.toLocaleString('en-GB')} / {MAX_BODY.toLocaleString('en-GB')}
+            </span>
+          )}
           <div className="messages-write-row">
-            <button type="button" className="messages-button" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>
-              Attach…
+            <button type="button" className="messages-icon-button" title="Attach an area or an invite" aria-label="Attach an area or an invite" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>
+              <Icon svg={paperclipSvg} size={14} />
             </button>
-            {body.length >= BODY_COUNT_FROM && (
-              <span className={`messages-count${body.length > MAX_BODY ? ' messages-count--over' : ''}`}>
-                {body.length.toLocaleString('en-GB')} / {MAX_BODY.toLocaleString('en-GB')}
-              </span>
-            )}
-            <button type="button" className="messages-button messages-button--accent messages-send" disabled={!canSend} onClick={submit}>
-              {sending ? 'Sending…' : 'Send'}
+            <textarea
+              className="messages-input"
+              rows={2}
+              aria-label="Write a message"
+              placeholder="Write a message"
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  submit()
+                }
+              }}
+            />
+            <button type="button" className="messages-icon-button messages-icon-button--accent" title="Send" aria-label={sending ? 'Sending' : 'Send'} disabled={!canSend} onClick={submit}>
+              <Icon svg={sendSvg} size={14} />
             </button>
           </div>
         </div>

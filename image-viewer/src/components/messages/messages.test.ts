@@ -8,10 +8,12 @@ import {
   buildPayload,
   conversationName,
   formatBytes,
+  isCramped,
   mergeMessages,
   overLimit,
   previewOf,
   problemText,
+  startsRun,
   totalUnread,
   type Conversation,
   type Message,
@@ -31,6 +33,15 @@ function annotation(id: string, extra: Partial<Annotation> = {}): Annotation {
 
 function cellCount(id: string, extra: Partial<CellCount> = {}): CellCount {
   return { id, label: '', notes: '', dots: '[]', withAnnotation: true, withRoi: false, count: 0, dotSize: 1, locationX: null, locationY: null, regionOfInterest: null, ...extra } as CellCount
+}
+
+const grouped: FullCollection = {
+  collectionId: 'col',
+  slideId: '003',
+  collectionName: 'Mine',
+  annotations: [],
+  cellCounts: [cellCount('c1', { groupId: 'cg1' }), cellCount('c2', { groupId: 'cg1' }), cellCount('c3')],
+  cellCountGroups: [{ id: 'cg1', name: 'Mitoses', notes: 'Hot spots' }, { id: 'cg2', name: 'Empty' }],
 }
 
 const full: FullCollection = {
@@ -99,6 +110,7 @@ describe('previewOf', () => {
 
   it('names what was sent when there is no text', () => {
     expect(previewOf(message('m', '1', { body: '', attachment }), 'me')).toBe('Group - Tumour')
+    expect(previewOf(message('m', '1', { body: '', attachment: { ...attachment, kind: 'area', name: 'Area of slide 003' } }), 'me')).toBe('Area - Area of slide 003')
   })
 })
 
@@ -128,6 +140,27 @@ describe('buildPayload', () => {
     expect(built.name).toBe('Mitoses')
     expect(built.payload.cellCounts.map((c) => c.id)).toEqual(['c1'])
     expect(built.payload.annotations).toEqual([])
+  })
+
+  it('sends a group of cell counts with what is in it', () => {
+    const built = buildPayload(grouped, { kind: 'cellCountGroup', id: 'cg1' })!
+    expect(built.name).toBe('Mitoses')
+    expect(built.payload.cellCounts.map((c) => c.id)).toEqual(['c1', 'c2'])
+    expect(built.payload.annotations).toEqual([])
+    expect(built.payload.cellCountGroups).toEqual([{ name: 'Mitoses', notes: 'Hot spots', cellCountIds: ['c1', 'c2'] }])
+  })
+
+  it('is nothing for a group of cell counts that is empty or gone', () => {
+    expect(buildPayload(grouped, { kind: 'cellCountGroup', id: 'cg2' })).toBeNull()
+    expect(buildPayload(grouped, { kind: 'cellCountGroup', id: 'gone' })).toBeNull()
+  })
+
+  it('keeps the group a single cell count is in', () => {
+    expect(buildPayload(grouped, { kind: 'cellCount', id: 'c1' })!.payload.cellCountGroups).toEqual([{ name: 'Mitoses', notes: 'Hot spots', cellCountIds: ['c1'] }])
+  })
+
+  it('sends the whole collection with its cell count groups', () => {
+    expect(buildPayload(grouped, { kind: 'collection' })!.payload.cellCountGroups).toHaveLength(1)
   })
 
   it('sends the whole collection, leaving out groups with nothing in them', () => {
@@ -206,6 +239,20 @@ describe('addRequest', () => {
     expect(request.groups[0].notes).toBe('Look here')
   })
 
+  it('moves cell count groups to the new ids too, and out of the group they were in', () => {
+    const request = addRequest(
+      { annotations: [], cellCounts: [cellCount('c1', { groupId: 'cg1' })], groups: [], cellCountGroups: [{ name: 'Mitoses', cellCountIds: ['c1', 'not-sent'] }] },
+      sender,
+      card
+    )
+    expect(request.cellCounts[0].groupId).toBeNull()
+    expect(request.cellCountGroups).toEqual([{ name: 'Mitoses', cellCountIds: [request.cellCounts[0].id] }])
+  })
+
+  it('copes with something sent before cell count groups', () => {
+    expect(addRequest(rows, sender, card).cellCountGroups).toEqual([])
+  })
+
   it('says where it came from, row by row', () => {
     const request = addRequest(rows, sender, card)
     expect(request.source).toMatchObject({ messageId: 'm1', fromUserId: 'alice', fromName: 'Alice', kind: 'group', name: 'Tumour', collectionId: 'col', slideId: '003' })
@@ -220,6 +267,49 @@ describe('addRequest', () => {
     const before = JSON.stringify(rows)
     addRequest(rows, sender, card)
     expect(JSON.stringify(rows)).toBe(before)
+  })
+})
+
+describe('startsRun', () => {
+  const at = (time: string, fromUserId = 'alice') => message(time, `2026-11-05T${time}:00Z`, { fromUserId })
+
+  it('starts with the first message', () => {
+    expect(startsRun(undefined, at('10:00'))).toBe(true)
+  })
+
+  it('carries on for the same person soon after', () => {
+    expect(startsRun(at('10:00'), at('10:04'))).toBe(false)
+    expect(startsRun(at('10:00'), at('10:05'))).toBe(false)
+  })
+
+  it('starts again after a gap, or for someone else', () => {
+    expect(startsRun(at('10:00'), at('10:06'))).toBe(true)
+    expect(startsRun(at('10:00'), at('10:01', 'bob'))).toBe(true)
+  })
+
+  it('starts again if the times are out of order or unreadable', () => {
+    expect(startsRun(at('10:05'), at('10:00'))).toBe(true)
+    expect(startsRun(message('a', 'nonsense'), message('b', 'nonsense'))).toBe(true)
+  })
+})
+
+describe('isCramped', () => {
+  const font = 11
+
+  it('is cramped in a side dock', () => {
+    expect(isCramped(true, 20 * font, font)).toBe(true)
+  })
+
+  it('has room in a top or bottom dock', () => {
+    expect(isCramped(true, 90 * font, font)).toBe(false)
+  })
+
+  it('is never cramped floating, or you could fold it and not get it back', () => {
+    expect(isCramped(false, 25 * font, font)).toBe(false)
+  })
+
+  it('waits until it has been measured', () => {
+    expect(isCramped(true, 0, font)).toBe(false)
   })
 })
 

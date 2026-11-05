@@ -51,3 +51,31 @@
   outline: none;
   border-color: var(--accent);
 }
+
+.saved-count-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  margin-bottom: 0.5em;
+}
+
+.saved-count-groups-title {
+  margin-bottom: 0.3em;
+  cursor: pointer;
+}
+
+.saved-row-group {
+  max-width: 9em;
+  padding: 0.2em 0.3em;
+  font-family: var(--sans);
+  font-size: 0.82em;
+  color: var(--chrome-text);
+  background: var(--white-08);
+  border: none;
+  border-radius: 0.3125rem;
+}
+
+.saved-row-group option {
+  color: var(--chrome-text);
+  background: rgb(var(--chrome-bg-rgb));
+}

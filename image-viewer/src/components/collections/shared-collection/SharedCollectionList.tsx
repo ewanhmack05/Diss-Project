@@ -2,6 +2,7 @@ import { useCollectionContext, type Collection } from '../../../context/Collecti
 import { useAuthContext } from '../../../context/AuthContext'
 import { useDialogContext } from '../../../context/DialogContext'
 import { useEmitEvent } from '../../../context/EventContext'
+import { useMessagingContext } from '../../../context/MessagingContext'
 import { usePresenceContext } from '../../../context/PresenceContext'
 import CollectionRow from '../CollectionRow'
 
@@ -38,6 +39,7 @@ function SharedCollectionList({ collections, activeId, onExport, onImport }: Sha
   const { user } = useAuthContext()
   const { showDialog } = useDialogContext()
   const emit = useEmitEvent()
+  const { status: messaging, sendToSomeone } = useMessagingContext()
 
   const confirmLeave = (session: Collection) =>
     showDialog({
@@ -129,6 +131,15 @@ function SharedCollectionList({ collections, activeId, onExport, onImport }: Sha
             <button type="button" className="collections-button" onClick={() => onExport(collection)}>
               Export
             </button>
+            {messaging !== 'off' && (
+              <button
+                type="button"
+                className="collections-button"
+                onClick={() => sendToSomeone({ label: `the whole of ${collection.collectionName}`, pick: { kind: 'collection', collectionId: collection.collectionId } })}
+              >
+                Send
+              </button>
+            )}
             {canImport && (
               <button type="button" className="collections-button" onClick={() => onImport(collection)}>
                 Import
