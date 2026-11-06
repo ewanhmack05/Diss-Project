@@ -16,6 +16,9 @@
 #     the realm, Postgres is Flexible Server. Set them up once by hand or IaC
 #   - The viewer still assumes services on its own host (docs/azure.md,
 #     "To handle" item 3) - pass the real URLs to the build once that's done
+#   - The diss-messaging app needs ConnectionStrings__Messaging,
+#     Auth__MetadataAddress and AnnotationStore__BaseUrl (docs/azure.md,
+#     "To handle" item 7)
 #   - Gate on the CI workflows passing before switching on the push trigger
 
 name: Deploy to Azure
@@ -48,7 +51,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        service: [annotation-store, realtime-hub, tiler]
+        service: [annotation-store, realtime-hub, messaging, tiler]
     steps:
       - uses: actions/checkout@v7
 
@@ -88,7 +91,7 @@ jobs:
       id-token: write
     strategy:
       matrix:
-        service: [annotation-store, realtime-hub, tiler]
+        service: [annotation-store, realtime-hub, messaging, tiler]
     steps:
       - uses: azure/login@v3
         with:

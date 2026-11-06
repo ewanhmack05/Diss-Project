@@ -55,6 +55,7 @@ Side by side, each person's screen:
 | `collaboration.mp4` | Everything live between two people - joining, chips, seeing where someone's looking, shapes as they're drawn, two people typing in one label, colour changes, a count staying private until saved, the ruler, look here, opening a tab, Follow me with rotation and stepping out, Present with panels, tabs, a live count and adjustments following, back to Free |
 | `counting-together.mp4` | A comparison - invite, counting blind, waiting, results with rings, saving, declining - and a shared count - one tally, cells counted twice, undo, leaving, saving |
 | `session-admin.mp4` | Viewing someone's shared collection, the editor cap, first change wins, renaming, link settings, inviting from Users, view only, changing roles, a collision and its choice, taking someone out, a quiet session reopened, leaving, ending, deleting |
+| `messaging.mp4` | Sending an annotation, a group of cell counts and the area you're looking at - it arriving live, previews in their own colours, viewing without keeping, adding a copy, folding the list |
 | `guests.mp4` | Joining with just a name, what a guest can't do, being listed for the host, being asked to edit, leaving |
 
 ## What "everything" means

@@ -5,8 +5,8 @@ Something to discuss in future.
 - Most likely set up in a container stack on a VM - saves having to think too much about the architecture of it, also saves pricing wise
 - May be better setting up separate services
   - Web app for the actual viewer
-  - App service for each different service - 2 so far, 3 if the real-time API is added (see [libraries.md](libraries.md))
-- Will need 1 db (annotation store). Only 1 image will be properly used, so the tiler can get a hard coded image and path. Users will theoretically be handled by the auth and/or Azure (see [auth.md](auth.md))
+  - App service for each different service - 4 so far: tiler, annotation-store, realtime hub and messaging
+- Will need 2 dbs for the services (annotation store and messaging), plus Keycloak's. Only 1 image will be properly used, so the tiler can get a hard coded image and path. Users will theoretically be handled by the auth and/or Azure (see [auth.md](auth.md))
 
 ## Option A - separate apps
 
@@ -18,12 +18,12 @@ Rough price idea:
 | tiler | **Container Apps** | scales to zero, slide 003 built into the image (~3.2 GB), cold start ~1–3 min | ~£0–5 |
 | annotation-store | **Container Apps** | scales to zero | ~£0–10 |
 | Keycloak | **Container Apps** | **always 1 copy running** (Java, 512 MB–1 GB), optimised image, realm imported from JSON | ~£15–30 |
-| Real-time hub (later) | **Container Apps** | exactly 1 copy, WebSockets | ~£0–10 |
+| Real-time hub | **Container Apps** | exactly 1 copy, WebSockets | ~£0–10 |
 | messaging | **Container Apps** | scales to zero | ~£0–10 |
 | Postgres | **Azure Database for PostgreSQL Flexible**, B1ms | three databases: `annotationstore`, `messaging` and `keycloak`, backups included | ~£12–15 |
 | Container images | **GitHub Container Registry** (free) or **Azure Container Registry Basic** | stores the built images | £0 or ~£4 |
 
-Roughly **£30-70/month**. Estimates - check against the Azure pricing calculator.
+Roughly **£30-85/month**. Estimates - check against the Azure pricing calculator.
 
 ## Option B - one VM
 
@@ -37,7 +37,7 @@ than per service:
 | tiler | container, slide 003 on the VM disk - no cold start | ~0.5 GB | included |
 | annotation-store | container | ~150 MB | included |
 | Keycloak | container, always on | 0.7–1 GB | included |
-| Real-time hub (later) | container | ~150 MB | included |
+| Real-time hub | container | ~150 MB | included |
 | messaging | container | ~150 MB | included |
 | Postgres | container + volume, three databases | 0.3–0.5 GB | included |
 | Stats | Grafana `otel-lgtm`, reached over an SSH tunnel only | 1–2 GB | included |
@@ -54,7 +54,7 @@ auto-shutdown. Dropping Grafana for Application Insights could fit a B2s
 
 | | Separate apps | One VM |
 |---|---|---|
-| Monthly cost | ~£30–70 | ~£58–65 (24/7), ~£30–35 (overnight shutdown) |
+| Monthly cost | ~£30–85 | ~£58–65 (24/7), ~£30–35 (overnight shutdown) |
 | Tiler cold start | 1–3 min | none |
 | Stats | Application Insights | Grafana, same as local |
 | CORS | needed - each service on its own domain | none - single domain |
@@ -71,15 +71,17 @@ auto-shutdown. Dropping Grafana for Application Insights could fit a B2s
 ## To handle either way
 
 1. ~~**Tiler only runs on Windows today**~~ - done. `tiler/Dockerfile` builds a Linux image with slide 003 in it (~3.1 GB), using Ubuntu's OpenSlide 3.4. Tiles match the Windows tiler byte for byte, same speed (see `tiler/README.md`)
-2. ~~Dockerfiles for tiler and annotation-store, plus one local compose file~~ - done. The realtime hub has one too, and the root `docker-compose.yml` runs all of them with Keycloak (see the root README). annotation-store creates its tables on start up in the container (`Database__MigrateOnStartup`)
+2. ~~Dockerfiles for tiler and annotation-store, plus one local compose file~~ - done. The realtime hub and messaging have one too, and the root `docker-compose.yml` runs all of them with Keycloak (see the root README). annotation-store and messaging create their tables on start up in the container (`Database__MigrateOnStartup`)
 3. Configurable service URLs in the viewer, instead of "same host, fixed port" - ~2 hours
 4. "Tile server is starting" state in the viewer instead of the connection error, for the cold start - ~1 hour
 5. Deploy workflow - skeleton in `.github/workflows/deploy-azure.yml` (images to GHCR, `az containerapp update`, Static Web Apps upload). Needs the Azure resources, an OIDC app registration and the GHCR pull credentials before it'll run
 6. Container Apps ephemeral storage limit - check the ~3.1 GB image fits. Fallback: mount the slide from Azure Files and point `Slides__DataPath` at it.
+7. Settings for messaging - `ConnectionStrings__Messaging`, `Auth__MetadataAddress` and `AnnotationStore__BaseUrl`, which it uses to ask who's in a session. Without the last one session chat fails, while direct messages carry on. See `docker-compose.yml`
 
 ## Before anything is public
 
-- CORS currently accepts any origin - needs a real list
+- CORS currently accepts any origin, on every service - needs a real list
+- Messages are kept until someone deletes them, and a sent copy outlives losing access to the original - needs a retention rule before any real data goes on it (see [messaging.md](messaging.md#decisions))
 - Grafana is anonymous admin - put it behind a login or SSH tunnel
 - Port 4317 (telemetry) must stay internal
 - Scalar/OpenAPI stay Development-only
