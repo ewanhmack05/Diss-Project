@@ -192,6 +192,24 @@ export const FEATURES = {
   'account-switch': 'Switching user',
   'account-sign-out': 'Signing out',
 
+  // Messages
+  'message-send-saved': 'Send on a saved row, which asks who to',
+  'message-search': 'Finding someone to send to',
+  'message-send-annotation': 'Sending an annotation',
+  'message-send-count-group': 'Sending a group of cell counts',
+  'message-send-area': 'Sending the area you\'re looking at',
+  'message-live': 'A message arriving live, with a badge and a toast',
+  'message-inbox': 'The list of conversations beside the thread, and opening one clearing its unread',
+  'message-preview': 'A preview of what was sent, in its own colours',
+  'message-view': 'View, taking the map there without saving anything',
+  'message-view-area': 'Viewing a sent area, landing where the sender was',
+  'message-stop-showing': 'Stop showing',
+  'message-add': 'Adding something sent to your collection',
+  'message-add-group': 'A sent group arriving as a group',
+  'message-fold': 'Folding the list down to a rail and back',
+  'count-group-make': 'Making a group of cell counts',
+  'count-group-move': 'Moving cell counts into a group',
+
   // Guests
   'guest-join': 'Joining as a guest with just a name',
   'guest-view-only': 'What a guest can and can\'t do',
@@ -208,6 +226,9 @@ export const NOT_SHOWN = {
   'Making an account': 'Would leave a real account behind each run. It\'s Keycloak\'s own page, not the viewer',
   'Pinch zoom and rotate': 'Touch only. Recording drives a mouse',
   'Reconnecting and offline states': 'Needs a service stopping part way through a recording',
+  'Session chat and invites as messages': 'Left out to keep the messaging video to what\'s sent. Covered by the messaging service\'s tests, and checked by hand',
+  'Send on a group of annotations, the Select tab or a collection': 'The same path as the Send buttons that are shown, read when it goes',
+  'Merging cell count groups, and first change wins on them': 'Left out to keep the messaging video about messages. Covered by annotation-store\'s tests, and checked by hand',
 }
 
 // Done on video but with nothing in the scene checking the result, because it's

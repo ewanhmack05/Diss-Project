@@ -19,5 +19,6 @@ export const SCENES = [
   { name: 'collaboration', title: 'Working together live - follow, present, annotations, counts, ruler, rotation, adjustments', cast: ['sam', 'jo'], run: together.collaboration },
   { name: 'counting-together', title: 'Comparison counts and shared counts', cast: ['sam', 'jo'], run: together.countingTogether },
   { name: 'session-admin', title: 'Running a session - links, roles, caps, collisions, ending', cast: ['sam', 'jo'], run: together.sessionAdmin },
+  { name: 'messaging', title: 'Messages - an annotation, a group of cell counts and a viewing area', cast: ['sam', 'jo'], run: together.messaging },
   { name: 'guests', title: 'Guests - joining without an account', cast: ['sam', 'guest'], run: together.guests },
 ]
