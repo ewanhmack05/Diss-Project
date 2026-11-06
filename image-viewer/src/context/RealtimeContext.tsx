@@ -1,3 +1,4 @@
+import type { MessageWaitingNote } from './MessagingContext'
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { HubConnectionBuilder, LogLevel, type HubConnection } from '@microsoft/signalr'
 import {
@@ -51,6 +52,8 @@ interface RealtimeContextValue {
   others: Participant[]
   sendOp: (op: AnnotationOp) => void
   sendViewport: (viewport: Viewport) => void
+  // Where you're looking now, in a session or not.
+  currentViewport: () => Viewport | null
   // One per tool - a new one for a tool replaces its last one.
   sendSketch: (sketch: Sketch) => void
   // Done or given up with that tool. Goes straight away.
@@ -68,6 +71,10 @@ interface RealtimeContextValue {
   askToEdit: (connectionId: string) => Promise<void>
   // Returns an unsubscribe, like onOp.
   onRequest: (handler: RequestHandler) => () => void
+  // Says something's waiting in the session's chat, to everyone else in the
+  // room. Rejects when you're not in one - it's saved, so they find it anyway.
+  notifySession: (conversationId: string, messageId: string) => Promise<void>
+  onMessageWaiting: (handler: (waiting: MessageWaitingNote) => void) => () => void
   // Returns an unsubscribe, so it drops straight into a useEffect.
   onOp: (handler: OpHandler) => () => void
   // Shared docs (see sharedFields.ts). openDoc resolves null when not
@@ -138,6 +145,7 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
     meRef.current = me
   })
 
+  const messageHandlersRef = useRef(new Set<(waiting: MessageWaitingNote) => void>())
   const connectionRef = useRef<HubConnection | null>(null)
   const joinedRef = useRef(false)
   const lastViewportRef = useRef<Viewport | null>(null)
@@ -288,6 +296,7 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
       docEditorsHandlersRef.current.forEach((handler) => handler(docId, editors))
     )
     // Comes to the sender too, so this is the only place it's set.
+    connection.on('MessageWaiting', (waiting: MessageWaitingNote) => messageHandlersRef.current.forEach((handler) => handler(waiting)))
     connection.on('ComparisonChanged', (next: Comparison | null) => setComparison(next))
     connection.on('SharedCountChanged', (next: SharedCount | null) => setSharedCount(next))
     // Ignored if it's for a count we've already moved on from.
@@ -343,6 +352,20 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
     }
   }, [hubUrl, roomId, emit, getAccessToken, guestName])
 
+  const notifySession = useCallback(async (conversationId: string, messageId: string) => {
+    const connection = connectionRef.current
+    if (!connection || !joinedRef.current) throw new Error("You're not in the session's room")
+    await connection.invoke('NotifySession', conversationId, messageId)
+  }, [])
+
+  const onMessageWaiting = useCallback((handler: (waiting: MessageWaitingNote) => void) => {
+    const handlers = messageHandlersRef.current
+    handlers.add(handler)
+    return () => {
+      handlers.delete(handler)
+    }
+  }, [])
+
   const sendOp = useCallback((op: AnnotationOp) => {
     const connection = connectionRef.current
     if (!connection || !joinedRef.current) return
@@ -355,6 +378,8 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
     lastViewportRef.current = viewport
     throttledViewportRef.current?.(viewport)
   }, [])
+
+  const currentViewport = useCallback(() => lastViewportRef.current, [])
 
   const sendSketch = useCallback((sketch: Sketch) => {
     lastSketchesRef.current.set(sketch.tool, sketch)
@@ -517,7 +542,10 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
         me,
         others,
         sendOp,
+        notifySession,
+        onMessageWaiting,
         sendViewport,
+        currentViewport,
         sendSketch,
         clearSketch,
         sendScreen,

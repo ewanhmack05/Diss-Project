@@ -435,6 +435,21 @@ public class GuestTests : IClassFixture<HubFactory>
     }
 
     [Fact]
+    public async Task Guests_CantNotifyTheSessionsChat_ButViewOnlyPeopleCan()
+    {
+        var sessionId = Guid.NewGuid();
+        var room = Room(sessionId);
+        await using var viewer = await ConnectUser("viewer-v");
+        var guest = await Mint(sessionId);
+        await using var g = await ConnectGuest(guest.Token);
+        await viewer.InvokeAsync<JoinResult>("JoinSession", room);
+        await g.InvokeAsync<JoinResult>("JoinAsGuest", room, "Ann");
+
+        await viewer.InvokeAsync("NotifySession", Guid.NewGuid(), Guid.NewGuid());
+        await Assert.ThrowsAsync<HubException>(() => g.InvokeAsync("NotifySession", Guid.NewGuid(), Guid.NewGuid()));
+    }
+
+    [Fact]
     public async Task ViewOnly_CantSendOpsOrDocUpdates_ButEditorsStillCan()
     {
         var sessionId = Guid.NewGuid();

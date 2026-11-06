@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
+using RealtimeHub.Presence;
 using RealtimeHub.Slides;
 
 namespace RealtimeHub.Tests;
@@ -114,6 +115,56 @@ public class SlideHubTests : IClassFixture<HubFactory>
     public async Task NotSignedIn_CantConnect()
     {
         await Assert.ThrowsAnyAsync<Exception>(() => ConnectAsync(""));
+    }
+
+    [Fact]
+    public async Task NotifySession_ReachesEveryoneElseInTheRoom_NotOtherRooms()
+    {
+        var room = NewRoom();
+        await using var alice = await ConnectAsync("alice");
+        await using var bob = await ConnectAsync("bob");
+        await using var carol = await ConnectAsync("carol");
+        await Join(alice, room);
+        await Join(bob, room);
+        await Join(carol, NewRoom());
+        var bobGot = Listen<MessageWaiting>(bob, nameof(ISlideClient.MessageWaiting));
+        var aliceGot = Listen<MessageWaiting>(alice, nameof(ISlideClient.MessageWaiting));
+        var carolGot = Listen<MessageWaiting>(carol, nameof(ISlideClient.MessageWaiting));
+        var (conversation, message) = (Guid.NewGuid(), Guid.NewGuid());
+
+        await alice.InvokeAsync("NotifySession", conversation, message);
+
+        Assert.Equal(new MessageWaiting(conversation, message), await bobGot.Task.WaitAsync(Timeout));
+        await Task.Delay(200);
+        Assert.False(aliceGot.Task.IsCompleted);
+        Assert.False(carolGot.Task.IsCompleted);
+    }
+
+    [Fact]
+    public async Task ACellCountGroupOp_GoesToOthers()
+    {
+        var room = NewRoom();
+        await using var alice = await ConnectAsync("alice");
+        await using var bob = await ConnectAsync("bob");
+        await Join(alice, room);
+        await Join(bob, room);
+        var got = Listen<StampedOp>(bob, nameof(ISlideClient.AnnotationOp));
+        var id = Guid.NewGuid();
+
+        await alice.InvokeAsync<StampedOp>("SendAnnotationOp", new AnnotationOp(OpKind.Delete, OpEntity.CellCountGroup, id));
+
+        var op = (await got.Task.WaitAsync(Timeout)).Op;
+        Assert.Equal((OpEntity.CellCountGroup, id), (op.Entity, op.Id));
+    }
+
+    [Fact]
+    public async Task NotifySession_NeedsARoom_AndIds()
+    {
+        await using var alice = await ConnectAsync("alice");
+
+        await Assert.ThrowsAsync<HubException>(() => alice.InvokeAsync("NotifySession", Guid.NewGuid(), Guid.NewGuid()));
+        await Join(alice, NewRoom());
+        await Assert.ThrowsAsync<HubException>(() => alice.InvokeAsync("NotifySession", Guid.Empty, Guid.NewGuid()));
     }
 
     [Fact]

@@ -46,7 +46,8 @@ public static class ItemHistory
     {
         [HistoryLog.Annotation] = [nameof(Annotation.Label), nameof(Annotation.Notes), nameof(Annotation.Colour), nameof(Annotation.GroupId)],
         [HistoryLog.Group] = [nameof(AnnotationGroup.Name), nameof(AnnotationGroup.Notes)],
-        [HistoryLog.CellCount] = [nameof(CellCount.Label), nameof(CellCount.Notes), nameof(CellCount.WithAnnotation), nameof(CellCount.WithRoi), nameof(CellCount.Count), nameof(CellCount.DotSize)],
+        [HistoryLog.CellCountGroup] = [nameof(CellCountGroup.Name), nameof(CellCountGroup.Notes)],
+        [HistoryLog.CellCount] = [nameof(CellCount.Label), nameof(CellCount.Notes), nameof(CellCount.GroupId), nameof(CellCount.WithAnnotation), nameof(CellCount.WithRoi), nameof(CellCount.Count), nameof(CellCount.DotSize)],
     };
 
     // Newest entry first, undoing each: an update puts back its columns, a
@@ -176,7 +177,7 @@ public static class ItemHistory
     private static RestoredView Answer(Annotation? annotation, Annotation? changed, CellCountListItem? count, CellCountListItem? changedCount) =>
         new(new RestoreResult(annotation is null ? 0 : 1, 0, count is null ? 0 : 1, 0, false),
             annotation is null ? [] : [annotation], [], count is null ? [] : [count], [],
-            changed is null ? [] : [changed], changedCount is null ? [] : [changedCount]);
+            changed is null ? [] : [changed], changedCount is null ? [] : [changedCount], []);
 
     private static Task<HistoryEntry?> VersionAsync(AnnotationDbContext db, string entity, Guid id, long entryId) =>
         db.HistoryEntries.AsNoTracking()
@@ -275,7 +276,9 @@ public static class ItemHistory
             var wanted = HistoryLog.ValueOf(value, row.Property(column).Metadata.ClrType);
             if (column == nameof(Annotation.GroupId))
             {
-                var now = await ChangeSetEndpoints.GroupNowAsync(db, (Guid?)wanted);
+                var now = version.Entity == HistoryLog.CellCount
+                    ? await ChangeSetEndpoints.CellCountGroupNowAsync(db, (Guid?)wanted)
+                    : await ChangeSetEndpoints.GroupNowAsync(db, (Guid?)wanted);
                 if (now != (Guid?)wanted) groupWas = (Guid?)wanted;
                 wanted = now;
             }

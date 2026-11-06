@@ -1,5 +1,5 @@
 """Starts the whole project from one terminal - Keycloak, tiler,
-annotation-store, realtime-hub and the viewer, plus the Grafana dashboard
+annotation-store, realtime-hub, messaging and the viewer, plus the Grafana dashboard
 with --dashboard - and shows every service's output in one place, each line
 marked with where it came from. Ctrl+C stops what it started.
 
@@ -55,11 +55,12 @@ SERVICES = [
             compose="annotation-store"),
     Service("hub", "realtime-hub", 5180, "http://localhost:5180", "dotnet", ("realtime-hub",),
             compose="realtime-hub"),
+    Service("messaging", "messaging", 5260, "http://localhost:5260", "dotnet", compose="messaging"),
     Service("viewer", "image-viewer", 5173, "https://localhost:5173", "npm", ("image-viewer",)),
 ]
 
 # What --no-deps leaves out of the root compose file, so it's added by hand.
-COMPOSE_NEEDS = {"keycloak": ["keycloak-db"], "annotation-store": ["annotation-db"]}
+COMPOSE_NEEDS = {"keycloak": ["keycloak-db"], "annotation-store": ["annotation-db"], "messaging": ["messaging-db"]}
 
 
 def lookup(name):
@@ -178,7 +179,7 @@ def warnings(services, *, docker, keycloak_from=None, port_check=port_open):
     """Things worth saying before starting, that don't stop anything."""
     out = []
     names = {s.name for s in services}
-    if "store" in names and not docker and not port_check(5432):
+    if names & {"store", "messaging"} and not docker and not port_check(5432):
         out.append("Nothing on port 5432 - annotation-store needs Postgres running (see SETUP.md)")
     if docker and names & {"auth", "store", "hub"} and keycloak_from == "auth":
         # The containerised store and hub find Keycloak by name inside the

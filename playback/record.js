@@ -34,6 +34,7 @@ const NEEDED = [
   ['tiler', 5095],
   ['annotation-store', 5252],
   ['realtime-hub', 5180],
+  ['messaging', 5260],
 ]
 
 function portOpen(port, host = '127.0.0.1') {
@@ -90,6 +91,17 @@ async function resetPerson(browser, options, person) {
       }, { id, token: owned.token })
       if (status >= 300) throw new Error(`deleting collection ${id}: ${status}`)
     }
+    // Their conversations too, which aren't in a collection. One goes once both
+    // have deleted it, and each person resets in turn.
+    await page.evaluate(async (token) => {
+      const headers = { Authorization: `Bearer ${token}` }
+      const response = await fetch('/messaging/conversations', { headers })
+      if (!response.ok) throw new Error(`listing conversations: ${response.status}`)
+      for (const conversation of await response.json()) {
+        const gone = await fetch(`/messaging/conversations/${conversation.id}`, { method: 'DELETE', headers })
+        if (!gone.ok) throw new Error(`deleting conversation ${conversation.id}: ${gone.status}`)
+      }
+    }, owned.token)
   } finally {
     await context.close()
   }

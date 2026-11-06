@@ -12,6 +12,7 @@ public class AnnotationDbContext(DbContextOptions<AnnotationDbContext> options) 
 {
     public DbSet<Annotation> Annotations => Set<Annotation>();
     public DbSet<AnnotationGroup> AnnotationGroups => Set<AnnotationGroup>();
+    public DbSet<CellCountGroup> CellCountGroups => Set<CellCountGroup>();
     public DbSet<CellCount> CellCounts => Set<CellCount>();
     public DbSet<RegionOfInterest> RegionsOfInterest => Set<RegionOfInterest>();
     public DbSet<ImageAdjustments.ImageAdjustments> ImageAdjustments => Set<ImageAdjustments.ImageAdjustments>();
@@ -142,6 +143,20 @@ public class AnnotationDbContext(DbContextOptions<AnnotationDbContext> options) 
             .HasForeignKey(a => a.GroupId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        modelBuilder.Entity<CellCountGroup>().HasIndex(g => g.CollectionId);
+        modelBuilder.Entity<CellCountGroup>()
+            .HasOne<Collections.Collections>()
+            .WithMany()
+            .HasForeignKey(g => g.CollectionId)
+            .OnDelete(DeleteBehavior.Cascade);
+        // Deleting a group ungroups what was in it, rather than deleting it.
+        modelBuilder.Entity<CellCount>().HasIndex(c => c.GroupId);
+        modelBuilder.Entity<CellCount>()
+            .HasOne<CellCountGroup>()
+            .WithMany()
+            .HasForeignKey(c => c.GroupId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         modelBuilder.Entity<CellCount>().HasIndex(c => c.SlideId);
         modelBuilder.Entity<CellCount>().HasIndex(c => c.CollectionId);
         modelBuilder.Entity<Collections.Collections>()
@@ -175,6 +190,11 @@ public class AnnotationDbContext(DbContextOptions<AnnotationDbContext> options) 
         // what's there now. See History/.
         modelBuilder.Entity<ChangeSet>().ToTable("ChangeSets", "history");
         modelBuilder.Entity<ChangeSet>().HasIndex(c => new { c.CollectionId, c.Created });
+        if (Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL")
+        {
+            modelBuilder.Entity<ChangeSet>().Property(c => c.Source).HasColumnType("jsonb");
+            modelBuilder.Entity<ChangeSet>().Property(c => c.SourceRows).HasColumnType("jsonb");
+        }
         modelBuilder.Entity<ChangeSet>()
             .HasOne<Collections.Collections>()
             .WithMany()

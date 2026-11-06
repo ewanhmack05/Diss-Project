@@ -55,6 +55,7 @@ interface ChangeLine {
 const NOUNS: Record<string, [string, string]> = {
   annotation: ['annotation', 'annotations'],
   group: ['group', 'groups'],
+  cellCountGroup: ['group of cell counts', 'groups of cell counts'],
   cellCount: ['cell count', 'cell counts'],
   imageAdjustment: ['image adjustment', 'image adjustments'],
 }

@@ -113,6 +113,7 @@ if (args.Contains("round-geojson"))
 
 app.MapCollectionEndpoints();
 app.MapAnnotationGroupEndpoints();
+app.MapCellCountGroupEndpoints();
 app.MapChangeSetEndpoints();
 
 // Annotation endpoints
@@ -280,6 +281,7 @@ app.MapPost("/cellcounts", [RequestSizeLimit(CellCountLimits.MaxRequestBytes)] a
     if (cellCount.Id == Guid.Empty) cellCount.Id = Guid.NewGuid();
     cellCount.SlideId = collection.SlideId;
     cellCount.Created = DateTimeOffset.UtcNow;
+    cellCount.GroupId = null;
     CellCountSummary.Stamp(cellCount);
     cellCount.CreatedById = user.UserId();
     cellCount.CreatedByName = user.DisplayName();

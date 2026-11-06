@@ -154,7 +154,8 @@ interface ViewportUpdate {
 type OpKind = 'create' | 'update' | 'delete'
 // collection is a nudge that someone's membership changed - see CollectionContext.
 // annotationGroup is a group being made, renamed or deleted - see AnnotationGroupContext.
-type OpEntity = 'annotation' | 'cellCount' | 'collection' | 'annotationGroup'
+// cellCountGroup is the same for cell counts - see CellCountGroupContext.
+type OpEntity = 'annotation' | 'cellCount' | 'collection' | 'annotationGroup' | 'cellCountGroup'
 
 interface AnnotationOp {
   kind: OpKind

@@ -12,11 +12,29 @@ using NpgsqlTypes;
 
 namespace AnnotationStore.History;
 
-public record ChangeSetView(Guid Id, Guid CollectionId, string UserId, string UserName, string What, DateTimeOffset Created, int Deleted);
+public record ChangeSetView(Guid Id, Guid CollectionId, string UserId, string UserName, string What, DateTimeOffset Created, int Deleted, ChangeSetSource? Source);
+
+// Where a change came from, when it's adding something sent in a message.
+// annotation-store can't check it, since messages are another service's - it's
+// what the viewer read from the message, with the adder's own token. Name is
+// what the sender called it, and Counts how many of each the change added.
+public record ChangeSetSource(
+    Guid MessageId,
+    string FromUserId,
+    string FromName,
+    string Kind,
+    string Name,
+    Guid? CollectionId,
+    string? SlideId,
+    int Annotations = 0,
+    int CellCounts = 0);
+
+// One new row and the one it was copied from. Entity is annotation or cellCount.
+public record SourceRow(string Entity, Guid From, Guid To);
 
 // How many of each came back. Collection is true when the change deleted
 // the collection itself.
-public record RestoreResult(int Annotations, int Groups, int CellCounts, int ImageAdjustments, bool Collection);
+public record RestoreResult(int Annotations, int Groups, int CellCounts, int ImageAdjustments, bool Collection, int CellCountGroups = 0);
 
 // What a restore answers - the counts, and the rows themselves as the reads
 // give them (counts as the Saved list has them, without dots), so the viewer
@@ -31,7 +49,8 @@ public record RestoredView(
     List<CellCountListItem> CellCounts,
     List<ImageAdjustments.ImageAdjustments> ImageAdjustments,
     List<Annotation> ChangedAnnotations,
-    List<CellCountListItem> ChangedCellCounts);
+    List<CellCountListItem> ChangedCellCounts,
+    List<CountGroupView> CellCountGroups);
 
 public static class ChangeSetEndpoints
 {
@@ -109,10 +128,19 @@ public static class ChangeSetEndpoints
             var ordered = order == "oldest"
                 ? matching.OrderBy(c => c.Created).ThenBy(c => c.Id)
                 : matching.OrderByDescending(c => c.Created).ThenByDescending(c => c.Id);
-            return Results.Ok(await ordered
+            var rows = await ordered
                 .Skip(skip ?? 0)
                 .Take(take ?? SavedPaging.MaxTake)
-                .Select(c => new ChangeSetView(c.Id, c.CollectionId, c.UserId, c.UserName, c.What, c.Created,
+                .Select(c => new
+                {
+                    c.Id,
+                    c.CollectionId,
+                    c.UserId,
+                    c.UserName,
+                    c.What,
+                    c.Created,
+                    c.Source,
+                    Deleted =
                     db.HistoryEntries.Count(e => e.ChangeSetId == c.Id && e.Op == HistoryOp.Delete
                         // Not if it's been put back or deleted again since - then
                         // it's that later change's.
@@ -120,11 +148,15 @@ public static class ChangeSetEndpoints
                             && l.EntityId == e.EntityId && l.Id > e.Id && l.Op != HistoryOp.Update) && (
                         (e.Entity == HistoryLog.Annotation && !db.Annotations.Any(x => x.Id == e.EntityId))
                         || (e.Entity == HistoryLog.Group && !db.AnnotationGroups.Any(x => x.Id == e.EntityId))
+                        || (e.Entity == HistoryLog.CellCountGroup && !db.CellCountGroups.Any(x => x.Id == e.EntityId))
                         || (e.Entity == HistoryLog.CellCount && !db.CellCounts.Any(x => x.Id == e.EntityId))
                         || (e.Entity == HistoryLog.ImageAdjustment && !db.ImageAdjustments.Any(x => x.ImageAdjustmentId == e.EntityId))
                         || (e.Entity == HistoryLog.Collection && db.Collections.IgnoreQueryFilters()
-                            .Any(x => x.CollectionId == e.EntityId && x.Deleted != null))))))
-                .ToListAsync());
+                            .Any(x => x.CollectionId == e.EntityId && x.Deleted != null))))
+                })
+                .ToListAsync();
+            return Results.Ok(rows.Select(c => new ChangeSetView(c.Id, c.CollectionId, c.UserId, c.UserName, c.What, c.Created, c.Deleted,
+                c.Source is null ? null : JsonSerializer.Deserialize<ChangeSetSource>(c.Source))));
         }).AllowGuests();
 
         app.MapChangeSetChanges();
@@ -229,8 +261,9 @@ public static class ChangeSetEndpoints
                 .Where(c => back.ChangedCellCounts.Contains(c.Id))
                 .NewestFirst()
                 .ListItemsAsync(db);
-            var counts = new RestoreResult(annotations.Count, back.Groups.Count, back.CellCounts.Count, back.ImageAdjustments.Count, restoresCollection);
-            return Results.Ok(new RestoredView(counts, annotations, groups, cellCounts, back.ImageAdjustments, changed, changedCounts));
+            var countGroups = await CellCountGroupEndpoints.Views(db, collectionId, ids: back.CellCountGroups).ToListAsync();
+            var counts = new RestoreResult(annotations.Count, back.Groups.Count, back.CellCounts.Count, back.ImageAdjustments.Count, restoresCollection, back.CellCountGroups.Count);
+            return Results.Ok(new RestoredView(counts, annotations, groups, cellCounts, back.ImageAdjustments, changed, changedCounts, countGroups));
         });
     }
 
@@ -240,7 +273,8 @@ public static class ChangeSetEndpoints
         List<Guid> CellCounts,
         List<ImageAdjustments.ImageAdjustments> ImageAdjustments,
         List<Guid> ChangedAnnotations,
-        List<Guid> ChangedCellCounts);
+        List<Guid> ChangedCellCounts,
+        List<Guid> CellCountGroups);
 
     // Newest entry first, so a row changed twice in one change goes back to
     // how it was before the first. Annotations - which can be 20,000 - go
@@ -248,7 +282,7 @@ public static class ChangeSetEndpoints
     // added to the context, and the caller's save writes its history.
     private static async Task<PutBack> PutBackAsync(AnnotationDbContext db, Guid changeSetId, List<HistoryEntry> entries, List<HistoryEntry> history)
     {
-        var back = new PutBack([], [], [], [], [], []);
+        var back = new PutBack([], [], [], [], [], [], []);
         // A row put back and deleted again since belongs to that later delete -
         // bringing it back here would undo it.
         var later = (await db.HistoryEntries
@@ -272,6 +306,14 @@ public static class ChangeSetEndpoints
             db.AnnotationGroups.Add(HistoryLog.Rebuild<AnnotationGroup>(db, entry.Before!));
             back.Groups.Add(entry.EntityId);
         }
+        var countGroups = Deleted(HistoryLog.CellCountGroup);
+        var countGroupIds = countGroups.Select(e => e.EntityId).ToList();
+        var liveCountGroups = await db.CellCountGroups.Where(g => countGroupIds.Contains(g.Id)).Select(g => g.Id).ToListAsync();
+        foreach (var entry in countGroups.Where(e => !liveCountGroups.Contains(e.EntityId)))
+        {
+            db.CellCountGroups.Add(HistoryLog.Rebuild<CellCountGroup>(db, entry.Before!));
+            back.CellCountGroups.Add(entry.EntityId);
+        }
         await db.SaveChangesAsync();
 
         await PutBackAnnotationsAsync(db, changeSetId, Deleted(HistoryLog.Annotation), back, history);
@@ -281,7 +323,9 @@ public static class ChangeSetEndpoints
         var liveCounts = await db.CellCounts.Where(c => countIds.Contains(c.Id)).Select(c => c.Id).ToListAsync();
         foreach (var entry in counts.Where(e => !liveCounts.Contains(e.EntityId)))
         {
-            db.CellCounts.Add(HistoryLog.Rebuild<CellCount>(db, entry.Before!));
+            var count = HistoryLog.Rebuild<CellCount>(db, entry.Before!);
+            count.GroupId = await CellCountGroupNowAsync(db, count.GroupId);
+            db.CellCounts.Add(count);
             back.CellCounts.Add(entry.EntityId);
         }
         // Only with its count - one that's still gone has nothing to go on.
@@ -310,11 +354,20 @@ public static class ChangeSetEndpoints
             object? live = entry.Entity switch
             {
                 HistoryLog.Group => await db.AnnotationGroups.FindAsync(entry.EntityId),
+                HistoryLog.CellCountGroup => await db.CellCountGroups.FindAsync(entry.EntityId),
                 HistoryLog.CellCount => await db.CellCounts.FindAsync(entry.EntityId),
                 HistoryLog.ImageAdjustment => await db.ImageAdjustments.FindAsync(entry.EntityId),
                 _ => null,
             };
-            if (live is not null && HistoryLog.Revert(db.Entry(live), entry) && live is CellCount && !back.CellCounts.Contains(entry.EntityId))
+            if (live is null) continue;
+            // A group a count went back to may have gone since.
+            Dictionary<Guid, Guid?> groupsNow = [];
+            if (live is CellCount && HistoryLog.Reverted(entry, c => db.Entry(live).Property(c).CurrentValue, c => db.Entry(live).Property(c).Metadata.ClrType)
+                    .GetValueOrDefault(nameof(CellCount.GroupId)) is Guid wanted)
+                groupsNow[wanted] = await CellCountGroupNowAsync(db, wanted);
+            object? Adjust(string column, object? was) =>
+                column == nameof(CellCount.GroupId) && was is Guid group && groupsNow.TryGetValue(group, out var now) ? now : was;
+            if (HistoryLog.Revert(db.Entry(live), entry, Adjust) && live is CellCount && !back.CellCounts.Contains(entry.EntityId))
                 back.ChangedCellCounts.Add(entry.EntityId);
         }
         return back;
@@ -423,6 +476,21 @@ public static class ChangeSetEndpoints
                 set.ToDictionary(c => c.Key, c => (was[id][c.Key], c.Value)))!);
             if (!back.Annotations.Contains(id)) back.ChangedAnnotations.Add(id);
         }
+    }
+
+    // The same as GroupNowAsync, for cell counts.
+    public static async Task<Guid?> CellCountGroupNowAsync(AnnotationDbContext db, Guid? groupId)
+    {
+        for (var hops = 0; groupId is { } id && hops < 20; hops++)
+        {
+            if (db.CellCountGroups.Local.Any(g => g.Id == id) || await db.CellCountGroups.AnyAsync(g => g.Id == id)) return id;
+            var deleted = await db.HistoryEntries
+                .Where(e => e.Entity == HistoryLog.CellCountGroup && e.EntityId == id && e.Op == HistoryOp.Delete)
+                .OrderByDescending(e => e.Id)
+                .FirstOrDefaultAsync();
+            groupId = deleted is null ? null : HistoryLog.MergedInto(deleted);
+        }
+        return null;
     }
 
     // Where an annotation's group is now: the same one if it's still here,

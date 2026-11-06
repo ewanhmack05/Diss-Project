@@ -1,6 +1,7 @@
 using System.Diagnostics.Metrics;
 using System.Text.Json;
 using AnnotationStore.Annotations;
+using AnnotationStore.CellCounts;
 using Microsoft.EntityFrameworkCore;
 
 namespace AnnotationStore.History;
@@ -41,13 +42,16 @@ public static class Snapshots
             .Select(a => new { a.Id, a.Label, a.Notes, a.Colour, a.GroupId }).ToListAsync();
         var groups = await db.AnnotationGroups.AsNoTracking().Where(g => g.CollectionId == collectionId)
             .Select(g => new { g.Id, g.Name, g.Notes }).ToListAsync();
+        var countGroups = await db.CellCountGroups.AsNoTracking().Where(g => g.CollectionId == collectionId)
+            .Select(g => new { g.Id, g.Name, g.Notes }).ToListAsync();
         var counts = await db.CellCounts.AsNoTracking().Where(c => c.CollectionId == collectionId)
-            .Select(c => new { c.Id, c.Label, c.Notes, c.WithAnnotation, c.WithRoi, c.Count, c.DotSize }).ToListAsync();
+            .Select(c => new { c.Id, c.Label, c.Notes, c.GroupId, c.WithAnnotation, c.WithRoi, c.Count, c.DotSize }).ToListAsync();
         return JsonSerializer.Serialize(new Dictionary<string, object>
         {
             [HistoryLog.Annotation] = annotations.ToDictionary(a => a.Id, a => new { a.Label, a.Notes, a.Colour, a.GroupId }),
             [HistoryLog.Group] = groups.ToDictionary(g => g.Id, g => new { g.Name, g.Notes }),
-            [HistoryLog.CellCount] = counts.ToDictionary(c => c.Id, c => new { c.Label, c.Notes, c.WithAnnotation, c.WithRoi, c.Count, c.DotSize }),
+            [HistoryLog.CellCountGroup] = countGroups.ToDictionary(g => g.Id, g => new { g.Name, g.Notes }),
+            [HistoryLog.CellCount] = counts.ToDictionary(c => c.Id, c => new { c.Label, c.Notes, c.GroupId, c.WithAnnotation, c.WithRoi, c.Count, c.DotSize }),
         });
     }
 

@@ -39,6 +39,7 @@ import {
   remoteCellCountStyle,
   comparisonResultStyle,
   sharedDotFlatStyle,
+  sentAreaStyle,
 } from './open-layers/Styles'
 import { featureToGeoJson, geoJsonToFeature } from './open-layers/GeoJSON'
 import { LessDetail } from './open-layers/LessDetail'
@@ -77,6 +78,7 @@ import { useCollectionContext } from '../context/CollectionContext'
 import { sessionSize } from './realtime/sessionSize'
 import { useNavigationContext } from '../context/NavigationContext'
 import { useComparisonContext } from '../context/ComparisonContext'
+import { useMessagingContext } from '../context/MessagingContext'
 import { useSharedCountContext } from '../context/SharedCountContext'
 import type { SharedDot } from './realtime/realtime'
 import { useEmitEvent } from '../context/EventContext'
@@ -123,6 +125,22 @@ function sketchOf(map: Map, feature: Feature<Geometry>, look: SketchLook) {
 }
 
 // What the hub needs for one of your dots in a shared count.
+// Moves the map somewhere with a glide. The turn is done straight away with the
+// Rotate panel told, not animated: that panel sets the map straight on any
+// difference, which would stop the whole move partway.
+function glideTo(
+  map: Map,
+  target: { center: number[]; resolution: number; rotation?: number },
+  setRotationDegrees: (degrees: number) => void
+) {
+  const view = map.getView()
+  if (target.rotation !== undefined) {
+    view.setRotation(target.rotation)
+    setRotationDegrees(radiansToDegrees(target.rotation))
+  }
+  view.animate({ center: target.center, resolution: target.resolution, duration: 600 })
+}
+
 function sharedDotOf(feature: Feature<Point>): Omit<SharedDot, 'connectionId'> {
   const [x, y] = feature.getGeometry()!.getCoordinates()
   return { id: String(feature.getId()), x, y, colour: feature.get('colour') as string }
@@ -177,6 +195,7 @@ function MapNode() {
   const { pointedAt, shown: viewportsShown } = useViewportsContext()
   const { session } = useCollectionContext()
   const { following, leader, mode: navigationMode, breakAway, lookAt } = useNavigationContext()
+  const { shownArea } = useMessagingContext()
   const {
     stage: comparisonStage,
     results: comparisonResults,
@@ -230,6 +249,8 @@ function MapNode() {
   // Everyone's dots once a comparison is revealed, plus rings round the
   // cells not everyone found.
   const comparisonSourceRef = useRef(new VectorSource())
+  // Something sent in a message being looked at - see MessagingContext.
+  const sentAreaSourceRef = useRef(new VectorSource())
   const comparisonLayerRef = useRef<VectorLayer<VectorSource> | null>(null)
   // Everyone's dots during a shared count, yours included, ringed in the
   // colour of whoever placed them. Kept by dot id so a new dot doesn't
@@ -385,6 +406,7 @@ function MapNode() {
           visible: cellCountVisible,
         })
         comparisonLayerRef.current = comparisonLayer
+        const sentAreaLayer = new VectorLayer({ source: sentAreaSourceRef.current, style: sentAreaStyle })
         const sharedDotsLayer = new WebGLVectorLayer({
           source: sharedDotsSourceRef.current,
           style: sharedDotFlatStyle,
@@ -443,7 +465,7 @@ function MapNode() {
           { baseUrl: `${slideUrl}/`, tileSize: metadata.tileSize },
           metadata.objectivePower,
           metadata.mppX,
-          [viewedAnnotationLayer, annotationsLayer, annotationArrowsLayer, drawLayer, cellCountDotsLayer, roiLayer, viewedDotsLayer, viewedRoiLayer, comparisonLayer, doubleCountLayer, sharedDotsLayer, rulerLayer, remoteCountsLayer, remoteSketchesLayer, remoteRulersLayer, remoteViewportsLayer]
+          [viewedAnnotationLayer, annotationsLayer, annotationArrowsLayer, drawLayer, cellCountDotsLayer, roiLayer, viewedDotsLayer, viewedRoiLayer, comparisonLayer, sentAreaLayer, doubleCountLayer, sharedDotsLayer, rulerLayer, remoteCountsLayer, remoteSketchesLayer, remoteRulersLayer, remoteViewportsLayer]
         )
         overviewMap.addLayer(
           new VectorLayer({
@@ -593,8 +615,21 @@ function MapNode() {
     const size = map?.getSize()
     if (!map || !size || !lookAt) return
     const target = followView(lookAt.viewport, [size[0], size[1]])
-    map.getView().animate({ ...target, duration: 600 })
+    glideTo(map, target, setRotationDegrees)
   }, [lookAt])
+
+  // Something sent being looked at: drawn, and the map goes there once for each.
+  useEffect(() => {
+    const source = sentAreaSourceRef.current
+    source.clear()
+    if (!shownArea) return
+    source.addFeatures(shownArea.features)
+    const map = mapRef.current
+    const size = map?.getSize()
+    if (!map || !size) return
+    const { center, resolution, rotation } = followView(shownArea.viewport, [size[0], size[1]])
+    glideTo(map, { center, resolution, rotation: shownArea.keepRotation ? rotation : undefined }, setRotationDegrees)
+  }, [shownArea])
 
   useEffect(() => {
     const map = mapRef.current

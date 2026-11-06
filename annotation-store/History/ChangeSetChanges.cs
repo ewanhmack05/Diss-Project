@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using AnnotationStore.Annotations;
+using AnnotationStore.CellCounts;
 using AnnotationStore.Auth;
 using AnnotationStore.Collections;
 using Microsoft.EntityFrameworkCore;
@@ -17,13 +18,16 @@ public record FieldChange(string Entity, string Column, JsonElement Before, Json
 // the first few by name; Created how many it made. Groups names every group
 // a GroupId in Changes points at, gone ones included. DeletedRows is the same
 // first few as DeletedNames with what they are, so one can be opened.
+// CopiedFrom is which row each new one came from, when it's something sent in
+// a message.
 public record ChangeSetChanges(
     List<FieldChange> Changes,
     int Created,
     int Deleted,
     List<string?> DeletedNames,
     Dictionary<Guid, string> Groups,
-    List<DeletedRow> DeletedRows);
+    List<DeletedRow> DeletedRows,
+    List<SourceRow>? CopiedFrom = null);
 
 public record DeletedRow(string Entity, Guid Id, string? Name);
 
@@ -83,7 +87,8 @@ public static class ChangeSetChangesEndpoint
                         groups[group] = await GroupNameAsync(db, group);
 
             return Results.Ok(new ChangeSetChanges(changes, created, deleted, deletedNames, groups,
-                deletedRows.Select(n => new DeletedRow(n.Entity, n.EntityId, n.Name)).ToList()));
+                deletedRows.Select(n => new DeletedRow(n.Entity, n.EntityId, n.Name)).ToList(),
+                changeSet.SourceRows is null ? null : JsonSerializer.Deserialize<List<SourceRow>>(changeSet.SourceRows)));
         }).AllowGuests();
     }
 
@@ -102,6 +107,7 @@ public static class ChangeSetChangesEndpoint
         {
             HistoryLog.Annotation => await db.Annotations.Where(a => ids.Contains(a.Id)).Select(a => new { a.Id, Name = a.Label }).ToListAsync(),
             HistoryLog.Group => await db.AnnotationGroups.Where(g => ids.Contains(g.Id)).Select(g => new { g.Id, g.Name }).ToListAsync(),
+            HistoryLog.CellCountGroup => await db.CellCountGroups.Where(g => ids.Contains(g.Id)).Select(g => new { g.Id, g.Name }).ToListAsync(),
             HistoryLog.CellCount => await db.CellCounts.Where(c => ids.Contains(c.Id)).Select(c => new { c.Id, Name = c.Label }).ToListAsync(),
             HistoryLog.ImageAdjustment => await db.ImageAdjustments.Where(a => ids.Contains(a.ImageAdjustmentId)).Select(a => new { Id = a.ImageAdjustmentId, Name = a.AdjustmentName }).ToListAsync(),
             _ => [],
@@ -114,6 +120,7 @@ public static class ChangeSetChangesEndpoint
     public static async Task<string> GroupNameAsync(AnnotationDbContext db, Guid id)
     {
         if (await db.AnnotationGroups.Where(g => g.Id == id).Select(g => g.Name).FirstOrDefaultAsync() is { } name) return name;
+        if (await db.CellCountGroups.Where(g => g.Id == id).Select(g => g.Name).FirstOrDefaultAsync() is { } countGroup) return countGroup;
         var deleted = await NamesInHistoryAsync(db, null, id, 1);
         return deleted.FirstOrDefault()?.Name ?? "a deleted group";
     }

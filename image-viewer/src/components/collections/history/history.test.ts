@@ -62,6 +62,45 @@ describe('changeLabel', () => {
   })
 })
 
+describe('changeLabel for groups of cell counts', () => {
+  it('reads as what it did', () => {
+    expect(changeLabel({ what: 'add cell count group', deleted: 0 })).toBe('Added a group of cell counts')
+    expect(changeLabel({ what: 'delete cell count group', deleted: 1 })).toBe('Deleted a group of cell counts')
+    expect(changeLabel({ what: 'change cell counts', deleted: 0 })).toBe('Moved cell counts between groups')
+  })
+
+  it('counts as the right kind, and a delete can be put back', () => {
+    expect(changeKind('add cell count group')).toBe('add')
+    expect(changeKind('delete cell count group')).toBe('delete')
+    expect(changeKind('change cell counts')).toBe('change')
+  })
+})
+
+describe('changeLabel for something sent in a message', () => {
+  const source = { messageId: 'm', fromUserId: 'alice', fromName: 'Alice', kind: 'group', name: 'Tumour', collectionId: null, slideId: null, annotations: 0, cellCounts: 0 }
+  const label = (counts: { annotations?: number; cellCounts?: number }) =>
+    changeLabel({ what: 'add from message', deleted: 0, source: { ...source, ...counts } })
+
+  it('says how many and who from', () => {
+    expect(label({ annotations: 12 })).toBe('Added 12 annotations from Alice')
+    expect(label({ annotations: 1 })).toBe('Added an annotation from Alice')
+    expect(label({ cellCounts: 2 })).toBe('Added 2 cell counts from Alice')
+    expect(label({ annotations: 3, cellCounts: 1 })).toBe('Added 3 annotations and a cell count from Alice')
+  })
+
+  it('uses what it was called when there is no count', () => {
+    expect(label({})).toBe('Added Tumour from Alice')
+  })
+
+  it('still reads as something without a source', () => {
+    expect(changeLabel({ what: 'add from message', deleted: 0 })).toBe('Added something from a message')
+  })
+
+  it('counts as an add', () => {
+    expect(changeKind('add from message')).toBe('add')
+  })
+})
+
 describe('changeLabel for going back on one row', () => {
   it('says what was put back', () => {
     expect(changeLabel({ what: 'restore annotation', deleted: 0 })).toBe('Put an annotation back')

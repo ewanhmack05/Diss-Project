@@ -44,6 +44,7 @@ interface FullCollection {
   annotations: Annotation[]
   cellCounts: CellCount[]
   groups?: { id: string; name: string; notes?: string }[]
+  cellCountGroups?: { id: string; name: string; notes?: string }[]
 }
 
 // What came out of a file, ready to send to POST /collections/{id}/import.
@@ -53,6 +54,8 @@ interface ParsedImport {
   // Annotations that were in a group, by its name - annotation-store puts
   // them in the collection's group of that name, making it if need be.
   groups: { name: string; annotationIds: string[]; notes?: string }[]
+  // The same for cell counts. Not in a file yet, only something sent in a message.
+  cellCountGroups?: { name: string; cellCountIds: string[]; notes?: string }[]
   // Features that couldn't be used, and why - for the preview.
   skipped: { index: number; reason: string }[]
 }

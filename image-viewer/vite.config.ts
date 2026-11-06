@@ -12,6 +12,7 @@ function to(target: string, prefix: string, ws = false): ProxyOptions {
 const proxy: Record<string, ProxyOptions> = {
   '/tiler': to('http://localhost:5095', '/tiler'),
   '/store': to('http://localhost:5252', '/store'),
+  '/messaging': to('http://localhost:5260', '/messaging'),
   // xfwd - the hub limits guest passes per browser, so it needs to know
   // which one it is rather than seeing this server for everyone.
   '/hub': { ...to('http://localhost:5180', '/hub', true), xfwd: true },

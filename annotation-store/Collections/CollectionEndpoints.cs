@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using AnnotationStore.Annotations;
@@ -44,7 +45,28 @@ public record SharingRequest(bool Shared);
 
 // A GeoJSON import, already turned into rows by the viewer. Saved together,
 // so it all goes in or none of it does.
-public record ImportRequest(List<Annotation> Annotations, List<CellCount> CellCounts, List<ImportGroup>? Groups = null);
+public record ImportRequest(
+    List<Annotation> Annotations,
+    List<CellCount> CellCounts,
+    List<ImportGroup>? Groups = null,
+    ImportSource? Source = null,
+    List<ImportCellCountGroup>? CellCountGroups = null);
+
+// The same as ImportGroup, for cell counts.
+public record ImportCellCountGroup(string Name, List<Guid> CellCountIds, string? Notes = null);
+
+// Set when this is something sent in a message rather than a file - the change
+// set then says where it came from. Rows says which row each new one was copied
+// from, so its ids have to be ones in this request.
+public record ImportSource(
+    Guid MessageId,
+    string FromUserId,
+    string FromName,
+    string Kind,
+    string Name,
+    Guid? CollectionId,
+    string? SlideId,
+    List<SourceRow>? Rows = null);
 
 // Annotations from the file that were in a group, by its name. Goes into
 // the collection's group of that name, made if there isn't one. Notes are
@@ -52,10 +74,10 @@ public record ImportRequest(List<Annotation> Annotations, List<CellCount> CellCo
 public record ImportGroup(string Name, List<Guid> AnnotationIds, string? Notes = null);
 
 // Groups is every group the import put something in, new or not.
-public record ImportResult(List<Annotation> Annotations, List<CellCount> CellCounts, List<AnnotationGroup> Groups);
+public record ImportResult(List<Annotation> Annotations, List<CellCount> CellCounts, List<AnnotationGroup> Groups, List<CellCountGroup>? CellCountGroups = null);
 
 public record ExportView(
-    Guid CollectionId, string SlideId, string CollectionName, List<Annotation> Annotations, List<CellCount> CellCounts, List<AnnotationGroup> Groups);
+    Guid CollectionId, string SlideId, string CollectionName, List<Annotation> Annotations, List<CellCount> CellCounts, List<AnnotationGroup> Groups, List<CellCountGroup> CellCountGroups);
 
 public record MemberRequest(string DisplayName, CollectionRole Role);
 
@@ -96,6 +118,35 @@ public record MembershipView(Guid CollectionId, string SlideId, CollectionKind K
 // always comes from the token, never from the request.
 public static class CollectionEndpoints
 {
+    // What a change set's What is when it's something sent in a message.
+    public const string AddFromMessage = "add from message";
+
+    private const int MaxSourceText = 300;
+
+    // Null when it's fine. What's in it can't be checked against the message,
+    // but it can be held to what this import is actually adding.
+    private static string? SourceProblem(ImportSource source, ImportRequest request)
+    {
+        if (source.MessageId == Guid.Empty) return "source.messageId is required";
+        if (string.IsNullOrWhiteSpace(source.FromUserId) || string.IsNullOrWhiteSpace(source.FromName)) return "source says who it's from";
+        if (string.IsNullOrWhiteSpace(source.Kind) || string.IsNullOrWhiteSpace(source.Name)) return "source says what it is";
+        if (new[] { source.FromUserId, source.FromName, source.Kind, source.Name, source.SlideId ?? "" }.Any(s => s.Length > MaxSourceText))
+            return $"source's values are at most {MaxSourceText} characters";
+        var annotations = request.Annotations.Select(a => a.Id).ToHashSet();
+        var cellCounts = request.CellCounts.Select(c => c.Id).ToHashSet();
+        foreach (var row in source.Rows ?? [])
+        {
+            var here = row.Entity switch
+            {
+                HistoryLog.Annotation => annotations.Contains(row.To),
+                HistoryLog.CellCount => cellCounts.Contains(row.To),
+                _ => false,
+            };
+            if (!here || row.From == Guid.Empty || row.To == Guid.Empty) return "source.rows has to be rows in this import";
+        }
+        return null;
+    }
+
     public const int MaxInviteHours = 24 * 7;
 
     public static void MapCollectionEndpoints(this WebApplication app)
@@ -180,7 +231,8 @@ public static class CollectionEndpoints
                 .OrderBy(c => c.Created)
                 .ToListAsync();
             var groups = await db.AnnotationGroups.AsNoTracking().Where(g => g.CollectionId == id).ToListAsync();
-            return Results.Ok(new ExportView(collection.CollectionId, collection.SlideId, collection.CollectionName, annotations, cellCounts, groups));
+            var countGroups = await db.CellCountGroups.AsNoTracking().Where(g => g.CollectionId == id).ToListAsync();
+            return Results.Ok(new ExportView(collection.CollectionId, collection.SlideId, collection.CollectionName, annotations, cellCounts, groups, countGroups));
         });
 
         // For the realtime hub, checking someone's allowed in a session's room.
@@ -303,7 +355,15 @@ public static class CollectionEndpoints
         app.MapPost("/collections/{id:guid}/import", [RequestSizeLimit(CellCountLimits.MaxRequestBytes)] async (Guid id, ImportRequest request, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
             if (await db.RequireAsync(id, user, CollectionRole.Editor) is { } denied) return denied;
-            if ((await db.ChangeSetAsync(http, id, user, "import")).Problem is { } problem) return problem;
+            if (request.Source is { } source && SourceProblem(source, request) is { } invalid) return Results.BadRequest(invalid);
+            var (changeSet, problem) = await db.ChangeSetAsync(http, id, user, request.Source is null ? "import" : AddFromMessage);
+            if (problem is not null) return problem;
+            if (request.Source is { } sent)
+            {
+                changeSet!.Source = JsonSerializer.Serialize(new ChangeSetSource(sent.MessageId, sent.FromUserId, sent.FromName, sent.Kind, sent.Name,
+                    sent.CollectionId, sent.SlideId, request.Annotations.Count, request.CellCounts.Count));
+                changeSet.SourceRows = sent.Rows is { Count: > 0 } ? JsonSerializer.Serialize(sent.Rows) : null;
+            }
             var collection = await db.Collections.FirstAsync(c => c.CollectionId == id);
             var now = DateTimeOffset.UtcNow;
 
@@ -323,6 +383,7 @@ public static class CollectionEndpoints
                 cellCount.CollectionId = id;
                 cellCount.SlideId = collection.SlideId;
                 cellCount.Created = now;
+                cellCount.GroupId = null;
                 CellCountSummary.Stamp(cellCount);
                 cellCount.CreatedById = user.UserId();
                 cellCount.CreatedByName = user.DisplayName();
@@ -359,10 +420,33 @@ public static class CollectionEndpoints
                     if (byId.TryGetValue(annotationId, out var annotation)) annotation.GroupId = group.Id;
             }
 
+            var countsById = request.CellCounts.ToDictionary(c => c.Id);
+            var usedCountGroups = new List<CellCountGroup>();
+            foreach (var wanted in request.CellCountGroups ?? [])
+            {
+                var name = wanted.Name.Trim();
+                if (name.Length is 0 or > AnnotationGroupEndpoints.MaxNameLength) continue;
+                var group = db.CellCountGroups.Local.FirstOrDefault(g => g.CollectionId == id && g.Name == name)
+                    ?? await db.CellCountGroups.FirstOrDefaultAsync(g => g.CollectionId == id && g.Name == name);
+                if (group is null)
+                {
+                    group = new CellCountGroup { Id = Guid.NewGuid(), CollectionId = id, Name = name, Created = now };
+                    db.CellCountGroups.Add(group);
+                }
+                if (!usedCountGroups.Contains(group))
+                {
+                    usedCountGroups.Add(group);
+                    if (wanted.Notes is { } notes && !group.Notes.Contains(notes.Trim()))
+                        group.Notes = AnnotationGroupEndpoints.JoinNotes(group.Notes, notes);
+                }
+                foreach (var countId in wanted.CellCountIds)
+                    if (countsById.TryGetValue(countId, out var count)) count.GroupId = group.Id;
+            }
+
             db.Annotations.AddRange(request.Annotations);
             db.CellCounts.AddRange(request.CellCounts);
             await db.SaveChangesAsync();
-            return Results.Ok(new ImportResult(request.Annotations, request.CellCounts, used));
+            return Results.Ok(new ImportResult(request.Annotations, request.CellCounts, used, usedCountGroups));
         });
 
         // Owner only. Hides it and everything in it from everyone - what's

@@ -1,7 +1,7 @@
-"""Writes annotation-store's database layout into its README: a diagram and a
-table of columns for each model. The tables, columns, keys and relationships
-come from EF's model snapshot, so they're what the migrations actually made.
-What each one is for comes from annotation-store/schema-notes.json, by hand.
+"""Writes annotation-store's and messaging's database layouts into their READMEs:
+a diagram and a table of columns for each model. The tables, columns, keys and
+relationships come from EF's model snapshot, so they're what the migrations actually
+made. What each one is for comes from each service's schema-notes.json, by hand.
 
 test_db_docs.py fails if the README's out of date, or if a column has no note,
 so a migration can't quietly leave these wrong. After changing the schema:
@@ -19,6 +19,11 @@ ROOT = Path(__file__).resolve().parent.parent
 SNAPSHOT = ROOT / "annotation-store" / "Migrations" / "AnnotationDbContextModelSnapshot.cs"
 NOTES = ROOT / "annotation-store" / "schema-notes.json"
 README = ROOT / "annotation-store" / "README.md"
+# Each service with a database: its snapshot, notes and README.
+SERVICES = [
+    (SNAPSHOT, NOTES, README),
+    (ROOT / "messaging" / "Migrations" / "MessagingDbContextModelSnapshot.cs", ROOT / "messaging" / "schema-notes.json", ROOT / "messaging" / "README.md"),
+]
 START = "<!-- schema:start - written by scripts/db_docs.py, don't edit by hand -->"
 END = "<!-- schema:end -->"
 
@@ -30,20 +35,20 @@ TYPE_MEANINGS = {
     "integer": "A 32-bit whole number",
     "double precision": "A 64-bit decimal number",
     "boolean": "True or false",
-    "text": "A string of any length. Also holds some JSON that's only stored and handed back, like `GeoJson` and `Dots`",
-    "jsonb": "JSON that Postgres has parsed, so the database can read inside it. Used by the history, which pulls fields out of it in SQL",
+    "text": "A string of any length. Can also hold JSON that's only stored and handed back",
+    "jsonb": "JSON that Postgres has parsed and checked, so the database can read inside it",
     "timestamp with time zone": "A moment in time, kept in UTC. Postgres also calls it `timestamptz`",
 }
 
 # What the rest of the diagram and tables are saying.
 TERMS = [
-    ("PK", "Primary key - what identifies a row. Two together, as on `CollectionMembers`, means the pair is what's unique"),
+    ("PK", "Primary key - what identifies a row. Two together means the pair is what's unique"),
     ("FK", "Foreign key - a column pointing at another table's row. The database won't let it point at one that isn't there"),
     ("PK, FK", "Both - part of what identifies the row, and pointing at another table"),
     ("not null / null", "Whether a column has to have a value, or can be empty"),
     ("Index", "A lookup kept by the database, so finding rows by that column doesn't read the whole table"),
     ("Unique index", "An index that also refuses two rows with the same value"),
-    ("Set by", "Where a value comes from: `client` is in the request, `server` is the store, `host` or `owner` is that person choosing it through the API"),
+    ("Set by", "Where a value comes from: `client` is in the request, `server` is the service itself, `host` or `owner` is that person choosing it through the API"),
 ]
 
 # What the ends of a line on the diagram mean. In words, since these are what's
@@ -217,10 +222,10 @@ def types_without_meaning(tables):
     return sorted(used - TYPE_MEANINGS.keys())
 
 
-def glossary():
+def glossary(used=None):
     lines = ["### Reading the diagram and tables", "", "The diagram puts underscores in a type with spaces, since it can't draw them otherwise.", "",
              "| Type | What it is |", "|---|---|"]
-    lines += [f"| `{name}` | {meaning} |" for name, meaning in TYPE_MEANINGS.items()]
+    lines += [f"| `{name}` | {meaning} |" for name, meaning in TYPE_MEANINGS.items() if used is None or name in used]
     lines += ["", "| Term | What it means |", "|---|---|"]
     lines += [f"| {term} | {meaning} |" for term, meaning in TERMS]
     lines += ["", "| Line end | How many rows of the table it's next to |", "|---|---|"]
@@ -236,7 +241,8 @@ def generate(snapshot_text, notes):
     unexplained = types_without_meaning(tables)
     if unexplained:
         raise ValueError("TYPE_MEANINGS in db_docs.py has nothing for: " + ", ".join(unexplained))
-    parts = [START, "", diagram(tables, relations), "", glossary(), ""]
+    used = {column["type"] for table in tables.values() for column in table["columns"]}
+    parts = [START, "", diagram(tables, relations), "", glossary(used), ""]
     parts += [part for name in notes for part in (table_section(name, tables[name], relations, notes[name]), "")]
     return "\n".join(parts + [END])
 
@@ -253,17 +259,20 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--check", action="store_true", help="only say whether the README's up to date")
     args = parser.parse_args(argv)
-    notes = json.loads(NOTES.read_text(encoding="utf-8"))
-    # Git checks files out with CRLF on Windows, which isn't a change.
-    readme = README.read_text(encoding="utf-8").replace("\r\n", "\n")
-    updated = replace_section(readme, generate(SNAPSHOT.read_text(encoding="utf-8-sig"), notes))
-    if args.check:
-        if updated != readme:
-            sys.exit("annotation-store's README schema is out of date - run python scripts/db_docs.py")
-        print("Up to date")
-        return
-    README.write_text(updated, encoding="utf-8", newline="\n")
-    print("Written")
+    behind = []
+    for snapshot, notes_path, readme_path in SERVICES:
+        notes = json.loads(notes_path.read_text(encoding="utf-8"))
+        # Git checks files out with CRLF on Windows, which isn't a change.
+        readme = readme_path.read_text(encoding="utf-8").replace("\r\n", "\n")
+        updated = replace_section(readme, generate(snapshot.read_text(encoding="utf-8-sig"), notes))
+        if args.check:
+            if updated != readme:
+                behind.append(readme_path.parent.name)
+            continue
+        readme_path.write_text(updated, encoding="utf-8", newline="\n")
+    if behind:
+        sys.exit(f"{', '.join(behind)}: the README's schema is out of date - run python scripts/db_docs.py")
+    print("Up to date" if args.check else "Written")
 
 
 if __name__ == "__main__":

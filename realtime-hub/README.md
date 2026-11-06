@@ -175,6 +175,10 @@ type DocUpdate = { docId: string; connectionId: string; update: string };
 type DocEditors = { docId: string; editors: string[] };
 ```
 
+- **The session's chat** - `NotifySession(conversationId, messageId)` sends
+  `MessageWaiting` (see [Presence](#presence)) to everyone else in the room. It's
+  only ids, and [messaging](../messaging/README.md) decides who can read it. Refused
+  for guests, who can't use the chat.
 - **Who can join** - `JoinSession` asks annotation-store
   (`GET /collections/{id}/membership`, with the user's own token) whether
   they're in the session and it's still going. Its address is
@@ -282,6 +286,7 @@ ask them straight into their session.
 | `Users`        | -                  | `DirectoryUser[]`| Everyone with an account in Keycloak, online or not, you included. Fails if Keycloak can't be reached and there's no earlier list |
 | `SetWhere`     | `PresenceWhere`    | -                | Where this tab is. Call on connect and whenever it changes. Ids up to 128 characters |
 | `InviteUser`   | `userId`, `code`   | -                | Sends them an invite code. Fails if it isn't code-shaped (url-safe base64, up to 64), it's you, or they've gone offline |
+| `NotifyUser`   | `userId`, `conversationId`, `messageId` | - | Says something's waiting in [messaging](../messaging/README.md#live-updates), to their tabs and your other ones. Nothing happens if they're offline |
 
 ### Hub → client
 
@@ -290,6 +295,7 @@ ask them straight into their session.
 | `UserOnline`     | `OnlineUser`   | Someone comes online, or where they are changes. Not to the tab that changed |
 | `UserOffline`    | `UserOffline`  | Someone's last tab closes                                      |
 | `InviteReceived` | `UserInvite`   | Someone invited you - to every tab you have open               |
+| `MessageWaiting` | `MessageWaiting` | Something's waiting in messaging. Only ids - fetch it from there |
 
 ```ts
 type PresenceWhere = { slideId: string | null; sessionId: string | null; hosting: boolean };
@@ -301,6 +307,7 @@ type UserOffline = { userId: string; version: number };
 type OnlineSnapshot = { users: OnlineUser[]; version: number };
 type UserInvite = { fromUserId: string; fromName: string; code: string; sent: string };
 type DirectoryUser = { userId: string; username: string; displayName: string };
+type MessageWaiting = { conversationId: string; messageId: string };
 ```
 
 - **Per user, not per tab** - someone with two tabs is one person, online

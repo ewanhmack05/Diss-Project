@@ -83,6 +83,12 @@ public static class SavedPaging
         if (filter.CreatedBy is { Length: > 0 } people) query = query.Where(c => people.Contains(c.CreatedById));
         if (filter.HasNotes is { } hasNotes) query = query.Where(c => (c.Notes != "") == hasNotes);
         if (filter.WithRoi is { } withRoi) query = query.Where(c => c.WithRoi == withRoi);
+        if (filter.Group is { Length: > 0 } groups)
+        {
+            var ids = groups.Select(g => Guid.TryParse(g, out var id) ? id : (Guid?)null).OfType<Guid>().ToList();
+            var ungrouped = groups.Contains(SavedFilter.NoGroup);
+            query = query.Where(c => (c.GroupId != null && ids.Contains(c.GroupId.Value)) || (ungrouped && c.GroupId == null));
+        }
         if (filter.From is { } from) query = query.Where(c => c.Created >= from);
         if (filter.To is { } to) query = query.Where(c => c.Created < to);
         return query;

@@ -32,6 +32,8 @@ interface CellCount {
 	id: string;
 	label: string;
 	notes: string;
+	// The CellCountGroup it's in, if any. Missing on anything from before groups.
+	groupId?: string | null;
 	// JSON-encoded CellCountDot[] - a plain string column, same convention
 	// as Annotation's geoJson field on the backend. Use parseCellCountDots
 	// (components/cell-count/CellCountDots) rather than JSON.parse-ing this

@@ -102,7 +102,8 @@ public class HistoryMigrationTests : IAsyncLifetime
         // Out of the live tables, apart from the one that wasn't deleted.
         Assert.Equal([Kept], await _db!.Annotations.Select(a => a.Id).ToListAsync());
         Assert.Empty(await _db.AnnotationGroups.ToListAsync());
-        Assert.Empty(await _db.CellCounts.ToListAsync());
+        // Just the ids - today's model has columns that migration hadn't got to.
+        Assert.Empty(await _db.CellCounts.Select(c => c.Id).ToListAsync());
         Assert.Empty(await _db.RegionsOfInterest.ToListAsync());
         Assert.Empty(await _db.ImageAdjustments.ToListAsync());
         Assert.Equal(2, await ScalarAsync("""SELECT count(*) FROM history."ChangeSets" """));

@@ -89,7 +89,7 @@ viewer, without being a member.
 | `POST /sessions` | anyone | Start a session on `{ slideId, collectionName?, maxEditors?, editPolicy? }`, hosted by you. `editPolicy` is `lastWriteWins` (the default) or `firstComeWins` - see below. One at a time per slide - with one not ended, it's a 409 with that one instead |
 | `PUT /collections/{id}` | owner | Rename |
 | `PUT /collections/{id}/sharing` | owner | Personal only - `{ shared }`. Lets anyone signed in view it, read-only |
-| `POST /collections/{id}/import` | editor, owner | `{ annotations, cellCounts }` from a GeoJSON import, saved together and stamped as you |
+| `POST /collections/{id}/import` | editor, owner | `{ annotations, cellCounts, groups?, source? }` from a GeoJSON import or something sent in a message, saved together and stamped as you. `source` says where it came from - see [where a change came from](#where-a-change-came-from) |
 | `DELETE /collections/{id}` | owner | Delete, with everything in it |
 | `POST /collections/{id}/end` | host | End a session |
 | `PUT /collections/{id}/members/{userId}` | host | Change someone's role - `{ displayName, role: "editor" \| "viewer" }` |
@@ -203,7 +203,7 @@ it holds everything in it. Nothing in the history is purged.
 
 - `GET /changesets?collectionId=&skip=&take=` - the collection's change
   sets, newest first: `{ id, collectionId, userId, userName, what, created,
-  deleted }`, `deleted` being how many rows it deleted that are still
+  deleted, source }`, `source` being where it came from or null, and `deleted` being how many rows it deleted that are still
   deleted - and haven't been put back and deleted again by something later,
   which makes them that change's. Anyone who can read the collection, guests
   included. Narrowed with the Saved lists' names (`ChangeSetFilter` in
@@ -226,6 +226,15 @@ it holds everything in it. Nothing in the history is purged.
   and `groups` names every group a `GroupId` in `changes` points at, gone ones
   included. Only reads the update entries and the names out of the deletes,
   never a deleted row's whole copy. Same access as the list
+- `GET /cellcountgroups?collectionId=` lists a collection's groups of cell counts with how many are
+  in each, `POST /cellcountgroups` makes one from `{ collectionId, name, cellCountIds? }`, and `PUT`
+  and `DELETE /cellcountgroups/{id}` change `{ name?, notes? }` or remove it, leaving its counts.
+  `PUT /cellcounts/group` with `{ collectionId, ids, groupId }` moves counts in, or out with no
+  `groupId`. `POST /cellcountgroups/{id}/merge` with `{ intoId }` moves everything in it across and
+  removes it. The same as annotation groups, first change wins included: `wasName`, `wasNotes` and
+  `wasGroups` say what a save started from. `group=` narrows `GET /cellcounts`, as it does annotations
+- `GET /changesets/{id}/changes` also has `copiedFrom` for something sent in a
+  message - `[{ entity, from, to }]`, which row each new one was copied from
 - `GET /changesets/total?collectionId=` - how many change sets the
   collection has, for the viewer's History pager. Same access as the list
 - `POST /changesets/{id}/restore` - puts it back how it was before that
@@ -357,6 +366,30 @@ isn't one and adding the file's notes for it.
 Bad `skip`/`take` is a 400. Paging is newest first with the id breaking
 ties, so no row turns up on two pages.
 
+## Where a change came from
+
+Adding something sent in a [message](../messaging/README.md) is an import with a `source`:
+
+```ts
+interface ImportSource {
+  messageId: string
+  fromUserId: string
+  fromName: string
+  kind: string // annotations, group, cellCount or collection
+  name: string // what the sender called it
+  collectionId: string | null // what it was copied from
+  slideId: string | null
+  rows?: { entity: 'annotation' | 'cellCount'; from: string; to: string }[]
+}
+```
+
+Its change set's `what` is then `add from message`, and it counts as an `add` in the History
+filter. The rows are new, with new ids and you as their author, and the original author is in
+the source. It's what the viewer read from the message, since messages are another service's,
+so all that's checked here is that it says who and what, each up to 300 characters, and that
+`rows` are rows in this import. Anything else is a 400. You still have to be able to edit the
+collection. See [docs/messaging.md](../docs/messaging.md#where-it-came-from).
+
 ## Schema
 
 Everything is in one Postgres database. The tables in the `public` schema only
@@ -419,9 +452,18 @@ erDiagram
         Created timestamp_with_time_zone "not null"
     }
 
+    CellCountGroups {
+        Id uuid PK "not null"
+        CollectionId uuid FK "not null"
+        Name text "not null"
+        Notes text "not null"
+        Created timestamp_with_time_zone "not null"
+    }
+
     CellCounts {
         Id uuid PK "not null"
         CollectionId uuid FK "not null"
+        GroupId uuid FK "null"
         WithAnnotation boolean "not null"
         WithRoi boolean "not null"
         Count integer "not null"
@@ -478,6 +520,8 @@ erDiagram
         UserName text "not null"
         What text "not null"
         Created timestamp_with_time_zone "not null"
+        Source jsonb "null"
+        SourceRows jsonb "null"
     }
 
     "history.Entries" {
@@ -517,9 +561,11 @@ erDiagram
     }
 
     AnnotationGroups |o--o{ Annotations : "Annotations(GroupId) -> AnnotationGroups(Id)"
+    CellCountGroups |o--o{ CellCounts : "CellCounts(GroupId) -> CellCountGroups(Id)"
     CellCounts ||--o| RegionsOfInterest : "RegionsOfInterest(CellCountId) -> CellCounts(Id)"
     Collections ||--o{ AnnotationGroups : "AnnotationGroups(CollectionId) -> Collections(CollectionId)"
     Collections ||--o{ Annotations : "Annotations(CollectionId) -> Collections(CollectionId)"
+    Collections ||--o{ CellCountGroups : "CellCountGroups(CollectionId) -> Collections(CollectionId)"
     Collections ||--o{ CellCounts : "CellCounts(CollectionId) -> Collections(CollectionId)"
     Collections ||--o{ CollectionInvites : "CollectionInvites(CollectionId) -> Collections(CollectionId)"
     Collections ||--o{ CollectionMembers : "CollectionMembers(CollectionId) -> Collections(CollectionId)"
@@ -540,19 +586,19 @@ The diagram puts underscores in a type with spaces, since it can't draw them oth
 | `integer` | A 32-bit whole number |
 | `double precision` | A 64-bit decimal number |
 | `boolean` | True or false |
-| `text` | A string of any length. Also holds some JSON that's only stored and handed back, like `GeoJson` and `Dots` |
-| `jsonb` | JSON that Postgres has parsed, so the database can read inside it. Used by the history, which pulls fields out of it in SQL |
+| `text` | A string of any length. Can also hold JSON that's only stored and handed back |
+| `jsonb` | JSON that Postgres has parsed and checked, so the database can read inside it |
 | `timestamp with time zone` | A moment in time, kept in UTC. Postgres also calls it `timestamptz` |
 
 | Term | What it means |
 |---|---|
-| PK | Primary key - what identifies a row. Two together, as on `CollectionMembers`, means the pair is what's unique |
+| PK | Primary key - what identifies a row. Two together means the pair is what's unique |
 | FK | Foreign key - a column pointing at another table's row. The database won't let it point at one that isn't there |
 | PK, FK | Both - part of what identifies the row, and pointing at another table |
 | not null / null | Whether a column has to have a value, or can be empty |
 | Index | A lookup kept by the database, so finding rows by that column doesn't read the whole table |
 | Unique index | An index that also refuses two rows with the same value |
-| Set by | Where a value comes from: `client` is in the request, `server` is the store, `host` or `owner` is that person choosing it through the API |
+| Set by | Where a value comes from: `client` is in the request, `server` is the service itself, `host` or `owner` is that person choosing it through the API |
 
 | Line end | How many rows of the table it's next to |
 |---|---|
@@ -664,6 +710,23 @@ One shape someone drew on a slide. The shape itself is fixed once saved - only t
 - `CollectionId` points at `Collections.CollectionId`. Deleted with it
 - `GroupId` points at `AnnotationGroups.Id`. Goes to null if that's deleted
 
+### CellCountGroups
+
+A named set of cell counts in one collection, the same as `AnnotationGroups` is for annotations. One level, and a count is in at most one.
+
+**To make one:** `POST /cellcountgroups` with `collectionId`, `name` and optionally `cellCountIds`. An import can make them too, matched by name.
+
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `Id` | uuid | PK | server |  |
+| `CollectionId` | uuid | FK | client | The collection it's in |
+| `Name` | text |  | client | Up to 64 characters |
+| `Notes` | text |  | client | Up to 10,000 characters |
+| `Created` | timestamp with time zone |  | server |  |
+
+- Index on `CollectionId`
+- `CollectionId` points at `Collections.CollectionId`. Deleted with it
+
 ### CellCounts
 
 A manual count of cells, such as mitotic figures: every dot placed, and the tally. The dots can run to tens of megabytes, so the Saved list gets `ColourCountsJson` and `PlacedByCountsJson` instead, and only `GET /cellcounts/{id}` sends the dots.
@@ -674,6 +737,7 @@ A manual count of cells, such as mitotic figures: every dot placed, and the tall
 |---|---|---|---|---|
 | `Id` | uuid | PK | client or server | Made by the store if it's left out |
 | `CollectionId` | uuid | FK | client | Which collection it's in |
+| `GroupId` | uuid, null | FK | client | The group it's in, if any. Set with `PUT /cellcounts/group`, not by saving the count. Deleting the group empties this |
 | `WithAnnotation` | boolean |  | client | Whether clicks placed dots, or only counted |
 | `WithRoi` | boolean |  | client | Whether it was counted inside a region of interest |
 | `Count` | integer |  | client | The tally. Can be more than the dots, since a click with `WithAnnotation` off counts without placing one |
@@ -691,8 +755,10 @@ A manual count of cells, such as mitotic figures: every dot placed, and the tall
 | `PlacedByCountsJson` | text, null |  | server | How many dots each person placed, the same way as `ColourCountsJson` |
 
 - Index on `CollectionId`
+- Index on `GroupId`
 - Index on `SlideId`
 - `CollectionId` points at `Collections.CollectionId`. Deleted with it
+- `GroupId` points at `CellCountGroups.Id`. Goes to null if that's deleted
 
 ### RegionsOfInterest
 
@@ -744,6 +810,8 @@ One change someone made, like a commit - a single save, or a 21,000 row delete s
 | `UserName` | text |  | server | Their name then |
 | `What` | text |  | server | What the first request in it did, such as `delete annotations` or `restore collection` |
 | `Created` | timestamp with time zone |  | server |  |
+| `Source` | jsonb, null |  | client | Where it came from, when it's something sent in a message: who sent it, the message, the collection and how many of each it added. `What` is then `add from message` |
+| `SourceRows` | jsonb, null |  | client | Which row each new one was copied from. Apart from `Source` since it's two ids a row, and the History list reads `Source` for every line |
 
 - Index on `CollectionId, Created`
 - `CollectionId` points at `Collections.CollectionId`. Deleted with it

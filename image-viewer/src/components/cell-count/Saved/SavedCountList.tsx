@@ -9,7 +9,7 @@ import ItemHistory from "../../collections/history/ItemHistory";
 import SavedRow, { SavedDetails } from "../../saved/SavedRow";
 import { formatLongDate, formatShortDate } from "../../saved/savedDates";
 import { SAVED_PAGE_SIZE, clampPage, isFiltered, mergePage } from "../../saved/paging";
-import { NO_FILTERS, type SavedFilters } from "../../saved/filters";
+import { NO_FILTERS, NO_GROUP, type SavedFilters } from "../../saved/filters";
 import SavedFilterMenu from "../../saved/SavedFilterMenu";
 import { useSavedFacets } from "../../saved/useSavedFacets";
 import useSavedPage from "../../saved/useSavedPage";
@@ -17,6 +17,9 @@ import SavedPager from "../../saved/SavedPager";
 import { savedBy } from "../../saved/savedBy";
 import { useAuthContext } from "../../../context/AuthContext";
 import { useCollectionContext } from "../../../context/CollectionContext";
+import { useCellCountGroupContext } from "../../../context/CellCountGroupContext";
+import { useMessagingContext } from "../../../context/MessagingContext";
+import { CountGroupPage, CountGroups } from "./CountGroups";
 import type { ListTotal } from "../../saved/useSavedTotal";
 import Icon from "../../../icons/Icon";
 import peopleSvg from "../../../icons/people.svg?raw";
@@ -47,6 +50,9 @@ function SavedCountRow({ cellCount, open, onToggle, onHistory }: SavedCountRowPr
     useCellCountStoreContext();
   const { canEdit } = useCollectionContext();
   const { user } = useAuthContext();
+  const { groups, moveToGroup } = useCellCountGroupContext();
+  const { status: messaging, sendToSomeone } = useMessagingContext();
+  const groupName = groups.find((g) => g.id === cellCount.groupId)?.name;
   const by = savedBy(cellCount, user.id);
   // From the summary the list sends - the dots themselves only load for
   // View on map. Memoised for a count you've just saved, which is worked
@@ -93,6 +99,7 @@ function SavedCountRow({ cellCount, open, onToggle, onHistory }: SavedCountRowPr
       </span>,
     ]);
   }
+  if (groupName) details.push(["Group", groupName]);
   if (cellCount.notes) details.push(["Notes", cellCount.notes]);
   if (by) details.push(["Saved by", by]);
   details.push(["Saved", formatLongDate(cellCount.created)]);
@@ -121,6 +128,7 @@ function SavedCountRow({ cellCount, open, onToggle, onHistory }: SavedCountRowPr
               {people.length}
             </span>
           )}
+          {groupName && <span className="saved-row-tag">{groupName}</span>}
           {isViewing && <span className="saved-row-tag saved-row-tag--active">On map</span>}
           <span className="saved-row-spacer" />
           {by && <span className="saved-row-by">{by}</span>}
@@ -147,6 +155,30 @@ function SavedCountRow({ cellCount, open, onToggle, onHistory }: SavedCountRowPr
             <button type="button" className="saved-row-button" onClick={onHistory}>
               History
             </button>
+            {messaging !== "off" && (
+              <button
+                type="button"
+                className="saved-row-button"
+                onClick={() => sendToSomeone({ label: cellCount.label || "this cell count", pick: { kind: "cellCount", id: cellCount.id } })}
+              >
+                Send
+              </button>
+            )}
+            {canEdit && groups.length > 0 && (
+              <select
+                className="saved-row-group"
+                aria-label="Move to a group"
+                value={cellCount.groupId ?? ""}
+                onChange={(e) => moveToGroup([cellCount.id], e.target.value || null).catch(() => {})}
+              >
+                <option value="">No group</option>
+                {groups.map((group) => (
+                  <option key={group.id} value={group.id}>
+                    {group.name}
+                  </option>
+                ))}
+              </select>
+            )}
             <button
               type="button"
               className="saved-row-button saved-row-button--primary"
@@ -175,9 +207,14 @@ function SavedCountList({ onTotal }: { onTotal?: (total: ListTotal | null) => vo
     selectedCellCountId,
     setSelectedCellCountId,
     seenTotal,
+    total: collectionTotal,
   } = useCellCountStoreContext();
   const { canEdit, collectionId } = useCollectionContext();
   const { user } = useAuthContext();
+  const { groups } = useCellCountGroupContext();
+  // A group's own page, in place of the list.
+  const [openGroupId, setOpenGroupId] = useState<string | null>(null);
+  const openGroup = groups.find((g) => g.id === openGroupId);
   // Kept here rather than reset on edit, so Back returns to the same results.
   const [search, setSearch] = useState("");
   // Same as the search - kept through an edit, and back to the first page
@@ -230,6 +267,17 @@ function SavedCountList({ onTotal }: { onTotal?: (total: ListTotal | null) => vo
   }, [onTotal, ready, total, filtered]);
   useEffect(() => () => onTotal?.(null), [onTotal]);
 
+  // From what the store says is in each, since the counts aren't all loaded. A
+  // group picked and then deleted is still listed, so it can be unpicked.
+  const inAGroup = groups.reduce((sum, g) => sum + g.count, 0);
+  const groupChoices = [
+    ...groups.map((g) => ({ id: g.id, name: g.name, count: g.count })),
+    ...filters.groups
+      .filter((id) => id !== NO_GROUP && !groups.some((g) => g.id === id))
+      .map((id) => ({ id, name: "Deleted group", count: 0 })),
+    { id: NO_GROUP, name: "No group", count: Math.max((collectionTotal ?? 0) - inAGroup, 0) },
+  ];
+
   const editing = cellCounts.find((c) => c.id === selectedCellCountId);
   if (editing && canEdit) {
     return (
@@ -243,6 +291,22 @@ function SavedCountList({ onTotal }: { onTotal?: (total: ListTotal | null) => vo
 
   if (historyOf) {
     return <ItemHistory item={{ entity: "cellCount", ...historyOf }} backLabel="Saved" onBack={() => setHistoryOf(null)} />;
+  }
+
+  if (openGroup) {
+    return (
+      <CountGroupPage
+        key={openGroup.id}
+        group={openGroup}
+        onBack={() => setOpenGroupId(null)}
+        onShow={() => {
+          setFilters({ ...NO_FILTERS, groups: [openGroup.id] });
+          setSearch("");
+          setPage(0);
+          setOpenGroupId(null);
+        }}
+      />
+    );
   }
 
   if (status === "loading" || savedPage.status === "loading") {
@@ -262,11 +326,17 @@ function SavedCountList({ onTotal }: { onTotal?: (total: ListTotal | null) => vo
   if (shownPage !== page) setPage(shownPage);
 
   if (total === 0 && !isFiltered(search, filters)) {
-    return <p className="saved-cell-count-list-empty">Nothing saved yet.</p>;
+    return (
+      <>
+        <CountGroups onOpen={setOpenGroupId} />
+        <p className="saved-cell-count-list-empty">Nothing saved yet.</p>
+      </>
+    );
   }
 
   return (
     <>
+      <CountGroups onOpen={setOpenGroupId} />
       <div className="saved-search-row">
         <input
           type="search"
@@ -287,6 +357,7 @@ function SavedCountList({ onTotal }: { onTotal?: (total: ListTotal | null) => vo
           facets={facets}
           myId={user.id}
           roi
+          groups={groupChoices}
         />
       </div>
       {items.length === 0 ? (

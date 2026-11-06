@@ -95,6 +95,7 @@ public static class CellCountSummary
                 c.SlideId,
                 c.Label,
                 c.Notes,
+                c.GroupId,
                 c.WithAnnotation,
                 c.WithRoi,
                 c.Count,
@@ -130,7 +131,7 @@ public static class CellCountSummary
             return new CellCountListItem(
                 r.Id, r.CollectionId, r.SlideId, r.Label, r.Notes, r.WithAnnotation, r.WithRoi, r.Count, r.DotSize,
                 r.LocationX, r.LocationY, r.Created, r.CreatedById, r.CreatedByName, r.RegionOfInterest,
-                Read<ColourCount>(colours), Read<PlacedByCount>(placedBy));
+                Read<ColourCount>(colours), Read<PlacedByCount>(placedBy), r.GroupId);
         }).ToList();
     }
 }
@@ -155,7 +156,8 @@ public record CellCountListItem(
     string CreatedByName,
     RegionOfInterest? RegionOfInterest,
     List<ColourCount> ColourCounts,
-    List<PlacedByCount> PlacedByCounts)
+    List<PlacedByCount> PlacedByCounts,
+    Guid? GroupId = null)
 {
     public string? Dots => null;
 }

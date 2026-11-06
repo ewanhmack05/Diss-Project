@@ -9,6 +9,7 @@ from db_docs import (
     END,
     NOTES,
     README,
+    SERVICES,
     SNAPSHOT,
     START,
     TYPE_MEANINGS,
@@ -217,6 +218,11 @@ class Problems(unittest.TestCase):
 
 
 class Glossary(unittest.TestCase):
+    def test_only_lists_types_a_service_uses(self):
+        text = glossary({"uuid", "text"})
+        self.assertIn("| `uuid` |", text)
+        self.assertNotIn("| `bigint` |", text)
+
     def test_lists_types_by_their_full_names(self):
         text = glossary()
         self.assertIn("| `timestamp with time zone` | A moment in time, kept in UTC. Postgres also calls it `timestamptz` |", text)
@@ -253,6 +259,19 @@ class ReplaceSection(unittest.TestCase):
 
 # The real thing: a migration that changes the schema fails here until the
 # notes and README catch up.
+class EveryServicesReadme(unittest.TestCase):
+    def test_each_has_a_note_for_everything_and_is_up_to_date(self):
+        self.assertGreater(len(SERVICES), 1)
+        for snapshot, notes_path, readme_path in SERVICES:
+            with self.subTest(readme_path.parent.name):
+                text = snapshot.read_text(encoding="utf-8-sig")
+                notes = json.loads(notes_path.read_text(encoding="utf-8"))
+                tables, _ = parse_snapshot(text)
+                self.assertEqual([], problems(tables, notes))
+                readme = readme_path.read_text(encoding="utf-8").replace("\r\n", "\n")
+                self.assertEqual(readme, replace_section(readme, generate(text, notes)), "run python scripts/db_docs.py")
+
+
 class TheRealReadme(unittest.TestCase):
     def setUp(self):
         self.snapshot = SNAPSHOT.read_text(encoding="utf-8-sig")

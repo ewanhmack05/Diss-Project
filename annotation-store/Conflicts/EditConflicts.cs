@@ -33,7 +33,7 @@ public record BulkConflict(Guid Id, string Colour, Guid? GroupId, string? Change
 // scripts and older clients do.
 //
 // Only fields that aren't merged live are checked: an annotation's colour and
-// group, a group's name and notes. Labels and notes on annotations and cell
+// group, a cell count's group, a group's name and notes. Labels and notes on annotations and cell
 // counts are shared with Yjs, so two people typing never lose anything.
 // Deletes aren't checked - anything deleted can be put back from History.
 //
@@ -92,6 +92,18 @@ public static class EditConflicts
             await db.Database.ExecuteSqlAsync($"""SELECT 1 FROM "AnnotationGroups" WHERE "Id" = {id} FOR UPDATE""");
     }
 
+    public static async Task LockCellCountsAsync(AnnotationDbContext db, List<Guid> ids)
+    {
+        if (HistoryLog.IsPostgres(db))
+            await db.Database.ExecuteSqlAsync($"""SELECT 1 FROM "CellCounts" WHERE "Id" = ANY({ids.ToArray()}) FOR UPDATE""");
+    }
+
+    public static async Task LockCountGroupAsync(AnnotationDbContext db, Guid id)
+    {
+        if (HistoryLog.IsPostgres(db))
+            await db.Database.ExecuteSqlAsync($"""SELECT 1 FROM "CellCountGroups" WHERE "Id" = {id} FOR UPDATE""");
+    }
+
     // The 409 - the row now, and the latest change to the fields in the way.
     // It comes before the write joins a change set, so a turned-down write
     // leaves none behind, the same as any other.
@@ -125,5 +137,6 @@ public static class EditConflicts
 
     public static readonly string[] AnnotationColour = [nameof(Annotation.Colour)];
     public static readonly string[] AnnotationFields = [nameof(Annotation.Colour), nameof(Annotation.GroupId)];
+    public static readonly string[] CountGroupField = [nameof(CellCounts.CellCount.GroupId)];
     public static readonly string[] GroupFields = [nameof(AnnotationGroup.Name), nameof(AnnotationGroup.Notes)];
 }

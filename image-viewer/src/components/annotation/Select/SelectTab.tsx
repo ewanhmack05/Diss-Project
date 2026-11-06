@@ -5,6 +5,7 @@ import { UNDO_DELETE_MS, useAnnotationStoreContext } from '../../../context/Anno
 import { useCellCountDrawContext } from '../../../context/CellCountDrawContext'
 import { useCollectionContext } from '../../../context/CollectionContext'
 import { useDialogContext } from '../../../context/DialogContext'
+import { useMessagingContext } from '../../../context/MessagingContext'
 import { useToastContext } from '../../../context/ToastContext'
 import ColourPicker from '../../colour-picker/ColourPicker'
 import { DefaultColour } from '../Tools'
@@ -29,6 +30,7 @@ function SelectTab() {
   const { canEdit } = useCollectionContext()
   const { counting } = useCellCountDrawContext()
   const { showDialog } = useDialogContext()
+  const { status: messaging, sendToSomeone } = useMessagingContext()
   const { addToast } = useToastContext()
   const [colour, setColour] = useState(DefaultColour)
   const [newName, setNewName] = useState('')
@@ -144,6 +146,15 @@ function SelectTab() {
 
       {ids.length > 0 && (
         <>
+          {messaging !== 'off' && (
+            <button
+              type="button"
+              className="select-button select-button--wide"
+              onClick={() => sendToSomeone({ label: plural(ids.length), pick: { kind: 'annotations', ids } })}
+            >
+              Send {plural(ids.length)}
+            </button>
+          )}
           <section className="select-section">
             <h3 className="select-heading">Colour</h3>
             <ColourPicker value={colour} onChange={setColour} />

@@ -17,6 +17,7 @@ import { useSavedFacets } from '../../saved/useSavedFacets'
 import { savedBy } from '../../saved/savedBy'
 import { useAuthContext } from '../../../context/AuthContext'
 import { useCollectionContext } from '../../../context/CollectionContext'
+import { useMessagingContext } from '../../../context/MessagingContext'
 import type { ListTotal } from '../../saved/useSavedTotal'
 import './SavedAnnotationList.css'
 
@@ -47,6 +48,7 @@ function SavedAnnotationList({ onTotal }: { onTotal?: (total: ListTotal | null) 
     seenTotal,
   } = useAnnotationStoreContext()
   const { canEdit, collectionId } = useCollectionContext()
+  const { status: messaging, sendToSomeone } = useMessagingContext()
   const { user } = useAuthContext()
   // Kept here rather than reset on edit, so Back returns to the same results.
   const [search, setSearch] = useState('')
@@ -238,6 +240,17 @@ function SavedAnnotationList({ onTotal }: { onTotal?: (total: ListTotal | null) 
                       >
                         History
                       </button>
+                      {messaging !== 'off' && (
+                        <button
+                          type="button"
+                          className="saved-row-button"
+                          onClick={() =>
+                            sendToSomeone({ label: annotation.label || 'this annotation', pick: { kind: 'annotations', ids: [annotation.id] } })
+                          }
+                        >
+                          Send
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="saved-row-button saved-row-button--primary"

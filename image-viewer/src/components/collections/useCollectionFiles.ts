@@ -2,11 +2,14 @@ import { useCallback } from 'react'
 import { useAuthContext } from '../../context/AuthContext'
 import { useAnnotationStoreContext } from '../../context/AnnotationStoreContext'
 import { useCellCountStoreContext } from '../../context/CellCountStoreContext'
+import { useCellCountGroupContext } from '../../context/CellCountGroupContext'
 import { useAnnotationGroupContext } from '../../context/AnnotationGroupContext'
 import type { AnnotationGroup } from '../../interfaces/AnnotationGroup'
 import { useCollectionContext } from '../../context/CollectionContext'
 import type { Annotation } from '../../interfaces/Annotation'
 import type { CellCount } from '../../interfaces/CellCount'
+import type { CellCountGroup } from '../../interfaces/CellCountGroup'
+import type { ImportSource } from '../messages/messages'
 import { collectionToGeoJson, exportFileName, type FullCollection, type ParsedImport } from './collectionGeoJson'
 
 function download(fileName: string, contents: string) {
@@ -26,6 +29,7 @@ function useCollectionFiles() {
   const { baseUrl, addImported: showAnnotations } = useAnnotationStoreContext()
   const { addImported: showCellCounts } = useCellCountStoreContext()
   const { addImported: showGroups } = useAnnotationGroupContext()
+  const { addImported: showCountGroups } = useCellCountGroupContext()
   const { collectionId: activeId, refresh } = useCollectionContext()
 
   const exportCollection = useCallback(
@@ -39,25 +43,27 @@ function useCollectionFiles() {
   )
 
   // Into the one you're in, it shows straight away, and goes to everyone
-  // else in a session. Anywhere else, it's there next time it's opened.
+  // else in a session. Anywhere else, it's there next time it's opened. source
+  // says it was sent in a message, rather than read from a file.
   const importInto = useCallback(
-    async (collectionId: string, parsed: ParsedImport) => {
+    async (collectionId: string, parsed: ParsedImport & { source?: ImportSource }) => {
       const response = await authFetch(`${baseUrl}/collections/${collectionId}/import`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ annotations: parsed.annotations, cellCounts: parsed.cellCounts, groups: parsed.groups }),
+        body: JSON.stringify({ annotations: parsed.annotations, cellCounts: parsed.cellCounts, groups: parsed.groups, cellCountGroups: parsed.cellCountGroups, source: parsed.source }),
       })
       if (!response.ok) throw new Error(String(response.status))
-      const saved = (await response.json()) as { annotations: Annotation[]; cellCounts: CellCount[]; groups: AnnotationGroup[] }
+      const saved = (await response.json()) as { annotations: Annotation[]; cellCounts: CellCount[]; groups: AnnotationGroup[]; cellCountGroups?: CellCountGroup[] }
       if (collectionId === activeId) {
         // Groups first, so nobody gets annotations in a group they don't know.
         showGroups(saved.groups)
+        showCountGroups(saved.cellCountGroups ?? [])
         showAnnotations(saved.annotations)
         showCellCounts(saved.cellCounts)
       }
       await refresh()
     },
-    [authFetch, baseUrl, activeId, showGroups, showAnnotations, showCellCounts, refresh]
+    [authFetch, baseUrl, activeId, showGroups, showCountGroups, showAnnotations, showCellCounts, refresh]
   )
 
   return { exportCollection, importInto }

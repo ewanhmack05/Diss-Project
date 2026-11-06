@@ -1,0 +1,59 @@
+{
+  "Conversations": {
+    "summary": "Who's talking: either two people, or everyone in a session. Two people only ever have one between them, whichever of them wrote first.",
+    "make": "Made by the first `POST /messages` between two people, or the first time a session's chat is opened or written in.",
+    "columns": {
+      "Id": ["server", ""],
+      "Kind": ["server", "`Direct` or `Session`"],
+      "Created": ["server", ""],
+      "SessionId": ["client", "A session's chat only. annotation-store's collection id, not a foreign key, since that's a different database. Who's in it is asked of annotation-store each time, not kept here"],
+      "UserA": ["server", "Direct only. The two people's Keycloak ids, in a fixed order so the unique index means one conversation between them"],
+      "UserB": ["server", "See `UserA`"]
+    }
+  },
+  "ConversationReads": {
+    "summary": "One person's place in a conversation: how far they've read, and whether they've deleted it. There's only a row once they've done one of those.",
+    "make": "`POST /conversations/{id}/read`, or `DELETE /conversations/{id}` on a direct one.",
+    "columns": {
+      "ConversationId": ["server", "Half of the key"],
+      "UserId": ["server", "Their Keycloak id. The other half of the key"],
+      "Hidden": ["server", "They've deleted it for themselves. A new message clears this, and once both have it set the conversation goes"],
+      "LastRead": ["server", "Anything from someone else after this counts as unread"]
+    }
+  },
+  "Messages": {
+    "summary": "One message. Who sent it comes from their token, along with their name when they sent it, so a list doesn't have to ask Keycloak.",
+    "make": "`POST /messages` with an `id` the viewer made, `toUserId` or `sessionId`, and `body`.",
+    "columns": {
+      "Id": ["client", "Made by the viewer, so sending again after a dropped connection is the same message"],
+      "ConversationId": ["server", "Found or made from who it's to"],
+      "Body": ["client", "Up to 4,000 characters. Can be empty if there's an attachment"],
+      "FromName": ["server", "Their name then"],
+      "FromUserId": ["server", "Their Keycloak id, from their token"],
+      "Sent": ["server", ""]
+    }
+  },
+  "Attachments": {
+    "summary": "What was sent with a message, as it was when it was sent. It's a copy, so it stays the same if the original changes or goes, and whoever gets it doesn't need access to the original. messaging doesn't read the rows - the viewer sends them, and annotation-store checks them when they're added.",
+    "make": "Sent inside the message, as `attachment`. Up to 5MB.",
+    "columns": {
+      "MessageId": ["client", "The message it came with"],
+      "Bytes": ["server", "The size of `Payload`"],
+      "Kind": ["client", "`Annotations`, `Group`, `CellCount`, `Collection`, `Invite` or `Area`"],
+      "Name": ["client", "What to call it on the card. Up to 200 characters"],
+      "InviteCode": ["client", "Invites only. Opened with annotation-store's invite preview, as a link would be"],
+      "Payload": ["client", "Everything but invites: the rows, or for an area where it is, as a JSON object. Only sent by `GET /messages/{id}/attachment`, since it can be megabytes"],
+      "SlideId": ["client", "Which slide it's from. Not a foreign key"],
+      "SourceCollectionId": ["client", "Which collection it was copied from, for where it came from. Not a foreign key"]
+    }
+  },
+  "AttachmentAdds": {
+    "summary": "Someone adding what was sent to a collection of theirs. Per person, since everyone in a session's chat can add the same thing, and each should see when they did.",
+    "make": "`POST /messages/{id}/added`, after annotation-store has said yes.",
+    "columns": {
+      "MessageId": ["server", "Half of the key"],
+      "UserId": ["server", "Their Keycloak id. The other half of the key"],
+      "LastAdded": ["server", "Moves on if they add it again"]
+    }
+  }
+}

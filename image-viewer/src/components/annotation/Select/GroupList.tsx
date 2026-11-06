@@ -2,6 +2,7 @@ import { useAnnotationGroupContext } from '../../../context/AnnotationGroupConte
 import { useAnnotationSelectContext } from '../../../context/AnnotationSelectContext'
 import { useAnnotationStoreContext } from '../../../context/AnnotationStoreContext'
 import { useDialogContext } from '../../../context/DialogContext'
+import { useMessagingContext } from '../../../context/MessagingContext'
 import type { AnnotationGroup } from '../../../interfaces/AnnotationGroup'
 import Icon from '../../../icons/Icon'
 import eyeSvg from '../../../icons/eye.svg?raw'
@@ -22,6 +23,7 @@ function GroupList({ editable, onAdd, onOpen }: GroupListProps) {
   const { annotations } = useAnnotationStoreContext()
   const { selectedIds, select } = useAnnotationSelectContext()
   const { showDialog } = useDialogContext()
+  const { status: messaging, sendToSomeone } = useMessagingContext()
 
   if (groups.length === 0) {
     return (
@@ -77,6 +79,17 @@ function GroupList({ editable, onAdd, onOpen }: GroupListProps) {
               {group.name}
             </button>
             <span className="select-group-count">{members.length}</span>
+            {messaging !== 'off' && (
+              <button
+                type="button"
+                className="select-button"
+                disabled={members.length === 0}
+                title={members.length === 0 ? "There's nothing in it to send" : `Send ${group.name} to someone`}
+                onClick={() => sendToSomeone({ label: `Group: ${group.name}`, pick: { kind: 'group', id: group.id } })}
+              >
+                Send
+              </button>
+            )}
             {editable && (
               <>
                 {onAdd && adding > 0 ? (

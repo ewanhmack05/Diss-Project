@@ -308,5 +308,6 @@ describe('SharedFields convergence', () => {
       const [first, ...rest] = peers.map((peer) => peer.shared.values())
       for (const other of rest) expect(other, `seed ${seed}`).toEqual(first)
     }
-  })
+    // 6,000 edits, so a busy machine can take longer than the default 5 seconds.
+  }, 30000)
 })

@@ -1,9 +1,12 @@
 // More than one person, side by side.
 import {
-  answerDialog, answerToast, around, closePanel, countDots, countLine, DOTS, dragPanel, drawPolygon, drawTwoClick, expect,
+  answerDialog, answerToast, around, closePanel, countDots, countLine, DOTS, dragPanel, drawPolygon, drawTwoClick, expect, toast,
   fillName, MIDDLE_NARROW as MIDDLE, openSaved, row, saveAnnotation, savedTabButton, seesSaved, shape, startTogether,
   TISSUE_NARROW as TISSUE,
 } from './helpers.js'
+
+// The viewer's default colour, which anything drawn without picking one gets.
+const SAVED_YELLOW = [249, 224, 6]
 
 async function both(sam, jo, samText, joText) {
   await sam.caption(`Sam: ${samText}`, 150, { keepOthers: true })
@@ -630,4 +633,192 @@ export async function guests({ sam, guest }) {
   await expect(samPanel.getByRole('tab', { name: 'Active (1)' })).toBeVisible({ timeout: 15_000 })
   await sam.pause(1400)
   guest.did('guest-leave')
+}
+
+// How much of a colour a preview has in it, so a preview showing the wrong thing fails.
+function previewHas(card, [red, green, blue]) {
+  return card.locator('canvas').evaluate((canvas, colour) => {
+    const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height)
+    let found = 0
+    for (let i = 0; i < data.length; i += 4) {
+      if (Math.abs(data[i] - colour[0]) < 40 && Math.abs(data[i + 1] - colour[1]) < 40 && Math.abs(data[i + 2] - colour[2]) < 40) found++
+    }
+    return found
+  }, [red, green, blue])
+}
+
+// Asks who to, then writes something and sends it.
+async function sendToJo(sam, words) {
+  const panel = sam.panel('Messages')
+  await sam.type(panel.locator('.messages-search'), 'Jo Bell')
+  await sam.click(panel.locator('.messages-picker-list .messages-row').filter({ hasText: 'Jo Bell' }))
+  await writeAndSend(sam, words)
+}
+
+async function writeAndSend(sam, words) {
+  const panel = sam.panel('Messages')
+  await expect(panel.locator('.messages-staged')).toBeVisible()
+  await sam.click(panel.locator('.messages-input'))
+  await sam.type(panel.locator('.messages-input'), words)
+  await sam.pause(300)
+  await sam.page.keyboard.press('Enter')
+  await expect(panel.locator('.messages-staged')).toHaveCount(0, { timeout: 10_000 })
+  await sam.pause(600)
+}
+
+// Sending things to someone who isn't there with you: an annotation, a group of
+// cell counts and the area you're looking at. Each arrives live, can be looked at
+// without keeping it, and added as a copy.
+export async function messaging({ sam, jo }) {
+  await both(sam, jo, 'draws an annotation and saves it', 'is on the same slide, not in a session')
+  await sam.zoomAt(TISSUE, 1)
+  await sam.tiles()
+  await sam.tool('Annotations')
+  const annotations = sam.panel('Annotations')
+  await sam.click(shape(annotations, 'Rectangle'))
+  await drawTwoClick(sam, around(MIDDLE, -40, -160), around(MIDDLE, 140, -30))
+  await saveAnnotation(sam, 'Tumour edge')
+
+  await both(sam, jo, 'presses Send on a saved annotation', 'has nothing yet')
+  await openSaved(sam, annotations, 1)
+  await sam.click(row(annotations, 'Tumour edge'))
+  await sam.press('Send', annotations.locator('.saved-row--open'))
+  const samMessages = sam.panel('Messages')
+  await expect(samMessages.locator('.messages-chat-title')).toContainText('to')
+  sam.did('message-send-saved')
+
+  await sam.caption('Sam: it asks who to - anyone with an account, online or not', 300, { keepOthers: true })
+  await sendToJo(sam, 'Can you look at this edge?')
+  sam.did('message-search')
+  sam.did('message-send-annotation')
+
+  await both(sam, jo, 'has sent it', 'a badge and a toast, without reloading')
+  await expect(jo.page.locator('.toolbar-badge')).toHaveText('1', { timeout: 10_000 })
+  await expect(toast(jo, 'New message from Sam Reid')).toBeVisible()
+  jo.did('message-live')
+  await jo.pause(1500)
+
+  await jo.click(jo.page.locator('[title^="Messages"]'), 700)
+  const joMessages = jo.panel('Messages')
+  await dragPanel(jo, 'Messages', { x: 560, y: 70 })
+  await jo.click(joMessages.locator('.messages-side .messages-row').filter({ hasText: 'Sam Reid' }))
+  await expect(jo.page.locator('.toolbar-badge')).toHaveCount(0, { timeout: 10_000 })
+  jo.did('message-inbox')
+
+  const edge = joMessages.locator('.messages-card').filter({ hasText: 'Tumour edge' })
+  await expect(edge.locator('canvas')).toBeVisible({ timeout: 10_000 })
+  await both(sam, jo, 'waits', 'sees a preview of that part of the slide, in its own colours')
+  await expect.poll(() => previewHas(edge, SAVED_YELLOW), { timeout: 10_000 }).toBeGreaterThan(50)
+  jo.did('message-preview')
+  await jo.pause(2000)
+
+  await both(sam, jo, 'waits', 'presses it - the map goes there, nothing saved')
+  const joZoom = await jo.zoomLevel()
+  await jo.click(edge.locator('button.messages-preview'))
+  await expect.poll(() => jo.zoomLevel()).not.toBe(joZoom)
+  await expect(edge.getByRole('button', { name: 'Stop showing' })).toBeVisible()
+  await jo.tiles()
+  jo.did('message-view')
+  await jo.pause(2000)
+
+  await both(sam, jo, 'waits', 'adds a copy to their own collection')
+  await jo.press('Add to my collection', edge)
+  await expect(edge.getByRole('button', { name: 'Add again' })).toBeVisible({ timeout: 10_000 })
+  jo.did('message-add')
+  await jo.pause(1500)
+
+  await both(sam, jo, 'waits', 'folds the list away for more of the slide')
+  const wide = (await joMessages.boundingBox()).width
+  await jo.press('Fold the list away', joMessages)
+  await expect.poll(async () => (await joMessages.boundingBox()).width).toBeLessThan(wide)
+  await jo.pause(900)
+  await jo.press('Show the list', joMessages)
+  await expect.poll(async () => (await joMessages.boundingBox()).width).toBe(wide)
+  jo.did('message-fold')
+
+  // A group of cell counts
+  await both(sam, jo, 'counts some cells, and saves two counts', 'waits')
+  await closePanel(sam, 'Annotations')
+  await closePanel(sam, 'Messages')
+  await sam.tool('Cell Count')
+  const counts = sam.panel('Cell Count')
+  for (const [name, from, to] of [['Field 1', 0, 5], ['Field 2', 5, 10]]) {
+    await sam.press('Start counting', counts)
+    await countDots(sam, MIDDLE, DOTS.slice(from, to))
+    await sam.press('Stop counting', counts)
+    await fillName(sam, 'Name this count', name)
+    await sam.press('Save', counts.locator('.cell-count-form'))
+    await sam.pause(700)
+    await sam.click(counts.locator('.cell-counter-tool-picker-colour-card button').nth(2))
+  }
+
+  await both(sam, jo, 'makes a group and puts them in it', 'waits')
+  await openSaved(sam, counts, 2)
+  await sam.click(counts.locator('.saved-count-groups summary'))
+  await sam.type(counts.getByLabel('New group name'), 'Mitoses')
+  await sam.press('Add', counts.locator('.saved-count-groups form'))
+  const group = counts.locator('.saved-count-groups .select-group').filter({ hasText: 'Mitoses' })
+  await expect(group).toBeVisible()
+  sam.did('count-group-make')
+  for (const name of ['Field 1', 'Field 2']) {
+    await sam.click(row(counts, name))
+    await sam.choose(counts.locator('.saved-row--open .saved-row-group'), { label: 'Mitoses' })
+    await expect(counts.locator('.saved-row--open .saved-row-summary')).toContainText('Mitoses')
+    await sam.pause(500)
+  }
+  await expect(group.locator('.select-group-count')).toHaveText('2', { timeout: 10_000 })
+  sam.did('count-group-move')
+
+  await both(sam, jo, 'sends the whole group', 'waits')
+  await sam.press('Send', group)
+  await sendToJo(sam, 'And these two counts')
+  sam.did('message-send-count-group')
+
+  await both(sam, jo, 'has sent it', 'it turns up in the open conversation, each dot in its colour')
+  const mitoses = joMessages.locator('.messages-card').filter({ hasText: 'Mitoses' })
+  await expect(mitoses.locator('canvas')).toBeVisible({ timeout: 15_000 })
+  await jo.pause(2000)
+  await jo.click(mitoses.locator('button.messages-preview'))
+  await expect(mitoses.getByRole('button', { name: 'Stop showing' })).toBeVisible()
+  await jo.tiles()
+  await jo.pause(2000)
+
+  await both(sam, jo, 'waits', 'adds it - it arrives as a group, with both counts in it')
+  await jo.press('Add to my collection', mitoses)
+  await expect(mitoses.getByRole('button', { name: 'Add again' })).toBeVisible({ timeout: 10_000 })
+  await jo.tool('Cell Count')
+  const joCounts = jo.panel('Cell Count')
+  await openSaved(jo, joCounts, 2)
+  await jo.click(joCounts.locator('.saved-count-groups summary'))
+  await expect(joCounts.locator('.saved-count-groups .select-group').filter({ hasText: 'Mitoses' }).locator('.select-group-count')).toHaveText('2', { timeout: 10_000 })
+  jo.did('message-add-group')
+  await jo.pause(2000)
+  await closePanel(jo, 'Cell Count')
+
+  // The area you're looking at
+  await both(sam, jo, 'goes somewhere, and sends where they are', 'waits')
+  await closePanel(sam, 'Cell Count')
+  await dragPanel(sam, 'Messages', { x: 560, y: 70 })
+  // Clear of the panel, which would take the scroll instead of the map.
+  await sam.zoomAt({ x: 200, y: 600 }, 4)
+  await sam.press('Attach an area or an invite', samMessages)
+  await sam.click(samMessages.getByRole('menuitem', { name: "The area you're looking at" }))
+  await writeAndSend(sam, 'This bit here')
+  sam.did('message-send-area')
+
+  await both(sam, jo, 'is looking here', 'presses it, and lands on the same spot')
+  const area = joMessages.locator('.messages-card').filter({ hasText: 'Area of slide' })
+  await expect(area.locator('canvas')).toBeVisible({ timeout: 15_000 })
+  await jo.pause(2000)
+  await jo.click(area.locator('button.messages-preview'))
+  await expect.poll(() => jo.zoomLevel(), { timeout: 8000 }).toBe(await sam.zoomLevel())
+  await jo.tiles()
+  jo.did('message-view-area')
+  await jo.pause(3500)
+
+  await both(sam, jo, 'is done', 'stops showing it, and nothing was left on the map')
+  await jo.press('Stop showing', area)
+  await expect(area.getByRole('button', { name: 'View', exact: true })).toBeVisible()
+  jo.did('message-stop-showing')
+  await jo.pause(1200)
 }

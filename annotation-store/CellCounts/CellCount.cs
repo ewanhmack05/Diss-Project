@@ -14,6 +14,9 @@ public class CellCount
     public string SlideId { get; set; } = "";
     public string Label { get; set; } = "";
     public string Notes { get; set; } = "";
+    // The CellCountGroup it's in, if any - always one in the same collection.
+    // Changed through PUT /cellcounts/group, not saving the count.
+    public Guid? GroupId { get; set; }
     // Every dot placed during the session, as JSON text
     // (`[{"x":123,"y":456,"colour":"#fff614"}, ...]`) - same
     // plain-text-not-a-real-column convention as GeoJson below, in the same

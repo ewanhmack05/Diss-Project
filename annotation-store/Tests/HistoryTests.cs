@@ -361,6 +361,120 @@ public class HistoryTests : IClassFixture<CellCountApiFactory>
             ids.Select(changeSetId => rows.Single(r => r.Id == changeSetId).What));
     }
 
+    private static ImportSource SentBy(string from, Guid? collection = null, List<SourceRow>? rows = null, Guid? message = null) =>
+        new(message ?? Guid.NewGuid(), from, $"User {from}", "annotations", "Tumour", collection, "003", rows);
+
+    [Fact]
+    public async Task AddingSomethingSent_SaysWhereItCameFrom_InTheListAndTheChange()
+    {
+        var bob = As("bob");
+        var id = (await OwnAsync(bob)).CollectionId;
+        var (from, to, message, theirs) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+
+        var added = await bob.PostAsJsonAsync($"/collections/{id}/import", new ImportRequest(
+            [new Annotation { Id = to, Label = "copy" }], [], null,
+            SentBy("alice", theirs, [new SourceRow(HistoryLog.Annotation, from, to)], message)), Json);
+        added.EnsureSuccessStatusCode();
+
+        var list = (await bob.GetFromJsonAsync<List<ChangeSetView>>($"/changesets?collectionId={id}", Json))!;
+        var change = Assert.Single(list);
+        Assert.Equal("add from message", change.What);
+        Assert.Equal(("bob", "User bob"), (change.UserId, change.UserName));
+        Assert.Equal(new ChangeSetSource(message, "alice", "User alice", "annotations", "Tumour", theirs, "003", 1, 0), change.Source);
+
+        var detail = (await bob.GetFromJsonAsync<ChangeSetChanges>($"/changesets/{change.Id}/changes", Json))!;
+        Assert.Equal([new SourceRow(HistoryLog.Annotation, from, to)], detail.CopiedFrom);
+        Assert.Equal(1, detail.Created);
+        // The adder is the author of the copy - the original author is in Source.
+        var row = (await added.Content.ReadFromJsonAsync<ImportResult>(Json))!.Annotations.Single();
+        Assert.Equal(("bob", "User bob"), (row.CreatedById, row.CreatedByName));
+    }
+
+    [Fact]
+    public async Task AddingSomethingSent_CountsAsAnAdd_NotAnImport()
+    {
+        var bob = As("bob");
+        var id = (await OwnAsync(bob)).CollectionId;
+
+        (await bob.PostAsJsonAsync($"/collections/{id}/import", new ImportRequest([new Annotation { Label = "copy" }], [], null, SentBy("alice")), Json)).EnsureSuccessStatusCode();
+
+        var adds = (await bob.GetFromJsonAsync<List<ChangeSetView>>($"/changesets?collectionId={id}&kind=add", Json))!;
+        Assert.Single(adds);
+        Assert.Empty((await bob.GetFromJsonAsync<List<ChangeSetView>>($"/changesets?collectionId={id}&kind=import", Json))!);
+    }
+
+    [Fact]
+    public async Task AFileImport_HasNoSource()
+    {
+        var bob = As("bob");
+        var id = (await OwnAsync(bob)).CollectionId;
+
+        (await bob.PostAsJsonAsync($"/collections/{id}/import", new ImportRequest([new Annotation { Label = "file" }], []), Json)).EnsureSuccessStatusCode();
+
+        var change = Assert.Single((await bob.GetFromJsonAsync<List<ChangeSetView>>($"/changesets?collectionId={id}", Json))!);
+        Assert.Equal("import", change.What);
+        Assert.Null(change.Source);
+        Assert.Null((await bob.GetFromJsonAsync<ChangeSetChanges>($"/changesets/{change.Id}/changes", Json))!.CopiedFrom);
+    }
+
+    [Fact]
+    public async Task ASource_HasToSayWhoAndWhat_AndItsRowsHaveToBeInTheImport()
+    {
+        var bob = As("bob");
+        var id = (await OwnAsync(bob)).CollectionId;
+        var here = Guid.NewGuid();
+        Task<HttpResponseMessage> Add(ImportSource source) => bob.PostAsJsonAsync($"/collections/{id}/import",
+            new ImportRequest([new Annotation { Id = here, Label = "copy" }], [], null, source), Json);
+
+        var bad = new[]
+        {
+            SentBy("alice") with { MessageId = Guid.Empty },
+            SentBy("alice") with { FromUserId = " " },
+            SentBy("alice") with { FromName = "" },
+            SentBy("alice") with { Kind = "" },
+            SentBy("alice") with { Name = new string('x', 301) },
+            SentBy("alice", rows: [new SourceRow(HistoryLog.Annotation, Guid.NewGuid(), Guid.NewGuid())]),
+            SentBy("alice", rows: [new SourceRow(HistoryLog.CellCount, Guid.NewGuid(), here)]),
+            SentBy("alice", rows: [new SourceRow("nonsense", Guid.NewGuid(), here)]),
+            SentBy("alice", rows: [new SourceRow(HistoryLog.Annotation, Guid.Empty, here)]),
+        };
+        foreach (var source in bad)
+            Assert.Equal(HttpStatusCode.BadRequest, (await Add(source)).StatusCode);
+
+        // A refused one leaves nothing behind.
+        Assert.Empty((await bob.GetFromJsonAsync<List<ChangeSetView>>($"/changesets?collectionId={id}", Json))!);
+    }
+
+    [Fact]
+    public async Task ASource_StillNeedsYouToBeAbleToEdit()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+
+        var response = await As("bob").PostAsJsonAsync($"/collections/{id}/import",
+            new ImportRequest([new Annotation { Label = "copy" }], [], null, SentBy("alice")), Json);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ASource_SurvivesTheChangeBeingPutBack()
+    {
+        var bob = As("bob");
+        var id = (await OwnAsync(bob)).CollectionId;
+        var copy = Guid.NewGuid();
+        var added = await bob.PostAsJsonAsync($"/collections/{id}/import", new ImportRequest([new Annotation { Id = copy, Label = "copy" }], [], null, SentBy("alice")), Json);
+        var addedChange = ChangeSetOf(added);
+        (await bob.DeleteAsync($"/annotations/{copy}")).EnsureSuccessStatusCode();
+        var deleted = (await bob.GetFromJsonAsync<List<ChangeSetView>>($"/changesets?collectionId={id}", Json))!.First();
+
+        (await bob.PostAsync($"/changesets/{deleted.Id}/restore", null)).EnsureSuccessStatusCode();
+
+        var list = (await bob.GetFromJsonAsync<List<ChangeSetView>>($"/changesets?collectionId={id}", Json))!;
+        Assert.Equal("User alice", list.Single(c => c.Id == addedChange).Source!.FromName);
+        Assert.Equal(2, list.Count(c => c.Source is null));
+    }
+
     [Fact]
     public async Task AChangeSetId_IsOnePersonInOneCollection()
     {

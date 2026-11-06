@@ -15,6 +15,12 @@ public class ChangeSet
     // What the first request in it did, e.g. "delete annotations".
     public string What { get; set; } = "";
     public DateTimeOffset Created { get; set; }
+    // Where it came from, when it's something sent in a message: who sent it,
+    // the message and the collection it was copied from. See ChangeSetSource.
+    public string? Source { get; set; }
+    // Which row each new one was copied from. Apart from Source since it's a
+    // pair of ids per row, and the History list reads Source for every line.
+    public string? SourceRows { get; set; }
 }
 
 public enum HistoryOp { Create, Update, Delete }

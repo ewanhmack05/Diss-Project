@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
 
-type ToolId = 'annotations' | 'cellcount' | 'rotate' | 'ruler' | 'adjustments' | 'realtime' | 'collections'
+type ToolId = 'annotations' | 'cellcount' | 'rotate' | 'ruler' | 'adjustments' | 'realtime' | 'collections' | 'messages'
 
 // What each panel is called, for anything that has to name one.
 const TOOL_NAMES: Record<ToolId, string> = {
@@ -11,6 +11,7 @@ const TOOL_NAMES: Record<ToolId, string> = {
   adjustments: 'Adjustments',
   realtime: 'Collaboration',
   collections: 'Collections',
+  messages: 'Messages',
 }
 
 interface ToolbarContextValue {

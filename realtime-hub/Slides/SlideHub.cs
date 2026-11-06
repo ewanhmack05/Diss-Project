@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.SignalR;
 using RealtimeHub.Auth;
+using RealtimeHub.Presence;
 
 namespace RealtimeHub.Slides;
 
@@ -26,6 +27,7 @@ public interface ISlideClient
     Task SharedCountChanged(SharedCount? sharedCount);
     Task SharedDotAdded(SharedDotAdded added);
     Task SharedDotRemoved(SharedDotRemoved removed);
+    Task MessageWaiting(MessageWaiting waiting);
 }
 
 // One SignalR group per room, and a room is a session - its collection's
@@ -203,6 +205,17 @@ public partial class SlideHub(SlideRooms rooms, ISessionAccess sessions, ILogger
         var roomId = rooms.SetNavigation(Context.ConnectionId, mode)
             ?? throw new HubException("Only the host can change how people move round");
         await Clients.Group(GroupName(roomId)).NavigationChanged(mode);
+    }
+
+    // Says something's waiting in the session's chat, to everyone else in the room.
+    // Ids only, and messaging decides who can read it. View only people can talk
+    // in it, but guests can't use it at all.
+    public async Task NotifySession(Guid conversationId, Guid messageId)
+    {
+        if (conversationId == Guid.Empty || messageId == Guid.Empty) throw new HubException("conversationId and messageId are required");
+        var me = rooms.Get(Context.ConnectionId) ?? throw NotJoined();
+        if (me.Guest) throw new HubException("Guests can't use the session's chat");
+        await Clients.OthersInGroup(GroupName(me.RoomId)).MessageWaiting(new MessageWaiting(conversationId, messageId));
     }
 
     // Relay only - the sender still saves to annotation-store itself for now.

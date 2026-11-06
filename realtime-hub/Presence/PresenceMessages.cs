@@ -1,5 +1,9 @@
 namespace RealtimeHub.Presence;
 
+// Something's waiting in messaging. Only ids, and whoever hears it still has to
+// fetch it as themselves, so a faked one shows nobody anything. On both hubs.
+public record MessageWaiting(Guid ConversationId, Guid MessageId);
+
 // What the viewer says about where it is. SessionId is the room it's in, if
 // any - not a secret, since getting into a room still needs annotation-store
 // to say yes. Hosting is whether it's that session's host.

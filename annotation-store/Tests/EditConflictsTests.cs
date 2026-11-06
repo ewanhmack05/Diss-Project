@@ -2,6 +2,7 @@ using System.Diagnostics.Metrics;
 using System.Net;
 using System.Net.Http.Json;
 using AnnotationStore.Annotations;
+using AnnotationStore.CellCounts;
 using AnnotationStore.Collections;
 using AnnotationStore.Conflicts;
 using AnnotationStore.History;
@@ -140,6 +141,108 @@ public class EditConflictsTests : IClassFixture<CellCountApiFactory>, IDisposabl
         Assert.Equal((false, 0), await ChangeSetAsync(allRefused));
         Assert.Equal((1, 1), (through.Count, through.Conflicts!.Count));
         Assert.Equal((true, 1), await ChangeSetAsync(partly));
+    }
+
+    private async Task<CountGroupView> CountGroupAsync(HttpClient client, Guid session, string name = "Mitoses")
+    {
+        var response = await client.PostAsJsonAsync("/cellcountgroups", new NewCountGroupRequest(session, name), Json);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<CountGroupView>(Json))!;
+    }
+
+    [Fact]
+    public async Task FirstComeWins_TurnsDownACountGroupsNameFromAnOldCopy_SayingWho()
+    {
+        var session = await SessionAsync(EditPolicy.FirstComeWins);
+        var (alice, bob) = (As("alice"), As("bob"));
+        var group = await CountGroupAsync(alice, session.CollectionId);
+        var before = Counted(EditPolicy.FirstComeWins, HistoryLog.CellCountGroup);
+        (await alice.PutAsJsonAsync($"/cellcountgroups/{group.Id}", new CountGroupUpdateRequest("Alice's", WasName: "Mitoses"), Json)).EnsureSuccessStatusCode();
+
+        var refused = await bob.PutAsJsonAsync($"/cellcountgroups/{group.Id}", new CountGroupUpdateRequest("Bob's", WasName: "Mitoses"), Json);
+
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        var conflict = (await refused.Content.ReadFromJsonAsync<ConflictView>(Json))!;
+        Assert.Equal((HistoryLog.CellCountGroup, "User alice"), (conflict.Entity, conflict.ChangedBy));
+        Assert.Equal(before + 1, Counted(EditPolicy.FirstComeWins, HistoryLog.CellCountGroup));
+
+        // Saying yes means saving again from what it is now.
+        (await bob.PutAsJsonAsync($"/cellcountgroups/{group.Id}", new CountGroupUpdateRequest("Bob's", WasName: "Alice's"), Json)).EnsureSuccessStatusCode();
+    }
+
+    [Fact]
+    public async Task LastWriteWins_LetsACountGroupsNameThrough_AndSaysItOverwrote()
+    {
+        var session = await SessionAsync(EditPolicy.LastWriteWins);
+        var (alice, bob) = (As("alice"), As("bob"));
+        var group = await CountGroupAsync(alice, session.CollectionId);
+        (await alice.PutAsJsonAsync($"/cellcountgroups/{group.Id}", new CountGroupUpdateRequest("Alice's", WasName: "Mitoses"), Json)).EnsureSuccessStatusCode();
+
+        var through = await bob.PutAsJsonAsync($"/cellcountgroups/{group.Id}", new CountGroupUpdateRequest("Bob's", WasName: "Mitoses"), Json);
+
+        through.EnsureSuccessStatusCode();
+        Assert.True(through.Headers.Contains(EditConflicts.OverwroteHeader));
+    }
+
+    [Fact]
+    public async Task FirstComeWins_ChangingNotes_LeavesAnotherPersonsNameAlone()
+    {
+        var session = await SessionAsync(EditPolicy.FirstComeWins);
+        var (alice, bob) = (As("alice"), As("bob"));
+        var group = await CountGroupAsync(alice, session.CollectionId);
+        (await alice.PutAsJsonAsync($"/cellcountgroups/{group.Id}", new CountGroupUpdateRequest("Alice's", WasName: "Mitoses"), Json)).EnsureSuccessStatusCode();
+
+        var saved = await bob.PutAsJsonAsync($"/cellcountgroups/{group.Id}", new CountGroupUpdateRequest(Notes: "Bob's notes", WasNotes: ""), Json);
+
+        saved.EnsureSuccessStatusCode();
+        var view = (await saved.Content.ReadFromJsonAsync<CountGroupView>(Json))!;
+        Assert.Equal(("Alice's", "Bob's notes"), (view.Name, view.Notes));
+    }
+
+    [Fact]
+    public async Task FirstComeWins_LeavesCountsSomeoneElseMoved_AndMovesTheRest()
+    {
+        var session = await SessionAsync(EditPolicy.FirstComeWins);
+        var (alice, bob) = (As("alice"), As("bob"));
+        var id = session.CollectionId;
+        var (first, second) = (await CountGroupAsync(alice, id, "First"), await CountGroupAsync(alice, id, "Second"));
+        async Task<Guid> Count()
+        {
+            var response = await alice.PostAsJsonAsync("/cellcounts", new CellCount { CollectionId = id, Dots = "[]" }, Json);
+            return (await response.Content.ReadFromJsonAsync<CellCount>(Json))!.Id;
+        }
+        var (taken, free) = (await Count(), await Count());
+        (await alice.PutAsJsonAsync("/cellcounts/group", new CountGroupMoveRequest(id, [taken], first.Id, new() { [taken] = null }), Json)).EnsureSuccessStatusCode();
+
+        var moved = await bob.PutAsJsonAsync("/cellcounts/group", new CountGroupMoveRequest(id, [taken, free], second.Id, new() { [taken] = null, [free] = null }), Json);
+
+        var result = (await moved.Content.ReadFromJsonAsync<BulkResult>(Json))!;
+        Assert.Equal(1, result.Count);
+        var conflict = Assert.Single(result.Conflicts!);
+        Assert.Equal((taken, first.Id, "User alice"), (conflict.Id, conflict.GroupId, conflict.ChangedBy));
+
+        // All of it turned down leaves no change behind.
+        var changes = (await bob.GetFromJsonAsync<List<ChangeSetView>>($"/changesets?collectionId={id}", Json))!.Count;
+        var refused = await bob.PutAsJsonAsync("/cellcounts/group", new CountGroupMoveRequest(id, [taken], second.Id, new() { [taken] = null }), Json);
+        Assert.Equal(0, (await refused.Content.ReadFromJsonAsync<BulkResult>(Json))!.Count);
+        Assert.Equal(changes, (await bob.GetFromJsonAsync<List<ChangeSetView>>($"/changesets?collectionId={id}", Json))!.Count);
+    }
+
+    [Fact]
+    public async Task LastWriteWins_MovesCountsAnyway_AndSaysHowManyItOverwrote()
+    {
+        var session = await SessionAsync(EditPolicy.LastWriteWins);
+        var (alice, bob) = (As("alice"), As("bob"));
+        var id = session.CollectionId;
+        var (first, second) = (await CountGroupAsync(alice, id, "First"), await CountGroupAsync(alice, id, "Second"));
+        var response = await alice.PostAsJsonAsync("/cellcounts", new CellCount { CollectionId = id, Dots = "[]" }, Json);
+        var count = (await response.Content.ReadFromJsonAsync<CellCount>(Json))!.Id;
+        (await alice.PutAsJsonAsync("/cellcounts/group", new CountGroupMoveRequest(id, [count], first.Id), Json)).EnsureSuccessStatusCode();
+
+        var moved = await bob.PutAsJsonAsync("/cellcounts/group", new CountGroupMoveRequest(id, [count], second.Id, new() { [count] = null }), Json);
+
+        var result = (await moved.Content.ReadFromJsonAsync<BulkResult>(Json))!;
+        Assert.Equal((1, 1), (result.Count, result.Overwrote));
     }
 
     [Fact]
