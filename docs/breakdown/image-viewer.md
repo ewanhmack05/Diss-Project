@@ -705,11 +705,11 @@ viewing one you've never paged to).
 Three providers deal with other people. The hub side is in
 [realtime-hub.md](realtime-hub.md).
 
-| Provider     | Connection              | What for                                                                                           |
-| ------------ | ----------------------- | -------------------------------------------------------------------------------------------------- |
-| `Presence`   | Its own, the whole time | The Users tab: everyone with an account, who's online, what they're doing. Inviting someone online |
-| `Realtime`   | Only in a session       | The room: viewports, sketches, ops, shared text, comparison and shared counts                      |
-| `Navigation` | Uses `Realtime`         | Follow and Present                                                                                 |
+| Provider     | Connection              | What for                                                                      |
+| ------------ | ----------------------- | ----------------------------------------------------------------------------- |
+| `Presence`   | Its own, the whole time | The Users tab: everyone with an account, who's online, what they're doing     |
+| `Realtime`   | Only in a session       | The room: viewports, sketches, ops, shared text, comparison and shared counts |
+| `Navigation` | Uses `Realtime`         | Follow and Present                                                            |
 
 ### The Collaboration panel
 
@@ -782,7 +782,9 @@ that can float anywhere or dock to an edge. Dragging uses dnd-kit.
   changes (a top dock spans the screen, a floating panel is 20em). A ghost
   stands in for it during the drag, because dnd-kit would otherwise undo the
   position change.
-- **Stacking** - the last one clicked is in front (`focusOrder.ts`).
+- **Stacking** - the last one clicked is in front (`focusOrder.ts`). Something that
+  opens another panel for you, like Message or Invite on the Users tab, uses
+  `raiseTool` so it comes in front of the panel you just clicked in.
 
 The geometry is in [dock.ts](../../image-viewer/src/components/toolbar/dock.ts),
 [panelPlacement.ts](../../image-viewer/src/components/toolbar/panelPlacement.ts)

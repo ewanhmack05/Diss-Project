@@ -90,7 +90,7 @@ function MessagingContextProvider({ baseUrl, children }: { baseUrl?: string; chi
 	const { session } = useCollectionContext();
 	const { status: presenceStatus, notifyUser, onMessageWaiting: onPresenceWaiting } = usePresenceContext();
 	const { notifySession, onMessageWaiting: onRoomWaiting } = useRealtimeContext();
-	const { openTool, activeTools } = useToolbarContext();
+	const { raiseTool, activeTools } = useToolbarContext();
 	const { addToast } = useToastContext();
 	const emit = useEmitEvent();
 	const enabled = !!baseUrl && !user.guest;
@@ -187,17 +187,17 @@ function MessagingContextProvider({ baseUrl, children }: { baseUrl?: string; chi
 		(userId: string) => {
 			setOpenUserId(userId);
 			setOpenRequests((n) => n + 1);
-			openTool("messages");
+			raiseTool("messages");
 		},
-		[openTool],
+		[raiseTool],
 	);
 
 	const sendToSomeone = useCallback(
 		(staged: Staged) => {
 			setPendingSend(staged);
-			openTool("messages");
+			raiseTool("messages");
 		},
-		[openTool],
+		[raiseTool],
 	);
 
 	const takePendingSend = useCallback(() => {
@@ -226,6 +226,9 @@ function MessagingContextProvider({ baseUrl, children }: { baseUrl?: string; chi
 				body: JSON.stringify(body),
 			});
 			const saved = (await response.json()) as Message;
+			// The hub doesn't tell this tab, and the Users tab sends with the
+			// conversation already open, so it has to hear from here to show it.
+			setLastWaiting({ conversationId: saved.conversationId, messageId: saved.id });
 			// Saved, so a hub that's away only means they find it on their next load.
 			const tell =
 				target.kind === "direct" ? notifyUser(target.userId, saved.conversationId, saved.id) : notifySession(saved.conversationId, saved.id);

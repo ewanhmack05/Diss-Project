@@ -15,7 +15,7 @@ import { readRows, shownFromArea, shownFromRows, type ShownArea } from "./sentAr
 // the preview and View both want it.
 const shownByMessage = new Map<string, ShownArea | null>();
 
-// Same as the Users tab's, for when the session has no working invite yet.
+// Same as SessionInvite starts on, for when the session has no working invite yet.
 const NEW_INVITE = { role: "editor", hours: 24 } as const;
 
 // Reading what's being sent from annotation-store, and adding what's been

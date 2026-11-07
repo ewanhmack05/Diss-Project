@@ -166,18 +166,23 @@ describe("describeUser", () => {
 });
 
 describe("whyCantInvite", () => {
-	const hosting = { slideId: "003", sessionId: "s1", hosting: true };
+	const hosting = { sessionId: "s1", hosting: true };
 
-	it("lets the host invite someone on the same slide", () => {
+	it("lets the host invite anyone not in it", () => {
 		expect(whyCantInvite(user("bob", 1), hosting)).toBeNull();
 		expect(whyCantInvite(user("bob", 1, { sessionId: "s2" }), hosting)).toBeNull();
+	});
+
+	// It waits in their messages, so neither of these stops it now.
+	it("lets the host invite someone offline or on another slide", () => {
+		expect(whyCantInvite(null, hosting)).toBeNull();
+		expect(whyCantInvite(user("bob", 1, { slideId: "001" }), hosting)).toBeNull();
 	});
 
 	it("says why not otherwise", () => {
 		expect(whyCantInvite(user("bob", 1), { ...hosting, hosting: false })).toMatch(/Host a session/);
 		expect(whyCantInvite(user("bob", 1), { ...hosting, sessionId: null })).toMatch(/Host a session/);
+		expect(whyCantInvite(null, { ...hosting, hosting: false })).toMatch(/Host a session/);
 		expect(whyCantInvite(user("bob", 1, { sessionId: "s1" }), hosting)).toMatch(/already in it/);
-		expect(whyCantInvite(user("bob", 1, { slideId: "001" }), hosting)).toMatch(/another slide/);
-		expect(whyCantInvite(null, hosting)).toMatch(/offline/);
 	});
 });

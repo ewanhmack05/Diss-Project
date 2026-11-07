@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.SignalR;
 using RealtimeHub.Auth;
 
@@ -9,21 +8,15 @@ public interface IPresenceClient
     // Someone came online, or where they are changed.
     Task UserOnline(OnlineUser user);
     Task UserOffline(UserOffline user);
-    Task InviteReceived(UserInvite invite);
     Task MessageWaiting(MessageWaiting waiting);
 }
 
 // Who's online, and everyone with an account, for the viewer's Users tab.
 // Separate from SlideHub, since the viewer stays connected here the whole
 // time it's open, in a session or not.
-public partial class PresenceHub(OnlineUsers online, IUserDirectory directory, ILogger<PresenceHub> logger) : Hub<IPresenceClient>
+public class PresenceHub(OnlineUsers online, IUserDirectory directory, ILogger<PresenceHub> logger) : Hub<IPresenceClient>
 {
     public const int MaxIdLength = 128;
-    public const int MaxCodeLength = 64;
-
-    // Invite codes are url-safe base64 - see annotation-store's CollectionEndpoints.
-    [GeneratedRegex("^[A-Za-z0-9_-]+$")]
-    private static partial Regex CodeShape();
 
     public override async Task OnConnectedAsync()
     {
@@ -59,8 +52,6 @@ public partial class PresenceHub(OnlineUsers online, IUserDirectory directory, I
         if (changed is not null) await Clients.Others.UserOnline(changed);
     }
 
-    // Goes to every tab they have open. The hub doesn't check the code -
-    // annotation-store does when they open it.
     // Says something's waiting in messaging, to every tab they have open and your
     // own other tabs. Nothing happens if they're offline - it's saved, and they
     // find it on their next load.
@@ -74,21 +65,6 @@ public partial class PresenceHub(OnlineUsers online, IUserDirectory directory, I
             .Distinct()
             .ToList();
         if (targets.Count > 0) await Clients.Clients(targets).MessageWaiting(new MessageWaiting(conversationId, messageId));
-    }
-
-    public async Task InviteUser(string userId, string code)
-    {
-        if (string.IsNullOrWhiteSpace(userId)) throw new HubException("userId is required");
-        if (string.IsNullOrEmpty(code) || code.Length > MaxCodeLength || !CodeShape().IsMatch(code))
-            throw new HubException("That isn't an invite code");
-        var me = Context.User!;
-        if (userId == me.UserId()) throw new HubException("You can't invite yourself");
-
-        var targets = online.ConnectionsOf(userId);
-        if (targets.Count == 0) throw new HubException("They're not online any more");
-
-        await Clients.Clients(targets).InviteReceived(new UserInvite(me.UserId(), me.DisplayName(), code, DateTimeOffset.UtcNow));
-        logger.LogInformation("{From} invited {To} to a session", me.UserId(), userId);
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)

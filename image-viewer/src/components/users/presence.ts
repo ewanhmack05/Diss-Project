@@ -28,13 +28,6 @@ interface OnlineSnapshot {
 	version: number;
 }
 
-interface UserInvite {
-	fromUserId: string;
-	fromName: string;
-	code: string;
-	sent: string;
-}
-
 // Someone with an account in Keycloak, online or not.
 interface DirectoryUser {
 	userId: string;
@@ -104,8 +97,7 @@ function listUsers(directory: DirectoryUser[] | null, state: PresenceState, myUs
 	return [...online.map((u) => ({ userId: u.userId, displayName: u.displayName, online: u })), ...offline];
 }
 
-// Same shape annotation-store makes them (url-safe base64), and the most
-// realtime-hub will pass on.
+// Same shape annotation-store makes them (url-safe base64).
 const CODE_SHAPE = /^[A-Za-z0-9_-]{1,64}$/;
 
 // The invite code from whatever was pasted or typed - the code on its own,
@@ -131,16 +123,14 @@ function describeUser(user: OnlineUser | null, me: { slideId: string; sessionId:
 	return user.slideId === me.slideId ? `${what} · this slide` : `${what} · slide ${user.slideId}`;
 }
 
-// Why you can't invite them, or null if you can. Only the host invites, only
-// someone online can be asked, and a session is on one slide - anyone on
-// another couldn't open it here.
-function whyCantInvite(user: OnlineUser | null, me: { slideId: string; sessionId: string | null; hosting: boolean }): string | null {
+// Why you can't invite them, or null if you can. Only the host invites. It waits
+// in their messages, so being offline or on another slide doesn't matter - the
+// preview says if it's for a slide they haven't got open.
+function whyCantInvite(user: OnlineUser | null, me: { sessionId: string | null; hosting: boolean }): string | null {
 	if (!me.hosting || !me.sessionId) return "Host a session to invite people";
-	if (!user) return "They're offline";
-	if (user.sessionId === me.sessionId) return "They're already in it";
-	if (user.slideId !== me.slideId) return "They're on another slide";
+	if (user?.sessionId === me.sessionId) return "They're already in it";
 	return null;
 }
 
 export { applyOnline, applyOffline, applySnapshot, onlineUsers, listUsers, inviteCodeFrom, describeUser, whyCantInvite };
-export type { PresenceWhere, OnlineUser, UserOffline, OnlineSnapshot, UserInvite, DirectoryUser, ListedUser, PresenceState };
+export type { PresenceWhere, OnlineUser, UserOffline, OnlineSnapshot, DirectoryUser, ListedUser, PresenceState };

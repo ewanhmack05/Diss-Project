@@ -235,48 +235,6 @@ public class PresenceHubTests : IClassFixture<HubFactory>
     }
 
     [Fact]
-    public async Task InviteUser_ReachesEveryTabTheyHave_FromWhoTheTokenSays()
-    {
-        var aliceId = NewUser("alice");
-        var bobId = NewUser("bob");
-        await using var alice = await ConnectAsync(aliceId);
-        await using var bobTab1 = await ConnectAsync(bobId);
-        await using var bobTab2 = await ConnectAsync(bobId);
-        var got1 = Listen<UserInvite>(bobTab1, nameof(IPresenceClient.InviteReceived), _ => true);
-        var got2 = Listen<UserInvite>(bobTab2, nameof(IPresenceClient.InviteReceived), _ => true);
-        var aliceGot = Listen<UserInvite>(alice, nameof(IPresenceClient.InviteReceived), _ => true);
-
-        await alice.InvokeAsync("InviteUser", bobId, "juyhsUFHC4gB");
-
-        var invite = await got1.Task.WaitAsync(Timeout);
-        Assert.Equal("juyhsUFHC4gB", invite.Code);
-        Assert.Equal(aliceId, invite.FromUserId);
-        Assert.Equal($"User {aliceId}", invite.FromName);
-        Assert.Equal(invite.Code, (await got2.Task.WaitAsync(Timeout)).Code);
-        await Task.Delay(200);
-        Assert.False(aliceGot.Task.IsCompleted);
-    }
-
-    [Fact]
-    public async Task InviteUser_TurnsDownBadAsks()
-    {
-        var aliceId = NewUser("alice");
-        var bobId = NewUser("bob");
-        await using var alice = await ConnectAsync(aliceId);
-        await using var bob = await ConnectAsync(bobId);
-
-        var notACode = await Assert.ThrowsAsync<HubException>(() => alice.InvokeAsync("InviteUser", bobId, "not a code!"));
-        Assert.Contains("isn't an invite code", notACode.Message);
-        var tooLong = await Assert.ThrowsAsync<HubException>(() =>
-            alice.InvokeAsync("InviteUser", bobId, new string('a', PresenceHub.MaxCodeLength + 1)));
-        Assert.Contains("isn't an invite code", tooLong.Message);
-        var self = await Assert.ThrowsAsync<HubException>(() => alice.InvokeAsync("InviteUser", aliceId, "juyhsUFHC4gB"));
-        Assert.Contains("yourself", self.Message);
-        var offline = await Assert.ThrowsAsync<HubException>(() => alice.InvokeAsync("InviteUser", NewUser("carol"), "juyhsUFHC4gB"));
-        Assert.Contains("not online", offline.Message);
-    }
-
-    [Fact]
     public async Task SetWhere_LimitsIdLengths()
     {
         await using var alice = await ConnectAsync(NewUser("alice"));

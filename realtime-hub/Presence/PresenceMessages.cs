@@ -26,11 +26,6 @@ public record UserOffline(string UserId, long Version);
 // Everyone online as of Version.
 public record OnlineSnapshot(IReadOnlyList<OnlineUser> Users, long Version);
 
-// One person asking another into their session. The code is an ordinary
-// invite code - whoever gets it still sees annotation-store's preview of
-// what it's for before joining.
-public record UserInvite(string FromUserId, string FromName, string Code, DateTimeOffset Sent);
-
 // Someone with an account in Keycloak, online or not. DisplayName is made
 // the same way as the token's name claim, so it matches what OnlineUser says.
 public record DirectoryUser(string UserId, string Username, string DisplayName);

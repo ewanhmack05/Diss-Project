@@ -4,6 +4,8 @@ import { useCollectionContext } from "../../context/CollectionContext";
 import { useImageViewerContext } from "../../context/ImageViewerContext";
 import { useEmitEvent } from "../../context/EventContext";
 import { useMessagingContext } from "../../context/MessagingContext";
+import { newId } from "../../newId";
+import { useSentThings } from "../messages/useSentThings";
 import { describeUser, whyCantInvite, type ListedUser } from "./presence";
 import "./Users.css";
 
@@ -13,19 +15,17 @@ const STATUS_TEXT = {
 	offline: "Can't reach the real-time hub - trying again.",
 } as const;
 
-// Same as SessionInvite starts on, for when there's no working invite yet.
-const NEW_INVITE = { role: "editor", hours: 24 } as const;
-
-// Everyone with an account in Keycloak - who's online now, with what
-// they're doing, then everyone else. The host can send anyone online on
-// the same slide the session's invite, which comes up for them to say yes
-// or no to.
+// Everyone with an account in Keycloak - who's online now, with what they're
+// doing, then everyone else. The host can invite any of them, which opens your
+// conversation with them and sends the session's invite there. It waits in their
+// messages, so they can be offline, and nothing pops up on them.
 function UsersList() {
-	const { status, users, onlineCount, everyoneLoaded, inviteUser } = usePresenceContext();
-	const { session, loadInvites, createInvite } = useCollectionContext();
+	const { status, users, onlineCount, everyoneLoaded } = usePresenceContext();
+	const { session } = useCollectionContext();
 	const { source } = useImageViewerContext();
 	const emit = useEmitEvent();
-	const { status: messaging, messageUser } = useMessagingContext();
+	const { status: messaging, messageUser, send } = useMessagingContext();
+	const { inviteFor } = useSentThings();
 	const [sending, setSending] = useState<string | null>(null);
 	// Who's been asked into which session, so the button says so.
 	const [asked, setAsked] = useState<{ sessionId: string | null; userIds: string[] }>({ sessionId: null, userIds: [] });
@@ -40,12 +40,12 @@ function UsersList() {
 	const online = users.filter((u) => u.online);
 	const offline = users.filter((u) => !u.online);
 
-	// The working invite, or a new one if it's been stopped or run out.
+	// Not through the box you write in, so nothing half written goes with it.
 	const invite = async (person: ListedUser) => {
 		setSending(person.userId);
+		messageUser(person.userId);
 		try {
-			const code = (await loadInvites())[0]?.code ?? (await createInvite(NEW_INVITE.role, NEW_INVITE.hours)).code;
-			await inviteUser(person.userId, code);
+			await send({ kind: "direct", userId: person.userId }, { id: newId(), body: "", attachment: await inviteFor() });
 			setAsked({ sessionId: me.sessionId, userIds: [...askedHere, person.userId] });
 			emit("user:invited", { userId: person.userId });
 		} catch {
@@ -71,7 +71,7 @@ function UsersList() {
 						Message
 					</button>
 				)}
-				{me.hosting && person.online && (
+				{me.hosting && messaging !== "off" && (
 					<button
 						type="button"
 						className="realtime-button"
@@ -94,11 +94,6 @@ function UsersList() {
 				{status !== "connected" && <p className="realtime-note">{STATUS_TEXT[status]}</p>}
 				{status === "connected" && online.length === 0 && <p className="realtime-note">Nobody else is online right now.</p>}
 				{online.length > 0 && <ul className="realtime-people">{online.map(row)}</ul>}
-				{online.length > 0 && me.hosting && (
-					<p className="realtime-note">
-						They get your session's invite to look at first. With no working invite, one is made that lets them edit for 24 hours.
-					</p>
-				)}
 			</section>
 
 			{offline.length > 0 && (
@@ -109,6 +104,12 @@ function UsersList() {
 			)}
 			{status === "connected" && !everyoneLoaded && (
 				<p className="realtime-note">Couldn't load everyone from Keycloak - only showing who's online.</p>
+			)}
+			{users.length > 0 && me.hosting && messaging !== "off" && (
+				<p className="realtime-note">
+					Invite sends your session's invite as a message, for them to look at first. With no working invite, one is made that lets them edit for 24
+					hours.
+				</p>
 			)}
 		</>
 	);

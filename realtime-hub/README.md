@@ -309,8 +309,8 @@ services) before deploying**, with `GuestTokens__SigningKey`.
 
 A second hub at `/hubs/presence`, separate from the rooms. The viewer stays
 connected to it the whole time it's open, in a session or not, so the
-Users tab can show everyone with an account, who's online, and the host can
-ask them straight into their session.
+Users tab can show everyone with an account and who's online. Invites don't
+come through here - they're messages, so they reach people who are offline.
 
 ### Client → hub
 
@@ -319,7 +319,6 @@ ask them straight into their session.
 | `Online`     | -                                       | `OnlineSnapshot`  | Everyone online, you included                                                                                                                       |
 | `Users`      | -                                       | `DirectoryUser[]` | Everyone with an account in Keycloak, online or not, you included. Fails if Keycloak can't be reached and there's no earlier list                   |
 | `SetWhere`   | `PresenceWhere`                         | -                 | Where this tab is. Call on connect and whenever it changes. Ids up to 128 characters                                                                |
-| `InviteUser` | `userId`, `code`                        | -                 | Sends them an invite code. Fails if it isn't code-shaped (url-safe base64, up to 64), it's you, or they've gone offline                             |
 | `NotifyUser` | `userId`, `conversationId`, `messageId` | -                 | Says something's waiting in [messaging](../messaging/README.md#live-updates), to their tabs and your other ones. Nothing happens if they're offline |
 
 ### Hub → client
@@ -328,7 +327,6 @@ ask them straight into their session.
 | ---------------- | ---------------- | ---------------------------------------------------------------------------- |
 | `UserOnline`     | `OnlineUser`     | Someone comes online, or where they are changes. Not to the tab that changed |
 | `UserOffline`    | `UserOffline`    | Someone's last tab closes                                                    |
-| `InviteReceived` | `UserInvite`     | Someone invited you - to every tab you have open                             |
 | `MessageWaiting` | `MessageWaiting` | Something's waiting in messaging. Only ids - fetch it from there             |
 
 ```ts
@@ -344,7 +342,6 @@ type OnlineUser = {
 };
 type UserOffline = { userId: string; version: number };
 type OnlineSnapshot = { users: OnlineUser[]; version: number };
-type UserInvite = { fromUserId: string; fromName: string; code: string; sent: string };
 type DirectoryUser = { userId: string; username: string; displayName: string };
 type MessageWaiting = { conversationId: string; messageId: string };
 ```

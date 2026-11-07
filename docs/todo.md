@@ -101,6 +101,9 @@ an afternoon, medium a few days, large a week or more.
   collections, for [personal vs session as branches](#things-to-decide-before-building)
 - **Cell count groups** - the same as annotation groups, merging and first change
   wins included, and they go through history, put back, rollback and snapshots
+- **Invites are messages** - Invite on the Users tab opens your conversation with them
+  and sends it there, so they can be offline and nothing pops up. `InviteUser` is gone
+  from the hub
 - **Playback videos** - `node record.js` in [playback](../playback/README.md) remakes
   them all, messaging included, and each scene checks what it shows
 
@@ -278,13 +281,11 @@ The per-person on/off is done (see Done). Still open:
 
 Built (see Done). Still open:
 
-- **`InviteUser`** - the Users tab's Invite still goes through the hub, which only
-  reaches someone online, next to invites sent as messages, which reach anyone
 - **Cell count groups in GeoJSON files** - exporting a collection to a file leaves
   them out. Sending one, and the store's own export, keep them
 - **Send buttons not tried by hand** - on annotation groups, the Select tab and
   collections. Same path as the ones that were, but no video or click has been through them
-- **Session chat and invites as messages aren't in the playback video** - see
+- **Session chat isn't in the playback video** - see
   `NOT_SHOWN` in [coverage.js](../playback/lib/coverage.js)
 
 For the write up: a copy between collections keeps where it came from, which makes
@@ -332,4 +333,3 @@ Not being done for this project - left for the write up as what comes next. See
 
 1. **Reading list** for [background.md](background.md), alongside the others
 2. **Writing it up** - version control is finished and measured
-3. **`InviteUser`** (section 7), which closes messaging off

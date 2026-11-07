@@ -1,6 +1,6 @@
 # Messaging and sending things
 
-**Status: built, apart from replacing `InviteUser`** - see [Building it](#building-it). The
+**Status: built** - see [Building it](#building-it). The
 API and the tables are in [messaging/README.md](../messaging/README.md), which is what's right
 if this page ever disagrees.
 
@@ -24,12 +24,11 @@ and from how many sent items get added.
 
 ## What's there, and what gets in the way
 
-| What                                       | Where                            | What it means here                                                     |
-| ------------------------------------------ | -------------------------------- | ---------------------------------------------------------------------- |
-| Everyone with an account, and who's online | Presence hub, `UsersList.tsx`    | Who to send to already exists                                          |
-| Passing a code to someone online           | `InviteUser` on the presence hub | Fails if they're offline, and nothing's saved. Becomes a saved message |
-| Saving many rows as one change             | `POST /collections/{id}/import`  | Adding something sent can use it, with the changes below               |
-| Reading a whole collection                 | `GET /collections/{id}/export`   | Copying a collection can use it                                        |
+| What                                       | Where                           | What it means here                                       |
+| ------------------------------------------ | ------------------------------- | -------------------------------------------------------- |
+| Everyone with an account, and who's online | Presence hub, `UsersList.tsx`   | Who to send to already exists                            |
+| Saving many rows as one change             | `POST /collections/{id}/import` | Adding something sent can use it, with the changes below |
+| Reading a whole collection                 | `GET /collections/{id}/export`  | Copying a collection can use it                          |
 
 Things found that the design has to work round:
 
@@ -214,8 +213,8 @@ erDiagram
 | `POST /conversations/{id}/read`                | Marks it read up to now                                                                                                                                      |
 
 Hub: `NotifyUser(userId, messageId)` on the presence hub and `NotifySession(messageId)`
-on the slide hub, both sending `MessageWaiting`. `InviteUser` and `InviteReceived` go once
-invites are messages.
+on the slide hub, both sending `MessageWaiting`. Invites are messages, so the hub has no
+part in them.
 
 ## In the viewer
 
@@ -226,7 +225,11 @@ invites are messages.
   an account, and the chat of the session you're in sits at the bottom of the list while you're in
   one. The side folds down to a rail of initials, with unread counts, so the panel covers less of
   the slide. In a side dock, which is only 20em, it stays a rail.
-- **The Users tab** has a **Message** button on each person, which opens it on them.
+- **The Users tab** has a **Message** button on each person, which opens it on them. If
+  you're hosting there's **Invite** too, for anyone not already in the session. It opens
+  your conversation with them and sends the invite there straight away, without whatever's
+  in the box. Nothing pops up on them, it's an unread message like any other, and they can
+  be offline or on another slide. The preview says if it's for a slide they haven't got open.
 - **A conversation** has its messages, a box to type in, and anything sent as a card with
   **Add to my collection**, or **Have a look** for an invite. You don't get those on your own.
 - **Send** is where things are saved: on a row of the Saved tabs, a group of annotations or cell
@@ -263,13 +266,12 @@ invites are messages.
 
 ## Building it
 
-Each is its own piece, and useful without the next. All built, apart from taking `InviteUser` out
-in step 2. It's still there next to invites as messages, and can go once those have been used.
+Each is its own piece, and useful without the next. All built.
 
 1. **messaging service and text messages** - `messaging/` with its own database, tests,
    CI and Dockerfile, in `run_all.py` and `docker-compose.yml`. Users tab and the panel.
    A few days.
-2. **Invites as messages** - works offline, and `InviteUser` goes. An afternoon.
+2. **Invites as messages** - works offline, and `InviteUser` went. An afternoon.
 3. **Sending annotations and groups** - the copy, the limit, Add to my collection. A few
    days.
 4. **Where it came from** - `Source`, migration, the History tab showing it. A day or two.

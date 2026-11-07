@@ -21,6 +21,11 @@ interface ToolbarContextValue {
 	// that need a panel showing.
 	openTool: (id: ToolId) => void;
 	closeTool: (id: ToolId) => void;
+	// Opens it and puts it on top. The click that asked for it has just brought
+	// its own panel forward, so without this it can land behind that.
+	raiseTool: (id: ToolId) => void;
+	// The last one raised. count goes up each time, for the shell to act on.
+	raised: { id: ToolId; count: number } | null;
 	// Which tab each panel is on, for panels that have them - kept here
 	// rather than in the panel so Present can follow the host's.
 	panelTabs: Partial<Record<ToolId, string>>;
@@ -32,6 +37,7 @@ const ToolbarContext = createContext<ToolbarContextValue | null>(null);
 function ToolbarContextProvider({ children }: { children: ReactNode }) {
 	const [activeTools, setActiveTools] = useState<ToolId[]>([]);
 	const [panelTabs, setPanelTabs] = useState<Partial<Record<ToolId, string>>>({});
+	const [raised, setRaised] = useState<{ id: ToolId; count: number } | null>(null);
 
 	// A panel opens on its first tab again after being closed.
 	const forgetTab = useCallback((id: ToolId) => {
@@ -52,6 +58,14 @@ function ToolbarContextProvider({ children }: { children: ReactNode }) {
 		setActiveTools((current) => (current.includes(id) ? current : [...current, id]));
 	}, []);
 
+	const raiseTool = useCallback(
+		(id: ToolId) => {
+			openTool(id);
+			setRaised((current) => ({ id, count: (current?.count ?? 0) + 1 }));
+		},
+		[openTool],
+	);
+
 	const closeTool = useCallback(
 		(id: ToolId) => {
 			forgetTab(id);
@@ -65,7 +79,9 @@ function ToolbarContextProvider({ children }: { children: ReactNode }) {
 	}, []);
 
 	return (
-		<ToolbarContext.Provider value={{ activeTools, toggleTool, openTool, closeTool, panelTabs, setPanelTab }}>{children}</ToolbarContext.Provider>
+		<ToolbarContext.Provider value={{ activeTools, toggleTool, openTool, closeTool, raiseTool, raised, panelTabs, setPanelTab }}>
+			{children}
+		</ToolbarContext.Provider>
 	);
 }
 

@@ -8,7 +8,6 @@ import {
 	onlineUsers,
 	type DirectoryUser,
 	type ListedUser,
-	type UserInvite,
 	type OnlineSnapshot,
 	type OnlineUser,
 	type PresenceState,
@@ -16,11 +15,8 @@ import {
 	type UserOffline,
 } from "../components/users/presence";
 import type { MessageWaitingNote } from "./MessagingContext";
-import { useInviteGate } from "../components/realtime/InviteGate";
 import { useAuthContext } from "./AuthContext";
 import { useCollectionContext } from "./CollectionContext";
-import { useDialogContext } from "./DialogContext";
-import { useEmitEvent } from "./EventContext";
 import { useImageViewerContext } from "./ImageViewerContext";
 
 // off - no hub URL given, so there's nobody to see.
@@ -36,9 +32,6 @@ interface PresenceContextValue {
 	// Sessions someone else is in right now, by id - null while that isn't
 	// known (not connected), so nothing's taken to be empty when it isn't.
 	busySessions: Set<string> | null;
-	// Sends them your session's invite code - it comes up for them to look
-	// at and say yes or no to. Rejects with the hub's reason.
-	inviteUser: (userId: string, code: string) => Promise<void>;
 	// Says something's waiting in messaging, to their tabs and your other ones.
 	// Rejects if the hub can't be reached - it's saved, so they find it anyway.
 	notifyUser: (userId: string, conversationId: string, messageId: string) => Promise<void>;
@@ -55,12 +48,9 @@ const RETRY_MAX_MS = 30000;
 // own connection to the hub, open the whole time the viewer is, in a
 // session or not - RealtimeContext's only exists inside a session.
 function PresenceContextProvider({ hubUrl, children }: { hubUrl?: string; children: ReactNode }) {
-	const emit = useEmitEvent();
 	const { getAccessToken, user } = useAuthContext();
 	const { source } = useImageViewerContext();
 	const { roomId, session } = useCollectionContext();
-	const { showDialog } = useDialogContext();
-	const { openInvite } = useInviteGate();
 
 	const [status, setStatus] = useState<Exclude<PresenceStatus, "off">>("connecting");
 	const [state, setState] = useState<PresenceState>({});
@@ -79,12 +69,6 @@ function PresenceContextProvider({ hubUrl, children }: { hubUrl?: string; childr
 	useEffect(() => {
 		whereRef.current = JSON.parse(whereKey);
 	}, [whereKey]);
-
-	// Read from the connection's handlers, which shouldn't reconnect when these change.
-	const handlersRef = useRef({ showDialog, openInvite, emit });
-	useEffect(() => {
-		handlersRef.current = { showDialog, openInvite, emit };
-	});
 
 	useEffect(() => {
 		// Presence is for people with accounts - a guest isn't on the Users tab.
@@ -139,15 +123,6 @@ function PresenceContextProvider({ hubUrl, children }: { hubUrl?: string; childr
 		connection.on("UserOnline", (online: OnlineUser) => setState((current) => applyOnline(current, online)));
 		connection.on("UserOffline", (offline: UserOffline) => setState((current) => applyOffline(current, offline)));
 		connection.on("MessageWaiting", (waiting: MessageWaitingNote) => messageHandlersRef.current.forEach((handler) => handler(waiting)));
-		connection.on("InviteReceived", (invite: UserInvite) => {
-			const { showDialog, openInvite, emit } = handlersRef.current;
-			emit("user:invite-received", { from: invite.fromUserId });
-			showDialog({
-				title: `${invite.fromName} invited you to their session`,
-				message: "Have a look at what it is before you join - you'll only go in if you say so.",
-				actions: [{ label: "Have a look", variant: "accent", onClick: () => openInvite(invite.code) }, { label: "Not now" }],
-			});
-		});
 
 		connection.onreconnecting(() => {
 			connectedRef.current = false;
@@ -181,12 +156,6 @@ function PresenceContextProvider({ hubUrl, children }: { hubUrl?: string; childr
 		connectionRef.current?.invoke("SetWhere", JSON.parse(whereKey)).catch(() => {});
 	}, [whereKey, status]);
 
-	const inviteUser = useCallback(async (userId: string, code: string) => {
-		const connection = connectionRef.current;
-		if (!connection || !connectedRef.current) throw new Error("Can't reach the real-time hub");
-		await connection.invoke("InviteUser", userId, code);
-	}, []);
-
 	const notifyUser = useCallback(async (userId: string, conversationId: string, messageId: string) => {
 		const connection = connectionRef.current;
 		if (!connection || !connectedRef.current) throw new Error("Can't reach the real-time hub");
@@ -210,7 +179,6 @@ function PresenceContextProvider({ hubUrl, children }: { hubUrl?: string; childr
 				everyoneLoaded: directory !== null,
 				busySessions:
 					hubUrl && status === "connected" ? new Set(onlineUsers(state, user.id).flatMap((u) => (u.sessionId ? [u.sessionId] : []))) : null,
-				inviteUser,
 				notifyUser,
 				onMessageWaiting,
 			}}

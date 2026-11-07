@@ -464,10 +464,27 @@ export async function sessionAdmin({ sam, jo }) {
 	await sam.press("Make a link", samPanel);
 	await expect(samPanel.getByLabel("Invite link")).toHaveValue(/invite=/, { timeout: 8000 });
 
-	await both(sam, jo, "invites Jo from the Users tab", "gets asked, and has a look");
+	await both(sam, jo, "invites Jo from the Users tab", "gets it as a message, and has a look");
 	await sam.click(samPanel.getByRole("tab", { name: /^Users/ }));
 	await sam.click(samPanel.getByLabel("Invite Jo Bell to your session"));
-	await answerDialog(jo, "Have a look");
+	const samInvite = sam.panel("Messages").locator(".messages-card").filter({ hasText: "Review" }).last();
+	await expect(samInvite).toBeVisible({ timeout: 10_000 });
+	// Fails if it's covered - the click that opened it brings the Collaboration panel forward.
+	await samInvite.click({ trial: true, timeout: 5000 });
+	await sam.pause(1200);
+	await dragPanel(sam, "Messages", { x: 700, y: 70 });
+	// Asking again with the conversation open shows up in it straight away.
+	const samInvites = sam.panel("Messages").locator(".messages-card").filter({ hasText: "Review" });
+	const sentSoFar = await samInvites.count();
+	await sam.click(samPanel.getByLabel("Invite Jo Bell to your session"));
+	await expect(samInvites).toHaveCount(sentSoFar + 1, { timeout: 10_000 });
+	await closePanel(sam, "Messages");
+	// Nothing pops up on Jo - it's an unread message.
+	await expect(jo.page.getByText("invited you to their session")).toHaveCount(0);
+	await jo.click(jo.page.locator('[title^="Messages"]'), 700);
+	const joInbox = jo.panel("Messages");
+	await jo.click(joInbox.locator(".messages-side .messages-row").filter({ hasText: "Sam Reid" }));
+	await jo.click(joInbox.getByRole("button", { name: "Have a look" }).last());
 	sam.did("session-invite-user");
 
 	await jo.caption("Jo: past the cap, so it's view only", 300);
@@ -475,6 +492,7 @@ export async function sessionAdmin({ sam, jo }) {
 	await expect(joinGate).toBeVisible({ timeout: 10_000 });
 	await jo.pause(1400);
 	await jo.click(joinGate);
+	await closePanel(jo, "Messages");
 	sam.did("session-cap");
 
 	await jo.tool("Annotations");

@@ -216,7 +216,7 @@ interface ViewerShellProps {
 }
 
 function ViewerShell({ fontSize, tools }: ViewerShellProps) {
-	const { activeTools, toggleTool } = useToolbarContext();
+	const { activeTools, toggleTool, raised } = useToolbarContext();
 	const [positions, setPositions] = useState<Record<string, Position>>({});
 	const [dockAssignments, setDockAssignments] = useState<DockAssignments>(emptyDockAssignments);
 	const [previewRect, setPreviewRect] = useState<DockRect | null>(null);
@@ -252,6 +252,15 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
 		{ id: "collections", title: "Collections", tool: "collections", content: <CollectionsPanel /> },
 		{ id: "messages", title: "Messages", tool: "messages", content: <MessagesPanel /> },
 	];
+
+	// Docked, it's the whole edge that comes forward.
+	const raisedPanelId = panelDefs.find((panel) => panel.tool === raised?.id)?.id;
+	const raisedSide = raisedPanelId ? sideOfPanel(dockAssignments, raisedPanelId) : null;
+	const raisedKey = raisedSide ? dockEdgeStackKey(raisedSide) : raisedPanelId;
+	const raisedCount = raised?.count;
+	useEffect(() => {
+		if (raisedKey) setFocusOrder((prev) => bringToFront(prev, raisedKey));
+	}, [raisedKey, raisedCount]);
 
 	// Only set while dragging a panel that started out docked - see
 	// DragOverlay below for why: dnd-kit compensates for any change in the
