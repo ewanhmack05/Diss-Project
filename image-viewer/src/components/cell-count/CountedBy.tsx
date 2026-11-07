@@ -1,23 +1,23 @@
-import type { PlacedByCount } from '../../interfaces/CellCount'
-import './CellCounter/CellCountForm.css'
+import type { PlacedByCount } from "../../interfaces/CellCount";
+import "./CellCounter/CellCountForm.css";
 
 // Who placed how many of the dots - only shared counts record it, so it
 // renders nothing for anything else.
 function CountedBy({ people }: { people: PlacedByCount[] }) {
-  if (people.length === 0) return null
+	if (people.length === 0) return null;
 
-  return (
-    <div className="cell-count-form-field">
-      Counted by
-      <div className="cell-count-form-static cell-count-form-colour-breakdown">
-        {people.map(({ userId, name, count }) => (
-          <span key={userId} className="cell-count-form-colour-chip" title={userId}>
-            {name} · {count}
-          </span>
-        ))}
-      </div>
-    </div>
-  )
+	return (
+		<div className="cell-count-form-field">
+			Counted by
+			<div className="cell-count-form-static cell-count-form-colour-breakdown">
+				{people.map(({ userId, name, count }) => (
+					<span key={userId} className="cell-count-form-colour-chip" title={userId}>
+						{name} · {count}
+					</span>
+				))}
+			</div>
+		</div>
+	);
 }
 
-export default CountedBy
+export default CountedBy;

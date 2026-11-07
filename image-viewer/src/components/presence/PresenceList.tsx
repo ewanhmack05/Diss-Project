@@ -1,75 +1,71 @@
-import { useEffect } from 'react'
-import { useRealtimeContext } from '../../context/RealtimeContext'
-import { useNavigationContext } from '../../context/NavigationContext'
-import { useEmitEvent } from '../../context/EventContext'
-import { pointerProps, useViewportsContext } from '../../context/ViewportsContext'
-import { useCollectionContext } from '../../context/CollectionContext'
-import { sessionSize } from '../realtime/sessionSize'
-import { splitChips } from './chips'
-import MorePeople from './MorePeople'
-import { sketchFor, viewportShown } from '../realtime/realtime'
-import './PresenceList.css'
+import { useEffect } from "react";
+import { useRealtimeContext } from "../../context/RealtimeContext";
+import { useNavigationContext } from "../../context/NavigationContext";
+import { useEmitEvent } from "../../context/EventContext";
+import { pointerProps, useViewportsContext } from "../../context/ViewportsContext";
+import { useCollectionContext } from "../../context/CollectionContext";
+import { sessionSize } from "../realtime/sessionSize";
+import { splitChips } from "./chips";
+import MorePeople from "./MorePeople";
+import { sketchFor, viewportShown } from "../realtime/realtime";
+import "./PresenceList.css";
 
 const STATUS_TEXT = {
-  connecting: 'Connecting…',
-  reconnecting: 'Reconnecting…',
-  offline: 'Offline',
-} as const
+	connecting: "Connecting…",
+	reconnecting: "Reconnecting…",
+	offline: "Offline",
+} as const;
 
 // The host asking everyone to look where they are. Not in Present, where
 // everyone already is.
 function LookHereButton() {
-  const { status, me, others, navigation, askToLook } = useRealtimeContext()
-  const emit = useEmitEvent()
-  if (!me?.host || others.length === 0 || navigation === 'present') return null
+	const { status, me, others, navigation, askToLook } = useRealtimeContext();
+	const emit = useEmitEvent();
+	if (!me?.host || others.length === 0 || navigation === "present") return null;
 
-  return (
-    <button
-      type="button"
-      className="presence-chip presence-look"
-      disabled={status !== 'connected'}
-      title="Ask everyone to look where you are"
-      onClick={() =>
-        askToLook(null)
-          .then(() => emit('request:sent'))
-          .catch(() => emit('request:error'))
-      }
-    >
-      Look here
-    </button>
-  )
+	return (
+		<button
+			type="button"
+			className="presence-chip presence-look"
+			disabled={status !== "connected"}
+			title="Ask everyone to look where you are"
+			onClick={() =>
+				askToLook(null)
+					.then(() => emit("request:sent"))
+					.catch(() => emit("request:error"))
+			}
+		>
+			Look here
+		</button>
+	);
 }
 
 // Whether you're following the host, or they're following you.
 function NavigationChip() {
-  const { me } = useRealtimeContext()
-  const { mode, leader, following, breakAway, followAgain } = useNavigationContext()
+	const { me } = useRealtimeContext();
+	const { mode, leader, following, breakAway, followAgain } = useNavigationContext();
 
-  if (mode === 'free') return null
-  if (me?.host) {
-    return (
-      <span className="presence-chip presence-chip--leading">
-        {mode === 'present' ? "You're presenting" : 'Everyone is following you'}
-      </span>
-    )
-  }
-  if (!leader) return null
-  if (mode === 'present') {
-    return (
-      <span className="presence-chip presence-chip--leading" style={{ borderColor: leader.colour }}>
-        {leader.displayName} is presenting
-        {sketchFor(leader, 'cellCount') && ` · counting ${sketchFor(leader, 'cellCount')!.data.count}`}
-      </span>
-    )
-  }
-  return (
-    <span className="presence-chip presence-chip--leading" style={{ borderColor: leader.colour }}>
-      {following ? `Following ${leader.displayName}` : `${leader.displayName} is leading`}
-      <button type="button" className="presence-chip-button" onClick={following ? breakAway : followAgain}>
-        {following ? 'Stop' : 'Follow'}
-      </button>
-    </span>
-  )
+	if (mode === "free") return null;
+	if (me?.host) {
+		return <span className="presence-chip presence-chip--leading">{mode === "present" ? "You're presenting" : "Everyone is following you"}</span>;
+	}
+	if (!leader) return null;
+	if (mode === "present") {
+		return (
+			<span className="presence-chip presence-chip--leading" style={{ borderColor: leader.colour }}>
+				{leader.displayName} is presenting
+				{sketchFor(leader, "cellCount") && ` · counting ${sketchFor(leader, "cellCount")!.data.count}`}
+			</span>
+		);
+	}
+	return (
+		<span className="presence-chip presence-chip--leading" style={{ borderColor: leader.colour }}>
+			{following ? `Following ${leader.displayName}` : `${leader.displayName} is leading`}
+			<button type="button" className="presence-chip-button" onClick={following ? breakAway : followAgain}>
+				{following ? "Stop" : "Follow"}
+			</button>
+		</span>
+	);
 }
 
 // Who else is in the session - a chip each, in the same colour as their
@@ -78,50 +74,50 @@ function NavigationChip() {
 // editors, then "+N more" for everyone (see splitChips). Hidden
 // working alone, or with realtime off.
 function PresenceList() {
-  const { status, me, others } = useRealtimeContext()
-  const { pointedAt, pointAt, shown, setShown } = useViewportsContext()
-  const { session } = useCollectionContext()
-  const large = session ? sessionSize(session.members, session.maxEditors).large : false
-  // Someone leaving while their name's under the pointer never gets a
-  // mouseleave - let go of them so they aren't picked out if they come back.
-  useEffect(() => {
-    if (pointedAt !== null && !others.some((p) => p.userId === pointedAt)) pointAt(null)
-  }, [others, pointedAt, pointAt])
+	const { status, me, others } = useRealtimeContext();
+	const { pointedAt, pointAt, shown, setShown } = useViewportsContext();
+	const { session } = useCollectionContext();
+	const large = session ? sessionSize(session.members, session.maxEditors).large : false;
+	// Someone leaving while their name's under the pointer never gets a
+	// mouseleave - let go of them so they aren't picked out if they come back.
+	useEffect(() => {
+		if (pointedAt !== null && !others.some((p) => p.userId === pointedAt)) pointAt(null);
+	}, [others, pointedAt, pointAt]);
 
-  if (status === 'off' || status === 'alone') return null
-  const { visible, more } = splitChips(others, large)
+	if (status === "off" || status === "alone") return null;
+	const { visible, more } = splitChips(others, large);
 
-  return (
-    <div className="presence-list" aria-label="People in this session">
-      {status !== 'connected' && <span className="presence-status">{STATUS_TEXT[status]}</span>}
-      {me && (
-        <span className="presence-chip presence-chip--me" title="You">
-          <span className="presence-dot" style={{ background: me.colour }} />
-          {me.displayName} (you)
-        </span>
-      )}
-      {visible.map((participant) => {
-        const on = viewportShown(participant.userId, shown, large)
-        return (
-          <button
-            type="button"
-            key={participant.connectionId}
-            className={`presence-chip presence-chip--other${on ? '' : ' presence-chip--off'}${pointedAt === participant.userId ? ' presence-chip--pointed' : ''}`}
-            title={on ? `Hide where ${participant.displayName} is looking` : `Show where ${participant.displayName} is looking`}
-            aria-pressed={on}
-            onClick={() => setShown(participant.userId, !on)}
-            {...pointerProps(participant.userId, pointAt)}
-          >
-            <span className="presence-dot presence-dot--toggle" style={{ color: participant.colour }} />
-            {participant.displayName}
-          </button>
-        )
-      })}
-      {more.length > 0 && <MorePeople others={others} hiddenCount={more.length} large={large} />}
-      <NavigationChip />
-      <LookHereButton />
-    </div>
-  )
+	return (
+		<div className="presence-list" aria-label="People in this session">
+			{status !== "connected" && <span className="presence-status">{STATUS_TEXT[status]}</span>}
+			{me && (
+				<span className="presence-chip presence-chip--me" title="You">
+					<span className="presence-dot" style={{ background: me.colour }} />
+					{me.displayName} (you)
+				</span>
+			)}
+			{visible.map((participant) => {
+				const on = viewportShown(participant.userId, shown, large);
+				return (
+					<button
+						type="button"
+						key={participant.connectionId}
+						className={`presence-chip presence-chip--other${on ? "" : " presence-chip--off"}${pointedAt === participant.userId ? " presence-chip--pointed" : ""}`}
+						title={on ? `Hide where ${participant.displayName} is looking` : `Show where ${participant.displayName} is looking`}
+						aria-pressed={on}
+						onClick={() => setShown(participant.userId, !on)}
+						{...pointerProps(participant.userId, pointAt)}
+					>
+						<span className="presence-dot presence-dot--toggle" style={{ color: participant.colour }} />
+						{participant.displayName}
+					</button>
+				);
+			})}
+			{more.length > 0 && <MorePeople others={others} hiddenCount={more.length} large={large} />}
+			<NavigationChip />
+			<LookHereButton />
+		</div>
+	);
 }
 
-export default PresenceList
+export default PresenceList;

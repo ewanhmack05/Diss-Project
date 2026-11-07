@@ -1,8 +1,8 @@
-import type Feature from 'ol/Feature'
-import type Point from 'ol/geom/Point'
-import type { CellCount, CellCountDot, CellCountColourCount, PlacedByCount } from '../../interfaces/CellCount'
+import type Feature from "ol/Feature";
+import type Point from "ol/geom/Point";
+import type { CellCount, CellCountDot, CellCountColourCount, PlacedByCount } from "../../interfaces/CellCount";
 
-const NO_COLOUR = 'var(--chrome-text-secondary)'
+const NO_COLOUR = "var(--chrome-text-secondary)";
 
 // Shared by MapNode's live history card (CellCounterDuring) and the
 // `pending` snapshot it assembles when counting stops - both read the same
@@ -12,35 +12,35 @@ const NO_COLOUR = 'var(--chrome-text-secondary)'
 // withAnnotation doesn't change, so a null-free result here just means
 // it's an annotated session.
 function dotsFromHistory(history: (Feature<Point> | null)[]): CellCountDot[] {
-  return history
-    .filter((feature): feature is Feature<Point> => feature !== null)
-    .map((feature) => {
-      const [x, y] = feature.getGeometry()!.getCoordinates()
-      return { x, y, colour: feature.get('colour') as string }
-    })
+	return history
+		.filter((feature): feature is Feature<Point> => feature !== null)
+		.map((feature) => {
+			const [x, y] = feature.getGeometry()!.getCoordinates();
+			return { x, y, colour: feature.get("colour") as string };
+		});
 }
 
 // Null (dots not loaded) reads as none - check cellCount.dots first where
 // that difference matters, e.g. before drawing them.
 function parseCellCountDots(json: string | null): CellCountDot[] {
-  if (json === null) return []
-  try {
-    const parsed = JSON.parse(json)
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
+	if (json === null) return [];
+	try {
+		const parsed = JSON.parse(json);
+		return Array.isArray(parsed) ? parsed : [];
+	} catch {
+		return [];
+	}
 }
 
 // The colour breakdown is derived from the dots themselves rather than
 // stored separately, so there's only ever one source of truth for "how
 // many dots ended up in each colour".
 function colourBreakdownFromDots(dots: CellCountDot[]): CellCountColourCount[] {
-  const counts = new Map<string, number>()
-  for (const dot of dots) {
-    counts.set(dot.colour, (counts.get(dot.colour) ?? 0) + 1)
-  }
-  return Array.from(counts, ([colour, count]) => ({ colour, count }))
+	const counts = new Map<string, number>();
+	for (const dot of dots) {
+		counts.set(dot.colour, (counts.get(dot.colour) ?? 0) + 1);
+	}
+	return Array.from(counts, ([colour, count]) => ({ colour, count }));
 }
 
 // A single CSS `background` value representing a colour breakdown - a flat
@@ -49,45 +49,45 @@ function colourBreakdownFromDots(dots: CellCountDot[]): CellCountColourCount[] {
 // (e.g. every click in the session had withAnnotation off, so no dot - and
 // therefore no colour - was ever recorded).
 function colourBreakdownBackground(breakdown: CellCountColourCount[]): string {
-  const total = breakdown.reduce((sum, entry) => sum + entry.count, 0)
-  if (total === 0) return NO_COLOUR
-  if (breakdown.length === 1) return breakdown[0].colour
+	const total = breakdown.reduce((sum, entry) => sum + entry.count, 0);
+	if (total === 0) return NO_COLOUR;
+	if (breakdown.length === 1) return breakdown[0].colour;
 
-  let cursor = 0
-  const stops = breakdown.map(({ colour, count }) => {
-    const start = cursor
-    cursor += (count / total) * 100
-    return `${colour} ${start}% ${cursor}%`
-  })
-  return `conic-gradient(${stops.join(', ')})`
+	let cursor = 0;
+	const stops = breakdown.map(({ colour, count }) => {
+		const start = cursor;
+		cursor += (count / total) * 100;
+		return `${colour} ${start}% ${cursor}%`;
+	});
+	return `conic-gradient(${stops.join(", ")})`;
 }
 
 // How many dots each person placed, in the order they first appear. Empty
 // for a count with nobody recorded (anything but a shared count).
 function placedByBreakdown(dots: CellCountDot[]): PlacedByCount[] {
-  const byUser = new Map<string, PlacedByCount>()
-  for (const { placedBy } of dots) {
-    if (!placedBy) continue
-    const entry = byUser.get(placedBy.userId)
-    if (entry) entry.count++
-    else byUser.set(placedBy.userId, { ...placedBy, count: 1 })
-  }
-  return Array.from(byUser.values())
+	const byUser = new Map<string, PlacedByCount>();
+	for (const { placedBy } of dots) {
+		if (!placedBy) continue;
+		const entry = byUser.get(placedBy.userId);
+		if (entry) entry.count++;
+		else byUser.set(placedBy.userId, { ...placedBy, count: 1 });
+	}
+	return Array.from(byUser.values());
 }
 
 // A count's colour and placed-by counts, without parsing its dots when the
 // list has already sent them - annotation-store works them out on save.
 // From the dots otherwise: a count you've just saved, or one that arrived
 // live from someone else.
-function countSummary(cellCount: Pick<CellCount, 'dots' | 'colourCounts' | 'placedByCounts'>): {
-  colours: CellCountColourCount[]
-  people: PlacedByCount[]
+function countSummary(cellCount: Pick<CellCount, "dots" | "colourCounts" | "placedByCounts">): {
+	colours: CellCountColourCount[];
+	people: PlacedByCount[];
 } {
-  if (cellCount.colourCounts && cellCount.placedByCounts) {
-    return { colours: cellCount.colourCounts, people: cellCount.placedByCounts }
-  }
-  const dots = parseCellCountDots(cellCount.dots)
-  return { colours: colourBreakdownFromDots(dots), people: placedByBreakdown(dots) }
+	if (cellCount.colourCounts && cellCount.placedByCounts) {
+		return { colours: cellCount.colourCounts, people: cellCount.placedByCounts };
+	}
+	const dots = parseCellCountDots(cellCount.dots);
+	return { colours: colourBreakdownFromDots(dots), people: placedByBreakdown(dots) };
 }
 
-export { parseCellCountDots, colourBreakdownFromDots, colourBreakdownBackground, dotsFromHistory, placedByBreakdown, countSummary }
+export { parseCellCountDots, colourBreakdownFromDots, colourBreakdownBackground, dotsFromHistory, placedByBreakdown, countSummary };

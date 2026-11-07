@@ -1,66 +1,66 @@
 .annotations-panel {
-  display: flex;
-  flex-direction: column;
-  /* Fills whatever height DraggablePanel's body actually has - the full
+	display: flex;
+	flex-direction: column;
+	/* Fills whatever height DraggablePanel's body actually has - the full
      DockEdge when docked, up to 70vh when floating - so the Saved list
      below can in turn grow to match it instead of stopping at a fixed
      row count regardless of how much room is actually available. */
-  flex: 1;
-  min-height: 0;
+	flex: 1;
+	min-height: 0;
 }
 
 .annotations-panel-tabs {
-  display: flex;
-  flex-shrink: 0;
-  border-bottom: 1px solid var(--white-10);
-  /* Belt-and-braces: nothing above annotations-panel-content scrolls in
+	display: flex;
+	flex-shrink: 0;
+	border-bottom: 1px solid var(--white-10);
+	/* Belt-and-braces: nothing above annotations-panel-content scrolls in
      the normal (Saved list) case any more, since the list scrolls
      internally within its own bounded flex space - but a long Free Form
      view on a short window can still make annotations-panel-content
      itself scroll (see below), and this keeps the tabs out of that too. */
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--chrome-bg);
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	background: var(--chrome-bg);
 }
 
 .annotations-panel-tab {
-  flex: 1;
-  padding: 0.6em;
-  font-family: var(--sans);
-  font-size: 0.9em;
-  font-weight: 600;
-  color: var(--chrome-text-secondary);
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  cursor: pointer;
+	flex: 1;
+	padding: 0.6em;
+	font-family: var(--sans);
+	font-size: 0.9em;
+	font-weight: 600;
+	color: var(--chrome-text-secondary);
+	background: none;
+	border: none;
+	border-bottom: 2px solid transparent;
+	cursor: pointer;
 }
 
 .annotations-panel-tab:hover {
-  color: var(--chrome-text);
+	color: var(--chrome-text);
 }
 
 .annotations-panel-tab:disabled {
-  color: var(--disabled);
-  cursor: not-allowed;
+	color: var(--disabled);
+	cursor: not-allowed;
 }
 
 .annotations-panel-tab--active {
-  color: var(--chrome-text);
-  border-bottom-color: var(--accent);
+	color: var(--chrome-text);
+	border-bottom-color: var(--accent);
 }
 
 .annotations-panel-content {
-  padding: 1em;
-  flex: 1;
-  min-height: 0;
-  flex-direction: column;
-  /* Fallback scroll for a Free Form view taller than the available space -
+	padding: 1em;
+	flex: 1;
+	min-height: 0;
+	flex-direction: column;
+	/* Fallback scroll for a Free Form view taller than the available space -
      the Saved list (a flex:1 child - see SavedAnnotationList.css) bounds
      itself exactly to whatever's left here and scrolls on its own, so this
      normally stays dormant for that case. */
-  overflow-y: auto;
+	overflow-y: auto;
 }
 
 /* Docked top/bottom has less vertical budget (a fixed 21em) than a tall
@@ -68,5 +68,5 @@
    reflowed content (see FreeFormToolPicker.css etc.) actually fit. */
 .draggable-panel--docked-top .annotations-panel-content,
 .draggable-panel--docked-bottom .annotations-panel-content {
-  padding: 0.5em 1em;
+	padding: 0.5em 1em;
 }

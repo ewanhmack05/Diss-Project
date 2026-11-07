@@ -26,6 +26,10 @@ SERVICES = [
 ]
 START = "<!-- schema:start - written by scripts/db_docs.py, don't edit by hand -->"
 END = "<!-- schema:end -->"
+# Prettier pads tables, and the check compares this section exactly. Each needs a
+# blank line around it, or Markdown reads two comments as one and Prettier misses it.
+FORMAT_OFF = "<!-- prettier-ignore-start -->"
+FORMAT_ON = "<!-- prettier-ignore-end -->"
 
 # What each column type means, in the order they're listed. A test fails if the
 # schema uses one that isn't here.
@@ -242,9 +246,9 @@ def generate(snapshot_text, notes):
     if unexplained:
         raise ValueError("TYPE_MEANINGS in db_docs.py has nothing for: " + ", ".join(unexplained))
     used = {column["type"] for table in tables.values() for column in table["columns"]}
-    parts = [START, "", diagram(tables, relations), "", glossary(used), ""]
+    parts = [START, "", FORMAT_OFF, "", diagram(tables, relations), "", glossary(used), ""]
     parts += [part for name in notes for part in (table_section(name, tables[name], relations, notes[name]), "")]
-    return "\n".join(parts + [END])
+    return "\n".join(parts + [FORMAT_ON, "", END])
 
 
 def replace_section(readme, section):

@@ -1,170 +1,165 @@
-import { useEffect, useState } from 'react'
-import { useToolbarContext } from '../../context/ToolbarContext'
-import { useAuthContext } from '../../context/AuthContext'
-import adjustmentsIconSvg from '../../icons/adjustments.svg?raw'
-import annotationsIconSvg from '../../icons/annotations.svg?raw'
-import cellcountIconSvg from '../../icons/cellcount.svg?raw'
-import fullscreenEnterIconSvg from '../../icons/fullscreen-enter.svg?raw'
-import fullscreenExitIconSvg from '../../icons/fullscreen-exit.svg?raw'
-import rotateIconSvg from '../../icons/rotate.svg?raw'
-import rulerIconSvg from '../../icons/ruler.svg?raw'
-import realtimeIconSvg from '../../icons/realtime.svg?raw'
-import collectionsIconSvg from '../../icons/collections.svg?raw'
-import messagesIconSvg from '../../icons/messages.svg?raw'
-import { useMessagingContext } from '../../context/MessagingContext'
-import './Toolbar.css'
+import { useEffect, useState } from "react";
+import { useToolbarContext } from "../../context/ToolbarContext";
+import { useAuthContext } from "../../context/AuthContext";
+import adjustmentsIconSvg from "../../icons/adjustments.svg?raw";
+import annotationsIconSvg from "../../icons/annotations.svg?raw";
+import cellcountIconSvg from "../../icons/cellcount.svg?raw";
+import fullscreenEnterIconSvg from "../../icons/fullscreen-enter.svg?raw";
+import fullscreenExitIconSvg from "../../icons/fullscreen-exit.svg?raw";
+import rotateIconSvg from "../../icons/rotate.svg?raw";
+import rulerIconSvg from "../../icons/ruler.svg?raw";
+import realtimeIconSvg from "../../icons/realtime.svg?raw";
+import collectionsIconSvg from "../../icons/collections.svg?raw";
+import messagesIconSvg from "../../icons/messages.svg?raw";
+import { useMessagingContext } from "../../context/MessagingContext";
+import "./Toolbar.css";
 
 // Global shortcuts (like F for fullscreen) shouldn't fire while the user is
 // typing somewhere - e.g. "f" in an annotation's label or notes field.
-const TYPING_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
+const TYPING_TAGS = new Set(["INPUT", "TEXTAREA", "SELECT"]);
 
 function isTypingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  return TYPING_TAGS.has(target.tagName) || target.isContentEditable
+	if (!(target instanceof HTMLElement)) return false;
+	return TYPING_TAGS.has(target.tagName) || target.isContentEditable;
 }
 
 function Icon({ svg }: { svg: string }) {
-  return <span className="toolbar-icon" dangerouslySetInnerHTML={{ __html: svg }} />
+	return <span className="toolbar-icon" dangerouslySetInnerHTML={{ __html: svg }} />;
 }
 
-type ToolName = 'fullscreen' | 'annotations' | 'cellcount' | 'rotate' | 'ruler' | 'adjustments' | 'realtime' | 'collections' | 'messages'
+type ToolName = "fullscreen" | "annotations" | "cellcount" | "rotate" | "ruler" | "adjustments" | "realtime" | "collections" | "messages";
 
-const DEFAULT_TOOLS: ToolName[] = ['fullscreen', 'annotations', 'cellcount', 'rotate', 'ruler', 'adjustments', 'realtime', 'collections', 'messages']
+const DEFAULT_TOOLS: ToolName[] = ["fullscreen", "annotations", "cellcount", "rotate", "ruler", "adjustments", "realtime", "collections", "messages"];
 
 interface ToolbarProps {
-  tools?: ToolName[]
+	tools?: ToolName[];
 }
 
 function Toolbar({ tools: wanted = DEFAULT_TOOLS }: ToolbarProps) {
-  const { activeTools, toggleTool } = useToolbarContext()
-  const { user } = useAuthContext()
-  const { unread } = useMessagingContext()
-  // A guest has no collections of their own - only the session they came in on -
-  // and isn't a named person anyone can message.
-  const tools = user.guest ? wanted.filter((tool) => tool !== 'collections' && tool !== 'messages') : wanted
-  const [isFullscreen, setIsFullscreen] = useState(false)
+	const { activeTools, toggleTool } = useToolbarContext();
+	const { user } = useAuthContext();
+	const { unread } = useMessagingContext();
+	// A guest has no collections of their own - only the session they came in on -
+	// and isn't a named person anyone can message.
+	const tools = user.guest ? wanted.filter((tool) => tool !== "collections" && tool !== "messages") : wanted;
+	const [isFullscreen, setIsFullscreen] = useState(false);
 
-  const toggleFullscreen = () => {
-    if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => { })
-    } else {
-      document.documentElement.requestFullscreen().catch(() => { })
-    }
-  }
+	const toggleFullscreen = () => {
+		if (document.fullscreenElement) {
+			document.exitFullscreen().catch(() => {});
+		} else {
+			document.documentElement.requestFullscreen().catch(() => {});
+		}
+	};
 
-  useEffect(() => {
-    const onFullscreenChange = () => setIsFullscreen(Boolean(document.fullscreenElement))
-    document.addEventListener('fullscreenchange', onFullscreenChange)
-    return () => document.removeEventListener('fullscreenchange', onFullscreenChange)
-  }, [])
+	useEffect(() => {
+		const onFullscreenChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
+		document.addEventListener("fullscreenchange", onFullscreenChange);
+		return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+	}, []);
 
-  useEffect(() => {
-    if (!tools.includes('fullscreen')) return
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'f' && e.key !== 'F') return
-      if (isTypingTarget(e.target)) return
-      toggleFullscreen()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [tools])
+	useEffect(() => {
+		if (!tools.includes("fullscreen")) return;
+		const onKeyDown = (e: KeyboardEvent) => {
+			if (e.key !== "f" && e.key !== "F") return;
+			if (isTypingTarget(e.target)) return;
+			toggleFullscreen();
+		};
+		window.addEventListener("keydown", onKeyDown);
+		return () => window.removeEventListener("keydown", onKeyDown);
+	}, [tools]);
 
-  return (
-    <div className="toolbar" data-testid="toolbar">
-      {tools.includes('fullscreen') && (
-        <button
-          type="button"
-          className="toolbar-button"
-          title="Toggle fullscreen (F)"
-          onClick={toggleFullscreen}
-        >
-          <Icon svg={isFullscreen ? fullscreenExitIconSvg : fullscreenEnterIconSvg} />
-        </button>
-      )}
-      {tools.includes('annotations') && (
-        <button
-          type="button"
-          className={`toolbar-button${activeTools.includes('annotations') ? ' toolbar-button--active' : ''}`}
-          title="Annotations"
-          onClick={() => toggleTool('annotations')}
-        >
-          <Icon svg={annotationsIconSvg} />
-        </button>
-      )}
-      {tools.includes('cellcount') && (
-        <button
-          type="button"
-          className={`toolbar-button${activeTools.includes('cellcount') ? ' toolbar-button--active' : ''}`}
-          title="Cell Count"
-          onClick={() => toggleTool('cellcount')}
-        >
-          <Icon svg={cellcountIconSvg} />
-        </button>
-      )}
-      {tools.includes('rotate') && (
-        <button
-          type="button"
-          className={`toolbar-button${activeTools.includes('rotate') ? ' toolbar-button--active' : ''}`}
-          title="Rotate image"
-          onClick={() => toggleTool('rotate')}
-        >
-          <Icon svg={rotateIconSvg} />
-        </button>
-      )}
-      {tools.includes('ruler') && (
-        <button
-          type="button"
-          className={`toolbar-button${activeTools.includes('ruler') ? ' toolbar-button--active' : ''}`}
-          title="Measure distance"
-          onClick={() => toggleTool('ruler')}
-        >
-          <Icon svg={rulerIconSvg} />
-        </button>
-      )}
-      {tools.includes('adjustments') && (
-        <button
-          type="button"
-          className={`toolbar-button${activeTools.includes('adjustments') ? ' toolbar-button--active' : ''}`}
-          title="Adjustments"
-          onClick={() => toggleTool('adjustments')}
-        >
-          <Icon svg={adjustmentsIconSvg} />
-        </button>
-      )}
-      {tools.includes('realtime') && (
-        <button
-          type="button"
-          className={`toolbar-button${activeTools.includes('realtime') ? ' toolbar-button--active' : ''}`}
-          title="Collaboration"
-          onClick={() => toggleTool('realtime')}
-        >
-          <Icon svg={realtimeIconSvg} />
-        </button>
-      )}
-      {tools.includes('collections') && (
-        <button
-          type="button"
-          className={`toolbar-button${activeTools.includes('collections') ? ' toolbar-button--active' : ''}`}
-          title="Collections"
-          onClick={() => toggleTool('collections')}
-        >
-          <Icon svg={collectionsIconSvg} />
-        </button>
-      )}
-      {tools.includes('messages') && (
-        <button
-          type="button"
-          className={`toolbar-button toolbar-button--badged${activeTools.includes('messages') ? ' toolbar-button--active' : ''}`}
-          title={unread > 0 ? `Messages (${unread} unread)` : 'Messages'}
-          onClick={() => toggleTool('messages')}
-        >
-          <Icon svg={messagesIconSvg} />
-          {unread > 0 && <span className="toolbar-badge">{unread > 99 ? '99+' : unread}</span>}
-        </button>
-      )}
-    </div>
-  )
+	return (
+		<div className="toolbar" data-testid="toolbar">
+			{tools.includes("fullscreen") && (
+				<button type="button" className="toolbar-button" title="Toggle fullscreen (F)" onClick={toggleFullscreen}>
+					<Icon svg={isFullscreen ? fullscreenExitIconSvg : fullscreenEnterIconSvg} />
+				</button>
+			)}
+			{tools.includes("annotations") && (
+				<button
+					type="button"
+					className={`toolbar-button${activeTools.includes("annotations") ? " toolbar-button--active" : ""}`}
+					title="Annotations"
+					onClick={() => toggleTool("annotations")}
+				>
+					<Icon svg={annotationsIconSvg} />
+				</button>
+			)}
+			{tools.includes("cellcount") && (
+				<button
+					type="button"
+					className={`toolbar-button${activeTools.includes("cellcount") ? " toolbar-button--active" : ""}`}
+					title="Cell Count"
+					onClick={() => toggleTool("cellcount")}
+				>
+					<Icon svg={cellcountIconSvg} />
+				</button>
+			)}
+			{tools.includes("rotate") && (
+				<button
+					type="button"
+					className={`toolbar-button${activeTools.includes("rotate") ? " toolbar-button--active" : ""}`}
+					title="Rotate image"
+					onClick={() => toggleTool("rotate")}
+				>
+					<Icon svg={rotateIconSvg} />
+				</button>
+			)}
+			{tools.includes("ruler") && (
+				<button
+					type="button"
+					className={`toolbar-button${activeTools.includes("ruler") ? " toolbar-button--active" : ""}`}
+					title="Measure distance"
+					onClick={() => toggleTool("ruler")}
+				>
+					<Icon svg={rulerIconSvg} />
+				</button>
+			)}
+			{tools.includes("adjustments") && (
+				<button
+					type="button"
+					className={`toolbar-button${activeTools.includes("adjustments") ? " toolbar-button--active" : ""}`}
+					title="Adjustments"
+					onClick={() => toggleTool("adjustments")}
+				>
+					<Icon svg={adjustmentsIconSvg} />
+				</button>
+			)}
+			{tools.includes("realtime") && (
+				<button
+					type="button"
+					className={`toolbar-button${activeTools.includes("realtime") ? " toolbar-button--active" : ""}`}
+					title="Collaboration"
+					onClick={() => toggleTool("realtime")}
+				>
+					<Icon svg={realtimeIconSvg} />
+				</button>
+			)}
+			{tools.includes("collections") && (
+				<button
+					type="button"
+					className={`toolbar-button${activeTools.includes("collections") ? " toolbar-button--active" : ""}`}
+					title="Collections"
+					onClick={() => toggleTool("collections")}
+				>
+					<Icon svg={collectionsIconSvg} />
+				</button>
+			)}
+			{tools.includes("messages") && (
+				<button
+					type="button"
+					className={`toolbar-button toolbar-button--badged${activeTools.includes("messages") ? " toolbar-button--active" : ""}`}
+					title={unread > 0 ? `Messages (${unread} unread)` : "Messages"}
+					onClick={() => toggleTool("messages")}
+				>
+					<Icon svg={messagesIconSvg} />
+					{unread > 0 && <span className="toolbar-badge">{unread > 99 ? "99+" : unread}</span>}
+				</button>
+			)}
+		</div>
+	);
 }
 
-export default Toolbar
-export type { ToolName }
+export default Toolbar;
+export type { ToolName };

@@ -1,9 +1,9 @@
-import { createContext, useCallback, useContext, type ReactNode } from 'react'
-import { useToastContext } from './ToastContext'
+import { createContext, useCallback, useContext, type ReactNode } from "react";
+import { useToastContext } from "./ToastContext";
 
-type EmitEvent = (event: string, payload?: unknown) => void
+type EmitEvent = (event: string, payload?: unknown) => void;
 
-const EventContext = createContext<EmitEvent | null>(null)
+const EventContext = createContext<EmitEvent | null>(null);
 
 // Maps the viewer's public event names (see App's `on` prop) to a toast.
 // Covers annotation and cell count CRUD outcomes - both the optimistic
@@ -11,68 +11,68 @@ const EventContext = createContext<EmitEvent | null>(null)
 // connection failures a host can't otherwise see (tiler, annotation store, real-time hub).
 // Being taken out of a session or it ending get a popup instead (see
 // CollectionContext), so they're not here.
-const TOAST_MESSAGES: Record<string, { message: string; variant: 'success' | 'error' }> = {
-  'annotation:created': { message: 'Annotation saved', variant: 'success' },
-  'annotation:created:error': { message: "Couldn't save annotation", variant: 'error' },
-  'annotation:updated': { message: 'Annotation updated', variant: 'success' },
-  'annotation:updated:error': { message: "Couldn't update annotation", variant: 'error' },
-  'annotation:deleted': { message: 'Annotation deleted', variant: 'success' },
-  'annotation:deleted:error': { message: "Couldn't delete annotation", variant: 'error' },
-  'annotations:load-error': { message: "Couldn't reach the annotation store", variant: 'error' },
-  'annotations:updated': { message: 'Annotations updated', variant: 'success' },
-  'annotations:updated:error': { message: "Couldn't update those annotations", variant: 'error' },
-  'annotations:deleted:error': { message: "Couldn't delete those annotations - reload to see what's there", variant: 'error' },
-  'annotations:restored:error': { message: "Couldn't bring those annotations back - reload to see what's there", variant: 'error' },
-  'annotationgroup:error': { message: "Couldn't change that group - try again", variant: 'error' },
-  'cellcountgroup:error': { message: "Couldn't change that group - try again", variant: 'error' },
-  'collection:rolled-back': { message: 'Someone put this collection back to an earlier point', variant: 'success' },
-  'cellcount:created': { message: 'Cell count saved', variant: 'success' },
-  'cellcount:created:error': { message: "Couldn't save cell count", variant: 'error' },
-  'cellcount:updated': { message: 'Cell count updated', variant: 'success' },
-  'cellcount:updated:error': { message: "Couldn't update cell count", variant: 'error' },
-  'cellcount:deleted': { message: 'Cell count deleted', variant: 'success' },
-  'cellcount:deleted:error': { message: "Couldn't delete cell count", variant: 'error' },
-  'cellcounts:load-error': { message: "Couldn't reach the annotation store", variant: 'error' },
-  'cellcount:click-outside-roi': { message: "Can't click here", variant: 'error' },
-  'slide:load-error': { message: "Couldn't reach the tile server", variant: 'error' },
-  'collection:load-error': { message: "Couldn't reach the annotation store", variant: 'error' },
-  'imageadjustment:created': { message: 'Preset saved', variant: 'success' },
-  'imageadjustment:created:error': { message: "Couldn't save preset", variant: 'error' },
-  'imageadjustment:updated': { message: 'Preset updated', variant: 'success' },
-  'imageadjustment:updated:error': { message: "Couldn't update preset", variant: 'error' },
-  'imageadjustment:deleted': { message: 'Preset deleted', variant: 'success' },
-  'imageadjustment:deleted:error': { message: "Couldn't delete preset", variant: 'error' },
-  'imageadjustments:load-error': { message: "Couldn't reach the annotation store", variant: 'error' },
-  'realtime:connect-error': { message: "Couldn't reach the real-time hub", variant: 'error' },
-  'collection:read-only': { message: 'You can only look in here, not change anything', variant: 'error' },
-  'collection:exported': { message: 'Collection exported', variant: 'success' },
-  'collection:export-error': { message: "Couldn't export that collection", variant: 'error' },
-  'collection:imported': { message: 'GeoJSON imported', variant: 'success' },
-  'collection:import-error': { message: "Couldn't import that file - nothing was added", variant: 'error' },
-  'collection:error': { message: "Couldn't do that - try again", variant: 'error' },
-  'session:error': { message: "Couldn't do that - try again", variant: 'error' },
-  'session:link-copied': { message: 'Invite link copied', variant: 'success' },
-  'session:code-copied': { message: 'Invite code copied', variant: 'success' },
-  'user:invited': { message: "Invite sent - it's up to them now", variant: 'success' },
-  'user:invite-error': { message: "Couldn't invite them - try again", variant: 'error' },
-  'request:sent': { message: "Asked - it's up to them now", variant: 'success' },
-  'request:error': { message: "Couldn't ask them - try again", variant: 'error' },
-  'comparison:invited': { message: "You've been invited to a comparison count", variant: 'success' },
-  'comparison:revealed': { message: 'Comparison results are in', variant: 'success' },
-  'comparison:ended': { message: 'The comparison count ended early', variant: 'error' },
-  'comparison:start-error': { message: "Couldn't start the comparison", variant: 'error' },
-  'comparison:join-error': { message: "Couldn't join the comparison", variant: 'error' },
-  'comparison:submit-error': { message: "Couldn't hand in your count", variant: 'error' },
-  'sharedcount:invited': { message: "You've been invited to a shared count", variant: 'success' },
-  'sharedcount:ended': { message: 'The shared count has ended', variant: 'success' },
-  'sharedcount:start-error': { message: "Couldn't start the shared count", variant: 'error' },
-  'sharedcount:join-error': { message: "Couldn't join the shared count", variant: 'error' },
-  'sharedcount:finish-error': { message: "Couldn't finish the shared count", variant: 'error' },
-}
+const TOAST_MESSAGES: Record<string, { message: string; variant: "success" | "error" }> = {
+	"annotation:created": { message: "Annotation saved", variant: "success" },
+	"annotation:created:error": { message: "Couldn't save annotation", variant: "error" },
+	"annotation:updated": { message: "Annotation updated", variant: "success" },
+	"annotation:updated:error": { message: "Couldn't update annotation", variant: "error" },
+	"annotation:deleted": { message: "Annotation deleted", variant: "success" },
+	"annotation:deleted:error": { message: "Couldn't delete annotation", variant: "error" },
+	"annotations:load-error": { message: "Couldn't reach the annotation store", variant: "error" },
+	"annotations:updated": { message: "Annotations updated", variant: "success" },
+	"annotations:updated:error": { message: "Couldn't update those annotations", variant: "error" },
+	"annotations:deleted:error": { message: "Couldn't delete those annotations - reload to see what's there", variant: "error" },
+	"annotations:restored:error": { message: "Couldn't bring those annotations back - reload to see what's there", variant: "error" },
+	"annotationgroup:error": { message: "Couldn't change that group - try again", variant: "error" },
+	"cellcountgroup:error": { message: "Couldn't change that group - try again", variant: "error" },
+	"collection:rolled-back": { message: "Someone put this collection back to an earlier point", variant: "success" },
+	"cellcount:created": { message: "Cell count saved", variant: "success" },
+	"cellcount:created:error": { message: "Couldn't save cell count", variant: "error" },
+	"cellcount:updated": { message: "Cell count updated", variant: "success" },
+	"cellcount:updated:error": { message: "Couldn't update cell count", variant: "error" },
+	"cellcount:deleted": { message: "Cell count deleted", variant: "success" },
+	"cellcount:deleted:error": { message: "Couldn't delete cell count", variant: "error" },
+	"cellcounts:load-error": { message: "Couldn't reach the annotation store", variant: "error" },
+	"cellcount:click-outside-roi": { message: "Can't click here", variant: "error" },
+	"slide:load-error": { message: "Couldn't reach the tile server", variant: "error" },
+	"collection:load-error": { message: "Couldn't reach the annotation store", variant: "error" },
+	"imageadjustment:created": { message: "Preset saved", variant: "success" },
+	"imageadjustment:created:error": { message: "Couldn't save preset", variant: "error" },
+	"imageadjustment:updated": { message: "Preset updated", variant: "success" },
+	"imageadjustment:updated:error": { message: "Couldn't update preset", variant: "error" },
+	"imageadjustment:deleted": { message: "Preset deleted", variant: "success" },
+	"imageadjustment:deleted:error": { message: "Couldn't delete preset", variant: "error" },
+	"imageadjustments:load-error": { message: "Couldn't reach the annotation store", variant: "error" },
+	"realtime:connect-error": { message: "Couldn't reach the real-time hub", variant: "error" },
+	"collection:read-only": { message: "You can only look in here, not change anything", variant: "error" },
+	"collection:exported": { message: "Collection exported", variant: "success" },
+	"collection:export-error": { message: "Couldn't export that collection", variant: "error" },
+	"collection:imported": { message: "GeoJSON imported", variant: "success" },
+	"collection:import-error": { message: "Couldn't import that file - nothing was added", variant: "error" },
+	"collection:error": { message: "Couldn't do that - try again", variant: "error" },
+	"session:error": { message: "Couldn't do that - try again", variant: "error" },
+	"session:link-copied": { message: "Invite link copied", variant: "success" },
+	"session:code-copied": { message: "Invite code copied", variant: "success" },
+	"user:invited": { message: "Invite sent - it's up to them now", variant: "success" },
+	"user:invite-error": { message: "Couldn't invite them - try again", variant: "error" },
+	"request:sent": { message: "Asked - it's up to them now", variant: "success" },
+	"request:error": { message: "Couldn't ask them - try again", variant: "error" },
+	"comparison:invited": { message: "You've been invited to a comparison count", variant: "success" },
+	"comparison:revealed": { message: "Comparison results are in", variant: "success" },
+	"comparison:ended": { message: "The comparison count ended early", variant: "error" },
+	"comparison:start-error": { message: "Couldn't start the comparison", variant: "error" },
+	"comparison:join-error": { message: "Couldn't join the comparison", variant: "error" },
+	"comparison:submit-error": { message: "Couldn't hand in your count", variant: "error" },
+	"sharedcount:invited": { message: "You've been invited to a shared count", variant: "success" },
+	"sharedcount:ended": { message: "The shared count has ended", variant: "success" },
+	"sharedcount:start-error": { message: "Couldn't start the shared count", variant: "error" },
+	"sharedcount:join-error": { message: "Couldn't join the shared count", variant: "error" },
+	"sharedcount:finish-error": { message: "Couldn't finish the shared count", variant: "error" },
+};
 
 interface EventContextProviderProps {
-  on?: (event: string, payload: unknown) => void
-  children: ReactNode
+	on?: (event: string, payload: unknown) => void;
+	children: ReactNode;
 }
 
 // The single place every user-facing action funnels through: forwards to the
@@ -80,26 +80,26 @@ interface EventContextProviderProps {
 // both driven off the same event name/payload, per the app's public event
 // vocabulary above.
 function EventContextProvider({ on, children }: EventContextProviderProps) {
-  const { addToast } = useToastContext()
+	const { addToast } = useToastContext();
 
-  const emit = useCallback<EmitEvent>(
-    (event, payload) => {
-      on?.(event, payload)
-      const toast = TOAST_MESSAGES[event]
-      if (toast) addToast(toast.message, toast.variant)
-    },
-    [on, addToast]
-  )
+	const emit = useCallback<EmitEvent>(
+		(event, payload) => {
+			on?.(event, payload);
+			const toast = TOAST_MESSAGES[event];
+			if (toast) addToast(toast.message, toast.variant);
+		},
+		[on, addToast],
+	);
 
-  return <EventContext.Provider value={emit}>{children}</EventContext.Provider>
+	return <EventContext.Provider value={emit}>{children}</EventContext.Provider>;
 }
 
 function useEmitEvent(): EmitEvent {
-  const context = useContext(EventContext)
-  if (!context) {
-    throw new Error('useEmitEvent must be used within an EventContextProvider')
-  }
-  return context
+	const context = useContext(EventContext);
+	if (!context) {
+		throw new Error("useEmitEvent must be used within an EventContextProvider");
+	}
+	return context;
 }
 
-export { EventContextProvider, useEmitEvent }
+export { EventContextProvider, useEmitEvent };

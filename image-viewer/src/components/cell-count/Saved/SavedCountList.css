@@ -1,81 +1,81 @@
 .saved-cell-count-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.15em;
-  /* Grows to fill whatever height CellCountPanel's content area actually
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.15em;
+	/* Grows to fill whatever height CellCountPanel's content area actually
      has (see CellCountPanel.css) - the full DockEdge when docked, up to
      70vh when floating - rather than stopping at a fixed row count
      regardless of how much room is available, then scrolls internally past
      that. The tabs above it never move either way. */
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
 }
 
 .saved-cell-count-list-empty {
-  margin: 0;
-  font-size: 1em;
-  color: var(--chrome-text-secondary);
+	margin: 0;
+	font-size: 1em;
+	color: var(--chrome-text-secondary);
 }
 
 /* Rows themselves are SavedRow (see components/saved/SavedRow.css). */
 .saved-cell-count-list-swatch {
-  width: 0.9em;
-  height: 0.9em;
-  flex-shrink: 0;
-  border-radius: 50%;
+	width: 0.9em;
+	height: 0.9em;
+	flex-shrink: 0;
+	border-radius: 50%;
 }
 
 .saved-cell-count-list-count {
-  font-weight: 700;
+	font-weight: 700;
 }
 
 .saved-cell-count-list-search {
-  flex-shrink: 0;
-  box-sizing: border-box;
-  width: 100%;
-  margin-bottom: 0.5em;
-  padding: 0.5em;
-  font-family: var(--sans);
-  font-size: 0.95em;
-  color: var(--chrome-text);
-  background: var(--white-06);
-  border: 1px solid transparent;
-  border-radius: 0.3125rem;
+	flex-shrink: 0;
+	box-sizing: border-box;
+	width: 100%;
+	margin-bottom: 0.5em;
+	padding: 0.5em;
+	font-family: var(--sans);
+	font-size: 0.95em;
+	color: var(--chrome-text);
+	background: var(--white-06);
+	border: 1px solid transparent;
+	border-radius: 0.3125rem;
 }
 
 .saved-cell-count-list-search:focus {
-  outline: none;
-  border-color: var(--accent);
+	outline: none;
+	border-color: var(--accent);
 }
 
 .saved-count-groups {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4em;
-  margin-bottom: 0.5em;
+	display: flex;
+	flex-direction: column;
+	gap: 0.4em;
+	margin-bottom: 0.5em;
 }
 
 .saved-count-groups-title {
-  margin-bottom: 0.3em;
-  cursor: pointer;
+	margin-bottom: 0.3em;
+	cursor: pointer;
 }
 
 .saved-row-group {
-  max-width: 9em;
-  padding: 0.2em 0.3em;
-  font-family: var(--sans);
-  font-size: 0.82em;
-  color: var(--chrome-text);
-  background: var(--white-08);
-  border: none;
-  border-radius: 0.3125rem;
+	max-width: 9em;
+	padding: 0.2em 0.3em;
+	font-family: var(--sans);
+	font-size: 0.82em;
+	color: var(--chrome-text);
+	background: var(--white-08);
+	border: none;
+	border-radius: 0.3125rem;
 }
 
 .saved-row-group option {
-  color: var(--chrome-text);
-  background: rgb(var(--chrome-bg-rgb));
+	color: var(--chrome-text);
+	background: rgb(var(--chrome-bg-rgb));
 }

@@ -1,39 +1,39 @@
-import { Map, View } from 'ol'
-import WebGLTileLayer, { type Options as WebGLTileLayerOptions } from 'ol/layer/WebGLTile'
-import Zoomify from 'ol/source/Zoomify'
-import Projection from 'ol/proj/Projection'
-import OverviewMap from 'ol/control/OverviewMap'
-import { defaults as defaultInteractions } from 'ol/interaction/defaults'
-import Control from 'ol/control/Control'
-import { getCenter, getHeight, getWidth, scaleFromCenter } from 'ol/extent'
-import type BaseLayer from 'ol/layer/Base'
-import { DEFAULT_ADJUSTMENTS, type ImageAdjustmentValues } from '../adjustments/adjustments'
+import { Map, View } from "ol";
+import WebGLTileLayer, { type Options as WebGLTileLayerOptions } from "ol/layer/WebGLTile";
+import Zoomify from "ol/source/Zoomify";
+import Projection from "ol/proj/Projection";
+import OverviewMap from "ol/control/OverviewMap";
+import { defaults as defaultInteractions } from "ol/interaction/defaults";
+import Control from "ol/control/Control";
+import { getCenter, getHeight, getWidth, scaleFromCenter } from "ol/extent";
+import type BaseLayer from "ol/layer/Base";
+import { DEFAULT_ADJUSTMENTS, type ImageAdjustmentValues } from "../adjustments/adjustments";
 
 interface ImageSize {
-  width: number
-  height: number
+	width: number;
+	height: number;
 }
 
 // Smallest the overview's viewport-indicator box is ever allowed to shrink
 // to, in CSS pixels - see clampOverviewBoxSize.
-const MIN_OVERVIEW_BOX_PX = 6
+const MIN_OVERVIEW_BOX_PX = 6;
 
 // A whole-slide image has no natural CRS, so we project it onto its own
 // pixel grid (Y flipped, since OpenLayers extents grow upward).
 function getExtent(size: ImageSize): number[] {
-  const left = 0
-  const top = -size.height
-  const right = size.width
-  const bottom = 0
-  return [left, top, right, bottom]
+	const left = 0;
+	const top = -size.height;
+	const right = size.width;
+	const bottom = 0;
+	return [left, top, right, bottom];
 }
 
 function olProjection(extent: number[]): Projection {
-  return new Projection({
-    code: 'image-viewer',
-    units: 'pixels',
-    extent,
-  })
+	return new Projection({
+		code: "image-viewer",
+		units: "pixels",
+		extent,
+	});
 }
 
 // Same halving ladder as tiler's ZoomifyTiling.ComputeTiers / ol/source/Zoomify's
@@ -44,15 +44,15 @@ function olProjection(extent: number[]): Projection {
 // empty space past "whole slide, one tile" on the other. Computed per slide
 // since the ladder length depends on its dimensions.
 function computeResolutionLadder(size: ImageSize, tileSize: number): number[] {
-  const resolutions = [1]
-  let width = size.width
-  let height = size.height
-  while (width > tileSize || height > tileSize) {
-    resolutions.unshift(resolutions[0] * 2)
-    width = Math.floor(width / 2)
-    height = Math.floor(height / 2)
-  }
-  return resolutions
+	const resolutions = [1];
+	let width = size.width;
+	let height = size.height;
+	while (width > tileSize || height > tileSize) {
+		resolutions.unshift(resolutions[0] * 2);
+		width = Math.floor(width / 2);
+		height = Math.floor(height / 2);
+	}
+	return resolutions;
 }
 
 // Excludes any *intermediate* tier coarser than "life-size" (magnification
@@ -75,12 +75,10 @@ function computeResolutionLadder(size: ImageSize, tileSize: number): number[] {
 // x1 by construction (see formatMagnification's fallback), so there's
 // nothing to trim either way.
 function capResolutionsAtNativeScale(resolutions: number[], objectivePower: number | null): number[] {
-  if (objectivePower === null) return resolutions
-  const wholeSlideResolution = resolutions[0]
-  const capped = resolutions.filter(
-    (resolution) => resolution <= objectivePower || resolution === wholeSlideResolution
-  )
-  return capped.length > 0 ? capped : resolutions.slice(-1)
+	if (objectivePower === null) return resolutions;
+	const wholeSlideResolution = resolutions[0];
+	const capped = resolutions.filter((resolution) => resolution <= objectivePower || resolution === wholeSlideResolution);
+	return capped.length > 0 ? capped : resolutions.slice(-1);
 }
 
 // OL's OverviewMap draws the current-viewport box at its true scale relative
@@ -90,15 +88,11 @@ function capResolutionsAtNativeScale(resolutions: number[], objectivePower: numb
 // zoom, so the overview stops showing where you are at all. Floors both
 // dimensions so there's always a marker on screen; NaN (box not measured
 // yet) also floors to `min` rather than propagating.
-function clampOverviewBoxSize(
-  width: number,
-  height: number,
-  min: number
-): { width: number; height: number } {
-  return {
-    width: Number.isFinite(width) ? Math.max(width, min) : min,
-    height: Number.isFinite(height) ? Math.max(height, min) : min,
-  }
+function clampOverviewBoxSize(width: number, height: number, min: number): { width: number; height: number } {
+	return {
+		width: Number.isFinite(width) ? Math.max(width, min) : min,
+		height: Number.isFinite(height) ? Math.max(height, min) : min,
+	};
 }
 
 // Maps live adjustment values onto a WebGLTileLayer style: variables so a
@@ -108,26 +102,26 @@ function clampOverviewBoxSize(
 // brightness/contrast/gamma expressions, on top of the per-channel gain this
 // color expression applies first.
 function adjustmentsStyle(values: ImageAdjustmentValues) {
-  return {
-    variables: {
-      red: values.red,
-      green: values.green,
-      blue: values.blue,
-      brightness: values.brightness,
-      contrast: values.contrast,
-      gamma: values.gamma,
-    },
-    color: [
-      'array',
-      ['clamp', ['*', ['band', 1], ['var', 'red']], 0, 1],
-      ['clamp', ['*', ['band', 2], ['var', 'green']], 0, 1],
-      ['clamp', ['*', ['band', 3], ['var', 'blue']], 0, 1],
-      ['band', 4],
-    ],
-    brightness: ['var', 'brightness'],
-    contrast: ['var', 'contrast'],
-    gamma: ['var', 'gamma'],
-  }
+	return {
+		variables: {
+			red: values.red,
+			green: values.green,
+			blue: values.blue,
+			brightness: values.brightness,
+			contrast: values.contrast,
+			gamma: values.gamma,
+		},
+		color: [
+			"array",
+			["clamp", ["*", ["band", 1], ["var", "red"]], 0, 1],
+			["clamp", ["*", ["band", 2], ["var", "green"]], 0, 1],
+			["clamp", ["*", ["band", 3], ["var", "blue"]], 0, 1],
+			["band", 4],
+		],
+		brightness: ["var", "brightness"],
+		contrast: ["var", "contrast"],
+		gamma: ["var", "gamma"],
+	};
 }
 
 // baseUrl must include the trailing slide segment, e.g.
@@ -143,35 +137,29 @@ function adjustmentsStyle(values: ImageAdjustmentValues) {
 // underneath. Used for both the main map's base layer and the overview's
 // separate copy; only the main one ever has its style variables updated at
 // runtime (see MapNode), so the overview stays a neutral reference thumbnail.
-function zoomifyLayer(
-  baseUrl: string,
-  tileSize: number,
-  size: ImageSize,
-  projection: Projection,
-  extent: number[]
-): WebGLTileLayer {
-  const source = new Zoomify({
-    url: baseUrl,
-    size: [size.width, size.height],
-    extent,
-    tileSize,
-    projection,
-    crossOrigin: 'anonymous',
-  })
-  return new WebGLTileLayer({
-    // WebGLTileLayer's own Options type only declares DataTileSource-based
-    // sources, but ol/layer/WebGLTile.js's getSourceBandCount_ works with any
-    // TileImage-based source too - it just falls back to a 4-band (r,g,b,a)
-    // default when the source doesn't declare its own bandCount, which is
-    // exactly Zoomify's case. This is a gap in ol's .d.ts, not a real
-    // runtime mismatch.
-    source: source as unknown as WebGLTileLayerOptions['source'],
-    style: adjustmentsStyle(DEFAULT_ADJUSTMENTS),
-    // Loads every lower-res level under the view too, so a tile that isn't in
-    // yet shows a blurry preview instead of a white gap. Each level down is a
-    // quarter of the tiles, so this adds about a third more requests.
-    preload: Infinity,
-  })
+function zoomifyLayer(baseUrl: string, tileSize: number, size: ImageSize, projection: Projection, extent: number[]): WebGLTileLayer {
+	const source = new Zoomify({
+		url: baseUrl,
+		size: [size.width, size.height],
+		extent,
+		tileSize,
+		projection,
+		crossOrigin: "anonymous",
+	});
+	return new WebGLTileLayer({
+		// WebGLTileLayer's own Options type only declares DataTileSource-based
+		// sources, but ol/layer/WebGLTile.js's getSourceBandCount_ works with any
+		// TileImage-based source too - it just falls back to a 4-band (r,g,b,a)
+		// default when the source doesn't declare its own bandCount, which is
+		// exactly Zoomify's case. This is a gap in ol's .d.ts, not a real
+		// runtime mismatch.
+		source: source as unknown as WebGLTileLayerOptions["source"],
+		style: adjustmentsStyle(DEFAULT_ADJUSTMENTS),
+		// Loads every lower-res level under the view too, so a tile that isn't in
+		// yet shows a blurry preview instead of a white gap. Each level down is a
+		// quarter of the tiles, so this adds about a third more requests.
+		preload: Infinity,
+	});
 }
 
 // No extent constraint on the view - annotations should be drawable outside
@@ -179,17 +167,17 @@ function zoomifyLayer(
 // computeResolutionLadder) is what keeps zoom itself within a sensible,
 // slide-derived range.
 function olView(projection: Projection, resolutions: number[]): View {
-  return new View({
-    projection,
-    resolutions,
-  })
+	return new View({
+		projection,
+		resolutions,
+	});
 }
 
 // How much more than the main viewport the overview shows. The same ratio
 // OverviewMap's own resetExtent_ uses (1 / (sqrt(MAX_RATIO / MIN_RATIO) *
 // MIN_RATIO) with its 0.75 and 0.1), so its per-render check agrees with
 // the frame followMainView sets and leaves it alone.
-const OVERVIEW_CONTEXT = 1 / (Math.sqrt(0.75 / 0.1) * 0.1)
+const OVERVIEW_CONTEXT = 1 / (Math.sqrt(0.75 / 0.1) * 0.1);
 
 // Never zooms out past the whole slide or shows past its edges. The default
 // max resolution would be the slide fitting 256px, which is less than the
@@ -198,52 +186,47 @@ const OVERVIEW_CONTEXT = 1 / (Math.sqrt(0.75 / 0.1) * 0.1)
 // Smooth clamping is off because fit() counts as moving, and the smooth
 // version lets it overshoot the cap.
 function overviewView(projection: Projection, extent: number[]): View {
-  const aboveAnyFit = Math.max(getWidth(extent), getHeight(extent))
-  return new View({
-    projection,
-    extent,
-    showFullExtent: true,
-    smoothResolutionConstraint: false,
-    smoothExtentConstraint: false,
-    center: getCenter(extent),
-    resolution: aboveAnyFit,
-    maxResolution: aboveAnyFit,
-  })
+	const aboveAnyFit = Math.max(getWidth(extent), getHeight(extent));
+	return new View({
+		projection,
+		extent,
+		showFullExtent: true,
+		smoothResolutionConstraint: false,
+		smoothExtentConstraint: false,
+		center: getCenter(extent),
+		resolution: aboveAnyFit,
+		maxResolution: aboveAnyFit,
+	});
 }
 
 // Frames the overview on the main viewport at OVERVIEW_CONTEXT times its
 // size, so it stays at the same zoom and pans with you while you drag.
 function followMainView(overview: View, main: View, mainSize: number[] | undefined): void {
-  if (!mainSize) return
-  const frame = main.calculateExtent(mainSize)
-  scaleFromCenter(frame, OVERVIEW_CONTEXT)
-  overview.fit(frame)
+	if (!mainSize) return;
+	const frame = main.calculateExtent(mainSize);
+	scaleFromCenter(frame, OVERVIEW_CONTEXT);
+	overview.fit(frame);
 }
 
 interface BaseLayerSpec {
-  baseUrl: string
-  tileSize: number
+	baseUrl: string;
+	tileSize: number;
 }
 
 // Layers can't be shared between two Map instances, so the overview needs
 // its own copy built the same way - same projection/extent instance as
 // the main map, so the two line up exactly.
-function buildBaseLayer(
-  spec: BaseLayerSpec,
-  projection: Projection,
-  extent: number[],
-  size: ImageSize
-): WebGLTileLayer {
-  return zoomifyLayer(spec.baseUrl, spec.tileSize, size, projection, extent)
+function buildBaseLayer(spec: BaseLayerSpec, projection: Projection, extent: number[], size: ImageSize): WebGLTileLayer {
+	return zoomifyLayer(spec.baseUrl, spec.tileSize, size, projection, extent);
 }
 
 // Formats a magnification ratio as "x1", "x40", "x0.3" etc - integer once it
 // reaches double digits (nobody needs "x40.2"), one or two decimal places
 // below that so small ratios don't all collapse to "x0".
 function formatMagnification(value: number): string {
-  if (value >= 10) return `x${Math.round(value)}`
-  if (value >= 1) return `x${Math.round(value * 10) / 10}`
-  return `x${Math.round(value * 100) / 100}`
+	if (value >= 10) return `x${Math.round(value)}`;
+	if (value >= 1) return `x${Math.round(value * 10) / 10}`;
+	return `x${Math.round(value * 100) / 100}`;
 }
 
 // A status bar attached below the overview map's own element: current zoom
@@ -255,52 +238,51 @@ function formatMagnification(value: number): string {
 // protected, so the container is found by querying the DOM instead - safe
 // to do right after addControl(), which appends it synchronously.
 function attachOverviewStatusBar(
-  overview: OverviewMap,
-  container: HTMLElement,
-  view: View,
-  resolutions: number[],
-  objectivePower: number | null
+	overview: OverviewMap,
+	container: HTMLElement,
+	view: View,
+	resolutions: number[],
+	objectivePower: number | null,
 ): void {
-  const bar = document.createElement('div')
-  bar.className = 'ol-overviewmap-statusbar'
+	const bar = document.createElement("div");
+	bar.className = "ol-overviewmap-statusbar";
 
-  const zoomLabel = document.createElement('span')
-  zoomLabel.className = 'ol-overviewmap-zoom'
+	const zoomLabel = document.createElement("span");
+	zoomLabel.className = "ol-overviewmap-zoom";
 
-  const toggleButton = document.createElement('button')
-  toggleButton.type = 'button'
-  toggleButton.className = 'ol-overviewmap-toggle'
-  toggleButton.setAttribute('aria-label', 'Toggle overview map')
+	const toggleButton = document.createElement("button");
+	toggleButton.type = "button";
+	toggleButton.className = "ol-overviewmap-toggle";
+	toggleButton.setAttribute("aria-label", "Toggle overview map");
 
-  // objectivePower (openslide.objective-power) is the scanner's real
-  // objective magnification at native resolution - when the slide reports
-  // one, resolution 1 genuinely means e.g. "x40", and it scales down from
-  // there as you zoom out. Without it (a format that doesn't report it),
-  // fall back to a relative multiple of the most zoomed-out tier, which is
-  // the closest honest stand-in.
-  const updateZoomLabel = () => {
-    const resolution = view.getResolution() ?? 1
-    const magnification =
-      objectivePower !== null ? objectivePower / resolution : resolutions[0] / resolution
-    zoomLabel.textContent = formatMagnification(magnification)
-  }
+	// objectivePower (openslide.objective-power) is the scanner's real
+	// objective magnification at native resolution - when the slide reports
+	// one, resolution 1 genuinely means e.g. "x40", and it scales down from
+	// there as you zoom out. Without it (a format that doesn't report it),
+	// fall back to a relative multiple of the most zoomed-out tier, which is
+	// the closest honest stand-in.
+	const updateZoomLabel = () => {
+		const resolution = view.getResolution() ?? 1;
+		const magnification = objectivePower !== null ? objectivePower / resolution : resolutions[0] / resolution;
+		zoomLabel.textContent = formatMagnification(magnification);
+	};
 
-  const updateToggleIcon = () => {
-    toggleButton.textContent = overview.getCollapsed() ? '›' : '‹'
-  }
+	const updateToggleIcon = () => {
+		toggleButton.textContent = overview.getCollapsed() ? "›" : "‹";
+	};
 
-  toggleButton.addEventListener('click', () => {
-    overview.setCollapsed(!overview.getCollapsed())
-    updateToggleIcon()
-  })
+	toggleButton.addEventListener("click", () => {
+		overview.setCollapsed(!overview.getCollapsed());
+		updateToggleIcon();
+	});
 
-  view.on('change:resolution', updateZoomLabel)
-  updateZoomLabel()
-  updateToggleIcon()
+	view.on("change:resolution", updateZoomLabel);
+	updateZoomLabel();
+	updateToggleIcon();
 
-  bar.appendChild(zoomLabel)
-  bar.appendChild(toggleButton)
-  container.appendChild(bar)
+	bar.appendChild(zoomLabel);
+	bar.appendChild(toggleButton);
+	container.appendChild(bar);
 }
 
 // Largest "nice" value (a 1-2-5 progression scaled by a power of ten) that
@@ -308,38 +290,35 @@ function attachOverviewStatusBar(
 // bar always reads a round number ("500 µm", "2 mm") rather than an
 // arbitrary one ("438 µm") that happened to fit the available width.
 function niceScaleValue(maxValue: number): number {
-  if (maxValue <= 0) return 0
-  const exponent = Math.floor(Math.log10(maxValue))
-  const base = 10 ** exponent
-  const fraction = maxValue / base
-  const step = fraction >= 5 ? 5 : fraction >= 2 ? 2 : 1
-  return step * base
+	if (maxValue <= 0) return 0;
+	const exponent = Math.floor(Math.log10(maxValue));
+	const base = 10 ** exponent;
+	const fraction = maxValue / base;
+	const step = fraction >= 5 ? 5 : fraction >= 2 ? 2 : 1;
+	return step * base;
 }
 
 // Picks the bar's length (in whatever linear unit unitsPerScreenPixel is
 // expressed in - microns, or raw image pixels when a slide has no mpp) and
 // the on-screen pixel width that represents, capped at maxWidthPx.
-function chooseScaleBarLength(
-  unitsPerScreenPixel: number,
-  maxWidthPx: number
-): { length: number; widthPx: number } {
-  if (!Number.isFinite(unitsPerScreenPixel) || unitsPerScreenPixel <= 0) {
-    return { length: 0, widthPx: 0 }
-  }
-  const length = niceScaleValue(unitsPerScreenPixel * maxWidthPx)
-  return { length, widthPx: length / unitsPerScreenPixel }
+function chooseScaleBarLength(unitsPerScreenPixel: number, maxWidthPx: number): { length: number; widthPx: number } {
+	if (!Number.isFinite(unitsPerScreenPixel) || unitsPerScreenPixel <= 0) {
+		return { length: 0, widthPx: 0 };
+	}
+	const length = niceScaleValue(unitsPerScreenPixel * maxWidthPx);
+	return { length, widthPx: length / unitsPerScreenPixel };
 }
 
 // `length` is already a round number by construction (see niceScaleValue),
 // so unlike ruler.ts's formatDistanceMicrons this never needs to round -
 // just to pick µm vs mm (1-2-5 scaled by 1000 is still 1-2-5, so the
 // division is always exact).
-function formatScaleLength(length: number, unit: 'micron' | 'pixel'): string {
-  if (unit === 'pixel') return `${length} px`
-  return length >= 1000 ? `${length / 1000} mm` : `${length} µm`
+function formatScaleLength(length: number, unit: "micron" | "pixel"): string {
+	if (unit === "pixel") return `${length} px`;
+	return length >= 1000 ? `${length / 1000} mm` : `${length} µm`;
 }
 
-const MAX_SCALE_BAR_WIDTH_PX = 220
+const MAX_SCALE_BAR_WIDTH_PX = 220;
 
 // A floating scale bar, bottom-right of the map - a plain OL Control (own
 // overlay element, positioned via CSS, no backing rectangle) rather than
@@ -350,141 +329,141 @@ const MAX_SCALE_BAR_WIDTH_PX = 220
 // mppY) is used, matching how every other map viewer's horizontal scale bar
 // works - a fine approximation even for the rare non-square-pixel slide.
 function buildScaleBarControl(view: View, mppX: number | null): Control {
-  // Positioning (bottom/right, in em) lives on this outer element, which
-  // carries no font-size of its own - .ol-scalebar-chip's bigger font-size
-  // stays local to the chip's own text/padding instead of also inflating
-  // the em basis the outer element's bottom/right offsets are computed
-  // against, which put an unwanted gap above the toolbar the last time
-  // those two things shared a font-size on the same element.
-  const element = document.createElement('div')
-  element.className = 'ol-scalebar'
+	// Positioning (bottom/right, in em) lives on this outer element, which
+	// carries no font-size of its own - .ol-scalebar-chip's bigger font-size
+	// stays local to the chip's own text/padding instead of also inflating
+	// the em basis the outer element's bottom/right offsets are computed
+	// against, which put an unwanted gap above the toolbar the last time
+	// those two things shared a font-size on the same element.
+	const element = document.createElement("div");
+	element.className = "ol-scalebar";
 
-  const chip = document.createElement('div')
-  chip.className = 'ol-scalebar-chip'
+	const chip = document.createElement("div");
+	chip.className = "ol-scalebar-chip";
 
-  const line = document.createElement('div')
-  line.className = 'ol-scalebar-line'
+	const line = document.createElement("div");
+	line.className = "ol-scalebar-line";
 
-  const label = document.createElement('span')
-  label.className = 'ol-scalebar-label'
+	const label = document.createElement("span");
+	label.className = "ol-scalebar-label";
 
-  const update = () => {
-    const resolution = view.getResolution() ?? 1
-    const unitsPerScreenPixel = mppX !== null ? resolution * mppX : resolution
-    const { length, widthPx } = chooseScaleBarLength(unitsPerScreenPixel, MAX_SCALE_BAR_WIDTH_PX)
-    line.style.width = `${widthPx}px`
-    label.textContent = formatScaleLength(length, mppX !== null ? 'micron' : 'pixel')
-  }
+	const update = () => {
+		const resolution = view.getResolution() ?? 1;
+		const unitsPerScreenPixel = mppX !== null ? resolution * mppX : resolution;
+		const { length, widthPx } = chooseScaleBarLength(unitsPerScreenPixel, MAX_SCALE_BAR_WIDTH_PX);
+		line.style.width = `${widthPx}px`;
+		label.textContent = formatScaleLength(length, mppX !== null ? "micron" : "pixel");
+	};
 
-  view.on('change:resolution', update)
-  update()
+	view.on("change:resolution", update);
+	update();
 
-  chip.appendChild(line)
-  chip.appendChild(label)
-  element.appendChild(chip)
+	chip.appendChild(line);
+	chip.appendChild(label);
+	element.appendChild(chip);
 
-  return new Control({ element })
+	return new Control({ element });
 }
 
 // Asked for rather than left to Map, whose own default is onFocusOnly - with a
 // tabindex on the target, scrolling and dragging would then do nothing until
 // the map had focus, so not while you're in a panel.
 export function mapInteractions() {
-  return defaultInteractions()
+	return defaultInteractions();
 }
 
 export function OpenLayerMap(
-  target: HTMLElement,
-  size: ImageSize,
-  spec: BaseLayerSpec,
-  objectivePower: number | null = null,
-  mppX: number | null = null,
-  extraLayers: BaseLayer[] = []
+	target: HTMLElement,
+	size: ImageSize,
+	spec: BaseLayerSpec,
+	objectivePower: number | null = null,
+	mppX: number | null = null,
+	extraLayers: BaseLayer[] = [],
 ): { map: Map; baseLayer: WebGLTileLayer; overviewMap: Map } {
-  const extent = getExtent(size)
-  const projection = olProjection(extent)
-  const resolutions = computeResolutionLadder(size, spec.tileSize)
-  const viewResolutions = capResolutionsAtNativeScale(resolutions, objectivePower)
+	const extent = getExtent(size);
+	const projection = olProjection(extent);
+	const resolutions = computeResolutionLadder(size, spec.tileSize);
+	const viewResolutions = capResolutionsAtNativeScale(resolutions, objectivePower);
 
-  const baseLayer = buildBaseLayer(spec, projection, extent, size)
+	const baseLayer = buildBaseLayer(spec, projection, extent, size);
 
-  const map = new Map({
-    target,
-    layers: [baseLayer, ...extraLayers],
-    view: olView(projection, viewResolutions),
-    interactions: mapInteractions(),
-  })
-  // OL only hears arrow keys and +/- on its target while focus is inside it,
-  // and a plain div can't take focus.
-  target.tabIndex = 0
+	const map = new Map({
+		target,
+		layers: [baseLayer, ...extraLayers],
+		view: olView(projection, viewResolutions),
+		interactions: mapInteractions(),
+	});
+	// OL only hears arrow keys and +/- on its target while focus is inside it,
+	// and a plain div can't take focus.
+	target.tabIndex = 0;
 
-  // Overview panel: a close-up around the current viewport (the whole slide
-  // once you're zoomed out far enough), with a box showing the viewport -
-  // draggable/clickable to reposition the main view. Needs its own explicit
-  // view - left to its default, OverviewMap assumes a standard
-  // web-mercator-ish projection, which silently fails to render anything in
-  // our custom pixel one.
-  const overview = new OverviewMap({
-    view: overviewView(projection, extent),
-    layers: [buildBaseLayer(spec, projection, extent, size)],
-    collapsed: false,
-    collapsible: true,
-  })
-  map.addControl(overview)
-  map.addControl(buildScaleBarControl(map.getView(), mppX))
+	// Overview panel: a close-up around the current viewport (the whole slide
+	// once you're zoomed out far enough), with a box showing the viewport -
+	// draggable/clickable to reposition the main view. Needs its own explicit
+	// view - left to its default, OverviewMap assumes a standard
+	// web-mercator-ish projection, which silently fails to render anything in
+	// our custom pixel one.
+	const overview = new OverviewMap({
+		view: overviewView(projection, extent),
+		layers: [buildBaseLayer(spec, projection, extent, size)],
+		collapsed: false,
+		collapsible: true,
+	});
+	map.addControl(overview);
+	map.addControl(buildScaleBarControl(map.getView(), mppX));
 
-  // Runs on 'change', before the render where OverviewMap checks its own
-  // frame, so that check finds nothing to fix. Left to OverviewMap alone it
-  // only re-frames when the box gets too small or leaves the overview, so it
-  // jumped between zoom levels and lagged behind a drag.
-  const overviewMapView = overview.getOverviewMap().getView()
-  const follow = () => followMainView(overviewMapView, map.getView(), map.getSize())
-  map.getView().on('change', follow)
-  map.on('change:size', follow)
-  // Grows when hovered (see MapNode.css). OL resizes its canvas itself, but
-  // the frame needs refitting to the new size and the viewport box is only
-  // redrawn on a main map render.
-  overview.getOverviewMap().on('change:size', () => {
-    follow()
-    map.render()
-  })
+	// Runs on 'change', before the render where OverviewMap checks its own
+	// frame, so that check finds nothing to fix. Left to OverviewMap alone it
+	// only re-frames when the box gets too small or leaves the overview, so it
+	// jumped between zoom levels and lagged behind a drag.
+	const overviewMapView = overview.getOverviewMap().getView();
+	const follow = () => followMainView(overviewMapView, map.getView(), map.getSize());
+	map.getView().on("change", follow);
+	map.on("change:size", follow);
+	// Grows when hovered (see MapNode.css). OL resizes its canvas itself, but
+	// the frame needs refitting to the new size and the viewport box is only
+	// redrawn on a main map render.
+	overview.getOverviewMap().on("change:size", () => {
+		follow();
+		map.render();
+	});
 
-  const overviewContainer = target.querySelector<HTMLElement>('.ol-overviewmap')
-  if (overviewContainer) {
-    attachOverviewStatusBar(overview, overviewContainer, map.getView(), resolutions, objectivePower)
+	const overviewContainer = target.querySelector<HTMLElement>(".ol-overviewmap");
+	if (overviewContainer) {
+		attachOverviewStatusBar(overview, overviewContainer, map.getView(), resolutions, objectivePower);
 
-    // OverviewMap recomputes the box's width/height from scratch in its own
-    // 'postrender' handler (registered by addControl() above, so it runs
-    // before this one on the same event) - floor it right after, every
-    // frame, rather than trying to fight OL for control of the style once.
-    const overviewBox = overviewContainer.querySelector<HTMLElement>('.ol-overviewmap-box')
-    if (overviewBox) {
-      map.on('postrender', () => {
-        const { width, height } = clampOverviewBoxSize(
-          parseFloat(overviewBox.style.width),
-          parseFloat(overviewBox.style.height),
-          MIN_OVERVIEW_BOX_PX
-        )
-        overviewBox.style.width = `${width}px`
-        overviewBox.style.height = `${height}px`
-      })
-    }
-  }
+		// OverviewMap recomputes the box's width/height from scratch in its own
+		// 'postrender' handler (registered by addControl() above, so it runs
+		// before this one on the same event) - floor it right after, every
+		// frame, rather than trying to fight OL for control of the style once.
+		const overviewBox = overviewContainer.querySelector<HTMLElement>(".ol-overviewmap-box");
+		if (overviewBox) {
+			map.on("postrender", () => {
+				const { width, height } = clampOverviewBoxSize(
+					parseFloat(overviewBox.style.width),
+					parseFloat(overviewBox.style.height),
+					MIN_OVERVIEW_BOX_PX,
+				);
+				overviewBox.style.width = `${width}px`;
+				overviewBox.style.height = `${height}px`;
+			});
+		}
+	}
 
-  map.getView().fit(extent)
-  return { map, baseLayer, overviewMap: overview.getOverviewMap() }
+	map.getView().fit(extent);
+	return { map, baseLayer, overviewMap: overview.getOverviewMap() };
 }
 
 export {
-  getExtent,
-  overviewView,
-  followMainView,
-  OVERVIEW_CONTEXT,
-  computeResolutionLadder,
-  capResolutionsAtNativeScale,
-  clampOverviewBoxSize,
-  niceScaleValue,
-  chooseScaleBarLength,
-  formatScaleLength,
-}
-export type { ImageSize, BaseLayerSpec }
+	getExtent,
+	overviewView,
+	followMainView,
+	OVERVIEW_CONTEXT,
+	computeResolutionLadder,
+	capResolutionsAtNativeScale,
+	clampOverviewBoxSize,
+	niceScaleValue,
+	chooseScaleBarLength,
+	formatScaleLength,
+};
+export type { ImageSize, BaseLayerSpec };

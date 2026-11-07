@@ -1,577 +1,566 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import VectorSource from 'ol/source/Vector'
-import type { Annotation } from '../interfaces/Annotation'
-import { useImageViewerContext } from './ImageViewerContext'
-import { useEmitEvent } from './EventContext'
-import { useCollectionContext } from './CollectionContext'
-import { useRealtimeContext } from './RealtimeContext'
-import { useAuthContext } from './AuthContext'
-import { applyOp, isRollbackOp } from '../components/realtime/realtime'
-import { useSavedTotalAt } from '../components/saved/useSavedTotal'
-import type { SavedFilters } from '../components/saved/filters'
-import { changeSetHeaders, deleteAsOneChange, inBatches, jsonHeaders, newChangeSet } from '../components/annotation/bulk'
-import { useToastContext } from './ToastContext'
-import {
-  bulkConflictMessage,
-  conflictMessage,
-  oneAtATime,
-  readConflict,
-  sendsAfterSave,
-  type Conflict,
-} from '../components/realtime/editPolicy'
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import VectorSource from "ol/source/Vector";
+import type { Annotation } from "../interfaces/Annotation";
+import { useImageViewerContext } from "./ImageViewerContext";
+import { useEmitEvent } from "./EventContext";
+import { useCollectionContext } from "./CollectionContext";
+import { useRealtimeContext } from "./RealtimeContext";
+import { useAuthContext } from "./AuthContext";
+import { applyOp, isRollbackOp } from "../components/realtime/realtime";
+import { useSavedTotalAt } from "../components/saved/useSavedTotal";
+import type { SavedFilters } from "../components/saved/filters";
+import { changeSetHeaders, deleteAsOneChange, inBatches, jsonHeaders, newChangeSet } from "../components/annotation/bulk";
+import { useToastContext } from "./ToastContext";
+import { bulkConflictMessage, conflictMessage, oneAtATime, readConflict, sendsAfterSave, type Conflict } from "../components/realtime/editPolicy";
 
-type Status = 'loading' | 'ready' | 'error'
+type Status = "loading" | "ready" | "error";
 
 // What the Select tab changes on many annotations at once. groupId null
 // takes them out of their group.
 interface BulkPatch {
-  colour?: string
-  groupId?: string | null
+	colour?: string;
+	groupId?: string | null;
 }
 
 // One a bulk change left alone in a first change wins session, as it is now.
 interface BulkConflict {
-  id: string
-  colour: string
-  groupId: string | null
-  changedBy: string | null
+	id: string;
+	colour: string;
+	groupId: string | null;
+	changedBy: string | null;
 }
 
 // The Saved list's search and filters, while it's open and narrowing
 // anything - the map only draws what gets through.
 interface MapFilter {
-  search: string
-  filters: SavedFilters
+	search: string;
+	filters: SavedFilters;
 }
 
 // How long the Undo on a bulk delete stays up. The delete goes to
 // annotation-store straight away - only hidden there, in one change set - and
 // Undo restores that change set. The change set can still be restored after
 // this, the toast just stops offering it.
-const UNDO_DELETE_MS = 8000
+const UNDO_DELETE_MS = 8000;
 // How long a sent bulk delete is still taken off counts fetched before it.
-const REMOVAL_KEEP_MS = 10000
+const REMOVAL_KEEP_MS = 10000;
 
 interface AnnotationStoreContextValue {
-  annotations: Annotation[]
-  status: Status
-  // Goes up each time a create or delete settles - yours once annotation-store
-  // has answered, someone else's when it arrives. The Saved list refetches
-  // its page on it.
-  revision: number
-  // How many annotations the collection has, from annotation-store - null until
-  // it's known. For the Saved tab's label. Takes off a bulk delete straight
-  // away, before annotation-store has answered.
-  total: number | null
-  // The Saved list's own unfiltered /total, so the label keeps up with
-  // anything that wrote to annotation-store without telling realtime.
-  seenTotal: (total: number, at: number, asked: number) => void
-  // Deleted here but not yet out of a fetch made at revision `at` - for the
-  // Saved list, which fetches separately, to take off its own count.
-  pendingRemoved: (at: number) => Annotation[]
-  mapFilter: MapFilter | null
-  setMapFilter: (filter: MapFilter | null) => void
-  wasDeleted: (id: string) => boolean
-  // annotation-store's address, for the Saved list's own paged reads.
-  baseUrl: string
-  selectedAnnotationId: string | null
-  // The saved annotation picked with View on map - the map flies to it and
-  // draws a halo round it. Every annotation is drawn anyway; this just
-  // picks one out.
-  viewedAnnotationId: string | null
-  // The OL features MapNode renders saved annotations as - shared here (not
-  // owned by MapNode) so editing UI (colour changes, etc.) can preview
-  // directly against the live map feature, the same way AddAnnotationForm
-  // does against a pending draw's feature.
-  annotationsSource: VectorSource
-  addAnnotation: (annotation: Annotation) => void
-  // Already saved by a GeoJSON import - see collections/useCollectionFiles.
-  addImported: (annotations: Annotation[]) => void
-  // Put back by a restore - shown again, or replaced with how they are now
-  // if they're already here. Here only - whoever restored them tells
-  // everyone else.
-  addRestored: (annotations: Annotation[]) => void
-  // Loads the lot again, after the whole collection's been put back.
-  reload: () => void
-  // Many at once, from the Select tab - one request, one toast.
-  updateMany: (ids: string[], patch: BulkPatch) => void
-  // Gone straight away and sent straight away, as one change set. Returns
-  // the undo, or null if there was nothing to delete.
-  deleteMany: (ids: string[]) => (() => void) | null
-  // Local only, no request - for groups. markGrouped also tells everyone
-  // else, after annotation-store has already grouped them; forgetGroup is
-  // run by everyone when a group is deleted.
-  markGrouped: (ids: string[], groupId: string) => void
-  forgetGroup: (groupId: string) => void
-  // changeSet keeps every save of one edit as one change - see SavedAnnotationEdit.
-  updateAnnotation: (id: string, patch: Pick<Annotation, 'label' | 'notes' | 'colour'>, changeSet?: string) => void
-  deleteAnnotation: (id: string) => void
-  setSelectedAnnotationId: (id: string | null) => void
-  setViewedAnnotationId: (id: string | null) => void
+	annotations: Annotation[];
+	status: Status;
+	// Goes up each time a create or delete settles - yours once annotation-store
+	// has answered, someone else's when it arrives. The Saved list refetches
+	// its page on it.
+	revision: number;
+	// How many annotations the collection has, from annotation-store - null until
+	// it's known. For the Saved tab's label. Takes off a bulk delete straight
+	// away, before annotation-store has answered.
+	total: number | null;
+	// The Saved list's own unfiltered /total, so the label keeps up with
+	// anything that wrote to annotation-store without telling realtime.
+	seenTotal: (total: number, at: number, asked: number) => void;
+	// Deleted here but not yet out of a fetch made at revision `at` - for the
+	// Saved list, which fetches separately, to take off its own count.
+	pendingRemoved: (at: number) => Annotation[];
+	mapFilter: MapFilter | null;
+	setMapFilter: (filter: MapFilter | null) => void;
+	wasDeleted: (id: string) => boolean;
+	// annotation-store's address, for the Saved list's own paged reads.
+	baseUrl: string;
+	selectedAnnotationId: string | null;
+	// The saved annotation picked with View on map - the map flies to it and
+	// draws a halo round it. Every annotation is drawn anyway; this just
+	// picks one out.
+	viewedAnnotationId: string | null;
+	// The OL features MapNode renders saved annotations as - shared here (not
+	// owned by MapNode) so editing UI (colour changes, etc.) can preview
+	// directly against the live map feature, the same way AddAnnotationForm
+	// does against a pending draw's feature.
+	annotationsSource: VectorSource;
+	addAnnotation: (annotation: Annotation) => void;
+	// Already saved by a GeoJSON import - see collections/useCollectionFiles.
+	addImported: (annotations: Annotation[]) => void;
+	// Put back by a restore - shown again, or replaced with how they are now
+	// if they're already here. Here only - whoever restored them tells
+	// everyone else.
+	addRestored: (annotations: Annotation[]) => void;
+	// Loads the lot again, after the whole collection's been put back.
+	reload: () => void;
+	// Many at once, from the Select tab - one request, one toast.
+	updateMany: (ids: string[], patch: BulkPatch) => void;
+	// Gone straight away and sent straight away, as one change set. Returns
+	// the undo, or null if there was nothing to delete.
+	deleteMany: (ids: string[]) => (() => void) | null;
+	// Local only, no request - for groups. markGrouped also tells everyone
+	// else, after annotation-store has already grouped them; forgetGroup is
+	// run by everyone when a group is deleted.
+	markGrouped: (ids: string[], groupId: string) => void;
+	forgetGroup: (groupId: string) => void;
+	// changeSet keeps every save of one edit as one change - see SavedAnnotationEdit.
+	updateAnnotation: (id: string, patch: Pick<Annotation, "label" | "notes" | "colour">, changeSet?: string) => void;
+	deleteAnnotation: (id: string) => void;
+	setSelectedAnnotationId: (id: string | null) => void;
+	setViewedAnnotationId: (id: string | null) => void;
 }
 
-const AnnotationStoreContext = createContext<AnnotationStoreContextValue | null>(null)
+const AnnotationStoreContext = createContext<AnnotationStoreContextValue | null>(null);
 
 interface AnnotationStoreContextProviderProps {
-  baseUrl: string
-  children: ReactNode
+	baseUrl: string;
+	children: ReactNode;
 }
 
 function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreContextProviderProps) {
-  const { source } = useImageViewerContext()
-  const { slideId } = source
-  const emit = useEmitEvent()
-  const { collectionId, status: collectionStatus, canEdit, editPolicy } = useCollectionContext()
-  const { sendOp, onOp } = useRealtimeContext()
-  const { authFetch, user } = useAuthContext()
-  const { addToast } = useToastContext()
+	const { source } = useImageViewerContext();
+	const { slideId } = source;
+	const emit = useEmitEvent();
+	const { collectionId, status: collectionStatus, canEdit, editPolicy } = useCollectionContext();
+	const { sendOp, onOp } = useRealtimeContext();
+	const { authFetch, user } = useAuthContext();
+	const { addToast } = useToastContext();
 
-  const [annotations, setAnnotations] = useState<Annotation[]>([])
-  const [status, setStatus] = useState<Status>('loading')
-  const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null)
-  const [viewedAnnotationId, setViewedAnnotationId] = useState<string | null>(null)
-  const [revision, setRevision] = useState(0)
-  const [mapFilter, setMapFilter] = useState<MapFilter | null>(null)
-  // Read straight after a bump, to know which revision a delete settled at.
-  const revisionRef = useRef(0)
-  const bumpRevision = useCallback(() => {
-    revisionRef.current += 1
-    setRevision(revisionRef.current)
-  }, [])
-  // Bulk deletes - from when they're made until a fetch after they're saved.
-  // settledAt is the revision they were saved at, null until then.
-  const [removals, setRemovals] = useState<{ key: number; items: Annotation[]; settledAt: number | null }[]>([])
-  const pendingRemoved = useCallback(
-    (at: number) => removals.filter((r) => r.settledAt === null || r.settledAt > at).flatMap((r) => r.items),
-    [removals]
-  )
-  const fetchedTotal = useSavedTotalAt(baseUrl, 'annotations', collectionId, revision)
-  const total = fetchedTotal.total === null ? null : Math.max(0, fetchedTotal.total - pendingRemoved(fetchedTotal.at).length)
-  const wasDeleted = useCallback((id: string) => deletedIdsRef.current.has(id), [])
-  const nextRemovalRef = useRef(0)
-  const annotationsSourceRef = useRef(new VectorSource())
-  // Anything deleted, by you or anyone else. An edit form that closes
-  // because its annotation was deleted still flushes its last autosave,
-  // and that has to be dropped rather than PUT to something that's gone.
-  const deletedIdsRef = useRef(new Set<string>())
-  // Each annotation's colour and group as annotation-store last had them -
-  // from the load, other people's changes, and our own saves once they're
-  // in. What a save says it started from (its "was"), so the store can tell
-  // when it would replace someone else's change. See editPolicy.ts.
-  const storedRef = useRef(new Map<string, Pick<Annotation, 'colour' | 'groupId'>>())
-  const remember = useCallback((rows: Partial<Annotation>[]) => {
-    for (const row of rows) {
-      if (!row.id) continue
-      const was = storedRef.current.get(row.id)
-      storedRef.current.set(row.id, {
-        colour: row.colour ?? was?.colour ?? '',
-        groupId: row.groupId !== undefined ? row.groupId : (was?.groupId ?? null),
-      })
-    }
-  }, [])
-  // Saves to one annotation one at a time - see oneAtATime.
-  const queueRef = useRef(oneAtATime())
-  // Read by a conflict's "Use mine", which runs after this render.
-  const annotationsRef = useRef(annotations)
-  useEffect(() => {
-    annotationsRef.current = annotations
-  })
-  // The whole collection was put back, here or by someone else - load it all
-  // again. What was deleted may not be now, and whatever's open may be gone.
-  const [reloads, setReloads] = useState(0)
-  const reload = useCallback(() => {
-    deletedIdsRef.current.clear()
-    setRemovals([])
-    setSelectedAnnotationId(null)
-    setViewedAnnotationId(null)
-    setReloads((current) => current + 1)
-    bumpRevision()
-  }, [bumpRevision])
+	const [annotations, setAnnotations] = useState<Annotation[]>([]);
+	const [status, setStatus] = useState<Status>("loading");
+	const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
+	const [viewedAnnotationId, setViewedAnnotationId] = useState<string | null>(null);
+	const [revision, setRevision] = useState(0);
+	const [mapFilter, setMapFilter] = useState<MapFilter | null>(null);
+	// Read straight after a bump, to know which revision a delete settled at.
+	const revisionRef = useRef(0);
+	const bumpRevision = useCallback(() => {
+		revisionRef.current += 1;
+		setRevision(revisionRef.current);
+	}, []);
+	// Bulk deletes - from when they're made until a fetch after they're saved.
+	// settledAt is the revision they were saved at, null until then.
+	const [removals, setRemovals] = useState<{ key: number; items: Annotation[]; settledAt: number | null }[]>([]);
+	const pendingRemoved = useCallback(
+		(at: number) => removals.filter((r) => r.settledAt === null || r.settledAt > at).flatMap((r) => r.items),
+		[removals],
+	);
+	const fetchedTotal = useSavedTotalAt(baseUrl, "annotations", collectionId, revision);
+	const total = fetchedTotal.total === null ? null : Math.max(0, fetchedTotal.total - pendingRemoved(fetchedTotal.at).length);
+	const wasDeleted = useCallback((id: string) => deletedIdsRef.current.has(id), []);
+	const nextRemovalRef = useRef(0);
+	const annotationsSourceRef = useRef(new VectorSource());
+	// Anything deleted, by you or anyone else. An edit form that closes
+	// because its annotation was deleted still flushes its last autosave,
+	// and that has to be dropped rather than PUT to something that's gone.
+	const deletedIdsRef = useRef(new Set<string>());
+	// Each annotation's colour and group as annotation-store last had them -
+	// from the load, other people's changes, and our own saves once they're
+	// in. What a save says it started from (its "was"), so the store can tell
+	// when it would replace someone else's change. See editPolicy.ts.
+	const storedRef = useRef(new Map<string, Pick<Annotation, "colour" | "groupId">>());
+	const remember = useCallback((rows: Partial<Annotation>[]) => {
+		for (const row of rows) {
+			if (!row.id) continue;
+			const was = storedRef.current.get(row.id);
+			storedRef.current.set(row.id, {
+				colour: row.colour ?? was?.colour ?? "",
+				groupId: row.groupId !== undefined ? row.groupId : (was?.groupId ?? null),
+			});
+		}
+	}, []);
+	// Saves to one annotation one at a time - see oneAtATime.
+	const queueRef = useRef(oneAtATime());
+	// Read by a conflict's "Use mine", which runs after this render.
+	const annotationsRef = useRef(annotations);
+	useEffect(() => {
+		annotationsRef.current = annotations;
+	});
+	// The whole collection was put back, here or by someone else - load it all
+	// again. What was deleted may not be now, and whatever's open may be gone.
+	const [reloads, setReloads] = useState(0);
+	const reload = useCallback(() => {
+		deletedIdsRef.current.clear();
+		setRemovals([]);
+		setSelectedAnnotationId(null);
+		setViewedAnnotationId(null);
+		setReloads((current) => current + 1);
+		bumpRevision();
+	}, [bumpRevision]);
 
-  // Load whatever's already saved for this slide - the reason to have a
-  // backend at all is that this survives a reload, unlike plain React state.
-  useEffect(() => {
-    let cancelled = false
+	// Load whatever's already saved for this slide - the reason to have a
+	// backend at all is that this survives a reload, unlike plain React state.
+	useEffect(() => {
+		let cancelled = false;
 
-    if (collectionId === null) {
-      setStatus(collectionStatus === 'error' ? 'error' : 'loading')
-      setAnnotations([])
-      return
-    }
+		if (collectionId === null) {
+			setStatus(collectionStatus === "error" ? "error" : "loading");
+			setAnnotations([]);
+			return;
+		}
 
-    setStatus('loading')
+		setStatus("loading");
 
-    authFetch(`${baseUrl}/annotations?collectionId=${encodeURIComponent(collectionId)}`)
-      .then((response) => {
-        if (!response.ok) throw new Error(String(response.status))
-        return response.json() as Promise<Annotation[]>
-      })
-      .then((data) => {
-        if (cancelled) return
-        storedRef.current.clear()
-        remember(data)
-        setAnnotations(data)
-        setStatus('ready')
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setStatus('error')
-          emit('annotations:load-error', { slideId })
-        }
-      })
+		authFetch(`${baseUrl}/annotations?collectionId=${encodeURIComponent(collectionId)}`)
+			.then((response) => {
+				if (!response.ok) throw new Error(String(response.status));
+				return response.json() as Promise<Annotation[]>;
+			})
+			.then((data) => {
+				if (cancelled) return;
+				storedRef.current.clear();
+				remember(data);
+				setAnnotations(data);
+				setStatus("ready");
+			})
+			.catch(() => {
+				if (!cancelled) {
+					setStatus("error");
+					emit("annotations:load-error", { slideId });
+				}
+			});
 
-    return () => {
-      cancelled = true
-    }
-  }, [baseUrl, slideId, collectionId, collectionStatus, emit, authFetch, remember, reloads])
+		return () => {
+			cancelled = true;
+		};
+	}, [baseUrl, slideId, collectionId, collectionStatus, emit, authFetch, remember, reloads]);
 
-  // Someone else's change, already saved by them - just mirror it locally.
-  // No toast/emit here, those are for your own actions.
-  useEffect(
-    () =>
-      onOp(({ op }) => {
-        if (isRollbackOp(op)) {
-          reload()
-          emit('collection:rolled-back')
-        }
-        if (op.entity !== 'annotation') return
-        if (op.kind === 'delete') deletedIdsRef.current.add(op.id)
-        // Put back by someone else.
-        if (op.kind === 'create') deletedIdsRef.current.delete(op.id)
-        if (op.kind !== 'delete' && op.data && typeof op.data === 'object') remember([{ ...(op.data as Partial<Annotation>), id: op.id }])
-        setAnnotations((current) => applyOp(current, op))
-        if (op.kind === 'delete') {
-          setSelectedAnnotationId((current) => (current === op.id ? null : current))
-          setViewedAnnotationId((current) => (current === op.id ? null : current))
-        }
-        // A regroup changes what a group filter lets through.
-        if (op.kind !== 'update' || (op.data && typeof op.data === 'object' && 'groupId' in op.data))
-          bumpRevision()
-      }),
-    [onOp, remember, reload, emit]
-  )
+	// Someone else's change, already saved by them - just mirror it locally.
+	// No toast/emit here, those are for your own actions.
+	useEffect(
+		() =>
+			onOp(({ op }) => {
+				if (isRollbackOp(op)) {
+					reload();
+					emit("collection:rolled-back");
+				}
+				if (op.entity !== "annotation") return;
+				if (op.kind === "delete") deletedIdsRef.current.add(op.id);
+				// Put back by someone else.
+				if (op.kind === "create") deletedIdsRef.current.delete(op.id);
+				if (op.kind !== "delete" && op.data && typeof op.data === "object") remember([{ ...(op.data as Partial<Annotation>), id: op.id }]);
+				setAnnotations((current) => applyOp(current, op));
+				if (op.kind === "delete") {
+					setSelectedAnnotationId((current) => (current === op.id ? null : current));
+					setViewedAnnotationId((current) => (current === op.id ? null : current));
+				}
+				// A regroup changes what a group filter lets through.
+				if (op.kind !== "update" || (op.data && typeof op.data === "object" && "groupId" in op.data)) bumpRevision();
+			}),
+		[onOp, remember, reload, emit],
+	);
 
-  // Writes are optimistic - update local state immediately for a responsive
-  // UI (and emit the corresponding event right away), fire the request, and
-  // emit a matching :error event - separately - if it didn't actually
-  // persist. Fine for a proof of concept; a real conflict/rollback story can
-  // wait until this has more than one collaborator writing to it.
-  const addAnnotation = (unstamped: Annotation) => {
-    // Shows who saved it straight away - annotation-store sets the same from the token.
-    const annotation = { ...unstamped, createdById: user.id, createdByName: user.name }
-    // Only a viewer in the collection you're working in - annotation-store would
-    // turn it down anyway.
-    if (!canEdit) {
-      emit('collection:read-only')
-      return
-    }
-    // Neither the draw tools nor AddAnnotationForm wait on this context's own
-    // status before letting a save happen - collectionId can still be null
-    // this early. Posting null there would 400 against the backend's
-    // non-nullable CollectionId, so this bails before the optimistic add
-    // ever makes the annotation look saved when it can't be.
-    if (collectionId === null) {
-      emit('annotation:created:error', annotation)
-      return
-    }
-    setAnnotations((current) => [...current, annotation])
-    emit('annotation:created', annotation)
-    // Sent straight away rather than after the save, to keep the delay down.
-    // A save that then fails isn't rolled back for anyone, same as locally.
-    sendOp({ kind: 'create', entity: 'annotation', id: annotation.id, data: annotation })
-    authFetch(`${baseUrl}/annotations`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...annotation, collectionId }),
-    })
-      .then((response) => {
-        if (!response.ok) throw new Error(String(response.status))
-        remember([annotation])
-      })
-      .catch(() => {
-        setStatus('error')
-        emit('annotation:created:error', annotation)
-      })
-      .finally(bumpRevision)
-  }
+	// Writes are optimistic - update local state immediately for a responsive
+	// UI (and emit the corresponding event right away), fire the request, and
+	// emit a matching :error event - separately - if it didn't actually
+	// persist. Fine for a proof of concept; a real conflict/rollback story can
+	// wait until this has more than one collaborator writing to it.
+	const addAnnotation = (unstamped: Annotation) => {
+		// Shows who saved it straight away - annotation-store sets the same from the token.
+		const annotation = { ...unstamped, createdById: user.id, createdByName: user.name };
+		// Only a viewer in the collection you're working in - annotation-store would
+		// turn it down anyway.
+		if (!canEdit) {
+			emit("collection:read-only");
+			return;
+		}
+		// Neither the draw tools nor AddAnnotationForm wait on this context's own
+		// status before letting a save happen - collectionId can still be null
+		// this early. Posting null there would 400 against the backend's
+		// non-nullable CollectionId, so this bails before the optimistic add
+		// ever makes the annotation look saved when it can't be.
+		if (collectionId === null) {
+			emit("annotation:created:error", annotation);
+			return;
+		}
+		setAnnotations((current) => [...current, annotation]);
+		emit("annotation:created", annotation);
+		// Sent straight away rather than after the save, to keep the delay down.
+		// A save that then fails isn't rolled back for anyone, same as locally.
+		sendOp({ kind: "create", entity: "annotation", id: annotation.id, data: annotation });
+		authFetch(`${baseUrl}/annotations`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ ...annotation, collectionId }),
+		})
+			.then((response) => {
+				if (!response.ok) throw new Error(String(response.status));
+				remember([annotation]);
+			})
+			.catch(() => {
+				setStatus("error");
+				emit("annotation:created:error", annotation);
+			})
+			.finally(bumpRevision);
+	};
 
-  // Already saved, all together, by an import - just shown, and sent to
-  // everyone else. One toast for the import rather than one each.
-  const addImported = (imported: Annotation[]) => {
-    if (imported.length === 0) return
-    remember(imported)
-    setAnnotations((current) => [...current, ...imported])
-    for (const annotation of imported) sendOp({ kind: 'create', entity: 'annotation', id: annotation.id, data: annotation })
-    bumpRevision()
-  }
+	// Already saved, all together, by an import - just shown, and sent to
+	// everyone else. One toast for the import rather than one each.
+	const addImported = (imported: Annotation[]) => {
+		if (imported.length === 0) return;
+		remember(imported);
+		setAnnotations((current) => [...current, ...imported]);
+		for (const annotation of imported) sendOp({ kind: "create", entity: "annotation", id: annotation.id, data: annotation });
+		bumpRevision();
+	};
 
-  const addRestored = (restored: Annotation[]) => {
-    if (restored.length === 0) return
-    remember(restored)
-    const ids = new Set(restored.map((a) => a.id))
-    for (const id of ids) deletedIdsRef.current.delete(id)
-    // Not taken off the count any more, if it was a delete from just now.
-    setRemovals((current) => current.map((r) => ({ ...r, items: r.items.filter((a) => !ids.has(a.id)) })))
-    const byId = new Map(restored.map((a) => [a.id, a]))
-    setAnnotations((current) => [
-      ...current.map((a) => byId.get(a.id) ?? a),
-      ...restored.filter((a) => !current.some((c) => c.id === a.id)),
-    ])
-    bumpRevision()
-  }
+	const addRestored = (restored: Annotation[]) => {
+		if (restored.length === 0) return;
+		remember(restored);
+		const ids = new Set(restored.map((a) => a.id));
+		for (const id of ids) deletedIdsRef.current.delete(id);
+		// Not taken off the count any more, if it was a delete from just now.
+		setRemovals((current) => current.map((r) => ({ ...r, items: r.items.filter((a) => !ids.has(a.id)) })));
+		const byId = new Map(restored.map((a) => [a.id, a]));
+		setAnnotations((current) => [...current.map((a) => byId.get(a.id) ?? a), ...restored.filter((a) => !current.some((c) => c.id === a.id))]);
+		bumpRevision();
+	};
 
-  const updateMany = (ids: string[], patch: BulkPatch) => {
-    if (!canEdit) {
-      emit('collection:read-only')
-      return
-    }
-    if (collectionId === null || ids.length === 0) return
-    const afterSave = sendsAfterSave(editPolicy)
-    const wanted = new Set(ids)
-    setAnnotations((current) => current.map((a) => (wanted.has(a.id) ? { ...a, ...patch } : a)))
-    if (!afterSave) for (const id of ids) sendOp({ kind: 'update', entity: 'annotation', id, data: patch })
-    const changeSet = newChangeSet()
-    // What each one was, for the ones whose stored value we know.
-    const was = <K extends 'colour' | 'groupId'>(batch: string[], key: K) =>
-      key in patch
-        ? Object.fromEntries(batch.flatMap((id) => (storedRef.current.has(id) ? [[id, storedRef.current.get(id)![key]]] : [])))
-        : undefined
-    Promise.all(
-      inBatches(ids).map((batch) =>
-        authFetch(`${baseUrl}/annotations/bulk`, {
-          method: 'PUT',
-          headers: changeSetHeaders(changeSet),
-          body: JSON.stringify({
-            collectionId,
-            ids: batch,
-            colour: patch.colour,
-            setGroup: 'groupId' in patch,
-            groupId: patch.groupId ?? null,
-            wasColours: was(batch, 'colour'),
-            wasGroups: was(batch, 'groupId'),
-          }),
-        }).then(async (response) => {
-          if (!response.ok) throw new Error(String(response.status))
-          return ((await response.json()) as { conflicts?: BulkConflict[] | null }).conflicts ?? []
-        })
-      )
-    )
-      .then((batches) => {
-        const conflicts = batches.flat()
-        const left = new Set(conflicts.map((c) => c.id))
-        const changed = ids.filter((id) => !left.has(id))
-        remember(changed.map((id) => ({ id, ...patch })))
-        if (afterSave) for (const id of changed) sendOp({ kind: 'update', entity: 'annotation', id, data: patch })
-        if (conflicts.length === 0) {
-          emit('annotations:updated', { count: ids.length })
-        } else {
-          // Theirs is what's there - show it, and offer to put ours over it.
-          remember(conflicts)
-          const theirs = new Map(conflicts.map((c) => [c.id, c]))
-          setAnnotations((current) =>
-            current.map((a) => (theirs.has(a.id) ? { ...a, colour: theirs.get(a.id)!.colour, groupId: theirs.get(a.id)!.groupId } : a))
-          )
-          addToast(bulkConflictMessage(conflicts, ids.length), 'error', {
-            duration: null,
-            actions: [
-              { label: 'Use mine for those', primary: true, onClick: () => updateMany([...left], patch) },
-              { label: 'Keep theirs', onClick: () => {} },
-            ],
-          })
-        }
-        if ('groupId' in patch) bumpRevision()
-      })
-      .catch(() => {
-        setStatus('error')
-        emit('annotations:updated:error', { count: ids.length })
-      })
-  }
+	const updateMany = (ids: string[], patch: BulkPatch) => {
+		if (!canEdit) {
+			emit("collection:read-only");
+			return;
+		}
+		if (collectionId === null || ids.length === 0) return;
+		const afterSave = sendsAfterSave(editPolicy);
+		const wanted = new Set(ids);
+		setAnnotations((current) => current.map((a) => (wanted.has(a.id) ? { ...a, ...patch } : a)));
+		if (!afterSave) for (const id of ids) sendOp({ kind: "update", entity: "annotation", id, data: patch });
+		const changeSet = newChangeSet();
+		// What each one was, for the ones whose stored value we know.
+		const was = <K extends "colour" | "groupId">(batch: string[], key: K) =>
+			key in patch
+				? Object.fromEntries(batch.flatMap((id) => (storedRef.current.has(id) ? [[id, storedRef.current.get(id)![key]]] : [])))
+				: undefined;
+		Promise.all(
+			inBatches(ids).map((batch) =>
+				authFetch(`${baseUrl}/annotations/bulk`, {
+					method: "PUT",
+					headers: changeSetHeaders(changeSet),
+					body: JSON.stringify({
+						collectionId,
+						ids: batch,
+						colour: patch.colour,
+						setGroup: "groupId" in patch,
+						groupId: patch.groupId ?? null,
+						wasColours: was(batch, "colour"),
+						wasGroups: was(batch, "groupId"),
+					}),
+				}).then(async (response) => {
+					if (!response.ok) throw new Error(String(response.status));
+					return ((await response.json()) as { conflicts?: BulkConflict[] | null }).conflicts ?? [];
+				}),
+			),
+		)
+			.then((batches) => {
+				const conflicts = batches.flat();
+				const left = new Set(conflicts.map((c) => c.id));
+				const changed = ids.filter((id) => !left.has(id));
+				remember(changed.map((id) => ({ id, ...patch })));
+				if (afterSave) for (const id of changed) sendOp({ kind: "update", entity: "annotation", id, data: patch });
+				if (conflicts.length === 0) {
+					emit("annotations:updated", { count: ids.length });
+				} else {
+					// Theirs is what's there - show it, and offer to put ours over it.
+					remember(conflicts);
+					const theirs = new Map(conflicts.map((c) => [c.id, c]));
+					setAnnotations((current) =>
+						current.map((a) => (theirs.has(a.id) ? { ...a, colour: theirs.get(a.id)!.colour, groupId: theirs.get(a.id)!.groupId } : a)),
+					);
+					addToast(bulkConflictMessage(conflicts, ids.length), "error", {
+						duration: null,
+						actions: [
+							{ label: "Use mine for those", primary: true, onClick: () => updateMany([...left], patch) },
+							{ label: "Keep theirs", onClick: () => {} },
+						],
+					});
+				}
+				if ("groupId" in patch) bumpRevision();
+			})
+			.catch(() => {
+				setStatus("error");
+				emit("annotations:updated:error", { count: ids.length });
+			});
+	};
 
-  const deleteMany = (ids: string[]) => {
-    if (!canEdit) {
-      emit('collection:read-only')
-      return null
-    }
-    const wanted = new Set(ids)
-    const removed = annotations.filter((a) => wanted.has(a.id))
-    if (collectionId === null || removed.length === 0) return null
+	const deleteMany = (ids: string[]) => {
+		if (!canEdit) {
+			emit("collection:read-only");
+			return null;
+		}
+		const wanted = new Set(ids);
+		const removed = annotations.filter((a) => wanted.has(a.id));
+		if (collectionId === null || removed.length === 0) return null;
 
-    for (const a of removed) deletedIdsRef.current.add(a.id)
-    setAnnotations((current) => current.filter((a) => !wanted.has(a.id)))
-    setSelectedAnnotationId((current) => (current && wanted.has(current) ? null : current))
-    setViewedAnnotationId((current) => (current && wanted.has(current) ? null : current))
-    for (const a of removed) sendOp({ kind: 'delete', entity: 'annotation', id: a.id })
+		for (const a of removed) deletedIdsRef.current.add(a.id);
+		setAnnotations((current) => current.filter((a) => !wanted.has(a.id)));
+		setSelectedAnnotationId((current) => (current && wanted.has(current) ? null : current));
+		setViewedAnnotationId((current) => (current && wanted.has(current) ? null : current));
+		for (const a of removed) sendOp({ kind: "delete", entity: "annotation", id: a.id });
 
-    const key = nextRemovalRef.current++
-    setRemovals((current) => [...current, { key, items: removed, settledAt: null }])
-    const { deleted, undo } = deleteAsOneChange(
-      removed.map((a) => a.id),
-      (batch, headers) =>
-        authFetch(`${baseUrl}/annotations/bulk-delete`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ collectionId, ids: batch }),
-        }),
-      (path) => authFetch(`${baseUrl}${path}`, { method: 'POST' })
-    )
-    deleted
-      .catch(() => emit('annotations:deleted:error', { count: removed.length }))
-      .finally(() => {
-        bumpRevision()
-        const settledAt = revisionRef.current
-        setRemovals((current) => current.map((r) => (r.key === key ? { ...r, settledAt } : r)))
-        // Every fetch made since has caught up well before this.
-        setTimeout(() => setRemovals((current) => current.filter((r) => r.key !== key)), REMOVAL_KEEP_MS)
-      })
+		const key = nextRemovalRef.current++;
+		setRemovals((current) => [...current, { key, items: removed, settledAt: null }]);
+		const { deleted, undo } = deleteAsOneChange(
+			removed.map((a) => a.id),
+			(batch, headers) =>
+				authFetch(`${baseUrl}/annotations/bulk-delete`, {
+					method: "POST",
+					headers,
+					body: JSON.stringify({ collectionId, ids: batch }),
+				}),
+			(path) => authFetch(`${baseUrl}${path}`, { method: "POST" }),
+		);
+		deleted
+			.catch(() => emit("annotations:deleted:error", { count: removed.length }))
+			.finally(() => {
+				bumpRevision();
+				const settledAt = revisionRef.current;
+				setRemovals((current) => current.map((r) => (r.key === key ? { ...r, settledAt } : r)));
+				// Every fetch made since has caught up well before this.
+				setTimeout(() => setRemovals((current) => current.filter((r) => r.key !== key)), REMOVAL_KEEP_MS);
+			});
 
-    let undone = false
-    return () => {
-      if (undone) return
-      undone = true
-      undo()
-        .then(() => {
-          setRemovals((current) => current.filter((r) => r.key !== key))
-          addRestored(removed)
-          for (const a of removed) sendOp({ kind: 'create', entity: 'annotation', id: a.id, data: a })
-        })
-        .catch(() => emit('annotations:restored:error', { count: removed.length }))
-    }
-  }
+		let undone = false;
+		return () => {
+			if (undone) return;
+			undone = true;
+			undo()
+				.then(() => {
+					setRemovals((current) => current.filter((r) => r.key !== key));
+					addRestored(removed);
+					for (const a of removed) sendOp({ kind: "create", entity: "annotation", id: a.id, data: a });
+				})
+				.catch(() => emit("annotations:restored:error", { count: removed.length }));
+		};
+	};
 
-  const markGrouped = (ids: string[], groupId: string) => {
-    remember(ids.map((id) => ({ id, groupId })))
-    const wanted = new Set(ids)
-    setAnnotations((current) => current.map((a) => (wanted.has(a.id) ? { ...a, groupId } : a)))
-    for (const id of ids) sendOp({ kind: 'update', entity: 'annotation', id, data: { groupId } })
-  }
+	const markGrouped = (ids: string[], groupId: string) => {
+		remember(ids.map((id) => ({ id, groupId })));
+		const wanted = new Set(ids);
+		setAnnotations((current) => current.map((a) => (wanted.has(a.id) ? { ...a, groupId } : a)));
+		for (const id of ids) sendOp({ kind: "update", entity: "annotation", id, data: { groupId } });
+	};
 
-  const forgetGroup = useCallback((groupId: string) => {
-    for (const [id, stored] of storedRef.current) if (stored.groupId === groupId) storedRef.current.set(id, { ...stored, groupId: null })
-    setAnnotations((current) => current.map((a) => (a.groupId === groupId ? { ...a, groupId: null } : a)))
-  }, [])
+	const forgetGroup = useCallback((groupId: string) => {
+		for (const [id, stored] of storedRef.current) if (stored.groupId === groupId) storedRef.current.set(id, { ...stored, groupId: null });
+		setAnnotations((current) => current.map((a) => (a.groupId === groupId ? { ...a, groupId: null } : a)));
+	}, []);
 
-  // annotation-store's PUT replaces label, notes and colour together, so
-  // pass all three. The colour goes with what it was, so the store can tell
-  // a change of colour from one that's just along for the ride - and, in a
-  // first change wins session, turn down one that would replace someone
-  // else's (see editPolicy.ts).
-  const updateAnnotation = (id: string, patch: Pick<Annotation, 'label' | 'notes' | 'colour'>, changeSet?: string) => {
-    if (deletedIdsRef.current.has(id)) return
-    const afterSave = sendsAfterSave(editPolicy)
-    setAnnotations((current) => current.map((a) => (a.id === id ? { ...a, ...patch } : a)))
-    emit('annotation:updated', { id, patch })
-    if (!afterSave) sendOp({ kind: 'update', entity: 'annotation', id, data: patch })
-    queueRef.current(id, async () => {
-      if (deletedIdsRef.current.has(id)) return
-      const wasColour = storedRef.current.get(id)?.colour
-      const response = await authFetch(`${baseUrl}/annotations/${id}`, {
-        method: 'PUT',
-        headers: jsonHeaders(changeSet),
-        body: JSON.stringify({ ...patch, slideId, wasColour }),
-      })
-      if (response.status === 409) {
-        const conflict = readConflict(await response.json())
-        if (conflict) showConflict(conflict, patch, changeSet)
-        return
-      }
-      if (!response.ok) throw new Error(String(response.status))
-      const saved = (await response.json()) as Annotation
-      remember([saved])
-      // Not changing the colour leaves whatever's stored - someone else's,
-      // if they got there first - so show that.
-      if (saved.colour !== patch.colour)
-        setAnnotations((current) => current.map((a) => (a.id === id ? { ...a, colour: saved.colour } : a)))
-      if (afterSave)
-        sendOp({ kind: 'update', entity: 'annotation', id, data: { label: saved.label, notes: saved.notes, colour: saved.colour } })
-    }).catch(() => {
-      setStatus('error')
-      emit('annotation:updated:error', { id, patch })
-    })
-  }
+	// annotation-store's PUT replaces label, notes and colour together, so
+	// pass all three. The colour goes with what it was, so the store can tell
+	// a change of colour from one that's just along for the ride - and, in a
+	// first change wins session, turn down one that would replace someone
+	// else's (see editPolicy.ts).
+	const updateAnnotation = (id: string, patch: Pick<Annotation, "label" | "notes" | "colour">, changeSet?: string) => {
+		if (deletedIdsRef.current.has(id)) return;
+		const afterSave = sendsAfterSave(editPolicy);
+		setAnnotations((current) => current.map((a) => (a.id === id ? { ...a, ...patch } : a)));
+		emit("annotation:updated", { id, patch });
+		if (!afterSave) sendOp({ kind: "update", entity: "annotation", id, data: patch });
+		queueRef
+			.current(id, async () => {
+				if (deletedIdsRef.current.has(id)) return;
+				const wasColour = storedRef.current.get(id)?.colour;
+				const response = await authFetch(`${baseUrl}/annotations/${id}`, {
+					method: "PUT",
+					headers: jsonHeaders(changeSet),
+					body: JSON.stringify({ ...patch, slideId, wasColour }),
+				});
+				if (response.status === 409) {
+					const conflict = readConflict(await response.json());
+					if (conflict) showConflict(conflict, patch, changeSet);
+					return;
+				}
+				if (!response.ok) throw new Error(String(response.status));
+				const saved = (await response.json()) as Annotation;
+				remember([saved]);
+				// Not changing the colour leaves whatever's stored - someone else's,
+				// if they got there first - so show that.
+				if (saved.colour !== patch.colour) setAnnotations((current) => current.map((a) => (a.id === id ? { ...a, colour: saved.colour } : a)));
+				if (afterSave) sendOp({ kind: "update", entity: "annotation", id, data: { label: saved.label, notes: saved.notes, colour: saved.colour } });
+			})
+			.catch(() => {
+				setStatus("error");
+				emit("annotation:updated:error", { id, patch });
+			});
+	};
 
-  // Someone else changed the colour first. Theirs is what's there, so that's
-  // what's shown; "Use mine" saves ours again over it, with whatever the
-  // label and notes are by then.
-  const showConflict = (conflict: Conflict, patch: Pick<Annotation, 'label' | 'notes' | 'colour'>, changeSet?: string) => {
-    const current = conflict.current as Partial<Annotation>
-    remember([{ ...current, id: conflict.id }])
-    setAnnotations((list) => list.map((a) => (a.id === conflict.id ? { ...a, colour: current.colour ?? a.colour } : a)))
-    const name = annotationsRef.current.find((a) => a.id === conflict.id)?.label || 'this annotation'
-    addToast(conflictMessage(conflict, name), 'error', {
-      duration: null,
-      actions: [
-        {
-          label: 'Use mine',
-          primary: true,
-          onClick: () => {
-            const now = annotationsRef.current.find((a) => a.id === conflict.id)
-            if (now) updateAnnotation(conflict.id, { label: now.label, notes: now.notes, colour: patch.colour }, changeSet)
-          },
-        },
-        { label: 'Keep theirs', onClick: () => {} },
-      ],
-    })
-  }
+	// Someone else changed the colour first. Theirs is what's there, so that's
+	// what's shown; "Use mine" saves ours again over it, with whatever the
+	// label and notes are by then.
+	const showConflict = (conflict: Conflict, patch: Pick<Annotation, "label" | "notes" | "colour">, changeSet?: string) => {
+		const current = conflict.current as Partial<Annotation>;
+		remember([{ ...current, id: conflict.id }]);
+		setAnnotations((list) => list.map((a) => (a.id === conflict.id ? { ...a, colour: current.colour ?? a.colour } : a)));
+		const name = annotationsRef.current.find((a) => a.id === conflict.id)?.label || "this annotation";
+		addToast(conflictMessage(conflict, name), "error", {
+			duration: null,
+			actions: [
+				{
+					label: "Use mine",
+					primary: true,
+					onClick: () => {
+						const now = annotationsRef.current.find((a) => a.id === conflict.id);
+						if (now) updateAnnotation(conflict.id, { label: now.label, notes: now.notes, colour: patch.colour }, changeSet);
+					},
+				},
+				{ label: "Keep theirs", onClick: () => {} },
+			],
+		});
+	};
 
-  const deleteAnnotation = (id: string) => {
-    deletedIdsRef.current.add(id)
-    setAnnotations((current) => current.filter((a) => a.id !== id))
-    setViewedAnnotationId((current) => (current === id ? null : current))
-    emit('annotation:deleted', { id })
-    sendOp({ kind: 'delete', entity: 'annotation', id })
-    authFetch(`${baseUrl}/annotations/${id}`, { method: 'DELETE' })
-      .then((response) => {
-        if (!response.ok) throw new Error(String(response.status))
-      })
-      .catch(() => {
-        setStatus('error')
-        emit('annotation:deleted:error', { id })
-      })
-      .finally(bumpRevision)
-  }
+	const deleteAnnotation = (id: string) => {
+		deletedIdsRef.current.add(id);
+		setAnnotations((current) => current.filter((a) => a.id !== id));
+		setViewedAnnotationId((current) => (current === id ? null : current));
+		emit("annotation:deleted", { id });
+		sendOp({ kind: "delete", entity: "annotation", id });
+		authFetch(`${baseUrl}/annotations/${id}`, { method: "DELETE" })
+			.then((response) => {
+				if (!response.ok) throw new Error(String(response.status));
+			})
+			.catch(() => {
+				setStatus("error");
+				emit("annotation:deleted:error", { id });
+			})
+			.finally(bumpRevision);
+	};
 
-  return (
-    <AnnotationStoreContext.Provider
-      value={{
-        annotations,
-        status,
-        revision,
-        wasDeleted,
-        baseUrl,
-        total,
-        seenTotal: fetchedTotal.seen,
-        pendingRemoved,
-        mapFilter,
-        setMapFilter,
-        selectedAnnotationId,
-        viewedAnnotationId,
-        annotationsSource: annotationsSourceRef.current,
-        addAnnotation,
-        addImported,
-        addRestored,
-        reload,
-        updateMany,
-        deleteMany,
-        markGrouped,
-        forgetGroup,
-        updateAnnotation,
-        deleteAnnotation,
-        setSelectedAnnotationId,
-        setViewedAnnotationId,
-      }}
-    >
-      {children}
-    </AnnotationStoreContext.Provider>
-  )
+	return (
+		<AnnotationStoreContext.Provider
+			value={{
+				annotations,
+				status,
+				revision,
+				wasDeleted,
+				baseUrl,
+				total,
+				seenTotal: fetchedTotal.seen,
+				pendingRemoved,
+				mapFilter,
+				setMapFilter,
+				selectedAnnotationId,
+				viewedAnnotationId,
+				annotationsSource: annotationsSourceRef.current,
+				addAnnotation,
+				addImported,
+				addRestored,
+				reload,
+				updateMany,
+				deleteMany,
+				markGrouped,
+				forgetGroup,
+				updateAnnotation,
+				deleteAnnotation,
+				setSelectedAnnotationId,
+				setViewedAnnotationId,
+			}}
+		>
+			{children}
+		</AnnotationStoreContext.Provider>
+	);
 }
 
 function useAnnotationStoreContext(): AnnotationStoreContextValue {
-  const context = useContext(AnnotationStoreContext)
-  if (!context) {
-    throw new Error('useAnnotationStoreContext must be used within an AnnotationStoreContextProvider')
-  }
-  return context
+	const context = useContext(AnnotationStoreContext);
+	if (!context) {
+		throw new Error("useAnnotationStoreContext must be used within an AnnotationStoreContextProvider");
+	}
+	return context;
 }
 
-export { AnnotationStoreContextProvider, useAnnotationStoreContext, UNDO_DELETE_MS }
-export type { BulkPatch, MapFilter }
+export { AnnotationStoreContextProvider, useAnnotationStoreContext, UNDO_DELETE_MS };
+export type { BulkPatch, MapFilter };

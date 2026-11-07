@@ -28,8 +28,7 @@ function formatLongDate(iso: string): string {
 function dayHeading(iso: string, now: Date = new Date()): string {
 	const date = toDate(iso);
 	if (!date) return "Unknown";
-	const sameDay = (a: Date, b: Date) =>
-		a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+	const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 	if (sameDay(date, now)) return "Today";
 	const yesterday = new Date(now);
 	yesterday.setDate(now.getDate() - 1);

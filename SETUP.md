@@ -67,15 +67,15 @@ stubs you'll otherwise have.
 
 ## VS Code extensions
 
-| Extension | Why |
-|---|---|
-| `ms-dotnettools.csdevkit` (+ `ms-dotnettools.csharp`) | C# language support, debugging, test explorer for `tiler`/`annotation-store` |
-| `vitest.explorer` | Run/debug `image-viewer`'s vitest suite inline |
-| `oxc.oxc-vscode` | `image-viewer` lints with oxlint, not eslint - this is its editor integration |
-| `ms-ossdata.vscode-pgsql` | Microsoft's official Postgres extension - browse/query `annotationtest` in-editor |
-| `mikestead.dotenv` | Syntax highlighting for `.env`/`.env.example` |
-| `editorconfig.editorconfig` | Respects the repo's `.editorconfig`, if one is added |
-| `eamodio.gitlens` | Inline blame/history |
+| Extension                                             | Why                                                                               |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `ms-dotnettools.csdevkit` (+ `ms-dotnettools.csharp`) | C# language support, debugging, test explorer for `tiler`/`annotation-store`      |
+| `vitest.explorer`                                     | Run/debug `image-viewer`'s vitest suite inline                                    |
+| `oxc.oxc-vscode`                                      | `image-viewer` lints with oxlint, not eslint - this is its editor integration     |
+| `ms-ossdata.vscode-pgsql`                             | Microsoft's official Postgres extension - browse/query `annotationtest` in-editor |
+| `mikestead.dotenv`                                    | Syntax highlighting for `.env`/`.env.example`                                     |
+| `editorconfig.editorconfig`                           | Respects the repo's `.editorconfig`, if one is added                              |
+| `eamodio.gitlens`                                     | Inline blame/history                                                              |
 
 Install one at a time with `code --install-extension <id>`, or all at once:
 
