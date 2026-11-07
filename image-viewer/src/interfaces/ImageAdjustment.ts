@@ -1,11 +1,11 @@
-import type { ImageAdjustmentValues } from '../components/adjustments/adjustments'
+import type { ImageAdjustmentValues } from "../components/adjustments/adjustments";
 
 interface ImageAdjustmentPreset {
-  imageAdjustmentId: string
-  collectionId: string
-  adjustmentName: string
-  adjustments: string
-  created: string
+	imageAdjustmentId: string;
+	collectionId: string;
+	adjustmentName: string;
+	adjustments: string;
+	created: string;
 }
 
-export type { ImageAdjustmentPreset, ImageAdjustmentValues }
+export type { ImageAdjustmentPreset, ImageAdjustmentValues };

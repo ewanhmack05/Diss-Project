@@ -135,6 +135,8 @@ says something's waiting. It carries ids and nothing else, so faking one shows n
 
 <!-- schema:start - written by scripts/db_docs.py, don't edit by hand -->
 
+<!-- prettier-ignore-start -->
+
 ```mermaid
 erDiagram
 
@@ -190,30 +192,30 @@ erDiagram
 
 The diagram puts underscores in a type with spaces, since it can't draw them otherwise.
 
-| Type                       | What it is                                                                                                                              |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `uuid`                     | A 128-bit random id, like `33afa424-ed8b-4489-ab20-ee917f31880c`. Used for most ids, since the viewer can make one itself before saving |
-| `integer`                  | A 32-bit whole number                                                                                                                   |
-| `boolean`                  | True or false                                                                                                                           |
-| `text`                     | A string of any length. Can also hold JSON that's only stored and handed back                                                           |
-| `jsonb`                    | JSON that Postgres has parsed and checked, so the database can read inside it                                                           |
-| `timestamp with time zone` | A moment in time, kept in UTC. Postgres also calls it `timestamptz`                                                                     |
+| Type | What it is |
+|---|---|
+| `uuid` | A 128-bit random id, like `33afa424-ed8b-4489-ab20-ee917f31880c`. Used for most ids, since the viewer can make one itself before saving |
+| `integer` | A 32-bit whole number |
+| `boolean` | True or false |
+| `text` | A string of any length. Can also hold JSON that's only stored and handed back |
+| `jsonb` | JSON that Postgres has parsed and checked, so the database can read inside it |
+| `timestamp with time zone` | A moment in time, kept in UTC. Postgres also calls it `timestamptz` |
 
-| Term            | What it means                                                                                                                                      |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PK              | Primary key - what identifies a row. Two together means the pair is what's unique                                                                  |
-| FK              | Foreign key - a column pointing at another table's row. The database won't let it point at one that isn't there                                    |
-| PK, FK          | Both - part of what identifies the row, and pointing at another table                                                                              |
-| not null / null | Whether a column has to have a value, or can be empty                                                                                              |
-| Index           | A lookup kept by the database, so finding rows by that column doesn't read the whole table                                                         |
-| Unique index    | An index that also refuses two rows with the same value                                                                                            |
-| Set by          | Where a value comes from: `client` is in the request, `server` is the service itself, `host` or `owner` is that person choosing it through the API |
+| Term | What it means |
+|---|---|
+| PK | Primary key - what identifies a row. Two together means the pair is what's unique |
+| FK | Foreign key - a column pointing at another table's row. The database won't let it point at one that isn't there |
+| PK, FK | Both - part of what identifies the row, and pointing at another table |
+| not null / null | Whether a column has to have a value, or can be empty |
+| Index | A lookup kept by the database, so finding rows by that column doesn't read the whole table |
+| Unique index | An index that also refuses two rows with the same value |
+| Set by | Where a value comes from: `client` is in the request, `server` is the service itself, `host` or `owner` is that person choosing it through the API |
 
-| Line end                  | How many rows of the table it's next to |
-| ------------------------- | --------------------------------------- |
-| Two bars                  | Exactly one                             |
-| A bar and a circle        | Zero or one                             |
-| A circle and three prongs | Zero or more                            |
+| Line end | How many rows of the table it's next to |
+|---|---|
+| Two bars | Exactly one |
+| A bar and a circle | Zero or one |
+| A circle and three prongs | Zero or more |
 
 ### Conversations
 
@@ -221,14 +223,14 @@ Who's talking: either two people, or everyone in a session. Two people only ever
 
 **To make one:** Made by the first `POST /messages` between two people, or the first time a session's chat is opened or written in.
 
-| Column      | Type                     | Key | Set by | Notes                                                                                                                                                                            |
-| ----------- | ------------------------ | --- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Id`        | uuid                     | PK  | server |                                                                                                                                                                                  |
-| `Kind`      | text                     |     | server | `Direct` or `Session`                                                                                                                                                            |
-| `Created`   | timestamp with time zone |     | server |                                                                                                                                                                                  |
-| `UserA`     | text, null               |     | server | Direct only. The two people's Keycloak ids, in a fixed order so the unique index means one conversation between them                                                             |
-| `UserB`     | text, null               |     | server | See `UserA`                                                                                                                                                                      |
-| `SessionId` | uuid, null               |     | client | A session's chat only. annotation-store's collection id, not a foreign key, since that's a different database. Who's in it is asked of annotation-store each time, not kept here |
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `Id` | uuid | PK | server |  |
+| `Kind` | text |  | server | `Direct` or `Session` |
+| `Created` | timestamp with time zone |  | server |  |
+| `UserA` | text, null |  | server | Direct only. The two people's Keycloak ids, in a fixed order so the unique index means one conversation between them |
+| `UserB` | text, null |  | server | See `UserA` |
+| `SessionId` | uuid, null |  | client | A session's chat only. annotation-store's collection id, not a foreign key, since that's a different database. Who's in it is asked of annotation-store each time, not kept here |
 
 - Unique index on `SessionId`
 - Index on `UserB`
@@ -240,12 +242,12 @@ One person's place in a conversation: how far they've read, and whether they've 
 
 **To make one:** `POST /conversations/{id}/read`, or `DELETE /conversations/{id}` on a direct one.
 
-| Column           | Type                           | Key    | Set by | Notes                                                                                                         |
-| ---------------- | ------------------------------ | ------ | ------ | ------------------------------------------------------------------------------------------------------------- |
-| `ConversationId` | uuid                           | PK, FK | server | Half of the key                                                                                               |
-| `UserId`         | text                           | PK     | server | Their Keycloak id. The other half of the key                                                                  |
-| `Hidden`         | boolean                        |        | server | They've deleted it for themselves. A new message clears this, and once both have it set the conversation goes |
-| `LastRead`       | timestamp with time zone, null |        | server | Anything from someone else after this counts as unread                                                        |
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `ConversationId` | uuid | PK, FK | server | Half of the key |
+| `UserId` | text | PK | server | Their Keycloak id. The other half of the key |
+| `Hidden` | boolean |  | server | They've deleted it for themselves. A new message clears this, and once both have it set the conversation goes |
+| `LastRead` | timestamp with time zone, null |  | server | Anything from someone else after this counts as unread |
 
 - `ConversationId` points at `Conversations.Id`. Deleted with it
 
@@ -255,14 +257,14 @@ One message. Who sent it comes from their token, along with their name when they
 
 **To make one:** `POST /messages` with an `id` the viewer made, `toUserId` or `sessionId`, and `body`.
 
-| Column           | Type                     | Key | Set by | Notes                                                                               |
-| ---------------- | ------------------------ | --- | ------ | ----------------------------------------------------------------------------------- |
-| `Id`             | uuid                     | PK  | client | Made by the viewer, so sending again after a dropped connection is the same message |
-| `ConversationId` | uuid                     | FK  | server | Found or made from who it's to                                                      |
-| `Body`           | text                     |     | client | Up to 4,000 characters. Can be empty if there's an attachment                       |
-| `FromName`       | text                     |     | server | Their name then                                                                     |
-| `FromUserId`     | text                     |     | server | Their Keycloak id, from their token                                                 |
-| `Sent`           | timestamp with time zone |     | server |                                                                                     |
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `Id` | uuid | PK | client | Made by the viewer, so sending again after a dropped connection is the same message |
+| `ConversationId` | uuid | FK | server | Found or made from who it's to |
+| `Body` | text |  | client | Up to 4,000 characters. Can be empty if there's an attachment |
+| `FromName` | text |  | server | Their name then |
+| `FromUserId` | text |  | server | Their Keycloak id, from their token |
+| `Sent` | timestamp with time zone |  | server |  |
 
 - Index on `ConversationId, Sent`
 - `ConversationId` points at `Conversations.Id`. Deleted with it
@@ -273,16 +275,16 @@ What was sent with a message, as it was when it was sent. It's a copy, so it sta
 
 **To make one:** Sent inside the message, as `attachment`. Up to 5MB.
 
-| Column               | Type        | Key    | Set by | Notes                                                                                                                                                   |
-| -------------------- | ----------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MessageId`          | uuid        | PK, FK | client | The message it came with                                                                                                                                |
-| `Bytes`              | integer     |        | server | The size of `Payload`                                                                                                                                   |
-| `Kind`               | text        |        | client | `Annotations`, `Group`, `CellCount`, `Collection`, `Invite` or `Area`                                                                                   |
-| `Name`               | text        |        | client | What to call it on the card. Up to 200 characters                                                                                                       |
-| `Payload`            | jsonb, null |        | client | Everything but invites: the rows, or for an area where it is, as a JSON object. Only sent by `GET /messages/{id}/attachment`, since it can be megabytes |
-| `InviteCode`         | text, null  |        | client | Invites only. Opened with annotation-store's invite preview, as a link would be                                                                         |
-| `SlideId`            | text, null  |        | client | Which slide it's from. Not a foreign key                                                                                                                |
-| `SourceCollectionId` | uuid, null  |        | client | Which collection it was copied from, for where it came from. Not a foreign key                                                                          |
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `MessageId` | uuid | PK, FK | client | The message it came with |
+| `Bytes` | integer |  | server | The size of `Payload` |
+| `Kind` | text |  | client | `Annotations`, `Group`, `CellCount`, `Collection`, `Invite` or `Area` |
+| `Name` | text |  | client | What to call it on the card. Up to 200 characters |
+| `Payload` | jsonb, null |  | client | Everything but invites: the rows, or for an area where it is, as a JSON object. Only sent by `GET /messages/{id}/attachment`, since it can be megabytes |
+| `InviteCode` | text, null |  | client | Invites only. Opened with annotation-store's invite preview, as a link would be |
+| `SlideId` | text, null |  | client | Which slide it's from. Not a foreign key |
+| `SourceCollectionId` | uuid, null |  | client | Which collection it was copied from, for where it came from. Not a foreign key |
 
 - `MessageId` points at `Messages.Id`. Deleted with it
 
@@ -292,12 +294,14 @@ Someone adding what was sent to a collection of theirs. Per person, since everyo
 
 **To make one:** `POST /messages/{id}/added`, after annotation-store has said yes.
 
-| Column      | Type                     | Key    | Set by | Notes                                        |
-| ----------- | ------------------------ | ------ | ------ | -------------------------------------------- |
-| `MessageId` | uuid                     | PK, FK | server | Half of the key                              |
-| `UserId`    | text                     | PK     | server | Their Keycloak id. The other half of the key |
-| `LastAdded` | timestamp with time zone |        | server | Moves on if they add it again                |
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `MessageId` | uuid | PK, FK | server | Half of the key |
+| `UserId` | text | PK | server | Their Keycloak id. The other half of the key |
+| `LastAdded` | timestamp with time zone |  | server | Moves on if they add it again |
 
 - `MessageId` points at `Attachments.MessageId`. Deleted with it
+
+<!-- prettier-ignore-end -->
 
 <!-- schema:end -->

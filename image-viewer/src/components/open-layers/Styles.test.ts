@@ -1,103 +1,103 @@
-import { describe, expect, it } from 'vitest'
-import Feature from 'ol/Feature'
-import { fromExtent } from 'ol/geom/Polygon'
-import { arrowHeadRadius, dashPattern, OVERVIEW_LABEL_MIN_PX, remoteViewportOverviewStyle, viewedAnnotationStyle } from './Styles'
+import { describe, expect, it } from "vitest";
+import Feature from "ol/Feature";
+import { fromExtent } from "ol/geom/Polygon";
+import { arrowHeadRadius, dashPattern, OVERVIEW_LABEL_MIN_PX, remoteViewportOverviewStyle, viewedAnnotationStyle } from "./Styles";
 
 // segmentLength here is already in screen pixels at the current zoom (see
 // Styles.ts's arrowHeadStyle) - not raw map units.
-describe('arrowHeadRadius', () => {
-  it('caps at the fixed max radius for a long segment', () => {
-    // 6 + 2 * 1.5 = 9, reached once segmentLength * (9/40) >= 9 i.e. >= 40
-    expect(arrowHeadRadius(2, 1000)).toBe(9)
-    expect(arrowHeadRadius(2, 40)).toBe(9)
-  })
+describe("arrowHeadRadius", () => {
+	it("caps at the fixed max radius for a long segment", () => {
+		// 6 + 2 * 1.5 = 9, reached once segmentLength * (9/40) >= 9 i.e. >= 40
+		expect(arrowHeadRadius(2, 1000)).toBe(9);
+		expect(arrowHeadRadius(2, 40)).toBe(9);
+	});
 
-  it('shrinks proportionally for a short segment', () => {
-    expect(arrowHeadRadius(2, 20)).toBeCloseTo(4.5)
-    expect(arrowHeadRadius(2, 4)).toBeCloseTo(0.9)
-  })
+	it("shrinks proportionally for a short segment", () => {
+		expect(arrowHeadRadius(2, 20)).toBeCloseTo(4.5);
+		expect(arrowHeadRadius(2, 4)).toBeCloseTo(0.9);
+	});
 
-  it('is zero for a zero-length segment', () => {
-    expect(arrowHeadRadius(2, 0)).toBe(0)
-  })
+	it("is zero for a zero-length segment", () => {
+		expect(arrowHeadRadius(2, 0)).toBe(0);
+	});
 
-  it('scales the cap with line thickness, same as before', () => {
-    // 6 + 6 * 1.5 = 15
-    expect(arrowHeadRadius(6, 1000)).toBe(15)
-  })
+	it("scales the cap with line thickness, same as before", () => {
+		// 6 + 6 * 1.5 = 15
+		expect(arrowHeadRadius(6, 1000)).toBe(15);
+	});
 
-  it('never exceeds the max radius even for an enormous segment', () => {
-    expect(arrowHeadRadius(2, 1_000_000)).toBe(9)
-  })
-})
+	it("never exceeds the max radius even for an enormous segment", () => {
+		expect(arrowHeadRadius(2, 1_000_000)).toBe(9);
+	});
+});
 
 // effectiveLength here is the same on-screen length in pixels as
 // arrowHeadRadius's segmentLength above.
-describe('dashPattern', () => {
-  it('is the full [6, 4] pattern once at least 3 cycles fit at full size (length >= 30)', () => {
-    expect(dashPattern(2, 1000)).toEqual([6, 4])
-    expect(dashPattern(2, 30)).toEqual([6, 4])
-  })
+describe("dashPattern", () => {
+	it("is the full [6, 4] pattern once at least 3 cycles fit at full size (length >= 30)", () => {
+		expect(dashPattern(2, 1000)).toEqual([6, 4]);
+		expect(dashPattern(2, 30)).toEqual([6, 4]);
+	});
 
-  it('shrinks the whole pattern proportionally on a shorter shape, keeping the 3:2 dash:gap ratio', () => {
-    expect(dashPattern(2, 15)).toEqual([3, 2])
-    expect(dashPattern(2, 3)).toEqual([0.6, 0.4])
-  })
+	it("shrinks the whole pattern proportionally on a shorter shape, keeping the 3:2 dash:gap ratio", () => {
+		expect(dashPattern(2, 15)).toEqual([3, 2]);
+		expect(dashPattern(2, 3)).toEqual([0.6, 0.4]);
+	});
 
-  it('is [0, 0] for a zero-length shape', () => {
-    expect(dashPattern(2, 0)).toEqual([0, 0])
-  })
+	it("is [0, 0] for a zero-length shape", () => {
+		expect(dashPattern(2, 0)).toEqual([0, 0]);
+	});
 
-  it('scales the full-size pattern with line thickness, same as before', () => {
-    expect(dashPattern(6, 1000)).toEqual([18, 12])
-  })
-})
+	it("scales the full-size pattern with line thickness, same as before", () => {
+		expect(dashPattern(6, 1000)).toEqual([18, 12]);
+	});
+});
 
-describe('remoteViewportOverviewStyle', () => {
-  const viewport = new Feature({ geometry: fromExtent([0, -100, 200, 0]), colour: '#4c8bf5', label: 'Bob Hughes' })
+describe("remoteViewportOverviewStyle", () => {
+	const viewport = new Feature({ geometry: fromExtent([0, -100, 200, 0]), colour: "#4c8bf5", label: "Bob Hughes" });
 
-  it('is just a thin outline on the normal size overview', () => {
-    const styles = remoteViewportOverviewStyle(viewport, 160)
-    expect(styles).toHaveLength(1)
-    expect(styles[0].getStroke()?.getWidth()).toBe(1.5)
-    expect(styles[0].getText()).toBeNull()
-  })
+	it("is just a thin outline on the normal size overview", () => {
+		const styles = remoteViewportOverviewStyle(viewport, 160);
+		expect(styles).toHaveLength(1);
+		expect(styles[0].getStroke()?.getWidth()).toBe(1.5);
+		expect(styles[0].getText()).toBeNull();
+	});
 
-  it("shows the person's name once the overview is expanded", () => {
-    const styles = remoteViewportOverviewStyle(viewport, OVERVIEW_LABEL_MIN_PX)
-    expect(styles).toHaveLength(2)
-    expect(styles[0].getStroke()?.getWidth()).toBe(1.5)
-    expect(styles[1].getText()?.getText()).toBe('Bob Hughes')
-    expect(styles[1].getText()?.getFont()).toContain('11px')
-  })
+	it("shows the person's name once the overview is expanded", () => {
+		const styles = remoteViewportOverviewStyle(viewport, OVERVIEW_LABEL_MIN_PX);
+		expect(styles).toHaveLength(2);
+		expect(styles[0].getStroke()?.getWidth()).toBe(1.5);
+		expect(styles[1].getText()?.getText()).toBe("Bob Hughes");
+		expect(styles[1].getText()?.getFont()).toContain("11px");
+	});
 
-  it('stays an outline when expanded but there is no name to show', () => {
-    const unnamed = new Feature({ geometry: fromExtent([0, -100, 200, 0]), colour: '#4c8bf5' })
-    expect(remoteViewportOverviewStyle(unnamed, 384)).toHaveLength(1)
-  })
-})
+	it("stays an outline when expanded but there is no name to show", () => {
+		const unnamed = new Feature({ geometry: fromExtent([0, -100, 200, 0]), colour: "#4c8bf5" });
+		expect(remoteViewportOverviewStyle(unnamed, 384)).toHaveLength(1);
+	});
+});
 
-describe('viewedAnnotationStyle', () => {
-  const widths = (lineThickness?: number) => {
-    const feature = new Feature(fromExtent([0, 0, 10, 10]))
-    if (lineThickness !== undefined) feature.set('lineThickness', lineThickness)
-    return viewedAnnotationStyle(feature).map((style) => style.getStroke()?.getWidth())
-  }
+describe("viewedAnnotationStyle", () => {
+	const widths = (lineThickness?: number) => {
+		const feature = new Feature(fromExtent([0, 0, 10, 10]));
+		if (lineThickness !== undefined) feature.set("lineThickness", lineThickness);
+		return viewedAnnotationStyle(feature).map((style) => style.getStroke()?.getWidth());
+	};
 
-  it('is a dark edge under a light band, both wider than the line', () => {
-    expect(widths(2)).toEqual([16, 10])
-  })
+	it("is a dark edge under a light band, both wider than the line", () => {
+		expect(widths(2)).toEqual([16, 10]);
+	});
 
-  it('grows with the line, so a thick line still has a halo round it', () => {
-    expect(widths(6)).toEqual([20, 14])
-  })
+	it("grows with the line, so a thick line still has a halo round it", () => {
+		expect(widths(6)).toEqual([20, 14]);
+	});
 
-  it('assumes the default 2px line when the feature has none', () => {
-    expect(widths()).toEqual([16, 10])
-  })
+	it("assumes the default 2px line when the feature has none", () => {
+		expect(widths()).toEqual([16, 10]);
+	});
 
-  it('has no fill, so the shape and the slide inside it show through', () => {
-    const feature = new Feature(fromExtent([0, 0, 10, 10]))
-    expect(viewedAnnotationStyle(feature).every((style) => style.getFill() === null)).toBe(true)
-  })
-})
+	it("has no fill, so the shape and the slide inside it show through", () => {
+		const feature = new Feature(fromExtent([0, 0, 10, 10]));
+		expect(viewedAnnotationStyle(feature).every((style) => style.getFill() === null)).toBe(true);
+	});
+});

@@ -424,6 +424,8 @@ fails if this falls behind the schema.
 
 <!-- schema:start - written by scripts/db_docs.py, don't edit by hand -->
 
+<!-- prettier-ignore-start -->
+
 ```mermaid
 erDiagram
 
@@ -579,32 +581,32 @@ erDiagram
 
 The diagram puts underscores in a type with spaces, since it can't draw them otherwise.
 
-| Type                       | What it is                                                                                                                              |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `uuid`                     | A 128-bit random id, like `33afa424-ed8b-4489-ab20-ee917f31880c`. Used for most ids, since the viewer can make one itself before saving |
-| `bigint`                   | A 64-bit whole number. Used where ids count up, so their order means something                                                          |
-| `integer`                  | A 32-bit whole number                                                                                                                   |
-| `double precision`         | A 64-bit decimal number                                                                                                                 |
-| `boolean`                  | True or false                                                                                                                           |
-| `text`                     | A string of any length. Can also hold JSON that's only stored and handed back                                                           |
-| `jsonb`                    | JSON that Postgres has parsed and checked, so the database can read inside it                                                           |
-| `timestamp with time zone` | A moment in time, kept in UTC. Postgres also calls it `timestamptz`                                                                     |
+| Type | What it is |
+|---|---|
+| `uuid` | A 128-bit random id, like `33afa424-ed8b-4489-ab20-ee917f31880c`. Used for most ids, since the viewer can make one itself before saving |
+| `bigint` | A 64-bit whole number. Used where ids count up, so their order means something |
+| `integer` | A 32-bit whole number |
+| `double precision` | A 64-bit decimal number |
+| `boolean` | True or false |
+| `text` | A string of any length. Can also hold JSON that's only stored and handed back |
+| `jsonb` | JSON that Postgres has parsed and checked, so the database can read inside it |
+| `timestamp with time zone` | A moment in time, kept in UTC. Postgres also calls it `timestamptz` |
 
-| Term            | What it means                                                                                                                                      |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PK              | Primary key - what identifies a row. Two together means the pair is what's unique                                                                  |
-| FK              | Foreign key - a column pointing at another table's row. The database won't let it point at one that isn't there                                    |
-| PK, FK          | Both - part of what identifies the row, and pointing at another table                                                                              |
-| not null / null | Whether a column has to have a value, or can be empty                                                                                              |
-| Index           | A lookup kept by the database, so finding rows by that column doesn't read the whole table                                                         |
-| Unique index    | An index that also refuses two rows with the same value                                                                                            |
-| Set by          | Where a value comes from: `client` is in the request, `server` is the service itself, `host` or `owner` is that person choosing it through the API |
+| Term | What it means |
+|---|---|
+| PK | Primary key - what identifies a row. Two together means the pair is what's unique |
+| FK | Foreign key - a column pointing at another table's row. The database won't let it point at one that isn't there |
+| PK, FK | Both - part of what identifies the row, and pointing at another table |
+| not null / null | Whether a column has to have a value, or can be empty |
+| Index | A lookup kept by the database, so finding rows by that column doesn't read the whole table |
+| Unique index | An index that also refuses two rows with the same value |
+| Set by | Where a value comes from: `client` is in the request, `server` is the service itself, `host` or `owner` is that person choosing it through the API |
 
-| Line end                  | How many rows of the table it's next to |
-| ------------------------- | --------------------------------------- |
-| Two bars                  | Exactly one                             |
-| A bar and a circle        | Zero or one                             |
-| A circle and three prongs | Zero or more                            |
+| Line end | How many rows of the table it's next to |
+|---|---|
+| Two bars | Exactly one |
+| A bar and a circle | Zero or one |
+| A circle and three prongs | Zero or more |
 
 ### Collections
 
@@ -612,19 +614,19 @@ A workspace for one slide, and what everything else hangs off. `Kind` says which
 
 **To make one:** `POST /collections/ensure` with `slideId` gets your personal one, making it if needed. `POST /sessions` with `slideId` starts a session, and can take its name, `maxEditors` and `editPolicy`.
 
-| Column           | Type                           | Key | Set by           | Notes                                                                                                                         |
-| ---------------- | ------------------------------ | --- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `CollectionId`   | uuid                           | PK  | server           | The id everything in it points at                                                                                             |
-| `Shared`         | boolean                        |     | owner            | Personal only. On, anyone signed in can look at it, read only                                                                 |
-| `MaxEditors`     | integer                        |     | host             | Sessions only. How many editors an edit link lets in before anyone else joins view only                                       |
-| `CollectionName` | text                           |     | client or server | What it's called in the Collections panel. Sent when a session starts, otherwise made from your name. Can be renamed          |
-| `EditPolicy`     | text                           |     | host             | `LastWriteWins` or `FirstComeWins` - what happens when two people change the same thing. A personal one stays `LastWriteWins` |
-| `Kind`           | text                           |     | server           | `Personal` or `Session`                                                                                                       |
-| `SlideId`        | text                           |     | client           | The tiler's id for the slide. Not a foreign key - slides are files, not rows                                                  |
-| `UserId`         | text                           |     | server           | The owner's Keycloak id, from their token. For a session, the host. They're in `CollectionMembers` as well                    |
-| `Created`        | timestamp with time zone       |     | server           |                                                                                                                               |
-| `Deleted`        | timestamp with time zone, null |     | server           | Set when it's deleted, so it's hidden. Never sent or taken over JSON                                                          |
-| `Ended`          | timestamp with time zone, null |     | host             | Sessions only. Once set it's read only for everyone and its links stop working                                                |
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `CollectionId` | uuid | PK | server | The id everything in it points at |
+| `Shared` | boolean |  | owner | Personal only. On, anyone signed in can look at it, read only |
+| `MaxEditors` | integer |  | host | Sessions only. How many editors an edit link lets in before anyone else joins view only |
+| `CollectionName` | text |  | client or server | What it's called in the Collections panel. Sent when a session starts, otherwise made from your name. Can be renamed |
+| `EditPolicy` | text |  | host | `LastWriteWins` or `FirstComeWins` - what happens when two people change the same thing. A personal one stays `LastWriteWins` |
+| `Kind` | text |  | server | `Personal` or `Session` |
+| `SlideId` | text |  | client | The tiler's id for the slide. Not a foreign key - slides are files, not rows |
+| `UserId` | text |  | server | The owner's Keycloak id, from their token. For a session, the host. They're in `CollectionMembers` as well |
+| `Created` | timestamp with time zone |  | server |  |
+| `Deleted` | timestamp with time zone, null |  | server | Set when it's deleted, so it's hidden. Never sent or taken over JSON |
+| `Ended` | timestamp with time zone, null |  | host | Sessions only. Once set it's read only for everyone and its links stop working |
 
 - Unique index on `SlideId, UserId` where `"Kind" = 'Personal' AND "Deleted" IS NULL`
 
@@ -634,13 +636,13 @@ Who's in a collection and as what. One row per person per collection, and what e
 
 **To make one:** Accepting an invite with `POST /invites/{code}/accept` adds you. The owner gets a row when the collection's made.
 
-| Column         | Type                     | Key    | Set by                  | Notes                                                                                   |
-| -------------- | ------------------------ | ------ | ----------------------- | --------------------------------------------------------------------------------------- |
-| `CollectionId` | uuid                     | PK, FK | server                  | Half of the key                                                                         |
-| `UserId`       | text                     | PK     | server                  | Their Keycloak id. The other half of the key                                            |
-| `DisplayName`  | text                     |        | server                  | Their name then, from their token, so the panel can list people without asking Keycloak |
-| `Role`         | text                     |        | server, host can change | `Viewer`, `Editor` or `Owner`                                                           |
-| `Added`        | timestamp with time zone |        | server                  |                                                                                         |
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `CollectionId` | uuid | PK, FK | server | Half of the key |
+| `UserId` | text | PK | server | Their Keycloak id. The other half of the key |
+| `DisplayName` | text |  | server | Their name then, from their token, so the panel can list people without asking Keycloak |
+| `Role` | text |  | server, host can change | `Viewer`, `Editor` or `Owner` |
+| `Added` | timestamp with time zone |  | server |  |
 
 - Index on `UserId`
 - `CollectionId` points at `Collections.CollectionId`. Deleted with it
@@ -651,15 +653,15 @@ A link or code that lets someone into a collection, as a set role, until it runs
 
 **To make one:** `POST /collections/{id}/invites` with the `role` and how many hours it lasts. The store makes the code.
 
-| Column         | Type                           | Key | Set by | Notes                                                                                |
-| -------------- | ------------------------------ | --- | ------ | ------------------------------------------------------------------------------------ |
-| `Code`         | text                           | PK  | server | What's in the link, and the key                                                      |
-| `CollectionId` | uuid                           | FK  | server | From the URL                                                                         |
-| `CreatedById`  | text                           |     | server | Who made it, from their token                                                        |
-| `Role`         | text                           |     | client | What joining with it makes you. An edit link past `MaxEditors` lets you in view only |
-| `Created`      | timestamp with time zone       |     | server |                                                                                      |
-| `Expires`      | timestamp with time zone       |     | server | Now plus the hours asked for, up to a week                                           |
-| `Stopped`      | timestamp with time zone, null |     | server | Set when it's stopped early, so it stops working                                     |
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `Code` | text | PK | server | What's in the link, and the key |
+| `CollectionId` | uuid | FK | server | From the URL |
+| `CreatedById` | text |  | server | Who made it, from their token |
+| `Role` | text |  | client | What joining with it makes you. An edit link past `MaxEditors` lets you in view only |
+| `Created` | timestamp with time zone |  | server |  |
+| `Expires` | timestamp with time zone |  | server | Now plus the hours asked for, up to a week |
+| `Stopped` | timestamp with time zone, null |  | server | Set when it's stopped early, so it stops working |
 
 - Index on `CollectionId`
 - `CollectionId` points at `Collections.CollectionId`. Deleted with it
@@ -670,13 +672,13 @@ A named set of annotations in one collection. One level only, and an annotation 
 
 **To make one:** `POST /annotationgroups` with `collectionId` and `name`, and optionally the annotation `ids` to put in it. Editors only.
 
-| Column         | Type                     | Key | Set by | Notes                    |
-| -------------- | ------------------------ | --- | ------ | ------------------------ |
-| `Id`           | uuid                     | PK  | server |                          |
-| `CollectionId` | uuid                     | FK  | client | Which collection it's in |
-| `Name`         | text                     |     | client | Up to 64 characters      |
-| `Notes`        | text                     |     | client | Up to 10,000 characters  |
-| `Created`      | timestamp with time zone |     | server |                          |
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `Id` | uuid | PK | server |  |
+| `CollectionId` | uuid | FK | client | Which collection it's in |
+| `Name` | text |  | client | Up to 64 characters |
+| `Notes` | text |  | client | Up to 10,000 characters |
+| `Created` | timestamp with time zone |  | server |  |
 
 - Index on `CollectionId`
 - `CollectionId` points at `Collections.CollectionId`. Deleted with it
@@ -687,22 +689,22 @@ One shape someone drew on a slide. The shape itself is fixed once saved - only t
 
 **To make one:** `POST /annotations` with `collectionId`, `label`, `colour`, `shape`, `lineStyle`, `lineThickness` and `geoJson`. Editors only. `notes` and `groupId` are optional, and the group has to be in the same collection. `id` is optional too - the viewer sends its own, so it can draw the shape before the save comes back.
 
-| Column          | Type                     | Key | Set by           | Notes                                                                                                                             |
-| --------------- | ------------------------ | --- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `Id`            | uuid                     | PK  | client or server | Made by the store if it's left out                                                                                                |
-| `CollectionId`  | uuid                     | FK  | client           | Which collection it's in                                                                                                          |
-| `GroupId`       | uuid, null               | FK  | client           | The group it's in, if any. Can change. Goes to null if the group's deleted                                                        |
-| `LineThickness` | integer                  |     | client           | In pixels                                                                                                                         |
-| `Colour`        | text                     |     | client           | Hex. Can change                                                                                                                   |
-| `CreatedById`   | text                     |     | server           | Who drew it, from their token                                                                                                     |
-| `CreatedByName` | text                     |     | server           | Their name then                                                                                                                   |
-| `GeoJson`       | text                     |     | client           | The drawn feature, in slide pixels, coordinates rounded to a tenth on save. Fixed once saved                                      |
-| `Label`         | text                     |     | client           | Can change. Merged live with Yjs while it's being edited                                                                          |
-| `LineStyle`     | text                     |     | client           | `solid` or `dashed`                                                                                                               |
-| `Notes`         | text                     |     | client           | Can change. Merged live with Yjs while it's being edited                                                                          |
-| `Shape`         | text                     |     | client           | `line`, `freehand`, `polygon`, `arrow`, `rectangle` or `circle`. The viewer can't show anything else, and the store doesn't check |
-| `SlideId`       | text                     |     | server           | Copied from the collection, never taken from the client                                                                           |
-| `Created`       | timestamp with time zone |     | server           |                                                                                                                                   |
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `Id` | uuid | PK | client or server | Made by the store if it's left out |
+| `CollectionId` | uuid | FK | client | Which collection it's in |
+| `GroupId` | uuid, null | FK | client | The group it's in, if any. Can change. Goes to null if the group's deleted |
+| `LineThickness` | integer |  | client | In pixels |
+| `Colour` | text |  | client | Hex. Can change |
+| `CreatedById` | text |  | server | Who drew it, from their token |
+| `CreatedByName` | text |  | server | Their name then |
+| `GeoJson` | text |  | client | The drawn feature, in slide pixels, coordinates rounded to a tenth on save. Fixed once saved |
+| `Label` | text |  | client | Can change. Merged live with Yjs while it's being edited |
+| `LineStyle` | text |  | client | `solid` or `dashed` |
+| `Notes` | text |  | client | Can change. Merged live with Yjs while it's being edited |
+| `Shape` | text |  | client | `line`, `freehand`, `polygon`, `arrow`, `rectangle` or `circle`. The viewer can't show anything else, and the store doesn't check |
+| `SlideId` | text |  | server | Copied from the collection, never taken from the client |
+| `Created` | timestamp with time zone |  | server |  |
 
 - Index on `CollectionId`
 - Index on `GroupId`
@@ -716,13 +718,13 @@ A named set of cell counts in one collection, the same as `AnnotationGroups` is 
 
 **To make one:** `POST /cellcountgroups` with `collectionId`, `name` and optionally `cellCountIds`. An import can make them too, matched by name.
 
-| Column         | Type                     | Key | Set by | Notes                   |
-| -------------- | ------------------------ | --- | ------ | ----------------------- |
-| `Id`           | uuid                     | PK  | server |                         |
-| `CollectionId` | uuid                     | FK  | client | The collection it's in  |
-| `Name`         | text                     |     | client | Up to 64 characters     |
-| `Notes`        | text                     |     | client | Up to 10,000 characters |
-| `Created`      | timestamp with time zone |     | server |                         |
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `Id` | uuid | PK | server |  |
+| `CollectionId` | uuid | FK | client | The collection it's in |
+| `Name` | text |  | client | Up to 64 characters |
+| `Notes` | text |  | client | Up to 10,000 characters |
+| `Created` | timestamp with time zone |  | server |  |
 
 - Index on `CollectionId`
 - `CollectionId` points at `Collections.CollectionId`. Deleted with it
@@ -733,26 +735,26 @@ A manual count of cells, such as mitotic figures: every dot placed, and the tall
 
 **To make one:** `POST /cellcounts` with `collectionId`, `label`, `dots` and `count`, and `regionOfInterest` if it was counted in a box. Editors only. Up to 80MB, about a million dots.
 
-| Column               | Type                     | Key | Set by           | Notes                                                                                                                                                                 |
-| -------------------- | ------------------------ | --- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Id`                 | uuid                     | PK  | client or server | Made by the store if it's left out                                                                                                                                    |
-| `CollectionId`       | uuid                     | FK  | client           | Which collection it's in                                                                                                                                              |
-| `GroupId`            | uuid, null               | FK  | client           | The group it's in, if any. Set with `PUT /cellcounts/group`, not by saving the count. Deleting the group empties this                                                 |
-| `WithAnnotation`     | boolean                  |     | client           | Whether clicks placed dots, or only counted                                                                                                                           |
-| `WithRoi`            | boolean                  |     | client           | Whether it was counted inside a region of interest                                                                                                                    |
-| `Count`              | integer                  |     | client           | The tally. Can be more than the dots, since a click with `WithAnnotation` off counts without placing one                                                              |
-| `DotSize`            | integer                  |     | client           | Marker size on the map                                                                                                                                                |
-| `CreatedById`        | text                     |     | server           | Who saved it, the host for a shared count                                                                                                                             |
-| `CreatedByName`      | text                     |     | server           | Their name then                                                                                                                                                       |
-| `Dots`               | text                     |     | client           | JSON array of `{x, y, colour}`, in slide pixels, with `placedBy` on a shared count. Fixed once saved                                                                  |
-| `Label`              | text                     |     | client           | Can change                                                                                                                                                            |
-| `Notes`              | text                     |     | client           | Can change                                                                                                                                                            |
-| `SlideId`            | text                     |     | server           | Copied from the collection                                                                                                                                            |
-| `Created`            | timestamp with time zone |     | server           |                                                                                                                                                                       |
-| `LocationX`          | double precision, null   |     | client           | Where it was counted, for going back there. Null for a count with no location                                                                                         |
-| `LocationY`          | double precision, null   |     | client           | See `LocationX`                                                                                                                                                       |
-| `ColourCountsJson`   | text, null               |     | server           | How many dots of each colour, worked out from `Dots`. Null on rows older than this column until they're first listed. Not a change anyone made, so not in the history |
-| `PlacedByCountsJson` | text, null               |     | server           | How many dots each person placed, the same way as `ColourCountsJson`                                                                                                  |
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `Id` | uuid | PK | client or server | Made by the store if it's left out |
+| `CollectionId` | uuid | FK | client | Which collection it's in |
+| `GroupId` | uuid, null | FK | client | The group it's in, if any. Set with `PUT /cellcounts/group`, not by saving the count. Deleting the group empties this |
+| `WithAnnotation` | boolean |  | client | Whether clicks placed dots, or only counted |
+| `WithRoi` | boolean |  | client | Whether it was counted inside a region of interest |
+| `Count` | integer |  | client | The tally. Can be more than the dots, since a click with `WithAnnotation` off counts without placing one |
+| `DotSize` | integer |  | client | Marker size on the map |
+| `CreatedById` | text |  | server | Who saved it, the host for a shared count |
+| `CreatedByName` | text |  | server | Their name then |
+| `Dots` | text |  | client | JSON array of `{x, y, colour}`, in slide pixels, with `placedBy` on a shared count. Fixed once saved |
+| `Label` | text |  | client | Can change |
+| `Notes` | text |  | client | Can change |
+| `SlideId` | text |  | server | Copied from the collection |
+| `Created` | timestamp with time zone |  | server |  |
+| `LocationX` | double precision, null |  | client | Where it was counted, for going back there. Null for a count with no location |
+| `LocationY` | double precision, null |  | client | See `LocationX` |
+| `ColourCountsJson` | text, null |  | server | How many dots of each colour, worked out from `Dots`. Null on rows older than this column until they're first listed. Not a change anyone made, so not in the history |
+| `PlacedByCountsJson` | text, null |  | server | How many dots each person placed, the same way as `ColourCountsJson` |
 
 - Index on `CollectionId`
 - Index on `GroupId`
@@ -766,12 +768,12 @@ The box a cell count was taken inside. At most one per count, and it's fixed onc
 
 **To make one:** Sent inside the cell count, as `regionOfInterest` with `geoJson`. There's no endpoint of its own.
 
-| Column        | Type                     | Key | Set by           | Notes                                                   |
-| ------------- | ------------------------ | --- | ---------------- | ------------------------------------------------------- |
-| `Id`          | uuid                     | PK  | client or server |                                                         |
-| `CellCountId` | uuid                     | FK  | server           | Its count. The unique index is what makes it one to one |
-| `GeoJson`     | text                     |     | client           | The box, rounded the same way as an annotation's        |
-| `Created`     | timestamp with time zone |     | server           | The same as its count's                                 |
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `Id` | uuid | PK | client or server |  |
+| `CellCountId` | uuid | FK | server | Its count. The unique index is what makes it one to one |
+| `GeoJson` | text |  | client | The box, rounded the same way as an annotation's |
+| `Created` | timestamp with time zone |  | server | The same as its count's |
 
 - Unique index on `CellCountId`
 - `CellCountId` points at `CellCounts.Id`. Deleted with it
@@ -782,15 +784,15 @@ A saved preset of brightness, contrast, gamma and colour. Personal, so the viewe
 
 **To make one:** `POST /imageadjustments` with `collectionId`, `adjustmentName` and `adjustments`. Editors only.
 
-| Column              | Type                     | Key | Set by           | Notes                              |
-| ------------------- | ------------------------ | --- | ---------------- | ---------------------------------- |
-| `ImageAdjustmentId` | uuid                     | PK  | client or server | Made by the store if it's left out |
-| `CollectionId`      | uuid                     | FK  | client           | Which collection it's in           |
-| `AdjustmentName`    | text                     |     | client           | What it's called in the list       |
-| `Adjustments`       | text                     |     | client           | The settings, as JSON text         |
-| `SlideId`           | text                     |     | server           | Copied from the collection         |
-| `UserId`            | text                     |     | server           | Who saved it, from their token     |
-| `Created`           | timestamp with time zone |     | server           |                                    |
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `ImageAdjustmentId` | uuid | PK | client or server | Made by the store if it's left out |
+| `CollectionId` | uuid | FK | client | Which collection it's in |
+| `AdjustmentName` | text |  | client | What it's called in the list |
+| `Adjustments` | text |  | client | The settings, as JSON text |
+| `SlideId` | text |  | server | Copied from the collection |
+| `UserId` | text |  | server | Who saved it, from their token |
+| `Created` | timestamp with time zone |  | server |  |
 
 - Index on `CollectionId`
 - Index on `SlideId`
@@ -802,16 +804,16 @@ One change someone made, like a commit - a single save, or a 21,000 row delete s
 
 **To make one:** Made by any write. Send a `Change-Set-Id` header to choose the id, so several requests count as one change. Left out, the write gets its own. An id already used by someone else or in another collection is a 400.
 
-| Column         | Type                     | Key | Set by           | Notes                                                                                                                                                                |
-| -------------- | ------------------------ | --- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Id`           | uuid                     | PK  | client or server | From the `Change-Set-Id` header, or made by the store                                                                                                                |
-| `CollectionId` | uuid                     | FK  | server           | The collection it changed                                                                                                                                            |
-| `UserId`       | text                     |     | server           | Who made it, from their token                                                                                                                                        |
-| `UserName`     | text                     |     | server           | Their name then                                                                                                                                                      |
-| `What`         | text                     |     | server           | What the first request in it did, such as `delete annotations` or `restore collection`                                                                               |
-| `Created`      | timestamp with time zone |     | server           |                                                                                                                                                                      |
-| `Source`       | jsonb, null              |     | client           | Where it came from, when it's something sent in a message: who sent it, the message, the collection and how many of each it added. `What` is then `add from message` |
-| `SourceRows`   | jsonb, null              |     | client           | Which row each new one was copied from. Apart from `Source` since it's two ids a row, and the History list reads `Source` for every line                             |
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `Id` | uuid | PK | client or server | From the `Change-Set-Id` header, or made by the store |
+| `CollectionId` | uuid | FK | server | The collection it changed |
+| `UserId` | text |  | server | Who made it, from their token |
+| `UserName` | text |  | server | Their name then |
+| `What` | text |  | server | What the first request in it did, such as `delete annotations` or `restore collection` |
+| `Created` | timestamp with time zone |  | server |  |
+| `Source` | jsonb, null |  | client | Where it came from, when it's something sent in a message: who sent it, the message, the collection and how many of each it added. `What` is then `add from message` |
+| `SourceRows` | jsonb, null |  | client | Which row each new one was copied from. Apart from `Source` since it's two ids a row, and the History list reads `Source` for every line |
 
 - Index on `CollectionId, Created`
 - `CollectionId` points at `Collections.CollectionId`. Deleted with it
@@ -822,16 +824,16 @@ What one change did to one row, and the only place anything that was there is ke
 
 **To make one:** Never by hand. `HistoryLog` writes them with every save, in the same transaction, from what EF is about to change. Bulk changes go through `AnnotationBulk`, which writes its own with one `COPY`.
 
-| Column         | Type        | Key | Set by | Notes                                                                                                                                 |
-| -------------- | ----------- | --- | ------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `Id`           | bigint      | PK  | server | Identity, so it's the order they were written in. Handed out before a save commits, so a higher one can be visible before a lower one |
-| `ChangeSetId`  | uuid        | FK  | server | The change it's part of                                                                                                               |
-| `Entity`       | text        |     | server | `annotation`, `group`, `cellCount`, `regionOfInterest`, `imageAdjustment` or `collection`                                             |
-| `Op`           | text        |     | server | `Create`, `Update` or `Delete`                                                                                                        |
-| `CollectionId` | uuid        |     | server | Copied from the change set, for reading one row's history. Not a foreign key of its own                                               |
-| `EntityId`     | uuid        |     | server | The row it's about. Not a foreign key, since that row may be gone                                                                     |
-| `After`        | jsonb, null |     | server | An update: the same columns, as they became. A group's delete in a merge: `{ "MergedInto": id }`                                      |
-| `Before`       | jsonb, null |     | server | A delete: the whole row. An update: the columns it changed, as they were                                                              |
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `Id` | bigint | PK | server | Identity, so it's the order they were written in. Handed out before a save commits, so a higher one can be visible before a lower one |
+| `ChangeSetId` | uuid | FK | server | The change it's part of |
+| `Entity` | text |  | server | `annotation`, `group`, `cellCount`, `regionOfInterest`, `imageAdjustment` or `collection` |
+| `Op` | text |  | server | `Create`, `Update` or `Delete` |
+| `CollectionId` | uuid |  | server | Copied from the change set, for reading one row's history. Not a foreign key of its own |
+| `EntityId` | uuid |  | server | The row it's about. Not a foreign key, since that row may be gone |
+| `After` | jsonb, null |  | server | An update: the same columns, as they became. A group's delete in a merge: `{ "MergedInto": id }` |
+| `Before` | jsonb, null |  | server | A delete: the whole row. An update: the columns it changed, as they were |
 
 - Index on `ChangeSetId`
 - Index on `CollectionId, Entity, EntityId`
@@ -843,15 +845,17 @@ What can change in a whole collection at one moment, so putting it back doesn't 
 
 **To make one:** Never by hand. `SnapshotService` checks every 30 seconds for collections with 5,000 entries since their last one.
 
-| Column         | Type                     | Key | Set by | Notes                                          |
-| -------------- | ------------------------ | --- | ------ | ---------------------------------------------- |
-| `Id`           | bigint                   | PK  | server |                                                |
-| `CollectionId` | uuid                     | FK  | server | The collection it's of                         |
-| `UpToEntry`    | bigint                   |     | server | The last entry that's in it. Not a foreign key |
-| `Rows`         | jsonb                    |     | server | Kind of row to row id to column to value       |
-| `Created`      | timestamp with time zone |     | server |                                                |
+| Column | Type | Key | Set by | Notes |
+|---|---|---|---|---|
+| `Id` | bigint | PK | server |  |
+| `CollectionId` | uuid | FK | server | The collection it's of |
+| `UpToEntry` | bigint |  | server | The last entry that's in it. Not a foreign key |
+| `Rows` | jsonb |  | server | Kind of row to row id to column to value |
+| `Created` | timestamp with time zone |  | server |  |
 
 - Index on `CollectionId, UpToEntry`
 - `CollectionId` points at `Collections.CollectionId`. Deleted with it
+
+<!-- prettier-ignore-end -->
 
 <!-- schema:end -->

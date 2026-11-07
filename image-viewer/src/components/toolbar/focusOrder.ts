@@ -4,14 +4,14 @@
 // forward, no manual z-index juggling. `order` runs back-to-front, so the
 // most recently brought-forward key is always last.
 function bringToFront(order: string[], key: string): string[] {
-  return [...order.filter((existing) => existing !== key), key]
+	return [...order.filter((existing) => existing !== key), key];
 }
 
 // How far forward `key` is, for turning into a z-index. Never-focused keys
 // (not in `order`) sit at the back, same as everything else that's never
 // been focused - not behind them.
 function stackIndex(order: string[], key: string): number {
-  return Math.max(0, order.indexOf(key))
+	return Math.max(0, order.indexOf(key));
 }
 
-export { bringToFront, stackIndex }
+export { bringToFront, stackIndex };

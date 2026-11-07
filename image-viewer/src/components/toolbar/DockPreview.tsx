@@ -1,8 +1,8 @@
-import type { DockRect } from './dock'
-import './DockPreview.css'
+import type { DockRect } from "./dock";
+import "./DockPreview.css";
 
 interface DockPreviewProps {
-  rect: DockRect | null
+	rect: DockRect | null;
 }
 
 // Solid highlight over the exact slot the dragged panel will land in -
@@ -11,15 +11,9 @@ interface DockPreviewProps {
 // Distinct from DockZone's dashed border, which only says "this edge takes
 // drops" - this says "here, specifically".
 function DockPreview({ rect }: DockPreviewProps) {
-  if (!rect) return null
+	if (!rect) return null;
 
-  return (
-    <div
-      className="dock-preview"
-      style={{ top: rect.top, left: rect.left, width: rect.width, height: rect.height }}
-      aria-hidden="true"
-    />
-  )
+	return <div className="dock-preview" style={{ top: rect.top, left: rect.left, width: rect.width, height: rect.height }} aria-hidden="true" />;
 }
 
-export default DockPreview
+export default DockPreview;

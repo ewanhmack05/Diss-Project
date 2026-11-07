@@ -1,32 +1,31 @@
-@import './palette.css';
+@import "./palette.css";
 
 :root {
-  --sans:
-    'Source Sans Pro', Arial, sans-serif;
+	--sans: "Source Sans Pro", Arial, sans-serif;
 
-  color-scheme: light;
-  color: var(--chrome-text);
-  background: var(--canvas-bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+	color-scheme: light;
+	color: var(--chrome-text);
+	background: var(--canvas-bg);
+	font-synthesis: none;
+	text-rendering: optimizeLegibility;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
 }
 
 * {
-  box-sizing: border-box;
+	box-sizing: border-box;
 }
 
 html,
 body,
 #root {
-  height: 100%;
-  margin: 0;
+	height: 100%;
+	margin: 0;
 }
 
 body {
-  font: 13px/145% var(--sans);
-  overflow: hidden;
+	font: 13px/145% var(--sans);
+	overflow: hidden;
 }
 
 /* Shared scrollbar look for the panel chrome's scrollable areas (the
@@ -35,23 +34,23 @@ body {
    while now) plus the WebKit pseudo-elements, it just can't be replaced
    with a custom-drawn one. */
 .themed-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: var(--white-22) transparent;
+	scrollbar-width: thin;
+	scrollbar-color: var(--white-22) transparent;
 }
 
 .themed-scroll::-webkit-scrollbar {
-  width: 0.6em;
+	width: 0.6em;
 }
 
 .themed-scroll::-webkit-scrollbar-track {
-  background: transparent;
+	background: transparent;
 }
 
 .themed-scroll::-webkit-scrollbar-thumb {
-  background: var(--white-22);
-  border-radius: 0.3125rem;
+	background: var(--white-22);
+	border-radius: 0.3125rem;
 }
 
 .themed-scroll::-webkit-scrollbar-thumb:hover {
-  background: var(--accent);
+	background: var(--accent);
 }

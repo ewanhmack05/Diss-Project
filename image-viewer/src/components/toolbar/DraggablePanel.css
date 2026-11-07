@@ -1,11 +1,11 @@
 .draggable-panel {
-  position: fixed;
-  width: 20em;
-  background: var(--chrome-bg);
-  border-radius: 0.5em;
-  box-shadow: 0 0.5em 1.5em var(--black-35);
-  z-index: 15;
-  overflow: hidden;
+	position: fixed;
+	width: 20em;
+	background: var(--chrome-bg);
+	border-radius: 0.5em;
+	box-shadow: 0 0.5em 1.5em var(--black-35);
+	z-index: 15;
+	overflow: hidden;
 }
 
 /* The DragOverlay ghost (see App.tsx) - dnd-kit's own overlay wrapper
@@ -14,8 +14,8 @@
    the header/title, not the body - a lightweight stand-in, not a full
    clone of the real (currently hidden) panel's interactive content. */
 .draggable-panel--ghost {
-  position: relative;
-  cursor: grabbing;
+	position: relative;
+	cursor: grabbing;
 }
 
 /* Dropped onto one of the dock zones (see DockZone.tsx) - instead of
@@ -25,57 +25,57 @@
    Still draggable by its header (see DraggablePanel.tsx) so pulling it away
    undocks it again. */
 .draggable-panel--docked {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 0;
-  min-width: 0;
-  min-height: 0;
-  width: auto;
-  border-radius: 0;
-  box-shadow: none;
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 0;
+	min-width: 0;
+	min-height: 0;
+	width: auto;
+	border-radius: 0;
+	box-shadow: none;
 }
 
 .draggable-panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.5em 0.75em;
-  background: var(--white-05);
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0.5em 0.75em;
+	background: var(--white-05);
 }
 
 .draggable-panel-handle {
-  flex: 1;
-  cursor: grab;
-  touch-action: none;
+	flex: 1;
+	cursor: grab;
+	touch-action: none;
 }
 
 .draggable-panel-handle:active {
-  cursor: grabbing;
+	cursor: grabbing;
 }
 
 .draggable-panel-title {
-  font-size: 1.1em;
-  font-weight: 600;
-  color: var(--chrome-text);
+	font-size: 1.1em;
+	font-weight: 600;
+	color: var(--chrome-text);
 }
 
 .draggable-panel-close {
-  padding: 0 0.25em;
-  font-size: 1.2em;
-  line-height: 1;
-  color: var(--chrome-text-secondary);
-  background: none;
-  border: none;
-  cursor: pointer;
+	padding: 0 0.25em;
+	font-size: 1.2em;
+	line-height: 1;
+	color: var(--chrome-text-secondary);
+	background: none;
+	border: none;
+	cursor: pointer;
 }
 
 .draggable-panel-close:hover {
-  color: var(--accent);
+	color: var(--accent);
 }
 
 .draggable-panel-body {
-  /* Caps a floating panel's overall height ("the panel's max") - a docked
+	/* Caps a floating panel's overall height ("the panel's max") - a docked
      panel gets a real height from its DockEdge instead (see below), which
      is usually taller than this. Scrolling itself now happens one level
      deeper (see AnnotationsPanel.css/CellCountPanel.css's *-content and the
@@ -83,14 +83,14 @@
      than an ancestor of it, are never carried along with it - the panel's
      single child (AnnotationsPanel/CellCountPanel) just needs a real height
      to grow into, which display:flex here provides. */
-  max-height: 40em;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
+	max-height: 40em;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
 }
 
 .draggable-panel--docked .draggable-panel-body {
-  flex: 1;
-  min-height: 0;
-  max-height: none;
+	flex: 1;
+	min-height: 0;
+	max-height: none;
 }

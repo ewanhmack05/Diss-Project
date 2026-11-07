@@ -1,61 +1,61 @@
 .colour-picker {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5em;
+	display: flex;
+	flex-direction: column;
+	gap: 0.5em;
 }
 
 .colour-picker-swatches {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4em;
-  align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4em;
+	align-items: center;
 }
 
 .colour-picker-swatch {
-  width: 1.5em;
-  height: 1.5em;
-  padding: 0;
-  border-radius: 50%;
-  border: 2px solid transparent;
-  cursor: pointer;
+	width: 1.5em;
+	height: 1.5em;
+	padding: 0;
+	border-radius: 50%;
+	border: 2px solid transparent;
+	cursor: pointer;
 }
 
 .colour-picker-swatch--selected {
-  border-color: var(--accent);
+	border-color: var(--accent);
 }
 
 .colour-picker-custom-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5em;
-  padding: 0.4em 0.6em;
-  font-family: var(--sans);
-  font-size: 0.9em;
-  font-weight: 600;
-  color: var(--chrome-text);
-  background: var(--white-06);
-  border: 1px solid transparent;
-  border-radius: 0.3125rem;
-  cursor: pointer;
-  transition: color 200ms cubic-bezier(0.4, 0, 0.2, 1);
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5em;
+	padding: 0.4em 0.6em;
+	font-family: var(--sans);
+	font-size: 0.9em;
+	font-weight: 600;
+	color: var(--chrome-text);
+	background: var(--white-06);
+	border: 1px solid transparent;
+	border-radius: 0.3125rem;
+	cursor: pointer;
+	transition: color 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .colour-picker-custom-toggle:hover {
-  color: var(--accent);
+	color: var(--accent);
 }
 
 .colour-picker-custom-toggle--active {
-  color: var(--accent-active);
-  border-color: var(--accent-active);
+	color: var(--accent-active);
+	border-color: var(--accent-active);
 }
 
 .colour-picker-custom-toggle-swatch {
-  width: 1.25em;
-  height: 1.25em;
-  flex-shrink: 0;
-  border-radius: 50%;
-  border: 1px solid var(--white-30);
+	width: 1.25em;
+	height: 1.25em;
+	flex-shrink: 0;
+	border-radius: 50%;
+	border: 1px solid var(--white-30);
 }
 
 /* Portaled straight to document.body (see ColourPicker.tsx) rather than
@@ -67,10 +67,10 @@
    .rcp-root exactly (12px, its own fixed value) so the shadow silhouette
    isn't a mismatched rectangle around rounded content. */
 .colour-picker-custom-panel {
-  position: fixed;
-  z-index: 50;
-  border-radius: 12px;
-  box-shadow: 0 0.5em 1.5em var(--black-35);
+	position: fixed;
+	z-index: 50;
+	border-radius: 12px;
+	box-shadow: 0 0.5em 1.5em var(--black-35);
 }
 
 /* Docked top/bottom panels lay the swatches and the Custom toggle out in
@@ -82,31 +82,31 @@
    the swatches+Custom row inside it. */
 .draggable-panel--docked-top .colour-picker,
 .draggable-panel--docked-bottom .colour-picker {
-  flex-direction: row;
-  align-items: center;
-  gap: 0.8em;
+	flex-direction: row;
+	align-items: center;
+	gap: 0.8em;
 }
 
 .draggable-panel--docked-top .colour-picker-swatches,
 .draggable-panel--docked-bottom .colour-picker-swatches {
-  flex-wrap: nowrap;
+	flex-wrap: nowrap;
 }
 
 .draggable-panel--docked-top .colour-picker-swatch,
 .draggable-panel--docked-bottom .colour-picker-swatch {
-  width: 2em;
-  height: 2em;
-  flex-shrink: 0;
+	width: 2em;
+	height: 2em;
+	flex-shrink: 0;
 }
 
 .draggable-panel--docked-top .colour-picker-custom-toggle,
 .draggable-panel--docked-bottom .colour-picker-custom-toggle {
-  padding: 0.6em 0.8em;
-  font-size: 1.05em;
+	padding: 0.6em 0.8em;
+	font-size: 1.05em;
 }
 
 .draggable-panel--docked-top .colour-picker-custom-toggle-swatch,
 .draggable-panel--docked-bottom .colour-picker-custom-toggle-swatch {
-  width: 1.5em;
-  height: 1.5em;
+	width: 1.5em;
+	height: 1.5em;
 }

@@ -1,143 +1,143 @@
 .cell-count-form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75em;
+	display: flex;
+	flex-direction: column;
+	gap: 0.75em;
 }
 
 .cell-count-form-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25em;
-  font-size: 0.9em;
-  color: var(--chrome-text-secondary);
+	display: flex;
+	flex-direction: column;
+	gap: 0.25em;
+	font-size: 0.9em;
+	color: var(--chrome-text-secondary);
 }
 
-.cell-count-form-field input[type='text'],
-.cell-count-form-field input[type='number'],
+.cell-count-form-field input[type="text"],
+.cell-count-form-field input[type="number"],
 .cell-count-form-field textarea {
-  padding: 0.5em;
-  font-family: var(--sans);
-  font-size: 1em;
-  color: var(--chrome-text);
-  background: var(--white-06);
-  border: 1px solid transparent;
-  border-radius: 0.3125rem;
+	padding: 0.5em;
+	font-family: var(--sans);
+	font-size: 1em;
+	color: var(--chrome-text);
+	background: var(--white-06);
+	border: 1px solid transparent;
+	border-radius: 0.3125rem;
 }
 
 .cell-count-form-field textarea {
-  resize: vertical;
+	resize: vertical;
 }
 
-.cell-count-form-field input[type='text']:focus,
-.cell-count-form-field input[type='number']:focus,
+.cell-count-form-field input[type="text"]:focus,
+.cell-count-form-field input[type="number"]:focus,
 .cell-count-form-field textarea:focus {
-  outline: none;
-  border-color: var(--accent);
+	outline: none;
+	border-color: var(--accent);
 }
 
 .cell-count-form-row {
-  display: flex;
-  gap: 0.75em;
+	display: flex;
+	gap: 0.75em;
 }
 
 .cell-count-form-row .cell-count-form-field {
-  flex: 1;
+	flex: 1;
 }
 
 .cell-count-form-static {
-  margin: 0;
-  padding: 0.5em;
-  font-family: var(--sans);
-  font-size: 1em;
-  color: var(--chrome-text);
-  background: var(--white-03);
-  border-radius: 0.3125rem;
+	margin: 0;
+	padding: 0.5em;
+	font-family: var(--sans);
+	font-size: 1em;
+	color: var(--chrome-text);
+	background: var(--white-03);
+	border-radius: 0.3125rem;
 }
 
 .cell-count-form-colour-breakdown {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.6em;
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 0.6em;
 }
 
 .cell-count-form-colour-swatch {
-  width: 1.4em;
-  height: 1.4em;
-  flex-shrink: 0;
-  border-radius: 50%;
+	width: 1.4em;
+	height: 1.4em;
+	flex-shrink: 0;
+	border-radius: 50%;
 }
 
 .cell-count-form-colour-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35em;
-  font-size: 0.9em;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35em;
+	font-size: 0.9em;
 }
 
 .cell-count-form-colour-chip-swatch {
-  width: 0.8em;
-  height: 0.8em;
-  border-radius: 50%;
+	width: 0.8em;
+	height: 0.8em;
+	border-radius: 50%;
 }
 
 .cell-count-form-checkbox {
-  flex-direction: row;
-  align-items: center;
-  gap: 0.5em;
-  font-size: 0.9em;
-  color: var(--chrome-text);
-  cursor: pointer;
+	flex-direction: row;
+	align-items: center;
+	gap: 0.5em;
+	font-size: 0.9em;
+	color: var(--chrome-text);
+	cursor: pointer;
 }
 
-.cell-count-form-checkbox input[type='checkbox'] {
-  width: 1em;
-  height: 1em;
-  accent-color: var(--accent);
-  cursor: pointer;
+.cell-count-form-checkbox input[type="checkbox"] {
+	width: 1em;
+	height: 1em;
+	accent-color: var(--accent);
+	cursor: pointer;
 }
 
 .cell-count-form-actions {
-  display: flex;
-  gap: 0.5em;
-  margin-top: 0.25em;
+	display: flex;
+	gap: 0.5em;
+	margin-top: 0.25em;
 }
 
 /* Back/Save/Delete (see SavedCountEdit) - stacked rather than a row, same
    treatment as CellCounterToolPicker's Undo/Redo pair. */
 .cell-count-form-actions--stacked {
-  flex-direction: column;
+	flex-direction: column;
 }
 
 .cell-count-form-button {
-  flex: 1;
-  padding: 0.5em;
-  font-family: var(--sans);
-  font-size: 0.9em;
-  font-weight: 600;
-  color: var(--chrome-text);
-  background: var(--white-06);
-  border: none;
-  border-radius: 0.3125rem;
-  cursor: pointer;
-  transition: color 200ms cubic-bezier(0.4, 0, 0.2, 1);
+	flex: 1;
+	padding: 0.5em;
+	font-family: var(--sans);
+	font-size: 0.9em;
+	font-weight: 600;
+	color: var(--chrome-text);
+	background: var(--white-06);
+	border: none;
+	border-radius: 0.3125rem;
+	cursor: pointer;
+	transition: color 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .cell-count-form-button:hover:not(:disabled) {
-  color: var(--accent);
+	color: var(--accent);
 }
 
 .cell-count-form-button:disabled {
-  color: var(--disabled);
-  cursor: not-allowed;
+	color: var(--disabled);
+	cursor: not-allowed;
 }
 
 .cell-count-form-button--primary {
-  color: var(--accent-active);
+	color: var(--accent-active);
 }
 
 .cell-count-form-button--danger:hover:not(:disabled) {
-  color: var(--danger);
+	color: var(--danger);
 }
 
 /* Same reflow, and the same align-items:stretch reasoning, as
@@ -151,37 +151,37 @@
    differently-sized pieces. */
 .draggable-panel--docked-top .cell-count-form,
 .draggable-panel--docked-bottom .cell-count-form {
-  flex: 1;
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: stretch;
-  align-content: space-evenly;
-  gap: 1em 1.5em;
+	flex: 1;
+	flex-direction: row;
+	flex-wrap: wrap;
+	align-items: stretch;
+	align-content: space-evenly;
+	gap: 1em 1.5em;
 }
 
 .draggable-panel--docked-top .cell-count-form-field-card,
 .draggable-panel--docked-bottom .cell-count-form-field-card {
-  min-width: 12em;
+	min-width: 12em;
 }
 
 .draggable-panel--docked-top .cell-count-form-notes-card,
 .draggable-panel--docked-bottom .cell-count-form-notes-card {
-  min-width: 18em;
+	min-width: 18em;
 }
 
-.draggable-panel--docked-top .cell-count-form-field input[type='text'],
-.draggable-panel--docked-bottom .cell-count-form-field input[type='text'],
+.draggable-panel--docked-top .cell-count-form-field input[type="text"],
+.draggable-panel--docked-bottom .cell-count-form-field input[type="text"],
 .draggable-panel--docked-top .cell-count-form-field textarea,
 .draggable-panel--docked-bottom .cell-count-form-field textarea,
 .draggable-panel--docked-top .cell-count-form-static,
 .draggable-panel--docked-bottom .cell-count-form-static {
-  padding: 0.6em 0.7em;
-  font-size: 1.05em;
+	padding: 0.6em 0.7em;
+	font-size: 1.05em;
 }
 
 .draggable-panel--docked-top .cell-count-form-details-card,
 .draggable-panel--docked-bottom .cell-count-form-details-card {
-  min-width: 14em;
+	min-width: 14em;
 }
 
 /* SavedCountEdit's Details card bundles the colour breakdown and the
@@ -191,17 +191,17 @@
    squeezed in a tight/split-dock row. */
 .draggable-panel--docked-top .cell-count-form-summary-card,
 .draggable-panel--docked-bottom .cell-count-form-summary-card {
-  min-width: 26em;
+	min-width: 26em;
 }
 
 .draggable-panel--docked-top .cell-count-form-row,
 .draggable-panel--docked-bottom .cell-count-form-row {
-  align-items: center;
+	align-items: center;
 }
 
 .draggable-panel--docked-top .cell-count-form-actions-card,
 .draggable-panel--docked-bottom .cell-count-form-actions-card {
-  min-width: 12em;
+	min-width: 12em;
 }
 
 /* DockedCard.css centers a card's content by default - fine when every
@@ -215,12 +215,12 @@
 .draggable-panel--docked-bottom .docked-card.cell-count-form-details-card,
 .draggable-panel--docked-top .docked-card.cell-count-form-actions-card,
 .draggable-panel--docked-bottom .docked-card.cell-count-form-actions-card {
-  justify-content: flex-start;
+	justify-content: flex-start;
 }
 
 .draggable-panel--docked-top .cell-count-form-actions,
 .draggable-panel--docked-bottom .cell-count-form-actions {
-  align-items: center;
+	align-items: center;
 }
 
 /* Overrides the align-items:center above for the stacked (Back/Save/Delete)
@@ -230,25 +230,25 @@
    Undo/Redo treatment. */
 .draggable-panel--docked-top .cell-count-form-actions.cell-count-form-actions--stacked,
 .draggable-panel--docked-bottom .cell-count-form-actions.cell-count-form-actions--stacked {
-  align-items: stretch;
+	align-items: stretch;
 }
 
 .draggable-panel--docked-top .cell-count-form-button,
 .draggable-panel--docked-bottom .cell-count-form-button {
-  padding: 0.9em 1.3em;
-  font-size: 1.05em;
+	padding: 0.9em 1.3em;
+	font-size: 1.05em;
 }
 
 /* Three stacked buttons instead of two - shorter vertical padding, same
    font-size/horizontal padding as the row case. */
 .draggable-panel--docked-top .cell-count-form-actions--stacked .cell-count-form-button,
 .draggable-panel--docked-bottom .cell-count-form-actions--stacked .cell-count-form-button {
-  padding-top: 0.4em;
-  padding-bottom: 0.4em;
+	padding-top: 0.4em;
+	padding-bottom: 0.4em;
 }
 
 .cell-count-form-hint {
-  margin: 0.4em 0 0;
-  font-size: 0.8em;
-  color: var(--chrome-text-secondary);
+	margin: 0.4em 0 0;
+	font-size: 0.8em;
+	color: var(--chrome-text-secondary);
 }

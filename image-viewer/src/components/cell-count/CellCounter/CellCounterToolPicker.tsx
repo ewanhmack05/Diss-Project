@@ -18,184 +18,156 @@ import "./CellCounterToolPicker.css";
 // Once Start is pressed, CellCounterDuring takes over for the rest of the
 // session, so nothing here needs a `disabled={counting}` guard anymore.
 function CellCounterToolPicker() {
-  const {
-    colour,
-    dotSize,
-    withAnnotation,
-    withRoi,
-    boxSizeMicrons,
-    setCounting,
-    setColour,
-    setDotSize,
-    setWithAnnotation,
-    setWithRoi,
-    setBoxSizeMicrons,
-    setRoiConfirmed,
-    resetCount,
-  } = useCellCountDrawContext();
-  // Mirrors FreeFormToolPicker's disabling the other way - a map click
-  // can't mean both "add a shape vertex" and "tally a cell" at once, so
-  // counting can't start while a shape tool is selected.
-  const { activeTool } = useDrawContext();
-  const { cellCounts } = useCellCountStoreContext();
-  const { roomId } = useCollectionContext();
-  const recentCellCount = mostRecentCellCount(cellCounts);
-  const comparison = useComparisonContext();
-  const shared = useSharedCountContext();
+	const {
+		colour,
+		dotSize,
+		withAnnotation,
+		withRoi,
+		boxSizeMicrons,
+		setCounting,
+		setColour,
+		setDotSize,
+		setWithAnnotation,
+		setWithRoi,
+		setBoxSizeMicrons,
+		setRoiConfirmed,
+		resetCount,
+	} = useCellCountDrawContext();
+	// Mirrors FreeFormToolPicker's disabling the other way - a map click
+	// can't mean both "add a shape vertex" and "tally a cell" at once, so
+	// counting can't start while a shape tool is selected.
+	const { activeTool } = useDrawContext();
+	const { cellCounts } = useCellCountStoreContext();
+	const { roomId } = useCollectionContext();
+	const recentCellCount = mostRecentCellCount(cellCounts);
+	const comparison = useComparisonContext();
+	const shared = useSharedCountContext();
 
-  const handleStart = () => {
-    resetCount();
-    setRoiConfirmed(false);
-    setCounting(true);
-  };
+	const handleStart = () => {
+		resetCount();
+		setRoiConfirmed(false);
+		setCounting(true);
+	};
 
-  return (
-    <div className="cell-counter-tool-picker">
-      <CountInvites />
+	return (
+		<div className="cell-counter-tool-picker">
+			<CountInvites />
 
-      <DockedCard className="cell-counter-tool-picker-field-card">
-        <label className="cell-counter-tool-picker-field">
-          Dot size
-          <select
-            value={dotSize}
-            onChange={(e) => setDotSize(Number(e.target.value))}
-          >
-            {DotSizeOptions.map((size) => (
-              <option key={size} value={size}>
-                {size}px
-              </option>
-            ))}
-          </select>
-        </label>
-      </DockedCard>
+			<DockedCard className="cell-counter-tool-picker-field-card">
+				<label className="cell-counter-tool-picker-field">
+					Dot size
+					<select value={dotSize} onChange={(e) => setDotSize(Number(e.target.value))}>
+						{DotSizeOptions.map((size) => (
+							<option key={size} value={size}>
+								{size}px
+							</option>
+						))}
+					</select>
+				</label>
+			</DockedCard>
 
-      <DockedCard
-        title="Colour"
-        className="cell-counter-tool-picker-colour-card"
-      >
-        <ColourPicker value={colour} onChange={setColour} />
-      </DockedCard>
+			<DockedCard title="Colour" className="cell-counter-tool-picker-colour-card">
+				<ColourPicker value={colour} onChange={setColour} />
+			</DockedCard>
 
-      <DockedCard
-        title="Options"
-        className="cell-counter-tool-picker-options-card"
-      >
-        <label className="cell-counter-tool-picker-field cell-counter-tool-picker-checkbox">
-          <input
-            type="checkbox"
-            checked={withAnnotation}
-            onChange={(e) => setWithAnnotation(e.target.checked)}
-          />
-          With annotation
-        </label>
-        {/* Box size sits beside the checkbox rather than below it - Options
+			<DockedCard title="Options" className="cell-counter-tool-picker-options-card">
+				<label className="cell-counter-tool-picker-field cell-counter-tool-picker-checkbox">
+					<input type="checkbox" checked={withAnnotation} onChange={(e) => setWithAnnotation(e.target.checked)} />
+					With annotation
+				</label>
+				{/* Box size sits beside the checkbox rather than below it - Options
             stays a constant two visual rows whether ROI is on or off, so
             toggling it never changes this card's height (and doesn't drag
             every other card in the row along with it via
             align-items:stretch), without needing to always mount (and
             disable) the control to hold its place. */}
-        <div className="cell-counter-tool-picker-roi-row">
-          <label className="cell-counter-tool-picker-field cell-counter-tool-picker-checkbox">
-            <input
-              type="checkbox"
-              checked={withRoi}
-              onChange={(e) => setWithRoi(e.target.checked)}
-            />
-            With region of interest
-          </label>
-          {withRoi && (
-            <select
-              className="cell-counter-tool-picker-roi-box-size"
-              aria-label="Box size"
-              value={boxSizeMicrons}
-              onChange={(e) => setBoxSizeMicrons(Number(e.target.value))}
-            >
-              {RoiBoxSizeOptions.map((size) => (
-                <option key={size} value={size}>
-                  {size}µm
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-      </DockedCard>
+				<div className="cell-counter-tool-picker-roi-row">
+					<label className="cell-counter-tool-picker-field cell-counter-tool-picker-checkbox">
+						<input type="checkbox" checked={withRoi} onChange={(e) => setWithRoi(e.target.checked)} />
+						With region of interest
+					</label>
+					{withRoi && (
+						<select
+							className="cell-counter-tool-picker-roi-box-size"
+							aria-label="Box size"
+							value={boxSizeMicrons}
+							onChange={(e) => setBoxSizeMicrons(Number(e.target.value))}
+						>
+							{RoiBoxSizeOptions.map((size) => (
+								<option key={size} value={size}>
+									{size}µm
+								</option>
+							))}
+						</select>
+					)}
+				</div>
+			</DockedCard>
 
-      {/* The idle counterpart to CellCounterDuring's spare card - a look
+			{/* The idle counterpart to CellCounterDuring's spare card - a look
           back at the last saved count rather than anything about the one
           about to start. Same spare-card class so this stays a 4-card row
           matching During's, keeping flex:1 dividing the row identically
           between the two screens (see During's own comment on this). */}
-      <DockedCard title="Recent" className="cell-counter-tool-picker-spare-card cell-counter-tool-picker-recent-card">
-        {recentCellCount ? (
-          <div className="cell-counter-tool-picker-recent">
-            <CellCountColourSwatch
-              breakdown={countSummary(recentCellCount).colours}
-              className="cell-counter-tool-picker-recent-swatch"
-            />
-            <span className="cell-counter-tool-picker-recent-label">
-              {recentCellCount.label}
-            </span>
-            <span className="cell-counter-tool-picker-recent-count">
-              {recentCellCount.count}
-            </span>
-          </div>
-        ) : (
-          <p className="cell-counter-tool-picker-recent-empty">No counts saved yet</p>
-        )}
-      </DockedCard>
+			<DockedCard title="Recent" className="cell-counter-tool-picker-spare-card cell-counter-tool-picker-recent-card">
+				{recentCellCount ? (
+					<div className="cell-counter-tool-picker-recent">
+						<CellCountColourSwatch breakdown={countSummary(recentCellCount).colours} className="cell-counter-tool-picker-recent-swatch" />
+						<span className="cell-counter-tool-picker-recent-label">{recentCellCount.label}</span>
+						<span className="cell-counter-tool-picker-recent-count">{recentCellCount.count}</span>
+					</div>
+				) : (
+					<p className="cell-counter-tool-picker-recent-empty">No counts saved yet</p>
+				)}
+			</DockedCard>
 
-      <button
-        type="button"
-        className="cell-counter-tool-picker-button cell-counter-tool-picker-button--primary"
-        disabled={activeTool !== null}
-        onClick={handleStart}
-      >
-        Start counting
-      </button>
+			<button
+				type="button"
+				className="cell-counter-tool-picker-button cell-counter-tool-picker-button--primary"
+				disabled={activeTool !== null}
+				onClick={handleStart}
+			>
+				Start counting
+			</button>
 
-      {/* Both need the hub, so they're not offered at all without one. */}
-      {roomId && (
-        <div className="comparison-buttons">
-          <button
-            type="button"
-            className="cell-counter-tool-picker-button"
-            disabled={activeTool !== null || !comparison.canHost}
-            title={
-              comparison.canHost
-                ? "Everyone on this slide counts the same region on their own, then the counts are compared"
-                : "Needs someone else on the slide, and no comparison already running"
-            }
-            onClick={comparison.host}
-          >
-            Comparison
-          </button>
-          <button
-            type="button"
-            className="cell-counter-tool-picker-button"
-            disabled={activeTool !== null || !shared.canHost}
-            title={
-              shared.canHost
-                ? "Everyone on this slide adds to one count, each in their own part of the slide. Uses the region of interest setting above"
-                : "Needs someone else on the slide, and no shared count already running"
-            }
-            onClick={shared.host}
-          >
-            Shared count
-          </button>
-        </div>
-      )}
+			{/* Both need the hub, so they're not offered at all without one. */}
+			{roomId && (
+				<div className="comparison-buttons">
+					<button
+						type="button"
+						className="cell-counter-tool-picker-button"
+						disabled={activeTool !== null || !comparison.canHost}
+						title={
+							comparison.canHost
+								? "Everyone on this slide counts the same region on their own, then the counts are compared"
+								: "Needs someone else on the slide, and no comparison already running"
+						}
+						onClick={comparison.host}
+					>
+						Comparison
+					</button>
+					<button
+						type="button"
+						className="cell-counter-tool-picker-button"
+						disabled={activeTool !== null || !shared.canHost}
+						title={
+							shared.canHost
+								? "Everyone on this slide adds to one count, each in their own part of the slide. Uses the region of interest setting above"
+								: "Needs someone else on the slide, and no shared count already running"
+						}
+						onClick={shared.host}
+					>
+						Shared count
+					</button>
+				</div>
+			)}
 
-      {activeTool ? (
-        <p className="cell-counter-tool-picker-hint">
-          Deselect the annotation tool to start counting.
-        </p>
-      ) : (
-        <p className="cell-counter-tool-picker-hint">
-          Select start counting to begin cell counter.
-        </p>
-      )}
-    </div>
-  );
+			{activeTool ? (
+				<p className="cell-counter-tool-picker-hint">Deselect the annotation tool to start counting.</p>
+			) : (
+				<p className="cell-counter-tool-picker-hint">Select start counting to begin cell counter.</p>
+			)}
+		</div>
+	);
 }
 
 export default CellCounterToolPicker;

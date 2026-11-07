@@ -61,13 +61,7 @@ function lineDashFor(lineStyle: LineStyleName, lineThickness: number, effectiveL
 	return lineStyle === "dashed" ? dashPattern(lineThickness, effectiveLength) : undefined;
 }
 
-function baseStyle(
-	colour: string,
-	lineThickness: number,
-	lineStyle: LineStyleName,
-	geometry: Geometry | undefined,
-	resolution: number,
-): Style {
+function baseStyle(colour: string, lineThickness: number, lineStyle: LineStyleName, geometry: Geometry | undefined, resolution: number): Style {
 	return new Style({
 		stroke: new Stroke({
 			color: colour,

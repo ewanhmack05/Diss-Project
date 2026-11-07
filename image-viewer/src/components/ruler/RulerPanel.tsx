@@ -1,30 +1,25 @@
-import { useRulerContext } from '../../context/RulerContext'
-import { formatDistanceMicrons, formatDistancePixels } from './ruler'
-import './RulerPanel.css'
+import { useRulerContext } from "../../context/RulerContext";
+import { formatDistanceMicrons, formatDistancePixels } from "./ruler";
+import "./RulerPanel.css";
 
 function RulerPanel() {
-  const { lastMeasurement, clearMeasurement } = useRulerContext()
+	const { lastMeasurement, clearMeasurement } = useRulerContext();
 
-  const readout = lastMeasurement
-    ? lastMeasurement.realDistanceMicrons !== null
-      ? formatDistanceMicrons(lastMeasurement.realDistanceMicrons)
-      : formatDistancePixels(lastMeasurement.pixelDistance)
-    : null
+	const readout = lastMeasurement
+		? lastMeasurement.realDistanceMicrons !== null
+			? formatDistanceMicrons(lastMeasurement.realDistanceMicrons)
+			: formatDistancePixels(lastMeasurement.pixelDistance)
+		: null;
 
-  return (
-    <div className="ruler-panel">
-      <p className="ruler-panel-hint">Click two points on the slide to measure the distance between them.</p>
-      <div className="ruler-panel-readout">{readout ?? '-'}</div>
-      <button
-        type="button"
-        className="ruler-panel-clear"
-        disabled={!lastMeasurement}
-        onClick={clearMeasurement}
-      >
-        Clear
-      </button>
-    </div>
-  )
+	return (
+		<div className="ruler-panel">
+			<p className="ruler-panel-hint">Click two points on the slide to measure the distance between them.</p>
+			<div className="ruler-panel-readout">{readout ?? "-"}</div>
+			<button type="button" className="ruler-panel-clear" disabled={!lastMeasurement} onClick={clearMeasurement}>
+				Clear
+			</button>
+		</div>
+	);
 }
 
-export default RulerPanel
+export default RulerPanel;

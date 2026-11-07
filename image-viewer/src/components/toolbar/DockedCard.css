@@ -2,7 +2,7 @@
    floating/left/right mode this is an invisible wrapper so those panels
    keep their existing plain stacked-column look untouched. */
 .docked-card-title {
-  display: none;
+	display: none;
 }
 
 /* Grouped-card look for the docked-top/bottom toolbars: each logical
@@ -16,23 +16,23 @@
    content within that shared height. */
 .draggable-panel--docked-top .docked-card,
 .draggable-panel--docked-bottom .docked-card {
-  flex: 1 1 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 0.4em;
-  background: var(--white-06);
-  border: 1px solid var(--white-08);
-  border-radius: 0.6em;
-  padding: 0.7em 1em;
+	flex: 1 1 0;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	gap: 0.4em;
+	background: var(--white-06);
+	border: 1px solid var(--white-08);
+	border-radius: 0.6em;
+	padding: 0.7em 1em;
 }
 
 .draggable-panel--docked-top .docked-card-title,
 .draggable-panel--docked-bottom .docked-card-title {
-  display: block;
-  font-size: 0.75em;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--chrome-text-secondary);
-  font-weight: 700;
+	display: block;
+	font-size: 0.75em;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--chrome-text-secondary);
+	font-weight: 700;
 }

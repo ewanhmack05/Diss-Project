@@ -7,6 +7,8 @@ import unittest
 
 from db_docs import (
     END,
+    FORMAT_OFF,
+    FORMAT_ON,
     NOTES,
     README,
     SERVICES,
@@ -245,6 +247,14 @@ class Glossary(unittest.TestCase):
         self.assertEqual(["geometry"], types_without_meaning(tables))
         with self.assertRaisesRegex(ValueError, "nothing for: geometry"):
             generate(SAMPLE.replace('.HasColumnType("text")', '.HasColumnType("geometry")'), SAMPLE_NOTES)
+
+
+class Formatting(unittest.TestCase):
+    # Formatting a README padded these tables and failed the up to date check.
+    def test_the_generated_section_is_kept_out_of_prettiers_reach(self):
+        text = generate(SAMPLE, SAMPLE_NOTES)
+        self.assertTrue(text.startswith(f"{START}\n\n{FORMAT_OFF}\n\n"))
+        self.assertTrue(text.endswith(f"\n\n{FORMAT_ON}\n\n{END}"))
 
 
 class ReplaceSection(unittest.TestCase):

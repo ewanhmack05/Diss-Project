@@ -1,10 +1,10 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import type { CellCountDot } from '../interfaces/CellCount'
-import { DefaultColour } from '../components/annotation/Tools'
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import type { CellCountDot } from "../interfaces/CellCount";
+import { DefaultColour } from "../components/annotation/Tools";
 
 interface CellCountLocation {
-  x: number
-  y: number
+	x: number;
+	y: number;
 }
 
 // Assembled by MapNode (not CellCounterToolPicker) once counting stops - it's
@@ -15,65 +15,65 @@ interface CellCountLocation {
 // change live per-dot during a session (see CellCounterDuring), so each
 // dot carries its own.
 interface PendingCellCount {
-  count: number
-  withAnnotation: boolean
-  withRoi: boolean
-  dots: CellCountDot[]
-  dotSize: number
-  location: CellCountLocation | null
-  // ROI box as GeoJson, null unless withRoi was on. Read off the actual
-  // box feature when counting stops, not recomputed from boxSizeMicrons -
-  // the box can be dragged from where it started.
-  roiGeoJson: string | null
+	count: number;
+	withAnnotation: boolean;
+	withRoi: boolean;
+	dots: CellCountDot[];
+	dotSize: number;
+	location: CellCountLocation | null;
+	// ROI box as GeoJson, null unless withRoi was on. Read off the actual
+	// box feature when counting stops, not recomputed from boxSizeMicrons -
+	// the box can be dragged from where it started.
+	roiGeoJson: string | null;
 }
 
 interface CellCountDrawContextValue {
-  counting: boolean
-  colour: string
-  dotSize: number
-  count: number
-  withAnnotation: boolean
-  withRoi: boolean
-  boxSizeMicrons: number
-  roiConfirmed: boolean
-  pending: PendingCellCount | null
-  // Live click-by-click record for the current session, kept in step with
-  // MapNode's own cellCountHistoryRef (push/undo/redo/reset) - see
-  // CellCounterDuring's history card. Only ever populated when
-  // withAnnotation is on, same as cellCountHistoryRef itself.
-  dotHistory: CellCountDot[]
-  setCounting: (counting: boolean) => void
-  // Stops counting and throws the session away rather than going to the
-  // save form - leaving a comparison or shared count, say. MapNode reads
-  // `cancelling` at the moment counting stops.
-  cancelling: boolean
-  cancelCounting: () => void
-  setColour: (colour: string) => void
-  setDotSize: (size: number) => void
-  setWithAnnotation: (withAnnotation: boolean) => void
-  setWithRoi: (withRoi: boolean) => void
-  setBoxSizeMicrons: (size: number) => void
-  setRoiConfirmed: (confirmed: boolean) => void
-  incrementCount: () => void
-  decrementCount: () => void
-  resetCount: () => void
-  setPending: (pending: PendingCellCount | null) => void
-  setDotHistory: (dots: CellCountDot[]) => void
-  // Undo/redo actually happens in MapNode (it's the one holding both the
-  // placed-dot features and the map to remove/re-add them from) - these
-  // are just a request bell CellCounterDuring's Undo/Redo buttons can
-  // ring from a different component, each incrementing a counter MapNode
-  // watches for changes on. MapNode's own Z/Y keydown handling calls its
-  // undo/redo directly, since it's already the one holding them.
-  undoSignal: number
-  redoSignal: number
-  requestUndo: () => void
-  requestRedo: () => void
+	counting: boolean;
+	colour: string;
+	dotSize: number;
+	count: number;
+	withAnnotation: boolean;
+	withRoi: boolean;
+	boxSizeMicrons: number;
+	roiConfirmed: boolean;
+	pending: PendingCellCount | null;
+	// Live click-by-click record for the current session, kept in step with
+	// MapNode's own cellCountHistoryRef (push/undo/redo/reset) - see
+	// CellCounterDuring's history card. Only ever populated when
+	// withAnnotation is on, same as cellCountHistoryRef itself.
+	dotHistory: CellCountDot[];
+	setCounting: (counting: boolean) => void;
+	// Stops counting and throws the session away rather than going to the
+	// save form - leaving a comparison or shared count, say. MapNode reads
+	// `cancelling` at the moment counting stops.
+	cancelling: boolean;
+	cancelCounting: () => void;
+	setColour: (colour: string) => void;
+	setDotSize: (size: number) => void;
+	setWithAnnotation: (withAnnotation: boolean) => void;
+	setWithRoi: (withRoi: boolean) => void;
+	setBoxSizeMicrons: (size: number) => void;
+	setRoiConfirmed: (confirmed: boolean) => void;
+	incrementCount: () => void;
+	decrementCount: () => void;
+	resetCount: () => void;
+	setPending: (pending: PendingCellCount | null) => void;
+	setDotHistory: (dots: CellCountDot[]) => void;
+	// Undo/redo actually happens in MapNode (it's the one holding both the
+	// placed-dot features and the map to remove/re-add them from) - these
+	// are just a request bell CellCounterDuring's Undo/Redo buttons can
+	// ring from a different component, each incrementing a counter MapNode
+	// watches for changes on. MapNode's own Z/Y keydown handling calls its
+	// undo/redo directly, since it's already the one holding them.
+	undoSignal: number;
+	redoSignal: number;
+	requestUndo: () => void;
+	requestRedo: () => void;
 }
 
-const CellCountDrawContext = createContext<CellCountDrawContextValue | null>(null)
+const CellCountDrawContext = createContext<CellCountDrawContextValue | null>(null);
 
-const DEFAULT_BOX_SIZE_MICRONS = 500
+const DEFAULT_BOX_SIZE_MICRONS = 500;
 
 // Mirrors DrawContext, but a cell count is built from discrete map clicks
 // over time rather than one continuous drag gesture - `counting` (like
@@ -88,81 +88,81 @@ const DEFAULT_BOX_SIZE_MICRONS = 500
 // first, and clicks only start tallying once it's confirmed - otherwise
 // placing the box would itself register as clicks.
 function CellCountDrawContextProvider({ children }: { children: ReactNode }) {
-  const [counting, setCounting] = useState(false)
-  const [colour, setColour] = useState(DefaultColour)
-  const [dotSize, setDotSize] = useState(6)
-  const [count, setCount] = useState(0)
-  const [withAnnotation, setWithAnnotation] = useState(true)
-  const [withRoi, setWithRoi] = useState(false)
-  const [boxSizeMicrons, setBoxSizeMicrons] = useState(DEFAULT_BOX_SIZE_MICRONS)
-  const [roiConfirmed, setRoiConfirmed] = useState(false)
-  const [pending, setPending] = useState<PendingCellCount | null>(null)
-  const [dotHistory, setDotHistory] = useState<CellCountDot[]>([])
-  const [undoSignal, setUndoSignal] = useState(0)
-  const [redoSignal, setRedoSignal] = useState(0)
-  const [cancelling, setCancelling] = useState(false)
+	const [counting, setCounting] = useState(false);
+	const [colour, setColour] = useState(DefaultColour);
+	const [dotSize, setDotSize] = useState(6);
+	const [count, setCount] = useState(0);
+	const [withAnnotation, setWithAnnotation] = useState(true);
+	const [withRoi, setWithRoi] = useState(false);
+	const [boxSizeMicrons, setBoxSizeMicrons] = useState(DEFAULT_BOX_SIZE_MICRONS);
+	const [roiConfirmed, setRoiConfirmed] = useState(false);
+	const [pending, setPending] = useState<PendingCellCount | null>(null);
+	const [dotHistory, setDotHistory] = useState<CellCountDot[]>([]);
+	const [undoSignal, setUndoSignal] = useState(0);
+	const [redoSignal, setRedoSignal] = useState(0);
+	const [cancelling, setCancelling] = useState(false);
 
-  // Any new session starts out as one to keep.
-  useEffect(() => {
-    if (counting) setCancelling(false)
-  }, [counting])
+	// Any new session starts out as one to keep.
+	useEffect(() => {
+		if (counting) setCancelling(false);
+	}, [counting]);
 
-  const incrementCount = () => setCount((current) => current + 1)
-  const decrementCount = () => setCount((current) => Math.max(0, current - 1))
-  const resetCount = () => setCount(0)
-  const requestUndo = () => setUndoSignal((current) => current + 1)
-  const requestRedo = () => setRedoSignal((current) => current + 1)
-  const cancelCounting = () => {
-    setCount(0)
-    setCancelling(true)
-    setCounting(false)
-  }
+	const incrementCount = () => setCount((current) => current + 1);
+	const decrementCount = () => setCount((current) => Math.max(0, current - 1));
+	const resetCount = () => setCount(0);
+	const requestUndo = () => setUndoSignal((current) => current + 1);
+	const requestRedo = () => setRedoSignal((current) => current + 1);
+	const cancelCounting = () => {
+		setCount(0);
+		setCancelling(true);
+		setCounting(false);
+	};
 
-  return (
-    <CellCountDrawContext.Provider
-      value={{
-        counting,
-        colour,
-        dotSize,
-        count,
-        withAnnotation,
-        withRoi,
-        boxSizeMicrons,
-        roiConfirmed,
-        pending,
-        dotHistory,
-        setCounting,
-        cancelling,
-        cancelCounting,
-        setColour,
-        setDotSize,
-        setWithAnnotation,
-        setWithRoi,
-        setBoxSizeMicrons,
-        setRoiConfirmed,
-        incrementCount,
-        decrementCount,
-        resetCount,
-        setPending,
-        setDotHistory,
-        undoSignal,
-        redoSignal,
-        requestUndo,
-        requestRedo,
-      }}
-    >
-      {children}
-    </CellCountDrawContext.Provider>
-  )
+	return (
+		<CellCountDrawContext.Provider
+			value={{
+				counting,
+				colour,
+				dotSize,
+				count,
+				withAnnotation,
+				withRoi,
+				boxSizeMicrons,
+				roiConfirmed,
+				pending,
+				dotHistory,
+				setCounting,
+				cancelling,
+				cancelCounting,
+				setColour,
+				setDotSize,
+				setWithAnnotation,
+				setWithRoi,
+				setBoxSizeMicrons,
+				setRoiConfirmed,
+				incrementCount,
+				decrementCount,
+				resetCount,
+				setPending,
+				setDotHistory,
+				undoSignal,
+				redoSignal,
+				requestUndo,
+				requestRedo,
+			}}
+		>
+			{children}
+		</CellCountDrawContext.Provider>
+	);
 }
 
 function useCellCountDrawContext(): CellCountDrawContextValue {
-  const context = useContext(CellCountDrawContext)
-  if (!context) {
-    throw new Error('useCellCountDrawContext must be used within a CellCountDrawContextProvider')
-  }
-  return context
+	const context = useContext(CellCountDrawContext);
+	if (!context) {
+		throw new Error("useCellCountDrawContext must be used within a CellCountDrawContextProvider");
+	}
+	return context;
 }
 
-export { CellCountDrawContextProvider, useCellCountDrawContext }
-export type { PendingCellCount, CellCountLocation }
+export { CellCountDrawContextProvider, useCellCountDrawContext };
+export type { PendingCellCount, CellCountLocation };

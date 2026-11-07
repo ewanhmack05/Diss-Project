@@ -1,385 +1,385 @@
 /* Filter and order, above the list. */
 .history-tools {
-  display: flex;
-  gap: 0.4em;
+	display: flex;
+	gap: 0.4em;
 }
 
 /* One line a change, under day headings. */
 .history-days {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6em;
+	display: flex;
+	flex-direction: column;
+	gap: 0.6em;
 }
 
 .history-day-heading {
-  margin: 0 0 0.2em;
-  font-size: 0.72em;
-  font-weight: 600;
-  color: var(--chrome-text-secondary);
+	margin: 0 0 0.2em;
+	font-size: 0.72em;
+	font-weight: 600;
+	color: var(--chrome-text-secondary);
 }
 
 .history-rows {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+	display: flex;
+	flex-direction: column;
+	margin: 0;
+	padding: 0;
+	list-style: none;
 }
 
 .history-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-  width: 100%;
-  padding: 0.3em 0.4em;
-  font-family: var(--sans);
-  font-size: 0.92em;
-  color: var(--chrome-text);
-  text-align: left;
-  background: none;
-  border: none;
-  border-radius: 0.3125rem;
-  cursor: pointer;
+	display: flex;
+	align-items: center;
+	gap: 0.5em;
+	width: 100%;
+	padding: 0.3em 0.4em;
+	font-family: var(--sans);
+	font-size: 0.92em;
+	color: var(--chrome-text);
+	text-align: left;
+	background: none;
+	border: none;
+	border-radius: 0.3125rem;
+	cursor: pointer;
 }
 
 .history-row:hover,
 .history-row:focus-visible {
-  background: var(--white-06);
+	background: var(--white-06);
 }
 
 .history-row-label {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .history-row-time {
-  flex-shrink: 0;
-  font-size: 0.92em;
-  color: var(--chrome-text-secondary);
-  font-variant-numeric: tabular-nums;
+	flex-shrink: 0;
+	font-size: 0.92em;
+	color: var(--chrome-text-secondary);
+	font-variant-numeric: tabular-nums;
 }
 
 .history-icon {
-  flex-shrink: 0;
-  color: var(--chrome-text-secondary);
+	flex-shrink: 0;
+	color: var(--chrome-text-secondary);
 }
 
 /* Something it deleted is still deleted - there's something to put back. */
 .history-icon--deleted {
-  color: #e87c7c;
+	color: #e87c7c;
 }
 
 .history-avatar {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  width: 2.2em;
-  height: 2.2em;
-  font-size: 0.82em;
-  font-weight: 600;
-  color: #9fd4d4;
-  background: rgba(var(--accent-rgb), 0.16);
-  border-radius: 50%;
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	width: 2.2em;
+	height: 2.2em;
+	font-size: 0.82em;
+	font-weight: 600;
+	color: #9fd4d4;
+	background: rgba(var(--accent-rgb), 0.16);
+	border-radius: 50%;
 }
 
 /* One change opened up. */
 .history-detail {
-  display: flex;
-  flex-direction: column;
-  gap: 0.7em;
+	display: flex;
+	flex-direction: column;
+	gap: 0.7em;
 }
 
 .history-back {
-  display: inline-flex;
-  align-self: flex-start;
-  align-items: center;
-  gap: 0.35em;
-  padding: 0;
-  font-family: var(--sans);
-  font-size: 0.85em;
-  font-weight: 600;
-  color: var(--chrome-text-secondary);
-  background: none;
-  border: none;
-  cursor: pointer;
+	display: inline-flex;
+	align-self: flex-start;
+	align-items: center;
+	gap: 0.35em;
+	padding: 0;
+	font-family: var(--sans);
+	font-size: 0.85em;
+	font-weight: 600;
+	color: var(--chrome-text-secondary);
+	background: none;
+	border: none;
+	cursor: pointer;
 }
 
 .history-back:hover {
-  color: var(--accent);
+	color: var(--accent);
 }
 
 .history-detail-title {
-  display: flex;
-  align-items: center;
-  gap: 0.45em;
-  margin: 0;
-  font-size: 1.05em;
-  font-weight: 700;
+	display: flex;
+	align-items: center;
+	gap: 0.45em;
+	margin: 0;
+	font-size: 1.05em;
+	font-weight: 700;
 }
 
 .history-facts {
-  display: grid;
-  grid-template-columns: 4.5em minmax(0, 1fr);
-  gap: 0.45em 0.6em;
-  margin: 0;
-  font-size: 0.85em;
+	display: grid;
+	grid-template-columns: 4.5em minmax(0, 1fr);
+	gap: 0.45em 0.6em;
+	margin: 0;
+	font-size: 0.85em;
 }
 
 .history-facts dt {
-  color: var(--chrome-text-secondary);
+	color: var(--chrome-text-secondary);
 }
 
 .history-facts dd {
-  margin: 0;
+	margin: 0;
 }
 
 .history-fact-sub {
-  display: block;
-  font-size: 0.9em;
-  color: var(--chrome-text-secondary);
+	display: block;
+	font-size: 0.9em;
+	color: var(--chrome-text-secondary);
 }
 
 .history-who {
-  display: flex;
-  align-items: center;
-  gap: 0.4em;
+	display: flex;
+	align-items: center;
+	gap: 0.4em;
 }
 
 .history-id {
-  font-family: ui-monospace, Consolas, monospace;
-  color: var(--chrome-text-secondary);
+	font-family: ui-monospace, Consolas, monospace;
+	color: var(--chrome-text-secondary);
 }
 
 /* What changed, from and to. */
 .history-changes {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4em;
+	display: flex;
+	flex-direction: column;
+	gap: 0.4em;
 }
 
 .history-changes-heading {
-  margin: 0;
-  font-size: 0.72em;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--chrome-text-secondary);
+	margin: 0;
+	font-size: 0.72em;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--chrome-text-secondary);
 }
 
 .history-change-on {
-  margin: 0;
-  font-size: 0.85em;
-  color: var(--chrome-text-secondary);
-  overflow-wrap: anywhere;
+	margin: 0;
+	font-size: 0.85em;
+	color: var(--chrome-text-secondary);
+	overflow-wrap: anywhere;
 }
 
 .history-change-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.55em;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+	display: flex;
+	flex-direction: column;
+	gap: 0.55em;
+	margin: 0;
+	padding: 0;
+	list-style: none;
 }
 
 .history-change {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2em;
-  font-size: 0.85em;
+	display: flex;
+	flex-direction: column;
+	gap: 0.2em;
+	font-size: 0.85em;
 }
 
 .history-change-head {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5em;
-  min-width: 0;
+	display: flex;
+	align-items: baseline;
+	gap: 0.5em;
+	min-width: 0;
 }
 
 .history-change-field {
-  flex-shrink: 0;
-  font-weight: 600;
+	flex-shrink: 0;
+	font-weight: 600;
 }
 
 .history-change-rows {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.9em;
-  color: var(--chrome-text-secondary);
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 0.9em;
+	color: var(--chrome-text-secondary);
 }
 
 .history-change-values {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35em 0.45em;
-  min-width: 0;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.35em 0.45em;
+	min-width: 0;
 }
 
 /* Text runs to three lines before it's cut - the whole of it is on hover. */
 .history-change-value {
-  display: -webkit-box;
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow-wrap: anywhere;
-  padding: 0.1em 0.4em;
-  background: var(--white-06);
-  border-radius: 0.3125rem;
+	display: -webkit-box;
+	min-width: 0;
+	max-width: 100%;
+	overflow: hidden;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow-wrap: anywhere;
+	padding: 0.1em 0.4em;
+	background: var(--white-06);
+	border-radius: 0.3125rem;
 }
 
 .history-change-values--colour .history-change-value,
 .history-change-values--group .history-change-value {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35em;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35em;
 }
 
 .history-change-value--empty {
-  font-style: italic;
-  color: var(--chrome-text-secondary);
+	font-style: italic;
+	color: var(--chrome-text-secondary);
 }
 
 .history-change-froms {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3em;
-  min-width: 0;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.3em;
+	min-width: 0;
 }
 
 .history-change-arrow {
-  color: var(--chrome-text-secondary);
+	color: var(--chrome-text-secondary);
 }
 
 /* Rows a change deleted, each opening its own timeline. */
 .history-deleted-rows {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3em;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.3em;
 }
 
 .history-deleted-row {
-  padding: 0.1em 0.4em;
-  font-family: var(--sans);
-  font-size: 0.95em;
-  color: var(--accent);
-  overflow-wrap: anywhere;
-  text-align: left;
-  background: var(--white-06);
-  border: none;
-  border-radius: 0.3125rem;
-  cursor: pointer;
+	padding: 0.1em 0.4em;
+	font-family: var(--sans);
+	font-size: 0.95em;
+	color: var(--accent);
+	overflow-wrap: anywhere;
+	text-align: left;
+	background: var(--white-06);
+	border: none;
+	border-radius: 0.3125rem;
+	cursor: pointer;
 }
 
 .history-deleted-row:hover,
 .history-deleted-row:focus-visible {
-  text-decoration: underline;
+	text-decoration: underline;
 }
 
 .history-deleted-more {
-  align-self: center;
-  color: var(--chrome-text-secondary);
+	align-self: center;
+	color: var(--chrome-text-secondary);
 }
 
 /* What putting the whole collection back would do. */
 .history-rollback-lines {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2em;
-  margin: 0;
-  padding: 0;
-  font-size: 0.85em;
-  list-style: none;
+	display: flex;
+	flex-direction: column;
+	gap: 0.2em;
+	margin: 0;
+	padding: 0;
+	font-size: 0.85em;
+	list-style: none;
 }
 
 /* One annotation's or count's timeline. */
 .history-item-title {
-  overflow-wrap: anywhere;
+	overflow-wrap: anywhere;
 }
 
 .history-versions {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2em;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+	display: flex;
+	flex-direction: column;
+	gap: 0.2em;
+	margin: 0;
+	padding: 0;
+	list-style: none;
 }
 
 .history-version {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.35em;
-  padding: 0.35em 0.4em;
-  border-radius: 0.3125rem;
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 0.35em;
+	padding: 0.35em 0.4em;
+	border-radius: 0.3125rem;
 }
 
 .history-version:hover {
-  background: var(--white-06);
+	background: var(--white-06);
 }
 
 /* The icons get a column of their own, and everything else lines up with the
    label. Icons have space inside their box that differs by icon, so lining
    text up with the box's edge never looks straight. 16px is ChangeIcon's size. */
 .history-version {
-  --history-version-gap: 0.4rem;
-  --history-version-indent: calc(16px + var(--history-version-gap));
+	--history-version-gap: 0.4rem;
+	--history-version-indent: calc(16px + var(--history-version-gap));
 }
 
 .history-version-head {
-  display: flex;
-  align-items: center;
-  gap: var(--history-version-gap);
-  font-size: 0.92em;
+	display: flex;
+	align-items: center;
+	gap: var(--history-version-gap);
+	font-size: 0.92em;
 }
 
 .history-version-now {
-  flex-shrink: 0;
-  padding: 0 0.4em;
-  font-size: 0.85em;
-  font-weight: 600;
-  color: #9fd4d4;
-  background: rgba(var(--accent-rgb), 0.16);
-  border-radius: 0.3125rem;
+	flex-shrink: 0;
+	padding: 0 0.4em;
+	font-size: 0.85em;
+	font-weight: 600;
+	color: #9fd4d4;
+	background: rgba(var(--accent-rgb), 0.16);
+	border-radius: 0.3125rem;
 }
 
 .history-version-changes {
-  gap: 0.35em;
-  padding-left: var(--history-version-indent);
+	gap: 0.35em;
+	padding-left: var(--history-version-indent);
 }
 
 .history-version-back {
-  align-self: flex-start;
-  margin-left: var(--history-version-indent);
-  padding: 0;
-  font-family: var(--sans);
-  font-size: 0.8em;
-  font-weight: 600;
-  color: var(--accent);
-  background: none;
-  border: none;
-  cursor: pointer;
+	align-self: flex-start;
+	margin-left: var(--history-version-indent);
+	padding: 0;
+	font-family: var(--sans);
+	font-size: 0.8em;
+	font-weight: 600;
+	color: var(--accent);
+	background: none;
+	border: none;
+	cursor: pointer;
 }
 
 .history-version-back:hover,
 .history-version-back:focus-visible {
-  text-decoration: underline;
+	text-decoration: underline;
 }
 
 .history-swatch {
-  display: inline-block;
-  flex-shrink: 0;
-  width: 0.85em;
-  height: 0.85em;
-  border: 1px solid var(--white-30);
-  border-radius: 0.2em;
+	display: inline-block;
+	flex-shrink: 0;
+	width: 0.85em;
+	height: 0.85em;
+	border: 1px solid var(--white-30);
+	border-radius: 0.2em;
 }

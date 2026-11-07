@@ -1,261 +1,263 @@
 /* Top-left, just right of the zoom buttons (see MapNode.css's .ol-zoom). */
 .presence-list {
-  position: fixed;
-  top: 1em;
-  left: 3.75em;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25em;
-  max-width: calc(100vw - 18em);
-  z-index: 10;
-  pointer-events: none;
+	position: fixed;
+	top: 1em;
+	left: 3.75em;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.25em;
+	max-width: calc(100vw - 18em);
+	z-index: 10;
+	pointer-events: none;
 }
 
 .presence-chip,
 .presence-status {
-  display: flex;
-  align-items: center;
-  gap: 0.4em;
-  height: 2em;
-  padding: 0 0.6em;
-  color: var(--chrome-text);
-  background: var(--chrome-bg);
-  border-radius: 0.25em;
-  font-family: var(--sans);
-  font-size: 1em;
-  white-space: nowrap;
-  pointer-events: auto;
+	display: flex;
+	align-items: center;
+	gap: 0.4em;
+	height: 2em;
+	padding: 0 0.6em;
+	color: var(--chrome-text);
+	background: var(--chrome-bg);
+	border-radius: 0.25em;
+	font-family: var(--sans);
+	font-size: 1em;
+	white-space: nowrap;
+	pointer-events: auto;
 }
 
 /* Someone else - clicking switches their viewport box on the map on or
    off, pointing at them picks it out. */
 .presence-chip--other {
-  border: none;
-  cursor: pointer;
-  outline: none;
-  box-shadow: inset 0 0 0 1px transparent;
-  transition: box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1), color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+	border: none;
+	cursor: pointer;
+	outline: none;
+	box-shadow: inset 0 0 0 1px transparent;
+	transition:
+		box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1),
+		color 150ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .presence-chip--pointed,
 .presence-chip--other:focus-visible {
-  box-shadow: inset 0 0 0 1px var(--accent);
+	box-shadow: inset 0 0 0 1px var(--accent);
 }
 
 /* Their colour comes in as `color`, so it can be a fill or a ring. */
 .presence-dot--toggle {
-  background: currentColor;
+	background: currentColor;
 }
 
 /* Their box is off - the dot goes hollow. */
 .presence-chip--off {
-  color: var(--chrome-text-secondary);
+	color: var(--chrome-text-secondary);
 }
 
 .presence-chip--off .presence-dot--toggle {
-  background: transparent;
-  box-shadow: inset 0 0 0 1.5px currentColor;
+	background: transparent;
+	box-shadow: inset 0 0 0 1.5px currentColor;
 }
 
 .presence-chip--me {
-  color: var(--chrome-text-secondary);
+	color: var(--chrome-text-secondary);
 }
 
 .presence-status {
-  color: var(--chrome-text-secondary);
-  font-style: italic;
+	color: var(--chrome-text-secondary);
+	font-style: italic;
 }
 
 .presence-dot {
-  flex-shrink: 0;
-  width: 0.6em;
-  height: 0.6em;
-  border-radius: 50%;
+	flex-shrink: 0;
+	width: 0.6em;
+	height: 0.6em;
+	border-radius: 50%;
 }
 
 .presence-chip--leading {
-  border: 1px solid var(--accent);
-  font-weight: 600;
+	border: 1px solid var(--accent);
+	font-weight: 600;
 }
 
 .presence-chip-button {
-  margin-left: 0.2em;
-  padding: 0.15em 0.5em;
-  font-family: var(--sans);
-  font-size: 0.85em;
-  font-weight: 600;
-  color: var(--accent);
-  background: var(--white-08);
-  border: none;
-  border-radius: 0.25em;
-  cursor: pointer;
+	margin-left: 0.2em;
+	padding: 0.15em 0.5em;
+	font-family: var(--sans);
+	font-size: 0.85em;
+	font-weight: 600;
+	color: var(--accent);
+	background: var(--white-08);
+	border: none;
+	border-radius: 0.25em;
+	cursor: pointer;
 }
 
 .presence-chip-button:hover,
 .presence-chip-button:focus-visible {
-  background: var(--white-10);
+	background: var(--white-10);
 }
 
 .presence-look {
-  font-weight: 600;
-  color: var(--accent);
-  border: none;
-  cursor: pointer;
+	font-weight: 600;
+	color: var(--accent);
+	border: none;
+	cursor: pointer;
 }
 
 .presence-look:hover:not(:disabled),
 .presence-look:focus-visible {
-  background: var(--chrome-bg-solid);
+	background: var(--chrome-bg-solid);
 }
 
 .presence-look:disabled {
-  color: var(--disabled);
-  cursor: not-allowed;
+	color: var(--disabled);
+	cursor: not-allowed;
 }
 
 /* "+N more" in a large session, and the people list it opens. */
 .presence-more {
-  position: relative;
-  pointer-events: auto;
+	position: relative;
+	pointer-events: auto;
 }
 
 .presence-more-button {
-  font-weight: 600;
-  border: none;
-  cursor: pointer;
+	font-weight: 600;
+	border: none;
+	cursor: pointer;
 }
 
 .presence-more-button:hover,
 .presence-more-button:focus-visible,
 .presence-more-button--open {
-  color: var(--accent);
-  outline: none;
+	color: var(--accent);
+	outline: none;
 }
 
 .presence-more-panel {
-  position: absolute;
-  top: calc(100% + 0.35em);
-  left: 0;
-  display: flex;
-  flex-direction: column;
-  width: 18em;
-  max-height: min(60vh, 32em);
-  padding: 0.5em;
-  background: var(--chrome-bg-solid);
-  border-radius: 0.4em;
-  box-shadow: 0 0.5em 1.5em rgba(0, 0, 0, 0.45);
+	position: absolute;
+	top: calc(100% + 0.35em);
+	left: 0;
+	display: flex;
+	flex-direction: column;
+	width: 18em;
+	max-height: min(60vh, 32em);
+	padding: 0.5em;
+	background: var(--chrome-bg-solid);
+	border-radius: 0.4em;
+	box-shadow: 0 0.5em 1.5em rgba(0, 0, 0, 0.45);
 }
 
 .presence-more-head {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4em;
-  padding-bottom: 0.4em;
-  border-bottom: 1px solid var(--white-06);
+	display: flex;
+	flex-direction: column;
+	gap: 0.4em;
+	padding-bottom: 0.4em;
+	border-bottom: 1px solid var(--white-06);
 }
 
 .presence-more-search {
-  padding: 0.4em 0.55em;
-  font-family: var(--sans);
-  font-size: 0.9em;
-  color: var(--chrome-text);
-  background: var(--white-06);
-  border: 1px solid transparent;
-  border-radius: 0.3125rem;
-  outline: none;
+	padding: 0.4em 0.55em;
+	font-family: var(--sans);
+	font-size: 0.9em;
+	color: var(--chrome-text);
+	background: var(--white-06);
+	border: 1px solid transparent;
+	border-radius: 0.3125rem;
+	outline: none;
 }
 
 .presence-more-search:focus {
-  border-color: var(--accent);
+	border-color: var(--accent);
 }
 
 .presence-more-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.4em;
-  font-size: 0.82em;
+	display: flex;
+	align-items: center;
+	gap: 0.4em;
+	font-size: 0.82em;
 }
 
 .presence-more-count {
-  flex: 1;
-  color: var(--chrome-text-secondary);
-  font-variant-numeric: tabular-nums;
+	flex: 1;
+	color: var(--chrome-text-secondary);
+	font-variant-numeric: tabular-nums;
 }
 
 .presence-more-action {
-  padding: 0.2em 0.45em;
-  font-family: var(--sans);
-  font-size: 1em;
-  font-weight: 600;
-  color: var(--accent);
-  background: var(--white-06);
-  border: none;
-  border-radius: 0.25em;
-  cursor: pointer;
+	padding: 0.2em 0.45em;
+	font-family: var(--sans);
+	font-size: 1em;
+	font-weight: 600;
+	color: var(--accent);
+	background: var(--white-06);
+	border: none;
+	border-radius: 0.25em;
+	cursor: pointer;
 }
 
 .presence-more-action:hover,
 .presence-more-action:focus-visible {
-  background: var(--white-10);
-  outline: none;
+	background: var(--white-10);
+	outline: none;
 }
 
 .presence-more-list {
-  flex: 1;
-  min-height: 0;
-  margin: 0;
-  padding: 0.3em 0 0;
-  overflow-y: auto;
-  list-style: none;
+	flex: 1;
+	min-height: 0;
+	margin: 0;
+	padding: 0.3em 0 0;
+	overflow-y: auto;
+	list-style: none;
 }
 
 .presence-more-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-  width: 100%;
-  padding: 0.35em 0.4em;
-  font-family: var(--sans);
-  font-size: 0.9em;
-  color: var(--chrome-text);
-  text-align: left;
-  background: none;
-  border: none;
-  border-radius: 0.25em;
-  cursor: pointer;
+	display: flex;
+	align-items: center;
+	gap: 0.5em;
+	width: 100%;
+	padding: 0.35em 0.4em;
+	font-family: var(--sans);
+	font-size: 0.9em;
+	color: var(--chrome-text);
+	text-align: left;
+	background: none;
+	border: none;
+	border-radius: 0.25em;
+	cursor: pointer;
 }
 
 .presence-more-row:hover,
 .presence-more-row:focus-visible,
 .presence-more-row--pointed {
-  background: var(--white-06);
-  outline: none;
+	background: var(--white-06);
+	outline: none;
 }
 
 .presence-more-row--off {
-  color: var(--chrome-text-secondary);
+	color: var(--chrome-text-secondary);
 }
 
 .presence-more-row--off .presence-dot--toggle {
-  background: transparent;
-  box-shadow: inset 0 0 0 1.5px currentColor;
+	background: transparent;
+	box-shadow: inset 0 0 0 1.5px currentColor;
 }
 
 .presence-more-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .presence-more-role {
-  font-size: 0.85em;
-  color: var(--chrome-text-secondary);
+	font-size: 0.85em;
+	color: var(--chrome-text-secondary);
 }
 
 .presence-more-empty {
-  margin: 0.6em 0.2em 0.2em;
-  font-size: 0.85em;
-  color: var(--chrome-text-secondary);
+	margin: 0.6em 0.2em 0.2em;
+	font-size: 0.85em;
+	color: var(--chrome-text-secondary);
 }
