@@ -9,8 +9,8 @@ service.
 Keycloak 26.3 · its own Postgres 17 · OIDC + PKCE · JWT · port 8080, under
 `/auth`
 
-Why Keycloak over Entra, and the plan for guests, are in
-[docs/auth.md](../auth.md). Running it is in
+Why Keycloak over Entra is in [docs/auth.md](../auth.md), and how guests
+join without an account is in [docs/guests.md](../guests.md). Running it is in
 [auth/README.md](../../auth/README.md). This page explains how it all fits
 together.
 
@@ -247,8 +247,11 @@ Roles are per session, not global, so they don't belong in Keycloak. See
   hostname, a build step (`kc.sh build`) and TLS.
 - **Dev passwords everywhere.** `admin` / `admin`, `password` for the test
   users, and the client secret are all in the repo.
-- **No guests.** Invite links still need an account. The plan is for the hub
-  to mint its own short-lived guest tokens - see [docs/auth.md](../auth.md).
+- **Guest tokens don't come from Keycloak.** realtime-hub mints them itself
+  (HS256, view only, one session) and annotation-store checks them, so both
+  hold the same signing key. The dev key is in each `appsettings.json` and
+  the root `docker-compose.yml` - replace it before deploying. See
+  [docs/guests.md](../guests.md).
 - **Loose issuer check** - safe given the signature check, but a real
   deployment with one address should pin the issuer exactly.
 - **Realm changes don't apply themselves** to an existing Keycloak - they

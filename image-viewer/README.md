@@ -124,9 +124,10 @@ retrying in the background and shows "Offline" top-left.
 ## Pointing it at a slide
 
 `src/index.tsx` sets which slide opens (`source`, currently `003`) and which
-tools appear in the toolbar. The `tiler` (port 5095), `annotation-store`
-(port 5252) and `realtime-hub` (port 5180) URLs use whichever host the page was loaded from, so it works the
-same from `localhost` or from another device on the network.
+tools appear in the toolbar. Every backend goes through the page's own
+server - `/tiler`, `/store`, `/hub`, `/messaging` and `/auth`, proxied by
+`vite.config.ts` to ports 5095, 5252, 5180, 5260 and 8080 - so it works the
+same from `localhost`, the LAN or the VPN with only port 5173 reachable.
 
 Available slide IDs are listed in `tiler/README.md`.
 
@@ -144,28 +145,52 @@ is a private, unpublished package, so it's vendored as a prebuilt tarball at
 
 ```
 src/
-  index.tsx               entry point - slide id, service URLs, enabled tools
+  index.tsx               entry point - slide id, backend paths, enabled tools
   App.tsx                 composes the providers + map, panels, toolbar
-  interfaces/             Annotation, CellCount, ImageAdjustment, ImageSource
+  newId.ts                v4 ids that still work over plain http (LAN, VPN)
+  textFilter.ts           name rules and the profanity check (obscenity)
+  palette.css             colour variables
+  interfaces/             Annotation, AnnotationGroup, CellCount, CellCountGroup,
+                            ImageAdjustment, ImageSource
   context/                one provider per concern:
-                            Annotation/CellCount stores, Collection,
-                            Draw/CellCountDraw, Adjustments, Rotation, Ruler,
-                            Toolbar, Toast, Event, ImageViewer
+                            stores - AnnotationStore, CellCountStore,
+                              AnnotationGroup, CellCountGroup, Collection
+                            drawing - Draw, CellCountDraw, AnnotationSelect
+                            live - Realtime, Presence, Navigation, Viewports,
+                              SharedCount, Comparison, Messaging
+                            tools - Adjustments, Rotation, Ruler, Toolbar
+                            app - Auth, ImageViewer, Event, Dialog, Toast
   components/
     MapNode.tsx           mounts the OpenLayers map, syncs features onto it
-    open-layers/          map/view/layer setup, styles, GeoJSON (de)serialisation
-    annotation/           FreeForm/ (tool picker, add form), Saved/ (list, edit)
+    open-layers/          map/view/layer setup, styles, GeoJSON (de)serialisation,
+                            WebGL or canvas renderer, less detail zoomed out
+    annotation/           FreeForm/ (tool picker, add form), Saved/ (list, edit),
+                            Select/ (box and lasso picking, groups), bulk batches
     cell-count/           CellCounter/ (tool picker, during-count, add form),
-                            Saved/ (list, edit), dot + view helpers
+                            Saved/ (list, edit, groups), comparison/ (everyone
+                            counts the same ROI), shared/ (shared counts),
+                            dot + view helpers
+    saved/                what both Saved lists share - rows, paging, filters
+    collections/          Collections panel, export and import, history/
+                            (History tab, one row's timeline, put back, rollback)
+    realtime/             RealTime panel, the hub connection, shared label and
+                            notes (Yjs), live sketches, sessions and invites,
+                            edit policy
+    presence/             who's on the slide, top-left
+    users/                Users tab, join with a code
+    messages/             Messages panel - conversations, Send, Attach, previews
+    guest/                joining as a guest, and making an account to edit
     rotation/             panel + rotation maths
     ruler/                panel + distance maths
     adjustments/          panel + adjustment values
     colour-picker/        colour picker wrapper + popup positioning
     toolbar/              toolbar, draggable panel, docking (DockZone,
-                            DockEdge, DockPreview, DockedCard)
+                            DockEdge, DockPreview, DockedCard), focus order
+    dialog/               popups for things a toast would let you miss
+    info/                 (i) buttons that explain something, one open at a time
     toast/                toast notifications
-  icons/                  toolbar SVGs
-  textFilter.ts           name rules and the profanity check (obscenity)
+    auth/                 sign-in screen styles (the screen is in AuthContext)
+  icons/                  toolbar SVGs, plus shapes/ and changes/
 ```
 
 Tests (`*.test.ts`) sit next to the code they cover.
@@ -180,9 +205,11 @@ catching leetspeak, lookalike letters and stretched words.
 - `nameProblem(name)` - null if the name is fine, otherwise the message to
   show. 2 to 24 characters after trimming, letters and numbers in any
   script plus space `-` `_` `.` `'`, and nothing rude.
-- `isClean(text)` / `censorText(text)` - for other text later (labels,
-  notes). `isClean` also catches spaced-out letters ("f u c k");
-  `censorText` doesn't, since it can only hide the exact spans it found.
+- `isClean(text)` / `censorText(text)` - for other text. `censorText` hides
+  rude words in what the Messages panel shows (messages, people's names,
+  session names). Labels and notes aren't checked yet. `isClean` also
+  catches spaced-out letters ("f u c k"); `censorText` doesn't, since it can
+  only hide the exact spans it found.
 
 Real names the list blocks (Dickinson, Cumming, Fukuda, Penistone...) are
 let through by `REAL_NAMES` in the same file.
@@ -195,6 +222,15 @@ backend skips it. The backend only checks for SQL and special characters.
 
 ## Not yet implemented
 
-- Real-time sync between users
-- Sign-in - collections use a placeholder user id (`001`) until Keycloak is
-  added (see `docs/auth.md`)
+- Rotation and image adjustments are only shared in Present, not live
+  otherwise
+- Whether someone's viewport box is on or off isn't kept past a reload
+- Labels, notes and group names aren't run through the text filter yet -
+  only names people type, and what the Messages panel shows
+- Exporting a collection to a GeoJSON file leaves cell count groups out.
+  Sending one keeps them
+- The backend paths are fixed on the page's own origin, so every service
+  has to sit behind one proxy. Separate apps on Azure need them made
+  configurable first
+
+The full list is in [docs/todo.md](../docs/todo.md).

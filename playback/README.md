@@ -91,8 +91,9 @@ Anything deliberately not shown is in `NOT_SHOWN` in the same file, with why.
   admin from `auth/docker-compose.yml`. Nobody's real annotations are touched or
   shown.
 - **Each scene starts empty.** Before recording it deletes the collections those
-  two own on the slide, and the viewer makes a new one on load. The store soft
-  deletes, so these rows stay in Postgres until `scripts/sql/reset_all.sql`.
+  two own on the slide, and the viewer makes a new one on load. A deleted
+  collection is only hidden, so it and everything in it stay in Postgres until
+  `scripts/sql/reset_all.sql`.
 - **Videos start once the app is ready.** Recording starts when the page opens,
   so the sign-in is cut off the front with ffmpeg.
 - **A pointer and captions are drawn into the page** (`lib/overlay.js`), because

@@ -203,16 +203,19 @@ runs in one transaction, so it either all happens or none of it does.
 
 | Script                             | Does                                                                                               | Scope                   |
 | ---------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------- |
-| `counts.sql`                       | Rows per table and how many are deleted (hidden), then per slide                                   | Read-only               |
-| `delete_stress_test.sql`           | Annotations and counts with notes `stress-test`                                                    | Every user, every slide |
+| `counts.sql`                       | Rows per table, deleted collections (hidden) and delete entries in the history, then per slide     | Read-only               |
+| `delete_stress_test.sql`           | Annotations and counts with notes `stress-test`, and their copies in the history                   | Every user, every slide |
 | `delete_all_annotations.sql`       | Every annotation                                                                                   | Everything              |
 | `delete_all_cell_counts.sql`       | Every cell count (ROI boxes cascade)                                                               | Everything              |
 | `delete_all_image_adjustments.sql` | Every preset                                                                                       | Everything              |
 | `delete_slide_data.sql`            | Annotations, counts and presets for one slide - edit the id                                        | One slide               |
 | `reset_all.sql`                    | Empties every table - collections, members, links, groups, change sets. Schema and migrations stay | Everything              |
 
-These remove rows for real, where annotation-store only ever hides them.
-Only `reset_all.sql` removes collections. The viewer copes with any of
+These delete straight from the tables without writing to the history, so
+the History tab never shows the rows going - annotation-store logs every
+delete it makes. `delete_stress_test.sql` also clears the stress rows'
+copies out of the history. Only `reset_all.sql` removes collections, and it
+empties the history too. The viewer copes with any of
 these while it's open, since annotation-store makes a new personal
 collection the next time a slide is opened - just reload.
 
