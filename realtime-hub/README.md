@@ -27,12 +27,12 @@ saved is annotation-store's job - the hub only relays changes the viewer has alr
 saved, or is about to. Who's allowed in a room, it asks annotation-store each time
 someone joins. People reconnect by themselves and load what's saved.
 
-| What | Where | Holds | When it goes |
-|---|---|---|---|
-| A room | `SlideRooms` | Everyone connected to one session, their roles and what they're looking at, and `seq`, the order ops went out in | When the last person leaves, so `seq` starts again - it's why it can't be used as a version number |
-| Shared text | `SlideRooms`, one doc per box | Raw Yjs updates for a label or notes box being edited, so someone joining late catches up | When the last person closes the box. What's kept is what the viewer saved to annotation-store |
-| A comparison or shared count | `SlideRooms`, on the room | Who's counting, and their dots until they're revealed | When it's finished, or the room empties. A shared count is saved as a cell count, under the host |
-| Who's online | `OnlineUsers` | Which users have a connection, for the Users tab | When they disconnect |
+| What                         | Where                         | Holds                                                                                                            | When it goes                                                                                       |
+| ---------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| A room                       | `SlideRooms`                  | Everyone connected to one session, their roles and what they're looking at, and `seq`, the order ops went out in | When the last person leaves, so `seq` starts again - it's why it can't be used as a version number |
+| Shared text                  | `SlideRooms`, one doc per box | Raw Yjs updates for a label or notes box being edited, so someone joining late catches up                        | When the last person closes the box. What's kept is what the viewer saved to annotation-store      |
+| A comparison or shared count | `SlideRooms`, on the room     | Who's counting, and their dots until they're revealed                                                            | When it's finished, or the room empties. A shared count is saved as a cell count, under the host   |
+| Who's online                 | `OnlineUsers`                 | Which users have a connection, for the Users tab                                                                 | When they disconnect                                                                               |
 
 More than one copy can't run, since each would have its own rooms - see
 [Notes](#notes).
@@ -66,52 +66,52 @@ Connect to `/hubs/slides`. Enums go over the wire as camelCase strings
 
 ### Client → hub
 
-| Method             | Args                                | Returns      | Notes                                                    |
-| ------------------ | ----------------------------------- | ------------ | -------------------------------------------------------- |
-| `JoinSession`      | `roomId` (the session's collection id) | `JoinResult` | Only if annotation-store says you're in the session and it hasn't ended. Leaves any room you were already in, closing its docs. You're whoever the token says. Not with a guest token |
-| `JoinAsGuest`      | `roomId`, `name`                    | `JoinResult` | Guest tokens only, and only the session in the token. Always view only. `name` is tidied and checked (see [Guests](#guests)) |
-| `LeaveSession`     | -                                   | -            | Closes any docs you had open                             |
-| `UpdateViewport`   | `Viewport`                          | -            | Throttle to ~10/sec on the client                        |
-| `UpdateSketch`     | `Sketch`                            | -            | One per tool - replaces that tool's last one. `tool` and `data` are required. Max 8 tools at once |
-| `ClearSketch`      | `tool`                              | -            | Done or given up with that tool. Other tools' sketches stay |
-| `UpdateScreen`     | `Screen`                            | -            | What's on screen besides the map, for Present. Any object, max 4KB |
-| `SendRequest`      | `to` (connection ids, or `null` for everyone), `kind`, `data` | - | Host only. Asks people to do something, e.g. `look` (data: `Viewport`) or `openPanel` (data: `{ panel }`) |
-| `RefreshRole`      | -                                   | -            | After the host changes your role. Checked with annotation-store; going view only takes you out of any count. Does nothing for a guest |
-| `SetNavigation`    | `'free' \| 'follow' \| 'present'`   | -            | Host only. Goes to everyone, host included               |
-| `SendAnnotationOp` | `AnnotationOp`                      | `StampedOp`  | Relay only - still save to annotation-store as normal. Not from view only |
-| `OpenDoc`          | `docId`, `seed` (base64)            | `DocState`   | Seed only used if the doc isn't open yet. Safe to repeat. View only can open one to watch it |
-| `SendDocUpdate`    | `docId`, `update` (base64)          | -            | Open the doc first. Max 64KB. Not from view only         |
-| `CloseDoc`         | `docId`                             | -            | No-op if it isn't open                                   |
-| `StartComparison`  | `ComparisonSettings`                | `Comparison` | Invites everyone else who can edit. View only can't start one. Fails if one is still running |
-| `JoinComparison`   | `comparisonId`                      | -            | Only from `invited`, before the reveal                   |
-| `SubmitComparison` | `comparisonId`, `ComparisonDot[]`   | -            | Only while `counting`. Max 10,000 dots                   |
-| `LeaveComparison`  | `comparisonId`                      | -            | Decline, give up, or close the results. No-op if not in it |
-| `StartSharedCount` | `SharedCountSettings`               | `SharedCount` | Invites everyone else who can edit. View only can't start one. Fails if one is already running |
-| `JoinSharedCount`  | `sharedCountId`                     | -            | From an invite, or back in after leaving                 |
-| `AddSharedDot`     | `sharedCountId`, `SharedDot`        | -            | Joined only. Client picks the id. Max 10,000 dots        |
-| `RemoveSharedDot`  | `sharedCountId`, `dotId`            | -            | Your own dots only (undo)                                |
-| `LeaveSharedCount` | `sharedCountId`                     | -            | Decline or stop counting. Your dots stay                 |
-| `FinishSharedCount`| `sharedCountId`                     | -            | Host only. Ends it for everyone                          |
+| Method              | Args                                                          | Returns       | Notes                                                                                                                                                                                 |
+| ------------------- | ------------------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `JoinSession`       | `roomId` (the session's collection id)                        | `JoinResult`  | Only if annotation-store says you're in the session and it hasn't ended. Leaves any room you were already in, closing its docs. You're whoever the token says. Not with a guest token |
+| `JoinAsGuest`       | `roomId`, `name`                                              | `JoinResult`  | Guest tokens only, and only the session in the token. Always view only. `name` is tidied and checked (see [Guests](#guests))                                                          |
+| `LeaveSession`      | -                                                             | -             | Closes any docs you had open                                                                                                                                                          |
+| `UpdateViewport`    | `Viewport`                                                    | -             | Throttle to ~10/sec on the client                                                                                                                                                     |
+| `UpdateSketch`      | `Sketch`                                                      | -             | One per tool - replaces that tool's last one. `tool` and `data` are required. Max 8 tools at once                                                                                     |
+| `ClearSketch`       | `tool`                                                        | -             | Done or given up with that tool. Other tools' sketches stay                                                                                                                           |
+| `UpdateScreen`      | `Screen`                                                      | -             | What's on screen besides the map, for Present. Any object, max 4KB                                                                                                                    |
+| `SendRequest`       | `to` (connection ids, or `null` for everyone), `kind`, `data` | -             | Host only. Asks people to do something, e.g. `look` (data: `Viewport`) or `openPanel` (data: `{ panel }`)                                                                             |
+| `RefreshRole`       | -                                                             | -             | After the host changes your role. Checked with annotation-store; going view only takes you out of any count. Does nothing for a guest                                                 |
+| `SetNavigation`     | `'free' \| 'follow' \| 'present'`                             | -             | Host only. Goes to everyone, host included                                                                                                                                            |
+| `SendAnnotationOp`  | `AnnotationOp`                                                | `StampedOp`   | Relay only - still save to annotation-store as normal. Not from view only                                                                                                             |
+| `OpenDoc`           | `docId`, `seed` (base64)                                      | `DocState`    | Seed only used if the doc isn't open yet. Safe to repeat. View only can open one to watch it                                                                                          |
+| `SendDocUpdate`     | `docId`, `update` (base64)                                    | -             | Open the doc first. Max 64KB. Not from view only                                                                                                                                      |
+| `CloseDoc`          | `docId`                                                       | -             | No-op if it isn't open                                                                                                                                                                |
+| `StartComparison`   | `ComparisonSettings`                                          | `Comparison`  | Invites everyone else who can edit. View only can't start one. Fails if one is still running                                                                                          |
+| `JoinComparison`    | `comparisonId`                                                | -             | Only from `invited`, before the reveal                                                                                                                                                |
+| `SubmitComparison`  | `comparisonId`, `ComparisonDot[]`                             | -             | Only while `counting`. Max 10,000 dots                                                                                                                                                |
+| `LeaveComparison`   | `comparisonId`                                                | -             | Decline, give up, or close the results. No-op if not in it                                                                                                                            |
+| `StartSharedCount`  | `SharedCountSettings`                                         | `SharedCount` | Invites everyone else who can edit. View only can't start one. Fails if one is already running                                                                                        |
+| `JoinSharedCount`   | `sharedCountId`                                               | -             | From an invite, or back in after leaving                                                                                                                                              |
+| `AddSharedDot`      | `sharedCountId`, `SharedDot`                                  | -             | Joined only. Client picks the id. Max 10,000 dots                                                                                                                                     |
+| `RemoveSharedDot`   | `sharedCountId`, `dotId`                                      | -             | Your own dots only (undo)                                                                                                                                                             |
+| `LeaveSharedCount`  | `sharedCountId`                                               | -             | Decline or stop counting. Your dots stay                                                                                                                                              |
+| `FinishSharedCount` | `sharedCountId`                                               | -             | Host only. Ends it for everyone                                                                                                                                                       |
 
 ### Hub → client
 
-| Event               | Payload          | When                                                  |
-| ------------------- | ---------------- | ----------------------------------------------------- |
-| `UserJoined`        | `Participant`    | Someone joins your slide                              |
-| `UserLeft`          | `connectionId`   | Someone leaves, switches slide or drops               |
-| `ViewportUpdated`   | `ViewportUpdate` | Someone else moves                                    |
-| `SketchUpdated`     | `SketchUpdate`   | Someone else draws, or finishes with a tool (`sketch: null`) |
-| `ScreenUpdated`     | `ScreenUpdate`   | Someone else opens a panel, changes tab or adjusts the image |
-| `NavigationChanged` | `NavigationMode` | The host switches between Free, Follow me and Present |
-| `RequestReceived`  | `HostRequest`    | The host asks you to do something - you can say no    |
-| `ParticipantUpdated` | `Participant`   | Your role was checked again (`RefreshRole`) - only to you and the host |
-| `AnnotationOp`      | `StampedOp`      | Someone else changes an annotation                    |
-| `DocUpdated`        | `DocUpdate`      | Another editor of a doc you have open changes it      |
-| `DocEditorsChanged` | `DocEditors`     | Someone opens, closes, leaves or drops a doc you have |
-| `ComparisonChanged` | `Comparison \| null` | Anything about the slide's comparison changes, `null` once it's dropped |
+| Event                | Payload               | When                                                                                                           |
+| -------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `UserJoined`         | `Participant`         | Someone joins your slide                                                                                       |
+| `UserLeft`           | `connectionId`        | Someone leaves, switches slide or drops                                                                        |
+| `ViewportUpdated`    | `ViewportUpdate`      | Someone else moves                                                                                             |
+| `SketchUpdated`      | `SketchUpdate`        | Someone else draws, or finishes with a tool (`sketch: null`)                                                   |
+| `ScreenUpdated`      | `ScreenUpdate`        | Someone else opens a panel, changes tab or adjusts the image                                                   |
+| `NavigationChanged`  | `NavigationMode`      | The host switches between Free, Follow me and Present                                                          |
+| `RequestReceived`    | `HostRequest`         | The host asks you to do something - you can say no                                                             |
+| `ParticipantUpdated` | `Participant`         | Your role was checked again (`RefreshRole`) - only to you and the host                                         |
+| `AnnotationOp`       | `StampedOp`           | Someone else changes an annotation                                                                             |
+| `DocUpdated`         | `DocUpdate`           | Another editor of a doc you have open changes it                                                               |
+| `DocEditorsChanged`  | `DocEditors`          | Someone opens, closes, leaves or drops a doc you have                                                          |
+| `ComparisonChanged`  | `Comparison \| null`  | Anything about the slide's comparison changes, `null` once it's dropped                                        |
 | `SharedCountChanged` | `SharedCount \| null` | Someone starts, joins or leaves the shared count, or the host hands over. `null` once it's finished or dropped |
-| `SharedDotAdded`    | `SharedDotAdded`   | Someone else adds a dot to the shared count           |
-| `SharedDotRemoved`  | `SharedDotRemoved` | Someone else takes one of their dots back             |
+| `SharedDotAdded`     | `SharedDotAdded`      | Someone else adds a dot to the shared count                                                                    |
+| `SharedDotRemoved`   | `SharedDotRemoved`    | Someone else takes one of their dots back                                                                      |
 
 Nothing is echoed back to the sender, apart from `ComparisonChanged`,
 `SharedCountChanged` and `NavigationChanged`, which go to the whole slide so clients have one place
@@ -122,49 +122,83 @@ theirs.
 
 ```ts
 type Participant = {
-  connectionId: string; roomId: string; userId: string; displayName: string;
-  colour: string; joined: string; host: boolean; canEdit: boolean; viewport: Viewport | null;
-  sketches: Record<string, Sketch> | null;  // by tool
-  screen: Screen | null;
-  guest: boolean;  // from an invite link without an account - always view only
+	connectionId: string;
+	roomId: string;
+	userId: string;
+	displayName: string;
+	colour: string;
+	joined: string;
+	host: boolean;
+	canEdit: boolean;
+	viewport: Viewport | null;
+	sketches: Record<string, Sketch> | null; // by tool
+	screen: Screen | null;
+	guest: boolean; // from an invite link without an account - always view only
 };
-type NavigationMode = 'free' | 'follow' | 'present';
+type NavigationMode = "free" | "follow" | "present";
 // The hub doesn't look inside - this is what the viewer sends.
 type Screen = {
-  panels: string[]; tabs: Record<string, string>; adjustments: Record<string, number> | null;
-  viewedCellCountId: string | null; editingAnnotationId: string | null; editingCellCountId: string | null;
+	panels: string[];
+	tabs: Record<string, string>;
+	adjustments: Record<string, number> | null;
+	viewedCellCountId: string | null;
+	editingAnnotationId: string | null;
+	editingCellCountId: string | null;
 };
 type ScreenUpdate = { connectionId: string; screen: Screen };
 // extent is the view box before rotation (centre ± half the screen size, in
 // map units) - turn it by rotation round the centre to get what's on screen.
 type Viewport = { center: [number, number]; resolution: number; rotation: number; extent: [number, number, number, number] };
 type ViewportUpdate = { connectionId: string; viewport: Viewport };
-type Sketch = { tool: string; data: unknown };  // tool: 'annotation', 'ruler' (stays up once done, until cleared) or 'cellCount' (the host's count while presenting)
+type Sketch = { tool: string; data: unknown }; // tool: 'annotation', 'ruler' (stays up once done, until cleared) or 'cellCount' (the host's count while presenting)
 type SketchUpdate = { connectionId: string; tool: string; sketch: Sketch | null };
 // entity 'collection' is a nudge that the session changed (someone's role,
 // someone taken out, it ended), so everyone fetches it again.
-type AnnotationOp = { kind: 'create' | 'update' | 'delete'; entity: 'annotation' | 'cellCount' | 'collection' | 'annotationGroup'; id: string; data?: unknown };
+type AnnotationOp = {
+	kind: "create" | "update" | "delete";
+	entity: "annotation" | "cellCount" | "collection" | "annotationGroup";
+	id: string;
+	data?: unknown;
+};
 type StampedOp = { seq: number; serverTime: string; connectionId: string; userId: string; op: AnnotationOp };
-type JoinResult = { me: Participant; others: Participant[]; seq: number; comparison: Comparison | null; sharedCount: SharedCount | null; navigation: NavigationMode };
+type JoinResult = {
+	me: Participant;
+	others: Participant[];
+	seq: number;
+	comparison: Comparison | null;
+	sharedCount: SharedCount | null;
+	navigation: NavigationMode;
+};
 // matchRadius is in map units - dots closer than this are the same cell.
 type ComparisonSettings = { roiGeoJson: string; dotSize: number; matchRadius: number };
 type ComparisonDot = { x: number; y: number };
 type Counter = {
-  connectionId: string; displayName: string; colour: string;
-  state: 'invited' | 'counting' | 'submitted'; dots: ComparisonDot[] | null;
+	connectionId: string;
+	displayName: string;
+	colour: string;
+	state: "invited" | "counting" | "submitted";
+	dots: ComparisonDot[] | null;
 };
 type Comparison = {
-  id: string; hostConnectionId: string; settings: ComparisonSettings;
-  started: string; revealed: boolean; counters: Counter[];
+	id: string;
+	hostConnectionId: string;
+	settings: ComparisonSettings;
+	started: string;
+	revealed: boolean;
+	counters: Counter[];
 };
 // roiGeoJson null means the whole slide.
 type SharedCountSettings = { roiGeoJson: string | null; dotSize: number; matchRadius: number };
 // connectionId is filled in by the hub, whatever the client sends.
 type SharedDot = { id: string; x: number; y: number; colour: string; connectionId: string };
-type Contributor = { connectionId: string; userId: string; displayName: string; colour: string; state: 'invited' | 'joined' | 'left' };
+type Contributor = { connectionId: string; userId: string; displayName: string; colour: string; state: "invited" | "joined" | "left" };
 type SharedCount = {
-  id: string; hostConnectionId: string; settings: SharedCountSettings;
-  started: string; contributors: Contributor[]; dots: SharedDot[];
+	id: string;
+	hostConnectionId: string;
+	settings: SharedCountSettings;
+	started: string;
+	contributors: Contributor[];
+	dots: SharedDot[];
 };
 type SharedDotAdded = { sharedCountId: string; dot: SharedDot };
 type SharedDotRemoved = { sharedCountId: string; dotId: string };
@@ -280,28 +314,33 @@ ask them straight into their session.
 
 ### Client → hub
 
-| Method         | Args               | Returns          | Notes                                                     |
-| -------------- | ------------------ | ---------------- | --------------------------------------------------------- |
-| `Online`       | -                  | `OnlineSnapshot` | Everyone online, you included                             |
-| `Users`        | -                  | `DirectoryUser[]`| Everyone with an account in Keycloak, online or not, you included. Fails if Keycloak can't be reached and there's no earlier list |
-| `SetWhere`     | `PresenceWhere`    | -                | Where this tab is. Call on connect and whenever it changes. Ids up to 128 characters |
-| `InviteUser`   | `userId`, `code`   | -                | Sends them an invite code. Fails if it isn't code-shaped (url-safe base64, up to 64), it's you, or they've gone offline |
-| `NotifyUser`   | `userId`, `conversationId`, `messageId` | - | Says something's waiting in [messaging](../messaging/README.md#live-updates), to their tabs and your other ones. Nothing happens if they're offline |
+| Method       | Args                                    | Returns           | Notes                                                                                                                                               |
+| ------------ | --------------------------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Online`     | -                                       | `OnlineSnapshot`  | Everyone online, you included                                                                                                                       |
+| `Users`      | -                                       | `DirectoryUser[]` | Everyone with an account in Keycloak, online or not, you included. Fails if Keycloak can't be reached and there's no earlier list                   |
+| `SetWhere`   | `PresenceWhere`                         | -                 | Where this tab is. Call on connect and whenever it changes. Ids up to 128 characters                                                                |
+| `InviteUser` | `userId`, `code`                        | -                 | Sends them an invite code. Fails if it isn't code-shaped (url-safe base64, up to 64), it's you, or they've gone offline                             |
+| `NotifyUser` | `userId`, `conversationId`, `messageId` | -                 | Says something's waiting in [messaging](../messaging/README.md#live-updates), to their tabs and your other ones. Nothing happens if they're offline |
 
 ### Hub → client
 
-| Event            | Payload        | When                                                          |
-| ---------------- | -------------- | ------------------------------------------------------------- |
-| `UserOnline`     | `OnlineUser`   | Someone comes online, or where they are changes. Not to the tab that changed |
-| `UserOffline`    | `UserOffline`  | Someone's last tab closes                                      |
-| `InviteReceived` | `UserInvite`   | Someone invited you - to every tab you have open               |
-| `MessageWaiting` | `MessageWaiting` | Something's waiting in messaging. Only ids - fetch it from there |
+| Event            | Payload          | When                                                                         |
+| ---------------- | ---------------- | ---------------------------------------------------------------------------- |
+| `UserOnline`     | `OnlineUser`     | Someone comes online, or where they are changes. Not to the tab that changed |
+| `UserOffline`    | `UserOffline`    | Someone's last tab closes                                                    |
+| `InviteReceived` | `UserInvite`     | Someone invited you - to every tab you have open                             |
+| `MessageWaiting` | `MessageWaiting` | Something's waiting in messaging. Only ids - fetch it from there             |
 
 ```ts
 type PresenceWhere = { slideId: string | null; sessionId: string | null; hosting: boolean };
 type OnlineUser = {
-  userId: string; displayName: string; slideId: string | null; sessionId: string | null;
-  hosting: boolean; since: string; version: number;
+	userId: string;
+	displayName: string;
+	slideId: string | null;
+	sessionId: string | null;
+	hosting: boolean;
+	since: string;
+	version: number;
 };
 type UserOffline = { userId: string; version: number };
 type OnlineSnapshot = { users: OnlineUser[]; version: number };
@@ -338,16 +377,16 @@ type MessageWaiting = { conversationId: string; messageId: string };
 
 ## HTTP
 
-| Endpoint                   | Returns                                                          |
-| -------------------------- | ---------------------------------------------------------------- |
-| `POST /guests`             | a guest token for an invite code - see [Guests](#guests). The only one outside Development |
-| `GET /rooms`               | slide id → number of people connected                            |
-| `GET /rooms/{roomId}`     | participants in that room                                        |
-| `GET /rooms/{roomId}/docs`| open docs: `docId`, `instanceId`, `editors`, `updates`, `bytes`  |
-| `GET /rooms/{roomId}/comparison` | the running comparison (no dots until revealed), 204 if none |
-| `GET /rooms/{roomId}/sharedcount` | the running shared count, dots included, 204 if none |
-| `GET /online`              | who's online (`OnlineSnapshot`)                                  |
-| `GET /users`               | everyone with an account, from Keycloak (`DirectoryUser[]`)      |
+| Endpoint                          | Returns                                                                                    |
+| --------------------------------- | ------------------------------------------------------------------------------------------ |
+| `POST /guests`                    | a guest token for an invite code - see [Guests](#guests). The only one outside Development |
+| `GET /rooms`                      | slide id → number of people connected                                                      |
+| `GET /rooms/{roomId}`             | participants in that room                                                                  |
+| `GET /rooms/{roomId}/docs`        | open docs: `docId`, `instanceId`, `editors`, `updates`, `bytes`                            |
+| `GET /rooms/{roomId}/comparison`  | the running comparison (no dots until revealed), 204 if none                               |
+| `GET /rooms/{roomId}/sharedcount` | the running shared count, dots included, 204 if none                                       |
+| `GET /online`                     | who's online (`OnlineSnapshot`)                                                            |
+| `GET /users`                      | everyone with an account, from Keycloak (`DirectoryUser[]`)                                |
 
 The rest are Development only, and open.
 

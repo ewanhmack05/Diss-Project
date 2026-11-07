@@ -641,9 +641,8 @@ What this doesn't do yet, and why:
 - **A column added later.** An old delete's copy of a row won't have a
   column added since. `Rebuild` leaves it at its default; the Postgres path
   leaves it null, so a new non-null column needs a default.
-- **Nothing is purged.** History stays for good. A retention rule comes with
-  the privacy question in
-  [todo.md](../todo.md#things-to-decide-before-building).
+- **Nothing is purged.** History stays for good. A retention rule is future
+  work - see [ethics.md](../ethics.md#keeping-history).
 - **Not logged:** renaming a collection, sharing, ending a session, members
   and invite links. They aren't the data being versioned.
 

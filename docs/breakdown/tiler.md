@@ -50,14 +50,14 @@ they line up with the tiles no matter what zoom either is at.
 
 ## 2. Files
 
-| File | What it does |
-| ---- | ------------ |
-| [Program.cs](../../tiler/Program.cs) | Startup and the three endpoints. The tile endpoint borrows a slide handle, reads a region, resizes it if needed and encodes it as JPEG (quality 85). Also wires up CORS and OpenTelemetry. |
-| [Slides/SlideCatalog.cs](../../tiler/Slides/SlideCatalog.cs) | Finds every `.mrxs` under `data/` at startup, using the file name as the slide id. Reads each slide's size, magnification and microns per pixel once, then caches it. |
-| [Slides/SlideHandlePool.cs](../../tiler/Slides/SlideHandlePool.cs) | Up to 8 open OpenSlide handles per slide, each used by one thread at a time (see [section 6](#6-reading-in-parallel)). |
-| [Slides/ZoomifyTiling.cs](../../tiler/Slides/ZoomifyTiling.cs) | The maths. Works out the tier ladder the same way OpenLayers does, and turns a `(z, x, y)` tile into "read this box from this OpenSlide level, resize to this". |
-| [Slides/OpenSlideNative.cs](../../tiler/Slides/OpenSlideNative.cs) | Points OpenSlideSharp at the right native library on Linux (see [section 7](#7-windows-and-linux)). |
-| [Dockerfile](../../tiler/Dockerfile) | Linux image with slide 003 built in - what's deployed (see [azure.md](../azure.md)). |
+| File                                                               | What it does                                                                                                                                                                               |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [Program.cs](../../tiler/Program.cs)                               | Startup and the three endpoints. The tile endpoint borrows a slide handle, reads a region, resizes it if needed and encodes it as JPEG (quality 85). Also wires up CORS and OpenTelemetry. |
+| [Slides/SlideCatalog.cs](../../tiler/Slides/SlideCatalog.cs)       | Finds every `.mrxs` under `data/` at startup, using the file name as the slide id. Reads each slide's size, magnification and microns per pixel once, then caches it.                      |
+| [Slides/SlideHandlePool.cs](../../tiler/Slides/SlideHandlePool.cs) | Up to 8 open OpenSlide handles per slide, each used by one thread at a time (see [section 6](#6-reading-in-parallel)).                                                                     |
+| [Slides/ZoomifyTiling.cs](../../tiler/Slides/ZoomifyTiling.cs)     | The maths. Works out the tier ladder the same way OpenLayers does, and turns a `(z, x, y)` tile into "read this box from this OpenSlide level, resize to this".                            |
+| [Slides/OpenSlideNative.cs](../../tiler/Slides/OpenSlideNative.cs) | Points OpenSlideSharp at the right native library on Linux (see [section 7](#7-windows-and-linux)).                                                                                        |
+| [Dockerfile](../../tiler/Dockerfile)                               | Linux image with slide 003 built in - what's deployed (see [azure.md](../azure.md)).                                                                                                       |
 
 There's no test project. The maths in `ZoomifyTiling` is checked from the
 other side, by the viewer's
@@ -75,12 +75,12 @@ The samples here are MIRAX (`.mrxs`), which stores a slide as a small
 Both have to be there. Dropping another pair into `data/` is enough to make
 it available - no config.
 
-| id | Source | Notes |
-| -- | ------ | ----- |
-| `000` | CMU-1, 1/16 downsample | H&E brightfield, 7436x15494, 6 levels |
-| `001` | Mirax2-Fluorescence-1 | 3-channel fluorescence |
-| `002` | Mirax2-Fluorescence-2 | 3-channel fluorescence |
-| `003` | HPS stain | Brightfield, 101832x219976, ~2.9GB on disk. The viewer's default, and the one baked into the Docker image and deployed. Kept in Git LFS |
+| id    | Source                 | Notes                                                                                                                                   |
+| ----- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `000` | CMU-1, 1/16 downsample | H&E brightfield, 7436x15494, 6 levels                                                                                                   |
+| `001` | Mirax2-Fluorescence-1  | 3-channel fluorescence                                                                                                                  |
+| `002` | Mirax2-Fluorescence-2  | 3-channel fluorescence                                                                                                                  |
+| `003` | HPS stain              | Brightfield, 101832x219976, ~2.9GB on disk. The viewer's default, and the one baked into the Docker image and deployed. Kept in Git LFS |
 
 `GET /slides/{id}` returns the size, tile size (256) and, where the scanner
 recorded them, objective power and microns per pixel (`mppX`, `mppY`). The
@@ -131,10 +131,9 @@ sequenceDiagram
   K-->>V: image/jpeg
 ```
 
-1. **Check the tile exists.** A tier or column/row outside the ladder is a
-   404.
+1. **Check the tile exists.** A tier or column/row outside the ladder is a 404.
 2. **Work out the box.** The tier's downsample is `2^(tiers below full
-   size)`. The tile covers `256 x downsample` slide pixels, clipped at the
+size)`. The tile covers `256 x downsample` slide pixels, clipped at the
    right and bottom edges (so edge tiles are smaller than 256).
 3. **Pick a pyramid level.** `GetBestLevelForDownsample` gives the nearest
    level that's at least as detailed. Reading from there is much cheaper
@@ -233,16 +232,16 @@ came from.
 
 ## 10. Glossary
 
-| Term | Meaning |
-| ---- | ------- |
-| Whole-slide image | A scan of a whole glass slide at microscope resolution, often gigapixels |
-| Pyramid | The full image plus smaller copies, so zoomed-out views are cheap |
-| Level | One layer of the pyramid. Level 0 is full resolution |
-| Downsample | How many times smaller than level 0 a level or tier is |
-| MIRAX / `.mrxs` | 3DHISTECH's slide format - a small index file plus a folder of image data |
-| OpenSlide | A C library that reads most whole-slide formats |
-| Zoomify | A tile URL scheme (`TileGroup{n}/{z}-{x}-{y}.jpg`) that OpenLayers understands |
-| Tier | One Zoomify zoom level. Each is twice the size of the one before |
-| Tile | A 256x256 (or smaller, at the edges) JPEG for one tier, column and row |
-| Microns per pixel (mpp) | Real size of one level-0 pixel. Lets the viewer measure in µm |
-| Premultiplied | Colour values already multiplied by alpha - how OpenSlide hands them back |
+| Term                    | Meaning                                                                        |
+| ----------------------- | ------------------------------------------------------------------------------ |
+| Whole-slide image       | A scan of a whole glass slide at microscope resolution, often gigapixels       |
+| Pyramid                 | The full image plus smaller copies, so zoomed-out views are cheap              |
+| Level                   | One layer of the pyramid. Level 0 is full resolution                           |
+| Downsample              | How many times smaller than level 0 a level or tier is                         |
+| MIRAX / `.mrxs`         | 3DHISTECH's slide format - a small index file plus a folder of image data      |
+| OpenSlide               | A C library that reads most whole-slide formats                                |
+| Zoomify                 | A tile URL scheme (`TileGroup{n}/{z}-{x}-{y}.jpg`) that OpenLayers understands |
+| Tier                    | One Zoomify zoom level. Each is twice the size of the one before               |
+| Tile                    | A 256x256 (or smaller, at the edges) JPEG for one tier, column and row         |
+| Microns per pixel (mpp) | Real size of one level-0 pixel. Lets the viewer measure in µm                  |
+| Premultiplied           | Colour values already multiplied by alpha - how OpenSlide hands them back      |

@@ -76,25 +76,25 @@ folder names (`annotation-store`, `realtime-hub`, `image-viewer`) and
 For testing how the viewer copes with a heavy load - mainly the WebGL
 layers for annotations and cell-count dots.
 
-| Script              | Does                                                                  |
-|---------------------|-----------------------------------------------------------------------|
-| `seed_stress.py`    | Adds lots of annotations and cell counts to a slide's collection      |
-| `clean_stress.py`   | Removes exactly what `seed_stress.py` added, and nothing else         |
-| `map_bench.js`      | Measures the viewer's frame rate while panning and zooming            |
-| `simulate_session.py` | Fills a session with simulated people who move round live - see [below](#simulated-people-in-a-session) |
-| `simulate_annotations.py` | Same, and the editors draw shapes live in what they're looking at - see [below](#drawing-and-counting) |
-| `simulate_cell_counts.py` | Same, and the editors count cells live in what they're looking at - see [below](#drawing-and-counting) |
-| `simulate_conflicts.py` | Same, and the editors keep recolouring the same few annotations, for measuring a session's edit policy - see [below](#people-changing-the-same-thing) |
-| `time_api.py`      | Times every read the viewer makes of annotation-store, slowest first - see [below](#timing-the-api) |
-| `db_docs.py`       | Writes annotation-store's database diagram and columns into its README, from the migrations and `schema-notes.json`. Run it after changing the schema - a test fails until you do |
-| `eval_conflicts.py` | Runs `simulate_conflicts.py` under both policies at several sizes and notice delays, and adds it up - see [docs/evaluation.md](../docs/evaluation.md) |
-| `eval_text_merge.mjs` | Simulated typing through real Yjs and a plain last-save-wins box |
-| `eval_latency.py` | How long an op takes to reach everyone, at several room sizes, using `eval_latency.mjs` |
-| `time_rollback.py` | Times putting a whole collection back, with a snapshot and without - see [below](#timing-rollback) |
-| `seed_history.py`  | A session with a few days of made-up changes, for the History tab - see [below](#history-test-data) |
-| `teardown_users.py` | Removes test users from Keycloak, and from the sessions they joined - see [below](#removing-test-users) |
-| `keycloak_login.py` | Signs the Python scripts in - not run on its own                      |
-| `keycloak_admin.py` | Keycloak's admin API for the two above - not run on its own          |
+| Script                    | Does                                                                                                                                                                              |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `seed_stress.py`          | Adds lots of annotations and cell counts to a slide's collection                                                                                                                  |
+| `clean_stress.py`         | Removes exactly what `seed_stress.py` added, and nothing else                                                                                                                     |
+| `map_bench.js`            | Measures the viewer's frame rate while panning and zooming                                                                                                                        |
+| `simulate_session.py`     | Fills a session with simulated people who move round live - see [below](#simulated-people-in-a-session)                                                                           |
+| `simulate_annotations.py` | Same, and the editors draw shapes live in what they're looking at - see [below](#drawing-and-counting)                                                                            |
+| `simulate_cell_counts.py` | Same, and the editors count cells live in what they're looking at - see [below](#drawing-and-counting)                                                                            |
+| `simulate_conflicts.py`   | Same, and the editors keep recolouring the same few annotations, for measuring a session's edit policy - see [below](#people-changing-the-same-thing)                             |
+| `time_api.py`             | Times every read the viewer makes of annotation-store, slowest first - see [below](#timing-the-api)                                                                               |
+| `db_docs.py`              | Writes annotation-store's database diagram and columns into its README, from the migrations and `schema-notes.json`. Run it after changing the schema - a test fails until you do |
+| `eval_conflicts.py`       | Runs `simulate_conflicts.py` under both policies at several sizes and notice delays, and adds it up - see [docs/evaluation.md](../docs/evaluation.md)                             |
+| `eval_text_merge.mjs`     | Simulated typing through real Yjs and a plain last-save-wins box                                                                                                                  |
+| `eval_latency.py`         | How long an op takes to reach everyone, at several room sizes, using `eval_latency.mjs`                                                                                           |
+| `time_rollback.py`        | Times putting a whole collection back, with a snapshot and without - see [below](#timing-rollback)                                                                                |
+| `seed_history.py`         | A session with a few days of made-up changes, for the History tab - see [below](#history-test-data)                                                                               |
+| `teardown_users.py`       | Removes test users from Keycloak, and from the sessions they joined - see [below](#removing-test-users)                                                                           |
+| `keycloak_login.py`       | Signs the Python scripts in - not run on its own                                                                                                                                  |
+| `keycloak_admin.py`       | Keycloak's admin API for the two above - not run on its own                                                                                                                       |
 
 Both Python scripts need `annotation-store` and Keycloak (`auth/`) running.
 `seed_stress.py` also needs `tiler`, to look up the slide's size so shapes
@@ -240,9 +240,9 @@ can edit do something every so often - in what they're looking at, holding
 their view still while they do, like a real person. View-only people just
 watch.
 
-| Script | Editors... | Everyone sees |
-|--------|-----------|---------------|
-| `simulate_annotations.py` | draw a shape (polygon, rectangle, circle, line, arrow or freehand) and save it | it grow as it's drawn, then saved |
+| Script                    | Editors...                                                                               | Everyone sees                                      |
+| ------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `simulate_annotations.py` | draw a shape (polygon, rectangle, circle, line, arrow or freehand) and save it           | it grow as it's drawn, then saved                  |
 | `simulate_cell_counts.py` | click dots a few a second, sometimes inside a region of interest box, and save the count | the dots and tally go up as they click, then saved |
 
 Both send what the viewer sends - sketches while drawing or counting, then
@@ -273,6 +273,7 @@ The first editor makes a few shared annotations in the middle of the slide,
 then every editor keeps recolouring them, each from their own copy of the
 colour. Someone else's change only reaches their copy `--notice` seconds
 after it's saved - the gap between something changing and a person noticing
+
 - which is what decides how often two changes collide.
 
 Under first change wins, a save from an old copy is turned down, and they
@@ -401,15 +402,15 @@ For the annotation-store database (`annotationtest` by default - see
 `annotation-store/.env`). Plain Postgres SQL, so they run from `psql`,
 pgAdmin's query tool, or VS Code's database extension.
 
-| Script                             | Does                                                                   |
-|------------------------------------|------------------------------------------------------------------------|
-| `counts.sql`                       | Row counts per table, then per slide. Read-only                        |
-| `delete_all_annotations.sql`       | Deletes every annotation                                               |
-| `delete_all_cell_counts.sql`       | Deletes every cell count, and their ROI boxes                          |
-| `delete_all_image_adjustments.sql` | Deletes every saved adjustment preset                                  |
-| `delete_slide_data.sql`            | Deletes annotations, counts and presets for one slide - edit the id    |
-| `delete_stress_test.sql`           | Deletes what `seed_stress.py` added. No need for annotation-store      |
-| `reset_all.sql`                    | Empties everything, collections included. Tables and migrations stay   |
+| Script                             | Does                                                                 |
+| ---------------------------------- | -------------------------------------------------------------------- |
+| `counts.sql`                       | Row counts per table, then per slide. Read-only                      |
+| `delete_all_annotations.sql`       | Deletes every annotation                                             |
+| `delete_all_cell_counts.sql`       | Deletes every cell count, and their ROI boxes                        |
+| `delete_all_image_adjustments.sql` | Deletes every saved adjustment preset                                |
+| `delete_slide_data.sql`            | Deletes annotations, counts and presets for one slide - edit the id  |
+| `delete_stress_test.sql`           | Deletes what `seed_stress.py` added. No need for annotation-store    |
+| `reset_all.sql`                    | Empties everything, collections included. Tables and migrations stay |
 
 The deletes cover every slide and every user unless the script says
 otherwise. Each runs in a single transaction, so it either fully happens or

@@ -53,11 +53,11 @@ byte the same on both.
 The tiler has no database. It only reads slide files, and nothing it does is
 saved. What it holds is in memory, and it works it out again after a restart:
 
-| What | Where | What it's for |
-|---|---|---|
-| Slide ids to paths | `SlideCatalog`, read at startup | Which slides there are. The id is the filename without its extension, and it's what annotation-store keeps as `SlideId` - not a foreign key, so removing a file leaves collections pointing at nothing |
-| `SlideInfo` | `SlideCatalog`, read the first time a slide's asked for | Width, height, tile size, objective power and microns per pixel. Every tile request needs them |
-| Open slides | `SlideHandlePool`, one pool per slide | A few OpenSlide handles, each used by one thread at a time. One handle crashes if it's read from several threads at once, and locking it would make every tile in a pan wait in line |
+| What               | Where                                                   | What it's for                                                                                                                                                                                          |
+| ------------------ | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Slide ids to paths | `SlideCatalog`, read at startup                         | Which slides there are. The id is the filename without its extension, and it's what annotation-store keeps as `SlideId` - not a foreign key, so removing a file leaves collections pointing at nothing |
+| `SlideInfo`        | `SlideCatalog`, read the first time a slide's asked for | Width, height, tile size, objective power and microns per pixel. Every tile request needs them                                                                                                         |
+| Open slides        | `SlideHandlePool`, one pool per slide                   | A few OpenSlide handles, each used by one thread at a time. One handle crashes if it's read from several threads at once, and locking it would make every tile in a pan wait in line                   |
 
 Slides live in `tiler/data/` as `<id>.mrxs` + a same-named companion folder
 (both required - that's how MIRAX stores a slide). `SlideCatalog` discovers
@@ -70,11 +70,11 @@ at a different folder - relative to the app's folder unless it's absolute.
 
 Included samples, all from [OpenSlide's public test data](https://openslide.org/):
 
-| id    | source file               | notes                                    |
-|-------|----------------------------|-------------------------------------------|
-| `000` | CMU-1 (1/16 downsample)    | H&E brightfield, 6-level pyramid, 7436x15494px |
-| `001` | Mirax2-Fluorescence-1      | 3-channel fluorescence                   |
-| `002` | Mirax2-Fluorescence-2      | 3-channel fluorescence                   |
+| id    | source file             | notes                                          |
+| ----- | ----------------------- | ---------------------------------------------- |
+| `000` | CMU-1 (1/16 downsample) | H&E brightfield, 6-level pyramid, 7436x15494px |
+| `001` | Mirax2-Fluorescence-1   | 3-channel fluorescence                         |
+| `002` | Mirax2-Fluorescence-2   | 3-channel fluorescence                         |
 
 `image-viewer/src/index.tsx`'s `DEFAULT_SLIDE_ID` picks which one loads by
 default; `?slide=<id>` overrides it per-request.

@@ -11,15 +11,15 @@ WebGPU for OpenLayers?
 OpenLayers has no WebGPU renderer, but it does have WebGL layers, and those
 are now in use:
 
-| Layer | Renderer |
-|---|---|
-| Slide tiles | WebGL (`WebGLTileLayer`) - brightness/contrast/gamma run in its shader |
-| Saved annotations | WebGL (`WebGLVectorLayer`) |
-| Cell-count dots, live and viewed | WebGL |
-| ROI boxes, live and viewed | WebGL |
-| Arrowheads | canvas - WebGL can't draw a shape at a line's end |
-| Shape being drawn / awaiting save | canvas - 1-2 features, needs style functions |
-| Ruler | canvas - needs a text label |
+| Layer                             | Renderer                                                               |
+| --------------------------------- | ---------------------------------------------------------------------- |
+| Slide tiles                       | WebGL (`WebGLTileLayer`) - brightness/contrast/gamma run in its shader |
+| Saved annotations                 | WebGL (`WebGLVectorLayer`)                                             |
+| Cell-count dots, live and viewed  | WebGL                                                                  |
+| ROI boxes, live and viewed        | WebGL                                                                  |
+| Arrowheads                        | canvas - WebGL can't draw a shape at a line's end                      |
+| Shape being drawn / awaiting save | canvas - 1-2 features, needs style functions                           |
+| Ruler                             | canvas - needs a text label                                            |
 
 - Test with lots of data: `python scripts/seed_stress.py` (see [scripts/README.md](../scripts/README.md))
 - Measure with `scripts/map_bench.js` - results below
@@ -45,12 +45,12 @@ the hitch at the end of every pan and every zoom step.
 The seeded mix averages 36 points a shape (freehand traces are 120,
 circles 51), so 25k annotations is about 0.9M points.
 
-| Annotations | Pan at fitted view | Worst frame | Freeze on opening | Settle |
-|---|---|---|---|---|
-| 2,000 | 60 fps | 17 ms | none | - |
-| 10,000 | 55 fps | 83 ms | 103 ms | - |
-| 25,000 | 20 fps first run, 35 fps after | 233 ms | 237 ms | 64 ms |
-| 50,000 | 8 fps first run, 11-14 fps after | 617 ms | 766 ms | 174 ms |
+| Annotations | Pan at fitted view               | Worst frame | Freeze on opening | Settle |
+| ----------- | -------------------------------- | ----------- | ----------------- | ------ |
+| 2,000       | 60 fps                           | 17 ms       | none              | -      |
+| 10,000      | 55 fps                           | 83 ms       | 103 ms            | -      |
+| 25,000      | 20 fps first run, 35 fps after   | 233 ms      | 237 ms            | 64 ms  |
+| 50,000      | 8 fps first run, 11-14 fps after | 617 ms      | 766 ms            | 174 ms |
 
 - **Smooth up to ~10k, visibly laggy at 25k, unusable at 50k.** At 50k the
   map can't hold 60 fps sitting still.
@@ -70,13 +70,13 @@ circles 51), so 25k annotations is about 0.9M points.
 
 One saved count viewed at a time, as the viewer does.
 
-| Dots | Pan | Worst frame | Freeze on View | Settle |
-|---|---|---|---|---|
-| 10,000 | 60 fps | 17 ms | 479 ms | 2 ms |
-| 100,000 | 60 fps | 18 ms | 728 ms | 16 ms |
-| 250,000 | 57-60 fps | 50 ms | 1.3 s | 40 ms |
-| 450,000 | 55-59 fps | 67 ms | 2.0 s | 70 ms |
-| 500,000 | couldn't be saved at the time - over annotation-store's 30 MB request limit. Since raised to 80 MiB, a million dots | | | |
+| Dots    | Pan                                                                                                                 | Worst frame | Freeze on View | Settle |
+| ------- | ------------------------------------------------------------------------------------------------------------------- | ----------- | -------------- | ------ |
+| 10,000  | 60 fps                                                                                                              | 17 ms       | 479 ms         | 2 ms   |
+| 100,000 | 60 fps                                                                                                              | 18 ms       | 728 ms         | 16 ms  |
+| 250,000 | 57-60 fps                                                                                                           | 50 ms       | 1.3 s          | 40 ms  |
+| 450,000 | 55-59 fps                                                                                                           | 67 ms       | 2.0 s          | 70 ms  |
+| 500,000 | couldn't be saved at the time - over annotation-store's 30 MB request limit. Since raised to 80 MiB, a million dots |             |                |        |
 
 - **Points are cheap to draw.** Panning holds ~60 fps all the way to the
   largest count the API will take. What breaks is the freeze when View is
@@ -128,13 +128,13 @@ draws a copy of each annotation with the points it can't show dropped
 What the GPU gets, from `LessDetail.eval.test.ts` - 2,000 shapes in
 `seed_stress.py`'s mix, worst error measured against the saved points:
 
-| Slide px per screen px | Level | Points | Of saved | Worst error |
-|---|---|---|---|---|
-| 1 | 0 | 102,234 | 100% | 0 px |
-| 4 | 1 | 91,984 | 90% | 0.25 px |
-| 16 | 2 | 69,636 | 68% | 0.25 px |
-| 64 | 3 | 37,766 | 37% | 0.25 px |
-| 244 (slide 003 fitted to 1600x900) | 4 | 19,152 | 19% | 0.26 px |
+| Slide px per screen px             | Level | Points  | Of saved | Worst error |
+| ---------------------------------- | ----- | ------- | -------- | ----------- |
+| 1                                  | 0     | 102,234 | 100%     | 0 px        |
+| 4                                  | 1     | 91,984  | 90%      | 0.25 px     |
+| 16                                 | 2     | 69,636  | 68%      | 0.25 px     |
+| 64                                 | 3     | 37,766  | 37%      | 0.25 px     |
+| 244 (slide 003 fitted to 1600x900) | 4     | 19,152  | 19%      | 0.26 px     |
 
 In the viewer, alice's 5,000 annotations on slide 003 at the fitted view
 (1024x768, level 4): 186,229 points as saved, 48,780 drawn (26%). A

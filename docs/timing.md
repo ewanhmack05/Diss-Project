@@ -21,16 +21,16 @@ python scripts/time_api.py --via https://localhost:5173/store
 Straight to the store (`time_api.py`, no `--via`). Everything not listed was
 under 10ms.
 
-| Endpoint | Median | p95 | Answer |
-|----------|--------|-----|--------|
-| Export, own collection | 232ms | 327ms | 13.3 MB |
-| All annotations - the map's load | 220ms | 333ms | 9.8 MB |
-| Biggest cell count, with its dots | 49ms | 70ms | 2.9 MB |
-| Collections list | 18ms | 21ms | 2.6 KB |
-| Annotations facets, own | 18ms | 22ms | 369 B |
-| History - what a change did | 10-16ms | 13-29ms | under 1 KB |
-| Saved annotations, one page of 50 | 15ms | 16ms | 91 KB |
-| History page of 50 | 7ms | 9ms | 5.2 KB |
+| Endpoint                          | Median  | p95     | Answer     |
+| --------------------------------- | ------- | ------- | ---------- |
+| Export, own collection            | 232ms   | 327ms   | 13.3 MB    |
+| All annotations - the map's load  | 220ms   | 333ms   | 9.8 MB     |
+| Biggest cell count, with its dots | 49ms    | 70ms    | 2.9 MB     |
+| Collections list                  | 18ms    | 21ms    | 2.6 KB     |
+| Annotations facets, own           | 18ms    | 22ms    | 369 B      |
+| History - what a change did       | 10-16ms | 13-29ms | under 1 KB |
+| Saved annotations, one page of 50 | 15ms    | 16ms    | 91 KB      |
+| History page of 50                | 7ms     | 9ms     | 5.2 KB     |
 
 So the store's time follows how much it sends. The three slow ones are
 megabytes each; everything else is a few milliseconds.
@@ -41,15 +41,15 @@ The viewer doesn't call the store directly - it goes through the Vite dev
 server's `/store` proxy on 5173, so other machines on the VPN only need that
 one port. The same calls through it (`--via https://localhost:5173/store`):
 
-| Endpoint | Direct | Through 5173 |
-|----------|--------|--------------|
-| Export | 232ms | 393ms |
-| All annotations - the map | 220ms | 350ms |
-| Biggest cell count | 49ms | 103ms |
-| Collections list | 18ms | 45ms |
-| History page | 7ms | 47ms |
-| Cell counts newest | 6ms | 45ms |
-| Anything that was 4-7ms | 4-7ms | about 45ms |
+| Endpoint                  | Direct | Through 5173 |
+| ------------------------- | ------ | ------------ |
+| Export                    | 232ms  | 393ms        |
+| All annotations - the map | 220ms  | 350ms        |
+| Biggest cell count        | 49ms   | 103ms        |
+| Collections list          | 18ms   | 45ms         |
+| History page              | 7ms    | 47ms         |
+| Cell counts newest        | 6ms    | 45ms         |
+| Anything that was 4-7ms   | 4-7ms  | about 45ms   |
 
 A flat 40ms on every small call is what makes the many small reads - the
 History tab, the Saved lists, opening a change - feel slower than they are.
@@ -57,13 +57,13 @@ History tab, the Saved lists, opening a change - feel slower than they are.
 Where it goes, one thing changed at a time on a throwaway server (5176),
 never the real one:
 
-| Tried | Proxy adds |
-|-------|-----------|
-| Vite's proxy over HTTPS, as 5173 is | about 40ms |
-| Vite's proxy over plain HTTP | about 15ms |
-| ...pointed at `127.0.0.1` rather than `localhost` | no better |
-| ...with a keep-alive agent to the store | no better |
-| A bare Node proxy, nothing else in it | about 4ms |
+| Tried                                             | Proxy adds |
+| ------------------------------------------------- | ---------- |
+| Vite's proxy over HTTPS, as 5173 is               | about 40ms |
+| Vite's proxy over plain HTTP                      | about 15ms |
+| ...pointed at `127.0.0.1` rather than `localhost` | no better  |
+| ...with a keep-alive agent to the store           | no better  |
+| A bare Node proxy, nothing else in it             | about 4ms  |
 
 So it isn't the hop to the store, name lookup or connections - it's Vite's
 own request handling, and HTTPS on top. That's the dev server only: a built

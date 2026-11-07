@@ -54,19 +54,19 @@ flowchart LR
 
 ## 2. Files
 
-| File | What it does |
-| ---- | ------------ |
-| [docker-compose.yml](../../auth/docker-compose.yml) | Keycloak in dev mode plus its own Postgres. Serves under `/auth`, trusts `X-Forwarded-*`, imports the realm on first start. |
-| [realm/diss-realm.json](../../auth/realm/diss-realm.json) | The realm as config: settings, both clients, the audience mapper, test users. |
-| [add-realtime-hub-client.sh](../../auth/add-realtime-hub-client.sh) | Adds the `realtime-hub` client to a Keycloak that was set up before it existed. Safe to run again. |
+| File                                                                | What it does                                                                                                                |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| [docker-compose.yml](../../auth/docker-compose.yml)                 | Keycloak in dev mode plus its own Postgres. Serves under `/auth`, trusts `X-Forwarded-*`, imports the realm on first start. |
+| [realm/diss-realm.json](../../auth/realm/diss-realm.json)           | The realm as config: settings, both clients, the audience mapper, test users.                                               |
+| [add-realtime-hub-client.sh](../../auth/add-realtime-hub-client.sh) | Adds the `realtime-hub` client to a Keycloak that was set up before it existed. Safe to run again.                          |
 
 The code on each side:
 
-| Where | File |
-| ----- | ---- |
-| Viewer | [AuthContext.tsx](../../image-viewer/src/context/AuthContext.tsx) |
-| annotation-store | [Auth/KeycloakAuth.cs](../../annotation-store/Auth/KeycloakAuth.cs) |
-| realtime-hub | [Auth/KeycloakAuth.cs](../../realtime-hub/Auth/KeycloakAuth.cs), [Presence/UserDirectory.cs](../../realtime-hub/Presence/UserDirectory.cs) |
+| Where            | File                                                                                                                                       |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Viewer           | [AuthContext.tsx](../../image-viewer/src/context/AuthContext.tsx)                                                                          |
+| annotation-store | [Auth/KeycloakAuth.cs](../../annotation-store/Auth/KeycloakAuth.cs)                                                                        |
+| realtime-hub     | [Auth/KeycloakAuth.cs](../../realtime-hub/Auth/KeycloakAuth.cs), [Presence/UserDirectory.cs](../../realtime-hub/Presence/UserDirectory.cs) |
 
 The root [docker-compose.yml](../../docker-compose.yml) includes this one,
 so `docker compose up` at the root brings Keycloak up with everything else.
@@ -76,21 +76,21 @@ so `docker compose up` at the root brings Keycloak up with everything else.
 A **realm** is Keycloak's word for one separate set of users and apps. Ours
 is `diss`.
 
-| Setting | Value | Why |
-| ------- | ----- | --- |
-| Self sign-up | Off | Accounts are made by hand for now |
-| Access token lifespan | 15 minutes | Short, since the viewer renews it in the background |
-| SSO idle timeout | 8 hours | A working day without signing in again |
-| SSL required | External | Plain http is fine on localhost and the LAN, not from outside |
+| Setting               | Value      | Why                                                           |
+| --------------------- | ---------- | ------------------------------------------------------------- |
+| Self sign-up          | Off        | Accounts are made by hand for now                             |
+| Access token lifespan | 15 minutes | Short, since the viewer renews it in the background           |
+| SSO idle timeout      | 8 hours    | A working day without signing in again                        |
+| SSL required          | External   | Plain http is fine on localhost and the LAN, not from outside |
 
 ### Clients
 
 A **client** is an app Keycloak knows about.
 
-| Client | Type | Used by | Notes |
-| ------ | ---- | ------- | ----- |
+| Client         | Type               | Used by                       | Notes                                                                                                                                           |
+| -------------- | ------------------ | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | `image-viewer` | Public (no secret) | The viewer, to sign people in | PKCE (S256). Redirect `/*` and web origin `+`, so it works from any address the viewer is opened on. Adds the `diss-api` audience to its tokens |
-| `realtime-hub` | Confidential | realtime-hub, to list users | No sign-in flows. Service account with `view-users` only. Dev secret `realtime-hub-dev-secret` |
+| `realtime-hub` | Confidential       | realtime-hub, to list users   | No sign-in flows. Service account with `view-users` only. Dev secret `realtime-hub-dev-secret`                                                  |
 
 A browser app can't keep a secret, so `image-viewer` is public and uses
 PKCE instead: the viewer makes a random value, sends a hash of it when
@@ -132,13 +132,13 @@ sequenceDiagram
 
 The access token is a JWT. The parts the services use:
 
-| Claim | Example | Used for |
-| ----- | ------- | -------- |
-| `sub` | `3f2a…` | The user's id. What collections, members and presence key on |
-| `name` | `Alice Moore` | Display name everywhere |
-| `preferred_username` | `alice` | Fallback name |
-| `aud` | `diss-api` | Checked by both services - the token was meant for them |
-| `iss` | `https://192.168.1.20:5173/auth/realms/diss` | Checked loosely - see [section 6](#6-one-address-for-everything) |
+| Claim                | Example                                      | Used for                                                         |
+| -------------------- | -------------------------------------------- | ---------------------------------------------------------------- |
+| `sub`                | `3f2a…`                                      | The user's id. What collections, members and presence key on     |
+| `name`               | `Alice Moore`                                | Display name everywhere                                          |
+| `preferred_username` | `alice`                                      | Fallback name                                                    |
+| `aud`                | `diss-api`                                   | Checked by both services - the token was meant for them          |
+| `iss`                | `https://192.168.1.20:5173/auth/realms/diss` | Checked loosely - see [section 6](#6-one-address-for-everything) |
 
 The viewer side is covered in
 [image-viewer.md](image-viewer.md#4-signing-in).
@@ -229,13 +229,13 @@ sequenceDiagram
 Keycloak only answers **who you are**. Everything about **what you can do**
 is in annotation-store:
 
-| Question | Answered by |
-| -------- | ----------- |
-| Is this a real, signed-in user? | Keycloak (token signature, audience, realm) |
-| What's their id and name? | The token (`sub`, `name`) |
-| Are they in this collection? | annotation-store's `CollectionMembers` |
-| Can they edit, or only view? | annotation-store's role (viewer / editor / owner) |
-| Can they join this live room? | realtime-hub asks annotation-store |
+| Question                        | Answered by                                       |
+| ------------------------------- | ------------------------------------------------- |
+| Is this a real, signed-in user? | Keycloak (token signature, audience, realm)       |
+| What's their id and name?       | The token (`sub`, `name`)                         |
+| Are they in this collection?    | annotation-store's `CollectionMembers`            |
+| Can they edit, or only view?    | annotation-store's role (viewer / editor / owner) |
+| Can they join this live room?   | realtime-hub asks annotation-store                |
 
 Roles are per session, not global, so they don't belong in Keycloak. See
 [annotation-store.md](annotation-store.md#5-who-can-do-what).
@@ -258,18 +258,18 @@ Roles are per session, not global, so they don't belong in Keycloak. See
 
 ## 10. Glossary
 
-| Term | Meaning |
-| ---- | ------- |
-| Keycloak | Open-source identity server - sign-in, users, tokens |
-| Realm | One separate set of users, clients and settings in Keycloak |
-| Client | An app Keycloak knows about and issues tokens for |
-| Public client | One that can't keep a secret, like a browser app |
-| Confidential client | One with a secret, like a server |
-| Service account | A client signing in as itself, not as a person |
-| OIDC | OpenID Connect - the sign-in standard on top of OAuth 2 |
-| PKCE | Proof Key for Code Exchange - stops a stolen sign-in code being used |
-| JWT | JSON Web Token - a signed token holding claims about the user |
-| Claim | One fact in a token - `sub`, `name`, `aud` |
-| Audience (`aud`) | Who a token is meant for. Ours is `diss-api` |
-| Issuer (`iss`) | Who made the token - the realm's address |
-| Refresh token | A longer-lived token used to get new access tokens without signing in again |
+| Term                | Meaning                                                                     |
+| ------------------- | --------------------------------------------------------------------------- |
+| Keycloak            | Open-source identity server - sign-in, users, tokens                        |
+| Realm               | One separate set of users, clients and settings in Keycloak                 |
+| Client              | An app Keycloak knows about and issues tokens for                           |
+| Public client       | One that can't keep a secret, like a browser app                            |
+| Confidential client | One with a secret, like a server                                            |
+| Service account     | A client signing in as itself, not as a person                              |
+| OIDC                | OpenID Connect - the sign-in standard on top of OAuth 2                     |
+| PKCE                | Proof Key for Code Exchange - stops a stolen sign-in code being used        |
+| JWT                 | JSON Web Token - a signed token holding claims about the user               |
+| Claim               | One fact in a token - `sub`, `name`, `aud`                                  |
+| Audience (`aud`)    | Who a token is meant for. Ours is `diss-api`                                |
+| Issuer (`iss`)      | Who made the token - the realm's address                                    |
+| Refresh token       | A longer-lived token used to get new access tokens without signing in again |

@@ -1,1 +1,188 @@
-{"runs": {"settings": {"store": "http://localhost:5253", "hub": "http://localhost:5181/hubs/slides", "slide": "003", "people": [2, 6, 12, 25, 50], "ops": 300, "ops_per_second": 5, "viewports": [0, 2], "out": "C:/Users/EWAN~1.MAC/AppData/Local/Temp/claude/9bf784045dc31b2a/f528f1f0-df66-4737-aace-845803f07f29/scratchpad/eval/latency.json", "keycloak": "http://localhost:8080/auth", "realm": "diss", "username": "alice", "admin_user": "admin"}, "results": [{"people": 2, "viewportsPerSecond": 0, "ops": 300, "received": 300, "expected": 300, "opsNotReachingEveryone": 0, "toEveryone": {"count": 300, "median": 1.2707999999984168, "p95": 2.83849999999984, "p99": 4.573200000000725, "max": 5.0517000000036205}, "wholeRoom": {"count": 300, "median": 1.2707999999984168, "p95": 2.83849999999984, "p99": 4.573200000000725, "max": 5.0517000000036205}, "toHub": {"count": 300, "median": 1, "p95": 2, "p99": 4, "max": 5}, "fromHub": {"count": 300, "median": 0, "p95": 1, "p99": 2, "max": 4}}, {"people": 6, "viewportsPerSecond": 0, "ops": 300, "received": 1500, "expected": 1500, "opsNotReachingEveryone": 0, "toEveryone": {"count": 1500, "median": 1.3594000000011874, "p95": 2.939299999998184, "p99": 5.686499999999796, "max": 6.62050000000454}, "wholeRoom": {"count": 300, "median": 1.5487999999968451, "p95": 3.3022000000000844, "p99": 5.9583999999995285, "max": 6.62050000000454}, "toHub": {"count": 300, "median": 1, "p95": 2, "p99": 4, "max": 6}, "fromHub": {"count": 1500, "median": 0, "p95": 1, "p99": 2, "max": 5}}, {"people": 12, "viewportsPerSecond": 0, "ops": 300, "received": 3300, "expected": 3300, "opsNotReachingEveryone": 0, "toEveryone": {"count": 3300, "median": 1.5181999999995242, "p95": 3.0652999999947497, "p99": 7.816899999997986, "max": 24.198499999998603}, "wholeRoom": {"count": 300, "median": 1.8413999999993393, "p95": 3.4769999999989523, "p99": 8.014500000001135, "max": 24.198499999998603}, "toHub": {"count": 300, "median": 2, "p95": 3, "p99": 7, "max": 20}, "fromHub": {"count": 3300, "median": 0, "p95": 1, "p99": 2, "max": 4}}, {"people": 25, "viewportsPerSecond": 0, "ops": 300, "received": 7200, "expected": 7200, "opsNotReachingEveryone": 0, "toEveryone": {"count": 7200, "median": 1.75, "p95": 3.713400000000547, "p99": 7.8585000000020955, "max": 11.857700000000477}, "wholeRoom": {"count": 300, "median": 2.3563999999969383, "p95": 4.384500000000116, "p99": 8.314800000000105, "max": 11.857700000000477}, "toHub": {"count": 300, "median": 1, "p95": 2, "p99": 4, "max": 7}, "fromHub": {"count": 7200, "median": 1, "p95": 2, "p99": 4, "max": 10}}, {"people": 50, "viewportsPerSecond": 0, "ops": 300, "received": 14700, "expected": 14700, "opsNotReachingEveryone": 0, "toEveryone": {"count": 14700, "median": 2.5040999999982887, "p95": 6.6635000000023865, "p99": 9.383099999999104, "max": 18.55359999999928}, "wholeRoom": {"count": 300, "median": 3.5385999999998603, "p95": 8.957599999994272, "p99": 12.135999999998603, "max": 18.55359999999928}, "toHub": {"count": 300, "median": 2, "p95": 3, "p99": 5, "max": 7}, "fromHub": {"count": 14700, "median": 1, "p95": 4, "p99": 6, "max": 12}}, {"people": 2, "viewportsPerSecond": 2, "ops": 300, "received": 300, "expected": 300, "opsNotReachingEveryone": 0, "toEveryone": {"count": 300, "median": 1.159299999999348, "p95": 2.7960000000020955, "p99": 4.69090000000142, "max": 6.588400000000547}, "wholeRoom": {"count": 300, "median": 1.159299999999348, "p95": 2.7960000000020955, "p99": 4.69090000000142, "max": 6.588400000000547}, "toHub": {"count": 300, "median": 1, "p95": 2, "p99": 3, "max": 5}, "fromHub": {"count": 300, "median": 0, "p95": 1, "p99": 2, "max": 3}}, {"people": 6, "viewportsPerSecond": 2, "ops": 300, "received": 1500, "expected": 1500, "opsNotReachingEveryone": 0, "toEveryone": {"count": 1500, "median": 1.2854999999981374, "p95": 2.774400000000014, "p99": 5.415399999999863, "max": 9.14220000000023}, "wholeRoom": {"count": 300, "median": 1.431300000000192, "p95": 3.300699999999779, "p99": 5.415399999999863, "max": 9.14220000000023}, "toHub": {"count": 300, "median": 1, "p95": 2, "p99": 4, "max": 8}, "fromHub": {"count": 1500, "median": 0, "p95": 1, "p99": 2, "max": 3}}, {"people": 12, "viewportsPerSecond": 2, "ops": 300, "received": 3300, "expected": 3300, "opsNotReachingEveryone": 0, "toEveryone": {"count": 3300, "median": 1.3466000000044005, "p95": 2.992900000004738, "p99": 9.540699999997742, "max": 19.89549999999872}, "wholeRoom": {"count": 300, "median": 1.582799999996496, "p95": 3.5843000000004395, "p99": 9.843300000000454, "max": 19.89549999999872}, "toHub": {"count": 300, "median": 1, "p95": 2, "p99": 4, "max": 18}, "fromHub": {"count": 3300, "median": 1, "p95": 2, "p99": 3, "max": 7}}, {"people": 25, "viewportsPerSecond": 2, "ops": 300, "received": 7200, "expected": 7200, "opsNotReachingEveryone": 0, "toEveryone": {"count": 7200, "median": 1.7947999999996682, "p95": 5.687900000004447, "p99": 9.508499999996275, "max": 13.645199999999022}, "wholeRoom": {"count": 300, "median": 2.3166000000001077, "p95": 7.430399999997462, "p99": 12.035599999999931, "max": 13.645199999999022}, "toHub": {"count": 300, "median": 1, "p95": 3, "p99": 5, "max": 8}, "fromHub": {"count": 7200, "median": 1, "p95": 3, "p99": 6, "max": 11}}, {"people": 50, "viewportsPerSecond": 2, "ops": 300, "received": 14700, "expected": 14700, "opsNotReachingEveryone": 0, "toEveryone": {"count": 14700, "median": 1.9928999999974621, "p95": 5.714700000000448, "p99": 8.794899999993504, "max": 20.112999999999374}, "wholeRoom": {"count": 300, "median": 2.694000000003143, "p95": 8.618500000000495, "p99": 10.541600000000471, "max": 20.112999999999374}, "toHub": {"count": 300, "median": 1, "p95": 2, "p99": 4, "max": 4}, "fromHub": {"count": 14700, "median": 1, "p95": 4, "p99": 7, "max": 16}}]}, "viewport_check": {"settings": {"store": "http://localhost:5253", "hub": "http://localhost:5181/hubs/slides", "slide": "003", "people": [2, 50], "ops": 200, "ops_per_second": 5, "viewports": [2.0], "out": "C:/Users/EWAN~1.MAC/AppData/Local/Temp/claude/9bf784045dc31b2a/f528f1f0-df66-4737-aace-845803f07f29/scratchpad/eval/latency_check.json", "keycloak": "http://localhost:8080/auth", "realm": "diss", "username": "alice", "admin_user": "admin"}, "results": [{"people": 2, "viewportsPerSecond": 2, "ops": 200, "received": 200, "expected": 200, "opsNotReachingEveryone": 0, "viewportsSent": 174, "viewportsReceived": 174, "viewportErrors": 0, "toEveryone": {"count": 200, "median": 1.2971999999936088, "p95": 4.037999999999556, "p99": 7.793900000004214, "max": 14.374400000000605}, "wholeRoom": {"count": 200, "median": 1.2971999999936088, "p95": 4.037999999999556, "p99": 7.793900000004214, "max": 14.374400000000605}, "toHub": {"count": 200, "median": 1, "p95": 3, "p99": 7, "max": 14}, "fromHub": {"count": 200, "median": 0, "p95": 1, "p99": 2, "max": 3}}, {"people": 50, "viewportsPerSecond": 2, "ops": 200, "received": 9800, "expected": 9800, "opsNotReachingEveryone": 0, "viewportsSent": 4450, "viewportsReceived": 218050, "viewportErrors": 0, "toEveryone": {"count": 9800, "median": 1.917700000001787, "p95": 5.504300000000512, "p99": 12.142500000001746, "max": 18.61239999999998}, "wholeRoom": {"count": 200, "median": 2.672099999996135, "p95": 10.030900000005204, "p99": 15.028599999997823, "max": 18.61239999999998}, "toHub": {"count": 200, "median": 1, "p95": 2, "p99": 2, "max": 2}, "fromHub": {"count": 9800, "median": 1, "p95": 4, "p99": 11, "max": 17}}]}}
+{
+	"runs": {
+		"settings": {
+			"store": "http://localhost:5253",
+			"hub": "http://localhost:5181/hubs/slides",
+			"slide": "003",
+			"people": [2, 6, 12, 25, 50],
+			"ops": 300,
+			"ops_per_second": 5,
+			"viewports": [0, 2],
+			"out": "C:/Users/EWAN~1.MAC/AppData/Local/Temp/claude/9bf784045dc31b2a/f528f1f0-df66-4737-aace-845803f07f29/scratchpad/eval/latency.json",
+			"keycloak": "http://localhost:8080/auth",
+			"realm": "diss",
+			"username": "alice",
+			"admin_user": "admin"
+		},
+		"results": [
+			{
+				"people": 2,
+				"viewportsPerSecond": 0,
+				"ops": 300,
+				"received": 300,
+				"expected": 300,
+				"opsNotReachingEveryone": 0,
+				"toEveryone": { "count": 300, "median": 1.2707999999984168, "p95": 2.83849999999984, "p99": 4.573200000000725, "max": 5.0517000000036205 },
+				"wholeRoom": { "count": 300, "median": 1.2707999999984168, "p95": 2.83849999999984, "p99": 4.573200000000725, "max": 5.0517000000036205 },
+				"toHub": { "count": 300, "median": 1, "p95": 2, "p99": 4, "max": 5 },
+				"fromHub": { "count": 300, "median": 0, "p95": 1, "p99": 2, "max": 4 }
+			},
+			{
+				"people": 6,
+				"viewportsPerSecond": 0,
+				"ops": 300,
+				"received": 1500,
+				"expected": 1500,
+				"opsNotReachingEveryone": 0,
+				"toEveryone": { "count": 1500, "median": 1.3594000000011874, "p95": 2.939299999998184, "p99": 5.686499999999796, "max": 6.62050000000454 },
+				"wholeRoom": { "count": 300, "median": 1.5487999999968451, "p95": 3.3022000000000844, "p99": 5.9583999999995285, "max": 6.62050000000454 },
+				"toHub": { "count": 300, "median": 1, "p95": 2, "p99": 4, "max": 6 },
+				"fromHub": { "count": 1500, "median": 0, "p95": 1, "p99": 2, "max": 5 }
+			},
+			{
+				"people": 12,
+				"viewportsPerSecond": 0,
+				"ops": 300,
+				"received": 3300,
+				"expected": 3300,
+				"opsNotReachingEveryone": 0,
+				"toEveryone": { "count": 3300, "median": 1.5181999999995242, "p95": 3.0652999999947497, "p99": 7.816899999997986, "max": 24.198499999998603 },
+				"wholeRoom": { "count": 300, "median": 1.8413999999993393, "p95": 3.4769999999989523, "p99": 8.014500000001135, "max": 24.198499999998603 },
+				"toHub": { "count": 300, "median": 2, "p95": 3, "p99": 7, "max": 20 },
+				"fromHub": { "count": 3300, "median": 0, "p95": 1, "p99": 2, "max": 4 }
+			},
+			{
+				"people": 25,
+				"viewportsPerSecond": 0,
+				"ops": 300,
+				"received": 7200,
+				"expected": 7200,
+				"opsNotReachingEveryone": 0,
+				"toEveryone": { "count": 7200, "median": 1.75, "p95": 3.713400000000547, "p99": 7.8585000000020955, "max": 11.857700000000477 },
+				"wholeRoom": { "count": 300, "median": 2.3563999999969383, "p95": 4.384500000000116, "p99": 8.314800000000105, "max": 11.857700000000477 },
+				"toHub": { "count": 300, "median": 1, "p95": 2, "p99": 4, "max": 7 },
+				"fromHub": { "count": 7200, "median": 1, "p95": 2, "p99": 4, "max": 10 }
+			},
+			{
+				"people": 50,
+				"viewportsPerSecond": 0,
+				"ops": 300,
+				"received": 14700,
+				"expected": 14700,
+				"opsNotReachingEveryone": 0,
+				"toEveryone": { "count": 14700, "median": 2.5040999999982887, "p95": 6.6635000000023865, "p99": 9.383099999999104, "max": 18.55359999999928 },
+				"wholeRoom": { "count": 300, "median": 3.5385999999998603, "p95": 8.957599999994272, "p99": 12.135999999998603, "max": 18.55359999999928 },
+				"toHub": { "count": 300, "median": 2, "p95": 3, "p99": 5, "max": 7 },
+				"fromHub": { "count": 14700, "median": 1, "p95": 4, "p99": 6, "max": 12 }
+			},
+			{
+				"people": 2,
+				"viewportsPerSecond": 2,
+				"ops": 300,
+				"received": 300,
+				"expected": 300,
+				"opsNotReachingEveryone": 0,
+				"toEveryone": { "count": 300, "median": 1.159299999999348, "p95": 2.7960000000020955, "p99": 4.69090000000142, "max": 6.588400000000547 },
+				"wholeRoom": { "count": 300, "median": 1.159299999999348, "p95": 2.7960000000020955, "p99": 4.69090000000142, "max": 6.588400000000547 },
+				"toHub": { "count": 300, "median": 1, "p95": 2, "p99": 3, "max": 5 },
+				"fromHub": { "count": 300, "median": 0, "p95": 1, "p99": 2, "max": 3 }
+			},
+			{
+				"people": 6,
+				"viewportsPerSecond": 2,
+				"ops": 300,
+				"received": 1500,
+				"expected": 1500,
+				"opsNotReachingEveryone": 0,
+				"toEveryone": { "count": 1500, "median": 1.2854999999981374, "p95": 2.774400000000014, "p99": 5.415399999999863, "max": 9.14220000000023 },
+				"wholeRoom": { "count": 300, "median": 1.431300000000192, "p95": 3.300699999999779, "p99": 5.415399999999863, "max": 9.14220000000023 },
+				"toHub": { "count": 300, "median": 1, "p95": 2, "p99": 4, "max": 8 },
+				"fromHub": { "count": 1500, "median": 0, "p95": 1, "p99": 2, "max": 3 }
+			},
+			{
+				"people": 12,
+				"viewportsPerSecond": 2,
+				"ops": 300,
+				"received": 3300,
+				"expected": 3300,
+				"opsNotReachingEveryone": 0,
+				"toEveryone": { "count": 3300, "median": 1.3466000000044005, "p95": 2.992900000004738, "p99": 9.540699999997742, "max": 19.89549999999872 },
+				"wholeRoom": { "count": 300, "median": 1.582799999996496, "p95": 3.5843000000004395, "p99": 9.843300000000454, "max": 19.89549999999872 },
+				"toHub": { "count": 300, "median": 1, "p95": 2, "p99": 4, "max": 18 },
+				"fromHub": { "count": 3300, "median": 1, "p95": 2, "p99": 3, "max": 7 }
+			},
+			{
+				"people": 25,
+				"viewportsPerSecond": 2,
+				"ops": 300,
+				"received": 7200,
+				"expected": 7200,
+				"opsNotReachingEveryone": 0,
+				"toEveryone": { "count": 7200, "median": 1.7947999999996682, "p95": 5.687900000004447, "p99": 9.508499999996275, "max": 13.645199999999022 },
+				"wholeRoom": { "count": 300, "median": 2.3166000000001077, "p95": 7.430399999997462, "p99": 12.035599999999931, "max": 13.645199999999022 },
+				"toHub": { "count": 300, "median": 1, "p95": 3, "p99": 5, "max": 8 },
+				"fromHub": { "count": 7200, "median": 1, "p95": 3, "p99": 6, "max": 11 }
+			},
+			{
+				"people": 50,
+				"viewportsPerSecond": 2,
+				"ops": 300,
+				"received": 14700,
+				"expected": 14700,
+				"opsNotReachingEveryone": 0,
+				"toEveryone": { "count": 14700, "median": 1.9928999999974621, "p95": 5.714700000000448, "p99": 8.794899999993504, "max": 20.112999999999374 },
+				"wholeRoom": { "count": 300, "median": 2.694000000003143, "p95": 8.618500000000495, "p99": 10.541600000000471, "max": 20.112999999999374 },
+				"toHub": { "count": 300, "median": 1, "p95": 2, "p99": 4, "max": 4 },
+				"fromHub": { "count": 14700, "median": 1, "p95": 4, "p99": 7, "max": 16 }
+			}
+		]
+	},
+	"viewport_check": {
+		"settings": {
+			"store": "http://localhost:5253",
+			"hub": "http://localhost:5181/hubs/slides",
+			"slide": "003",
+			"people": [2, 50],
+			"ops": 200,
+			"ops_per_second": 5,
+			"viewports": [2.0],
+			"out": "C:/Users/EWAN~1.MAC/AppData/Local/Temp/claude/9bf784045dc31b2a/f528f1f0-df66-4737-aace-845803f07f29/scratchpad/eval/latency_check.json",
+			"keycloak": "http://localhost:8080/auth",
+			"realm": "diss",
+			"username": "alice",
+			"admin_user": "admin"
+		},
+		"results": [
+			{
+				"people": 2,
+				"viewportsPerSecond": 2,
+				"ops": 200,
+				"received": 200,
+				"expected": 200,
+				"opsNotReachingEveryone": 0,
+				"viewportsSent": 174,
+				"viewportsReceived": 174,
+				"viewportErrors": 0,
+				"toEveryone": { "count": 200, "median": 1.2971999999936088, "p95": 4.037999999999556, "p99": 7.793900000004214, "max": 14.374400000000605 },
+				"wholeRoom": { "count": 200, "median": 1.2971999999936088, "p95": 4.037999999999556, "p99": 7.793900000004214, "max": 14.374400000000605 },
+				"toHub": { "count": 200, "median": 1, "p95": 3, "p99": 7, "max": 14 },
+				"fromHub": { "count": 200, "median": 0, "p95": 1, "p99": 2, "max": 3 }
+			},
+			{
+				"people": 50,
+				"viewportsPerSecond": 2,
+				"ops": 200,
+				"received": 9800,
+				"expected": 9800,
+				"opsNotReachingEveryone": 0,
+				"viewportsSent": 4450,
+				"viewportsReceived": 218050,
+				"viewportErrors": 0,
+				"toEveryone": { "count": 9800, "median": 1.917700000001787, "p95": 5.504300000000512, "p99": 12.142500000001746, "max": 18.61239999999998 },
+				"wholeRoom": { "count": 200, "median": 2.672099999996135, "p95": 10.030900000005204, "p99": 15.028599999997823, "max": 18.61239999999998 },
+				"toHub": { "count": 200, "median": 1, "p95": 2, "p99": 2, "max": 2 },
+				"fromHub": { "count": 9800, "median": 1, "p95": 4, "p99": 11, "max": 17 }
+			}
+		]
+	}
+}

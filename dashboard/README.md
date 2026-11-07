@@ -28,13 +28,13 @@ listening, so the services run the same with or without it.
 
 Pick one or both services at the top. Refreshes every 5 seconds.
 
-| Row       | Shows                                                                 |
-|-----------|-----------------------------------------------------------------------|
-| Load      | requests / sec, requests in flight, slowest-5% time, server error %   |
-| Timing    | request time - median, slowest 5% (p95), slowest 1% (p99)             |
-| Endpoints | table of every route - request count, rate, median and p95 time       |
-| Errors    | 4xx and 5xx per minute, by status code                                |
-| Machine   | CPU (% of all cores), memory, thread pool threads, GC pause time      |
+| Row       | Shows                                                                                                     |
+| --------- | --------------------------------------------------------------------------------------------------------- |
+| Load      | requests / sec, requests in flight, slowest-5% time, server error %                                       |
+| Timing    | request time - median, slowest 5% (p95), slowest 1% (p99)                                                 |
+| Endpoints | table of every route - request count, rate, median and p95 time                                           |
+| Errors    | 4xx and 5xx per minute, by status code                                                                    |
+| Machine   | CPU (% of all cores), memory, thread pool threads, GC pause time                                          |
 | Edits     | saves over someone else's change per minute - refused (first change wins) or overwrote (last change wins) |
 
 Hover the (i) next to a panel's title for what it means.
@@ -54,10 +54,10 @@ over `services.json`, then `docker compose restart`.
 
 ## What the services send
 
-| Service            | Metrics                                         | Traces                 | Logs |
-|--------------------|-------------------------------------------------|------------------------|------|
-| `tiler`            | ASP.NET requests, Kestrel, .NET runtime (CPU, memory, GC, threads) | every incoming request | yes  |
-| `annotation-store` | same                                            | every incoming request | yes  |
+| Service            | Metrics                                                                                                      | Traces                 | Logs |
+| ------------------ | ------------------------------------------------------------------------------------------------------------ | ---------------------- | ---- |
+| `tiler`            | ASP.NET requests, Kestrel, .NET runtime (CPU, memory, GC, threads)                                           | every incoming request | yes  |
+| `annotation-store` | same                                                                                                         | every incoming request | yes  |
 | `messaging`        | same, and messages sent and things added, by kind (`messaging.messages_sent`, `messaging.attachments_added`) | every incoming request | yes  |
 
 Metrics are sent every 5 seconds. Traces and logs are in Grafana's
@@ -75,11 +75,11 @@ Telemetry__Console=true dotnet run --urls http://0.0.0.0:5095
 
 ## Ports
 
-| Port | What                                        |
-|------|---------------------------------------------|
-| 3000 | Grafana                                     |
-| 4317 | OTLP over gRPC - what the services send to  |
-| 4318 | OTLP over HTTP - for browser tracing later  |
+| Port | What                                       |
+| ---- | ------------------------------------------ |
+| 3000 | Grafana                                    |
+| 4317 | OTLP over gRPC - what the services send to |
+| 4318 | OTLP over HTTP - for browser tracing later |
 
 Data lives inside the container. `docker compose down` then `up` starts
 it empty.

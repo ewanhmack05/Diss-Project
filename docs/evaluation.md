@@ -41,26 +41,26 @@ first change wins, they put theirs over it half the time. From
 [eval_conflicts.py](../scripts/eval_conflicts.py) and
 [simulate_conflicts.py](../scripts/simulate_conflicts.py).
 
-| Policy | People | Notice | Saves | Collided | Silently lost | Turned down | Asked per person per minute | Median save |
-|---|---|---|---|---|---|---|---|---|
-| First change wins | 2 | 0.5s | 81 | 2 (2.4% ± 2.1) | 0 | 2 | 0.33 | 72ms |
-| First change wins | 2 | 2s | 85 | 12 (14.1% ± 3.3) | 0 | 12 | 2.00 | 71ms |
-| First change wins | 2 | 5s | 97 | 23 (23.7% ± 1.0) | 0 | 23 | 3.83 | 69ms |
-| First change wins | 6 | 0.5s | 280 | 50 (17.9% ± 1.0) | 0 | 50 | 2.78 | 74ms |
-| First change wins | 6 | 2s | 314 | 112 (35.7% ± 1.4) | 0 | 112 | 6.22 | 64ms |
-| First change wins | 6 | 5s | 338 | 159 (47.0% ± 0.2) | 0 | 159 | 8.83 | 28ms |
-| First change wins | 12 | 0.5s | 580 | 154 (26.5% ± 1.2) | 0 | 154 | 4.28 | 68ms |
-| First change wins | 12 | 2s | 651 | 308 (47.3% ± 2.4) | 0 | 308 | 8.56 | 45ms |
-| First change wins | 12 | 5s | 691 | 370 (53.5% ± 0.2) | 0 | 370 | 10.28 | 32ms |
-| Last change wins | 2 | 0.5s | 81 | 4 (5.2% ± 6.1) | 4 | 0 | 0.00 | 74ms |
-| Last change wins | 2 | 2s | 81 | 11 (13.4% ± 7.2) | 11 | 0 | 0.00 | 72ms |
-| Last change wins | 2 | 5s | 83 | 23 (27.8% ± 8.0) | 23 | 0 | 0.00 | 73ms |
-| Last change wins | 6 | 0.5s | 252 | 44 (17.4% ± 3.4) | 44 | 0 | 0.00 | 70ms |
-| Last change wins | 6 | 2s | 251 | 128 (51.0% ± 0.4) | 128 | 0 | 0.00 | 70ms |
-| Last change wins | 6 | 5s | 251 | 166 (66.1% ± 0.8) | 166 | 0 | 0.00 | 70ms |
-| Last change wins | 12 | 0.5s | 503 | 167 (33.2% ± 2.0) | 167 | 0 | 0.00 | 79ms |
-| Last change wins | 12 | 2s | 500 | 337 (67.4% ± 4.3) | 337 | 0 | 0.00 | 78ms |
-| Last change wins | 12 | 5s | 503 | 367 (73.0% ± 4.9) | 367 | 0 | 0.00 | 72ms |
+| Policy            | People | Notice | Saves | Collided          | Silently lost | Turned down | Asked per person per minute | Median save |
+| ----------------- | ------ | ------ | ----- | ----------------- | ------------- | ----------- | --------------------------- | ----------- |
+| First change wins | 2      | 0.5s   | 81    | 2 (2.4% ± 2.1)    | 0             | 2           | 0.33                        | 72ms        |
+| First change wins | 2      | 2s     | 85    | 12 (14.1% ± 3.3)  | 0             | 12          | 2.00                        | 71ms        |
+| First change wins | 2      | 5s     | 97    | 23 (23.7% ± 1.0)  | 0             | 23          | 3.83                        | 69ms        |
+| First change wins | 6      | 0.5s   | 280   | 50 (17.9% ± 1.0)  | 0             | 50          | 2.78                        | 74ms        |
+| First change wins | 6      | 2s     | 314   | 112 (35.7% ± 1.4) | 0             | 112         | 6.22                        | 64ms        |
+| First change wins | 6      | 5s     | 338   | 159 (47.0% ± 0.2) | 0             | 159         | 8.83                        | 28ms        |
+| First change wins | 12     | 0.5s   | 580   | 154 (26.5% ± 1.2) | 0             | 154         | 4.28                        | 68ms        |
+| First change wins | 12     | 2s     | 651   | 308 (47.3% ± 2.4) | 0             | 308         | 8.56                        | 45ms        |
+| First change wins | 12     | 5s     | 691   | 370 (53.5% ± 0.2) | 0             | 370         | 10.28                       | 32ms        |
+| Last change wins  | 2      | 0.5s   | 81    | 4 (5.2% ± 6.1)    | 4             | 0           | 0.00                        | 74ms        |
+| Last change wins  | 2      | 2s     | 81    | 11 (13.4% ± 7.2)  | 11            | 0           | 0.00                        | 72ms        |
+| Last change wins  | 2      | 5s     | 83    | 23 (27.8% ± 8.0)  | 23            | 0           | 0.00                        | 73ms        |
+| Last change wins  | 6      | 0.5s   | 252   | 44 (17.4% ± 3.4)  | 44            | 0           | 0.00                        | 70ms        |
+| Last change wins  | 6      | 2s     | 251   | 128 (51.0% ± 0.4) | 128           | 0           | 0.00                        | 70ms        |
+| Last change wins  | 6      | 5s     | 251   | 166 (66.1% ± 0.8) | 166           | 0           | 0.00                        | 70ms        |
+| Last change wins  | 12     | 0.5s   | 503   | 167 (33.2% ± 2.0) | 167           | 0           | 0.00                        | 79ms        |
+| Last change wins  | 12     | 2s     | 500   | 337 (67.4% ± 4.3) | 337           | 0           | 0.00                        | 78ms        |
+| Last change wins  | 12     | 5s     | 503   | 367 (73.0% ± 4.9) | 367           | 0           | 0.00                        | 72ms        |
 
 The ± is the standard deviation between the 3 runs.
 
@@ -90,16 +90,16 @@ replaces the last. 120 seconds of typing, 5 seeds each. From
 [eval_text_merge.mjs](../scripts/eval_text_merge.mjs).
 
 | People | Notice | Words typed | Yjs: letters kept | Yjs: words intact | Last save: letters kept | Last save: words intact |
-|---|---|---|---|---|---|---|
-| 2 | 0.5s | 47 | 100.0% | 100.0% | 55.8% | 55.9% |
-| 2 | 2s | 47 | 100.0% | 99.6% | 52.0% | 51.9% |
-| 2 | 5s | 47 | 100.0% | 100.0% | 51.6% | 51.5% |
-| 6 | 0.5s | 140 | 100.0% | 99.9% | 26.8% | 26.8% |
-| 6 | 2s | 140 | 100.0% | 99.7% | 19.2% | 19.2% |
-| 6 | 5s | 140 | 100.0% | 100.0% | 16.6% | 16.6% |
-| 12 | 0.5s | 278 | 100.0% | 99.9% | 15.2% | 15.2% |
-| 12 | 2s | 278 | 100.0% | 99.9% | 10.5% | 10.5% |
-| 12 | 5s | 278 | 100.0% | 100.0% | 8.5% | 8.4% |
+| ------ | ------ | ----------- | ----------------- | ----------------- | ----------------------- | ----------------------- |
+| 2      | 0.5s   | 47          | 100.0%            | 100.0%            | 55.8%                   | 55.9%                   |
+| 2      | 2s     | 47          | 100.0%            | 99.6%             | 52.0%                   | 51.9%                   |
+| 2      | 5s     | 47          | 100.0%            | 100.0%            | 51.6%                   | 51.5%                   |
+| 6      | 0.5s   | 140         | 100.0%            | 99.9%             | 26.8%                   | 26.8%                   |
+| 6      | 2s     | 140         | 100.0%            | 99.7%             | 19.2%                   | 19.2%                   |
+| 6      | 5s     | 140         | 100.0%            | 100.0%            | 16.6%                   | 16.6%                   |
+| 12     | 0.5s   | 278         | 100.0%            | 99.9%             | 15.2%                   | 15.2%                   |
+| 12     | 2s     | 278         | 100.0%            | 99.9%             | 10.5%                   | 10.5%                   |
+| 12     | 5s     | 278         | 100.0%            | 100.0%            | 8.5%                    | 8.4%                    |
 
 - **Yjs never lost a letter, and everyone ended with the same text**, in every run.
 - **A plain box loses most of it** past two people, since someone with unsaved typing saves over
@@ -118,18 +118,18 @@ One person sends an annotation op 5 times a second, 300 in all, through the real
 and everyone else in the room times it arriving. From
 [eval_latency.py](../scripts/eval_latency.py) and [eval_latency.mjs](../scripts/eval_latency.mjs).
 
-| People | Viewports moving | Median to each person | 95% | 99% | Median to whole room | 95% whole room | Ops missing |
-|---|---|---|---|---|---|---|---|
-| 2 | None | 1.3ms | 2.8ms | 4.6ms | 1.3ms | 2.8ms | 0 |
-| 6 | None | 1.4ms | 2.9ms | 5.7ms | 1.5ms | 3.3ms | 0 |
-| 12 | None | 1.5ms | 3.1ms | 7.8ms | 1.8ms | 3.5ms | 0 |
-| 25 | None | 1.8ms | 3.7ms | 7.9ms | 2.4ms | 4.4ms | 0 |
-| 50 | None | 2.5ms | 6.7ms | 9.4ms | 3.5ms | 9.0ms | 0 |
-| 2 | 2/s each | 1.2ms | 2.8ms | 4.7ms | 1.2ms | 2.8ms | 0 |
-| 6 | 2/s each | 1.3ms | 2.8ms | 5.4ms | 1.4ms | 3.3ms | 0 |
-| 12 | 2/s each | 1.3ms | 3.0ms | 9.5ms | 1.6ms | 3.6ms | 0 |
-| 25 | 2/s each | 1.8ms | 5.7ms | 9.5ms | 2.3ms | 7.4ms | 0 |
-| 50 | 2/s each | 2.0ms | 5.7ms | 8.8ms | 2.7ms | 8.6ms | 0 |
+| People | Viewports moving | Median to each person | 95%   | 99%   | Median to whole room | 95% whole room | Ops missing |
+| ------ | ---------------- | --------------------- | ----- | ----- | -------------------- | -------------- | ----------- |
+| 2      | None             | 1.3ms                 | 2.8ms | 4.6ms | 1.3ms                | 2.8ms          | 0           |
+| 6      | None             | 1.4ms                 | 2.9ms | 5.7ms | 1.5ms                | 3.3ms          | 0           |
+| 12     | None             | 1.5ms                 | 3.1ms | 7.8ms | 1.8ms                | 3.5ms          | 0           |
+| 25     | None             | 1.8ms                 | 3.7ms | 7.9ms | 2.4ms                | 4.4ms          | 0           |
+| 50     | None             | 2.5ms                 | 6.7ms | 9.4ms | 3.5ms                | 9.0ms          | 0           |
+| 2      | 2/s each         | 1.2ms                 | 2.8ms | 4.7ms | 1.2ms                | 2.8ms          | 0           |
+| 6      | 2/s each         | 1.3ms                 | 2.8ms | 5.4ms | 1.4ms                | 3.3ms          | 0           |
+| 12     | 2/s each         | 1.3ms                 | 3.0ms | 9.5ms | 1.6ms                | 3.6ms          | 0           |
+| 25     | 2/s each         | 1.8ms                 | 5.7ms | 9.5ms | 2.3ms                | 7.4ms          | 0           |
+| 50     | 2/s each         | 2.0ms                 | 5.7ms | 8.8ms | 2.7ms                | 8.6ms          | 0           |
 
 - **It barely grows with the room.** Going from 2 to 50 people adds about a millisecond to the median.
 - **No op was lost** in any run: all 54,000 deliveries expected arrived.
@@ -148,12 +148,12 @@ makes these worse rather than better than the hub alone.
 
 Average sizes from Postgres, across about 600,000 entries:
 
-| Thing | Size | |
-|---|---|---|
-| An annotation, live | 1,325 bytes | A 120-point freehand line |
-| An entry for an edit | 150 bytes | Only the columns that changed |
-| An entry for a create | 98 bytes | Nothing but which row |
-| An entry for a delete | 1,630 bytes | The whole row, so it can come back |
+| Thing                            | Size                        |                                              |
+| -------------------------------- | --------------------------- | -------------------------------------------- |
+| An annotation, live              | 1,325 bytes                 | A 120-point freehand line                    |
+| An entry for an edit             | 150 bytes                   | Only the columns that changed                |
+| An entry for a create            | 98 bytes                    | Nothing but which row                        |
+| An entry for a delete            | 1,630 bytes                 | The whole row, so it can come back           |
 | A snapshot of 20,000 annotations | 820KB stored, 2.2MB of JSON | What can change, against 25MB for whole rows |
 
 So a thousand edits cost about 150KB, and a thousand deletes about the same as the rows did. Nothing's purged
@@ -163,21 +163,21 @@ yet, so it only grows, and indexes add about 10% on top.
 
 A collection of 20,000 annotations, working out a rollback to a point 140,000 entries ago, with a snapshot 20,000 entries after that point. Median of 5:
 
-| Worked out from | Entries undone | Median |
-|---|---|---|
-| What's there now | 140,000 | 953ms |
-| A snapshot | 20,000 | 331ms |
+| Worked out from  | Entries undone | Median |
+| ---------------- | -------------- | ------ |
+| What's there now | 140,000        | 953ms  |
+| A snapshot       | 20,000         | 331ms  |
 
 Actually doing one, 5 runs of each, from [time_rollback.py](../scripts/time_rollback.py):
 
-| Rows changed | Change undone | Median | Fastest | Slowest |
-|---|---|---|---|---|
-| 1 | Recolour undone | 301ms | 275ms | 486ms |
-| 1 | Delete undone | 329ms | 241ms | 453ms |
-| 1,000 | Recolour undone | 575ms | 436ms | 772ms |
-| 1,000 | Delete undone | 564ms | 528ms | 820ms |
-| 20,000 | Recolour undone | 1,591ms | 1,460ms | 3,032ms |
-| 20,000 | Delete undone | 7,215ms | 6,788ms | 7,865ms |
+| Rows changed | Change undone   | Median  | Fastest | Slowest |
+| ------------ | --------------- | ------- | ------- | ------- |
+| 1            | Recolour undone | 301ms   | 275ms   | 486ms   |
+| 1            | Delete undone   | 329ms   | 241ms   | 453ms   |
+| 1,000        | Recolour undone | 575ms   | 436ms   | 772ms   |
+| 1,000        | Delete undone   | 564ms   | 528ms   | 820ms   |
+| 20,000       | Recolour undone | 1,591ms | 1,460ms | 3,032ms |
+| 20,000       | Delete undone   | 7,215ms | 6,788ms | 7,865ms |
 
 - **Most of a small rollback is working it out**, which reads the whole collection however little changed. It's
   about 300ms for one row in 20,000.
@@ -195,15 +195,15 @@ Saved annotations drawn by OpenLayers' WebGL layer against its canvas layer, wit
 laptop's integrated graphics, in a 762x726 window. Each ran 3 times, the first as a warm-up,
 so each cell is the 2 runs after that (fps) or their mean (frame times).
 
-| Step | WebGL fps | Canvas fps | WebGL median frame | Canvas median frame |
-|---|---|---|---|---|
-| Idle | 60 and 60 | 0.8 and 0.6 | 17ms | 2,983ms |
-| Pan | 6.8 and 10 | 0.7 and 0.5 | 83ms | 1,975ms |
-| Zoom in | 12.9 and 7.1 | 0.3 and 0.9 | 50ms | 2,183ms |
-| Pan zoomed in | 15.1 and 15.1 | 0.7 and 0.9 | 58ms | 1,833ms |
-| Zoom out | 6.7 and 10.9 | 0.7 and 0.8 | 108ms | 1,991ms |
-| Pan back out | 14.3 and 0.7 | 0.5 and 0.6 | 1,016ms | 2,474ms |
-| A redraw once it stops | - | - | 529ms | 874ms |
+| Step                   | WebGL fps     | Canvas fps  | WebGL median frame | Canvas median frame |
+| ---------------------- | ------------- | ----------- | ------------------ | ------------------- |
+| Idle                   | 60 and 60     | 0.8 and 0.6 | 17ms               | 2,983ms             |
+| Pan                    | 6.8 and 10    | 0.7 and 0.5 | 83ms               | 1,975ms             |
+| Zoom in                | 12.9 and 7.1  | 0.3 and 0.9 | 50ms               | 2,183ms             |
+| Pan zoomed in          | 15.1 and 15.1 | 0.7 and 0.9 | 58ms               | 1,833ms             |
+| Zoom out               | 6.7 and 10.9  | 0.7 and 0.8 | 108ms              | 1,991ms             |
+| Pan back out           | 14.3 and 0.7  | 0.5 and 0.6 | 1,016ms            | 2,474ms             |
+| A redraw once it stops | -             | -           | 529ms              | 874ms               |
 
 - **WebGL is about 15 times quicker while moving**, averaging 10fps to canvas's 0.7fps. Neither is smooth here, but WebGL
   can be used and canvas can't.
@@ -243,5 +243,5 @@ python scripts/time_rollback.py --store http://localhost:5253 --rows 20000 --siz
 The conflict grid takes over an hour, and the rest a few minutes each. The simulated people are the Keycloak test users
 `sim1` and up, made the first time they're needed, and `scripts/teardown_users.py` removes them.
 
-Still not measured: real people. Everything here is simulated, so a session with real users, if ethics allow it, is what
+Still not measured: real people. Everything here is simulated, so a session with real users, if [ethics](ethics.md) allow it, is what
 would say how often this happens in practice.

@@ -257,7 +257,7 @@ invites are messages.
 | Sent twice after a dropped connection           | The same id, so one message                                                        |
 | A link's stopped or run out before they open it | The invite preview already says so                                                 |
 | The session ended                               | The same                                                                           |
-| They've lost access to what was sent            | They still have the copy. That's a choice, and it's in the privacy question below  |
+| They've lost access to what was sent            | They still have the copy. That's a choice - see [ethics.md](ethics.md#sent-copies) |
 | A row sent from another slide                   | Adds to their collection for that slide, and says they can't see it from here      |
 | Someone's deleted in Keycloak                   | Their messages stay, under the name they had then                                  |
 
@@ -283,12 +283,12 @@ and `Source` surviving a rollback.
 
 ## Decisions
 
-| Decision                                | Picked                                          | Why                                                                                                                                                                                                                                  |
-| --------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Its own service, or in annotation-store | Its own, under `messaging/`                     | A separate concern that shares no data, and the reasons a history service was [ruled out](breakdown/version-control.md#why-not-a-separate-service) don't apply. It's a fifth service to run, deploy and cost in [azure.md](azure.md) |
-| A copy, or a live link                  | A copy                                          | A link would need per row access annotation-store doesn't have, and it would change under them. A copy also gives a recorded parent for the write-up                                                                                 |
-| One to one, or session chat too         | Both                                            | One to one comes first, since session chat builds on it                                                                                                                                                                              |
-| How long things are kept                | Until someone deletes the conversation, for now | Test data only until there's a retention rule. Notes and shapes may describe patient slides, and a sent copy outlives losing access to the original, so this goes in the ethics question before any real data                        |
+| Decision                                | Picked                                          | Why                                                                                                                                                                                                                                    |
+| --------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Its own service, or in annotation-store | Its own, under `messaging/`                     | A separate concern that shares no data, and the reasons a history service was [ruled out](breakdown/version-control.md#why-not-a-separate-service) don't apply. It's a fifth service to run, deploy and cost in [azure.md](azure.md)   |
+| A copy, or a live link                  | A copy                                          | A link would need per row access annotation-store doesn't have, and it would change under them. A copy also gives a recorded parent for the write-up                                                                                   |
+| One to one, or session chat too         | Both                                            | One to one comes first, since session chat builds on it                                                                                                                                                                                |
+| How long things are kept                | Until someone deletes the conversation, for now | Test data only until there's a retention rule. Notes and shapes may describe patient slides, and a sent copy outlives losing access to the original, so it needs sorting before any real data - see [ethics.md](ethics.md#sent-copies) |
 
 Still open:
 

@@ -64,15 +64,15 @@ break when annotation-store's data model changes.
 
 ## 2. Files
 
-| File                                                              | What it does                                                                                                                                                                                                                  |
-| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Program.cs](../../realtime-hub/Program.cs)                       | Startup. Registers SignalR at `/hubs/slides`, raises the max message size to 1MB, allows any origin (CORS) for when it's called directly rather than through the viewer's proxy, wires up OpenTelemetry, and adds five read-only HTTP endpoints for debugging. |
-| [Slides/SlideHub.cs](../../realtime-hub/Slides/SlideHub.cs), [SlideHub.SharedCount.cs](../../realtime-hub/Slides/SlideHub.SharedCount.cs) | The hub. Every method a browser can call lives here (`JoinSession`, `UpdateViewport`, `OpenDoc` ...). Validates input, updates the room state, then broadcasts to the right group.                                               |
-| [Slides/SlideRooms.cs](../../realtime-hub/Slides/SlideRooms.cs), [SharedCounts.cs](../../realtime-hub/Slides/SharedCounts.cs) | The in-memory state: which connections are in which slide, their viewports and sketches, the op counter, the shared text docs, the comparison count and the shared count. Everything goes through one lock, so it's thread safe.                                      |
-| [Slides/Messages.cs](../../realtime-hub/Slides/Messages.cs)       | The wire format. A C# record for every message shape, plus a JSON setting so enums go over the wire as `"create"` rather than `0`.                                                                                            |
-| [Auth/GuestTokens.cs](../../realtime-hub/Auth/GuestTokens.cs), [GuestEndpoints.cs](../../realtime-hub/Auth/GuestEndpoints.cs), [GuestInvites.cs](../../realtime-hub/Auth/GuestInvites.cs) | Guests from an invite link. Mints and checks guest tokens, `POST /guests` and its rate limit, and asking annotation-store about an invite. |
-| [Slides/GuestName.cs](../../realtime-hub/Slides/GuestName.cs)     | Tidies and checks the name a guest types, with the same rules as the viewer.                                                                                                                                                  |
-| [Tests/SlideHubTests.cs](../../realtime-hub/Tests/SlideHubTests.cs), [GuestTests.cs](../../realtime-hub/Tests/GuestTests.cs) | Integration tests. They boot the real app in memory and connect real SignalR clients to it. Guest tokens are minted and checked by the real code.                                     |
+| File                                                                                                                                                                                      | What it does                                                                                                                                                                                                                                                   |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Program.cs](../../realtime-hub/Program.cs)                                                                                                                                               | Startup. Registers SignalR at `/hubs/slides`, raises the max message size to 1MB, allows any origin (CORS) for when it's called directly rather than through the viewer's proxy, wires up OpenTelemetry, and adds five read-only HTTP endpoints for debugging. |
+| [Slides/SlideHub.cs](../../realtime-hub/Slides/SlideHub.cs), [SlideHub.SharedCount.cs](../../realtime-hub/Slides/SlideHub.SharedCount.cs)                                                 | The hub. Every method a browser can call lives here (`JoinSession`, `UpdateViewport`, `OpenDoc` ...). Validates input, updates the room state, then broadcasts to the right group.                                                                             |
+| [Slides/SlideRooms.cs](../../realtime-hub/Slides/SlideRooms.cs), [SharedCounts.cs](../../realtime-hub/Slides/SharedCounts.cs)                                                             | The in-memory state: which connections are in which slide, their viewports and sketches, the op counter, the shared text docs, the comparison count and the shared count. Everything goes through one lock, so it's thread safe.                               |
+| [Slides/Messages.cs](../../realtime-hub/Slides/Messages.cs)                                                                                                                               | The wire format. A C# record for every message shape, plus a JSON setting so enums go over the wire as `"create"` rather than `0`.                                                                                                                             |
+| [Auth/GuestTokens.cs](../../realtime-hub/Auth/GuestTokens.cs), [GuestEndpoints.cs](../../realtime-hub/Auth/GuestEndpoints.cs), [GuestInvites.cs](../../realtime-hub/Auth/GuestInvites.cs) | Guests from an invite link. Mints and checks guest tokens, `POST /guests` and its rate limit, and asking annotation-store about an invite.                                                                                                                     |
+| [Slides/GuestName.cs](../../realtime-hub/Slides/GuestName.cs)                                                                                                                             | Tidies and checks the name a guest types, with the same rules as the viewer.                                                                                                                                                                                   |
+| [Tests/SlideHubTests.cs](../../realtime-hub/Tests/SlideHubTests.cs), [GuestTests.cs](../../realtime-hub/Tests/GuestTests.cs)                                                              | Integration tests. They boot the real app in memory and connect real SignalR clients to it. Guest tokens are minted and checked by the real code.                                                                                                              |
 
 On the viewer side the matching code is
 [RealtimeContext.tsx](../../image-viewer/src/context/RealtimeContext.tsx)
@@ -125,15 +125,15 @@ Not all live data is the same. Some of it is throwaway (where your screen is
 looking), some of it is an actual change to saved data. Each kind is handled
 differently on purpose.
 
-| Kind              | Example                                              | Hub method                               | Kept on hub?                     | Conflicts                                     |
-| ----------------- | ---------------------------------------------------- | ---------------------------------------- | -------------------------------- | --------------------------------------------- |
-| **Presence**      | "Alice Moore joined"                                 | `JoinSession`, `LeaveSession`            | Yes, while connected             | None needed                                   |
-| **Viewport**      | The box on the map showing where someone is looking  | `UpdateViewport`                         | Latest only                      | Latest wins. Max 10 a second                  |
-| **Sketch**        | A shape someone is part way through drawing          | `UpdateSketch`                           | Latest only, cleared on finish   | Latest wins. Never saved                      |
-| **Annotation op** | Create, update or delete an annotation or cell count | `SendAnnotationOp`                       | No, just stamped with a number   | Last write wins, ordered by `seq`             |
-| **Shared doc**    | Two people typing in the same label or notes box     | `OpenDoc`, `SendDocUpdate`, `CloseDoc`   | Yes, while anyone has it open    | Merged character by character with Yjs       |
-| **Comparison**    | Everyone counting the same region, then comparing    | `StartComparison`, `JoinComparison`, `SubmitComparison`, `LeaveComparison` | Yes, until everyone's left it | Hub owns the state, one at a time per room |
-| **Shared count**  | Everyone adding to one count at once                 | `StartSharedCount`, `AddSharedDot`, `RemoveSharedDot`, `FinishSharedCount` ... | Yes, until it's finished | Each dot has one owner, so nothing to merge |
+| Kind              | Example                                              | Hub method                                                                     | Kept on hub?                   | Conflicts                                   |
+| ----------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------ | ------------------------------------------- |
+| **Presence**      | "Alice Moore joined"                                 | `JoinSession`, `LeaveSession`                                                  | Yes, while connected           | None needed                                 |
+| **Viewport**      | The box on the map showing where someone is looking  | `UpdateViewport`                                                               | Latest only                    | Latest wins. Max 10 a second                |
+| **Sketch**        | A shape someone is part way through drawing          | `UpdateSketch`                                                                 | Latest only, cleared on finish | Latest wins. Never saved                    |
+| **Annotation op** | Create, update or delete an annotation or cell count | `SendAnnotationOp`                                                             | No, just stamped with a number | Last write wins, ordered by `seq`           |
+| **Shared doc**    | Two people typing in the same label or notes box     | `OpenDoc`, `SendDocUpdate`, `CloseDoc`                                         | Yes, while anyone has it open  | Merged character by character with Yjs      |
+| **Comparison**    | Everyone counting the same region, then comparing    | `StartComparison`, `JoinComparison`, `SubmitComparison`, `LeaveComparison`     | Yes, until everyone's left it  | Hub owns the state, one at a time per room  |
+| **Shared count**  | Everyone adding to one count at once                 | `StartSharedCount`, `AddSharedDot`, `RemoveSharedDot`, `FinishSharedCount` ... | Yes, until it's finished       | Each dot has one owner, so nothing to merge |
 
 Why two conflict strategies? Two people dragging the same polygon at the
 same moment is rare, so last write wins is enough for shapes and colours.
@@ -144,18 +144,18 @@ the evaluation (see [libraries.md](../libraries.md)).
 
 Events the hub sends to browsers:
 
-| Event               | Sent when                                                             |
-| ------------------- | --------------------------------------------------------------------- |
-| `UserJoined`        | Someone joins your session's room                                     |
-| `UserLeft`          | Someone leaves, switches session or drops                             |
-| `ViewportUpdated`   | Someone else pans, zooms or rotates                                   |
-| `SketchUpdated`     | Someone else draws, or finishes (`sketch: null`)                      |
-| `AnnotationOp`      | Someone else creates, changes or deletes an annotation or cell count  |
-| `DocUpdated`        | Another editor types in a text doc you have open                      |
-| `DocEditorsChanged` | Someone opens or closes a doc you have open (the "also editing" list) |
-| `ComparisonChanged` | Anything about the room's comparison count changes                    |
-| `SharedCountChanged` | Someone starts, joins or leaves the shared count, or it ends         |
-| `SharedDotAdded` / `SharedDotRemoved` | Someone else adds or takes back a shared count dot  |
+| Event                                 | Sent when                                                             |
+| ------------------------------------- | --------------------------------------------------------------------- |
+| `UserJoined`                          | Someone joins your session's room                                     |
+| `UserLeft`                            | Someone leaves, switches session or drops                             |
+| `ViewportUpdated`                     | Someone else pans, zooms or rotates                                   |
+| `SketchUpdated`                       | Someone else draws, or finishes (`sketch: null`)                      |
+| `AnnotationOp`                        | Someone else creates, changes or deletes an annotation or cell count  |
+| `DocUpdated`                          | Another editor types in a text doc you have open                      |
+| `DocEditorsChanged`                   | Someone opens or closes a doc you have open (the "also editing" list) |
+| `ComparisonChanged`                   | Anything about the room's comparison count changes                    |
+| `SharedCountChanged`                  | Someone starts, joins or leaves the shared count, or it ends          |
+| `SharedDotAdded` / `SharedDotRemoved` | Someone else adds or takes back a shared count dot                    |
 
 ## 5. Joining a session
 
@@ -464,22 +464,22 @@ viewer through React context.
 
 ## 11. Limits and validation
 
-| Limit                   | Value                                                          | Why                                                                         |
-| ----------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Max SignalR message     | 1MB                                                            | The 32KB default silently dropped long freehand annotations                 |
-| Max doc update or seed  | 64KB                                                           | Label and notes are short. Stops one client filling the hub's memory       |
-| Max doc id length       | 128 chars                                                      | Same reason                                                                 |
-| Required fields         | roomId, op id, op data (not delete), sketch tool/data          | A bad call throws a `HubException` back to the caller only, never to others |
-| Must join first         | Every method except `JoinSession`                              | "Join a session first"                                                      |
-| Must open doc first     | `SendDocUpdate`                                                | "Open the doc first"                                                        |
-| View only               | No `SendAnnotationOp` or `SendDocUpdate`. `OpenDoc` is fine, to watch | Before, the hub passed on ops and text edits from anyone in the room   |
-| Guest name              | 2 to 24 characters, letters, marks, numbers, space `. _ ' -`, NFC | Same rules as the viewer, in case something else calls the hub          |
-| `POST /guests`          | 60 a minute per address                                        | It's open to anyone, so this stops floods. Codes are too long to guess      |
-| Comparison ROI          | 16K chars                                                      | Only ever a box                                                             |
-| Comparison dots         | 10,000, finite x and y                                         | Far more than anyone clicks by hand                                         |
-| Shared count dots       | 10,000, finite x and y, a colour and a unique id               | Same reason                                                                 |
-| Comparison state        | Join from invited, submit from counting, one running per room  | The reason comes back as a `HubException`                                   |
-| Shared count state      | Add/remove once joined, remove only your own, finish host only | Same                                                                        |
+| Limit                  | Value                                                                 | Why                                                                         |
+| ---------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Max SignalR message    | 1MB                                                                   | The 32KB default silently dropped long freehand annotations                 |
+| Max doc update or seed | 64KB                                                                  | Label and notes are short. Stops one client filling the hub's memory        |
+| Max doc id length      | 128 chars                                                             | Same reason                                                                 |
+| Required fields        | roomId, op id, op data (not delete), sketch tool/data                 | A bad call throws a `HubException` back to the caller only, never to others |
+| Must join first        | Every method except `JoinSession`                                     | "Join a session first"                                                      |
+| Must open doc first    | `SendDocUpdate`                                                       | "Open the doc first"                                                        |
+| View only              | No `SendAnnotationOp` or `SendDocUpdate`. `OpenDoc` is fine, to watch | Before, the hub passed on ops and text edits from anyone in the room        |
+| Guest name             | 2 to 24 characters, letters, marks, numbers, space `. _ ' -`, NFC     | Same rules as the viewer, in case something else calls the hub              |
+| `POST /guests`         | 60 a minute per address                                               | It's open to anyone, so this stops floods. Codes are too long to guess      |
+| Comparison ROI         | 16K chars                                                             | Only ever a box                                                             |
+| Comparison dots        | 10,000, finite x and y                                                | Far more than anyone clicks by hand                                         |
+| Shared count dots      | 10,000, finite x and y, a colour and a unique id                      | Same reason                                                                 |
+| Comparison state       | Join from invited, submit from counting, one running per room         | The reason comes back as a `HubException`                                   |
+| Shared count state     | Add/remove once joined, remove only your own, finish host only        | Same                                                                        |
 
 **Debug endpoints:** `GET /rooms` (slide → number of people),
 `GET /rooms/{roomId}` (who's in it), `GET /rooms/{roomId}/docs` (open text
@@ -524,18 +524,18 @@ connections. If Grafana isn't running nothing breaks.
 
 ## 13. Glossary
 
-| Term              | Meaning                                                                                                              |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------- |
-| SignalR           | Microsoft's real-time messaging library for ASP.NET. Handles WebSockets, reconnects and groups, and has a JS client |
-| Hub               | A SignalR class whose public methods browsers can call, and which can call methods back on browsers                  |
-| Group             | A named set of connections. Sending to a group sends to everyone in it                                               |
-| Connection id     | A unique id SignalR gives each live connection. New on every reconnect                                               |
-| Viewport          | What part of the slide someone can see: centre, zoom (resolution), rotation and bounding box                        |
-| Op                | Short for operation. One create, update or delete of an annotation or cell count                                     |
-| Last write wins   | When two changes clash, the later one replaces the earlier one                                                       |
-| CRDT              | Conflict-free replicated data type. Edits from different people merge in any order and everyone ends up the same     |
-| Yjs               | A JavaScript CRDT library, used here for shared text fields                                                          |
-| Comparison count  | Several people count the same ROI on their own, then their dots are matched up to see where they agree               |
-| Match radius      | How close two people's dots have to be to count as the same cell                                                     |
-| Shared count      | Several people add to one count at once, each seeing everyone's dots live                                            |
-| Double count      | Two people's dots on what looks like the same cell in a shared count                                                 |
+| Term             | Meaning                                                                                                             |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------- |
+| SignalR          | Microsoft's real-time messaging library for ASP.NET. Handles WebSockets, reconnects and groups, and has a JS client |
+| Hub              | A SignalR class whose public methods browsers can call, and which can call methods back on browsers                 |
+| Group            | A named set of connections. Sending to a group sends to everyone in it                                              |
+| Connection id    | A unique id SignalR gives each live connection. New on every reconnect                                              |
+| Viewport         | What part of the slide someone can see: centre, zoom (resolution), rotation and bounding box                        |
+| Op               | Short for operation. One create, update or delete of an annotation or cell count                                    |
+| Last write wins  | When two changes clash, the later one replaces the earlier one                                                      |
+| CRDT             | Conflict-free replicated data type. Edits from different people merge in any order and everyone ends up the same    |
+| Yjs              | A JavaScript CRDT library, used here for shared text fields                                                         |
+| Comparison count | Several people count the same ROI on their own, then their dots are matched up to see where they agree              |
+| Match radius     | How close two people's dots have to be to count as the same cell                                                    |
+| Shared count     | Several people add to one count at once, each seeing everyone's dots live                                           |
+| Double count     | Two people's dots on what looks like the same cell in a shared count                                                |

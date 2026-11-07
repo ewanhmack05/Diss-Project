@@ -64,7 +64,7 @@ The viewer has to work on its own and together, so there are two kinds:
   alone you're always in this, with no room and nothing to pick.
 - **Joint** - made when a session starts from an invite link. Everyone who
   opens the link and signs in is added as a member, and the realtime room
-  *is* that collection, so everyone in the room works in the same one.
+  _is_ that collection, so everyone in the room works in the same one.
 
 Image adjustments always stay in the personal collection.
 
@@ -95,8 +95,8 @@ Built - the Collaboration tab holds it:
 Sessions are one slide each for now - whether one should span several (a
 case) is still open.
 
-
 ### User inputs
+
 Since one of the usecases for this is students working and learning during lectures,
 im looking into adding profanity filtering alongside basic filtering like SQL or HTML.
 
@@ -106,7 +106,7 @@ https://www.npmjs.com/package/allprofanity
 
 Leaning towards obscenity due to the higher downloads
 User inputs will be run through this profanity filter and flagged up before it is sent anywhere - frontend only
-Some names will need sorted in a whitelisting, e.g. `Dick`as its both a curse word and a name. 
+Some names will need sorted in a whitelisting, e.g. `Dick`as its both a curse word and a name.
 Im avoiding letting these input names be saved anywhere, as that will cause ethical issues. Im thinking that guest users will be locked down to a view only, and then will be prompted to make an account if they want to write/edit or are invited to edit by the owner of the session
 
 #### Where it's at

@@ -4,7 +4,8 @@ People without an account can join a session from its invite link, as view
 only, under a name they type in. The rule everything here follows: **the
 name a guest types is never saved anywhere on the server.** It goes over the
 wire and sits in the hub's memory while they're connected, and that's it.
-Saving it would need ethical approval (it could be a real name).
+Saving it would need ethical approval (it could be a real name) - see
+[ethics.md](ethics.md#guests-names).
 
 How that's kept:
 
@@ -45,16 +46,16 @@ sequenceDiagram
 
 Minted by realtime-hub, checked by realtime-hub and annotation-store.
 
-| | |
-| --- | --- |
-| Algorithm | HS256 |
-| Key | `GuestTokens:SigningKey`, base64, 32 bytes. Same value in both services. The dev key is in each `appsettings.json` and the root `docker-compose.yml` - replace it before deploying |
-| `iss` | `realtime-hub` |
-| `aud` | `diss-guest` |
-| `sub` | `guest-` + 16 random bytes, base64url without padding (22 characters) |
-| `guest_session` | the session's collection id, `D` format guid |
-| `exp` | the invite's expiry or 4 hours from now, whichever is sooner |
-| `iat`, `nbf` | now |
+|                 |                                                                                                                                                                                    |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Algorithm       | HS256                                                                                                                                                                              |
+| Key             | `GuestTokens:SigningKey`, base64, 32 bytes. Same value in both services. The dev key is in each `appsettings.json` and the root `docker-compose.yml` - replace it before deploying |
+| `iss`           | `realtime-hub`                                                                                                                                                                     |
+| `aud`           | `diss-guest`                                                                                                                                                                       |
+| `sub`           | `guest-` + 16 random bytes, base64url without padding (22 characters)                                                                                                              |
+| `guest_session` | the session's collection id, `D` format guid                                                                                                                                       |
+| `exp`           | the invite's expiry or 4 hours from now, whichever is sooner                                                                                                                       |
+| `iat`, `nbf`    | now                                                                                                                                                                                |
 
 No name claim, ever. A token is for one session only.
 

@@ -15,14 +15,14 @@ multiple owners.
 
 Leaning **Keycloak** over Entra External ID.
 
-| | Keycloak | Entra External ID |
-|---|---|---|
-| Local dev | same container on this machine | always the cloud tenant |
-| Portability | runs anywhere | tied to Azure |
-| Invite list (first/last name, emails hidden) | admin REST API with a service account | Microsoft Graph, more setup |
-| Config as code | realm exported to JSON, imported on start | portal clicks or scripts |
-| Cost | its own container, plus a database in Postgres | free |
-| Upkeep | ours - upgrades, security patches | none |
+|                                              | Keycloak                                       | Entra External ID           |
+| -------------------------------------------- | ---------------------------------------------- | --------------------------- |
+| Local dev                                    | same container on this machine                 | always the cloud tenant     |
+| Portability                                  | runs anywhere                                  | tied to Azure               |
+| Invite list (first/last name, emails hidden) | admin REST API with a service account          | Microsoft Graph, more setup |
+| Config as code                               | realm exported to JSON, imported on start      | portal clicks or scripts    |
+| Cost                                         | its own container, plus a database in Postgres | free                        |
+| Upkeep                                       | ours - upgrades, security patches              | none                        |
 
 ### How it connects to what's here
 
@@ -74,12 +74,13 @@ Keycloak is in, locally, and everything needs signing in.
 - Nothing for invites - guests are done, see [guests.md](guests.md).
 
 ### Invites
+
 - Users list
-    - The Collaboration tab has a Users tab listing everyone with an account in Keycloak - who's online first, with what they're doing, then everyone offline
-    - The host can invite anyone online on the same slide straight from it - they get a popup and see the invite before joining
-    - The list comes from Keycloak's admin API, read by realtime-hub as the `realtime-hub` client, whose service account can only view users (see [auth/README.md](../auth/README.md#adding-the-realtime-hub-client))
+  - The Collaboration tab has a Users tab listing everyone with an account in Keycloak - who's online first, with what they're doing, then everyone offline
+  - The host can invite anyone online on the same slide straight from it - they get a popup and see the invite before joining
+  - The list comes from Keycloak's admin API, read by realtime-hub as the `realtime-hub` client, whose service account can only view users (see [auth/README.md](../auth/README.md#adding-the-realtime-hub-client))
 - Generated link
-    - The host makes a link in the Collaboration tab, e.g. https://localhost:5173/?invite=juyhsUFHC4gB
+  - The host makes a link in the Collaboration tab, e.g. https://localhost:5173/?invite=juyhsUFHC4gB
 - Invite codes
-    - The code is the part after `?invite=` (`juyhsUFHC4gB` above), shown on its own under the link
-    - Working alone, anyone can type or paste it (or the whole link) into Join with a code in the Collaboration tab to join the session
+  - The code is the part after `?invite=` (`juyhsUFHC4gB` above), shown on its own under the link
+  - Working alone, anyone can type or paste it (or the whole link) into Join with a code in the Collaboration tab to join the session

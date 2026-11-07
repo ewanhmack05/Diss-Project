@@ -34,29 +34,29 @@ the repo. Upload them wherever the PR needs them.
 
 One person:
 
-| Video | Shows |
-| --- | --- |
-| `signing-in.mp4` | Signing in, switching user, signing out |
-| `map-navigation.mp4` | Pan, scroll, the zoom buttons, double click, shift-drag, Alt+Shift rotate, the scale bar, the overview map growing, jumping and folding away, fullscreen |
-| `annotations.mp4` | All six shapes, thickness, dashes, palette and custom colours, redraw, moving a shape before saving, quick draw, and Saved - search, every filter, view on map, editing, deleting |
+| Video                   | Shows                                                                                                                                                                                                         |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `signing-in.mp4`        | Signing in, switching user, signing out                                                                                                                                                                       |
+| `map-navigation.mp4`    | Pan, scroll, the zoom buttons, double click, shift-drag, Alt+Shift rotate, the scale bar, the overview map growing, jumping and folding away, fullscreen                                                      |
+| `annotations.mp4`       | All six shapes, thickness, dashes, palette and custom colours, redraw, moving a shape before saving, quick draw, and Saved - search, every filter, view on map, editing, deleting                             |
 | `annotation-groups.mp4` | Box, lasso, shift and click picking, Esc, All and Clear, moving the map, bulk recolour and delete with undo, and groups - making, adding, taking out, hiding, renaming, notes, recolouring, merging, deleting |
-| `cell-counter.mp4` | Dot size, colours mid-count, undo and redo by button and key, recount, a plain tally, a region of interest placed and cancelled, and saved counts - search, filter, on the map, timeline, editing, deleting |
-| `rotation.mp4` | Quick buttons, the dial, a typed angle, reset |
-| `ruler.mp4` | Measuring, measuring again, clearing |
-| `image-adjustments.mp4` | All six sliders, reset, and presets - saving, applying, updating, deleting |
-| `tab-docking.mp4` | Floating, bringing to the front, docking to all four edges, sharing an edge, undocking, a closed panel giving its space back and reopening where it was, then 5 seconds of every tab across the top |
-| `collections.mp4` | Renaming, sharing, importing GeoJSON with its preview, exporting, paging a long list |
-| `history.mp4` | The list, its order and filter, one change, putting back, one annotation's timeline and going back on it, putting the whole collection back |
+| `cell-counter.mp4`      | Dot size, colours mid-count, undo and redo by button and key, recount, a plain tally, a region of interest placed and cancelled, and saved counts - search, filter, on the map, timeline, editing, deleting   |
+| `rotation.mp4`          | Quick buttons, the dial, a typed angle, reset                                                                                                                                                                 |
+| `ruler.mp4`             | Measuring, measuring again, clearing                                                                                                                                                                          |
+| `image-adjustments.mp4` | All six sliders, reset, and presets - saving, applying, updating, deleting                                                                                                                                    |
+| `tab-docking.mp4`       | Floating, bringing to the front, docking to all four edges, sharing an edge, undocking, a closed panel giving its space back and reopening where it was, then 5 seconds of every tab across the top           |
+| `collections.mp4`       | Renaming, sharing, importing GeoJSON with its preview, exporting, paging a long list                                                                                                                          |
+| `history.mp4`           | The list, its order and filter, one change, putting back, one annotation's timeline and going back on it, putting the whole collection back                                                                   |
 
 Side by side, each person's screen:
 
-| Video | Shows |
-| --- | --- |
-| `collaboration.mp4` | Everything live between two people - joining, chips, seeing where someone's looking, shapes as they're drawn, two people typing in one label, colour changes, a count staying private until saved, the ruler, look here, opening a tab, Follow me with rotation and stepping out, Present with panels, tabs, a live count and adjustments following, back to Free |
-| `counting-together.mp4` | A comparison - invite, counting blind, waiting, results with rings, saving, declining - and a shared count - one tally, cells counted twice, undo, leaving, saving |
-| `session-admin.mp4` | Viewing someone's shared collection, the editor cap, first change wins, renaming, link settings, inviting from Users, view only, changing roles, a collision and its choice, taking someone out, a quiet session reopened, leaving, ending, deleting |
-| `messaging.mp4` | Sending an annotation, a group of cell counts and the area you're looking at - it arriving live, previews in their own colours, viewing without keeping, adding a copy, folding the list |
-| `guests.mp4` | Joining with just a name, what a guest can't do, being listed for the host, being asked to edit, leaving |
+| Video                   | Shows                                                                                                                                                                                                                                                                                                                                                             |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `collaboration.mp4`     | Everything live between two people - joining, chips, seeing where someone's looking, shapes as they're drawn, two people typing in one label, colour changes, a count staying private until saved, the ruler, look here, opening a tab, Follow me with rotation and stepping out, Present with panels, tabs, a live count and adjustments following, back to Free |
+| `counting-together.mp4` | A comparison - invite, counting blind, waiting, results with rings, saving, declining - and a shared count - one tally, cells counted twice, undo, leaving, saving                                                                                                                                                                                                |
+| `session-admin.mp4`     | Viewing someone's shared collection, the editor cap, first change wins, renaming, link settings, inviting from Users, view only, changing roles, a collision and its choice, taking someone out, a quiet session reopened, leaving, ending, deleting                                                                                                              |
+| `messaging.mp4`         | Sending an annotation, a group of cell counts and the area you're looking at - it arriving live, previews in their own colours, viewing without keeping, adding a copy, folding the list                                                                                                                                                                          |
+| `guests.mp4`            | Joining with just a name, what a guest can't do, being listed for the host, being asked to edit, leaving                                                                                                                                                                                                                                                          |
 
 ## What "everything" means
 

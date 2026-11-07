@@ -61,12 +61,12 @@ for localhost-only use.
 
 What each service is for, from the viewer's side:
 
-| Service | Used for | If it's down |
-| ------- | -------- | ------------ |
-| tiler | Slide size and tiles | No image |
-| annotation-store | Collections, everything saved | Can't load or save - toasts say so |
-| realtime-hub | Seeing other people live, presence | Works alone, shows "Offline", keeps retrying |
-| Keycloak | Signing in | Can't get past "Signing in…" |
+| Service          | Used for                           | If it's down                                 |
+| ---------------- | ---------------------------------- | -------------------------------------------- |
+| tiler            | Slide size and tiles               | No image                                     |
+| annotation-store | Collections, everything saved      | Can't load or save - toasts say so           |
+| realtime-hub     | Seeing other people live, presence | Works alone, shows "Offline", keeps retrying |
+| Keycloak         | Signing in                         | Can't get past "Signing in…"                 |
 
 ## 2. Folders
 
@@ -132,24 +132,24 @@ flowchart TD
   N --> V["ViewerShell<br/>MapNode, panels, toolbar"]
 ```
 
-| Provider | Holds |
-| -------- | ----- |
-| `Auth` | The signed-in user, `authFetch` (fetch with the token), sign out, switch user |
-| `ImageViewer` | The slide id and tiler URL |
-| `Collection` | Your collections on this slide, which one is active, sessions, invites, roles |
-| `Presence` | Everyone with an account, who's online and what they're doing |
-| `Realtime` | The SignalR connection to the session's room - see [realtime-hub.md](realtime-hub.md#10-viewer-side) |
-| `AnnotationStore` | Every annotation in the collection, plus the OpenLayers source they're drawn from. Bulk updates and deletes (each one change set, undone by restoring it), and the Saved list's filter the map draws by |
-| `AnnotationGroup` | The collection's groups, and which are hidden on the map while the Select tab's open |
-| `AnnotationSelect` | What's picked on the Select tab, and box or lasso. Your own, not shared |
-| `CellCountStore` | Counts loaded so far (not all - see [section 11](#11-the-saved-lists)) |
-| `Draw` | Selected shape tool, colour, thickness, line style, the shape waiting to be named, quick draw |
-| `CellCountDraw` | Whether you're counting, the tally, dot size, colour, ROI settings, the count waiting to be saved |
-| `Rotation`, `Ruler`, `Adjustments` | Each tool's state. Adjustments also loads and saves presets |
-| `Toolbar` | Which panels are open and which tab each is on |
-| `Navigation` | Follow and Present - whether your map should follow the host |
-| `Comparison`, `SharedCount` | The two group counting modes |
-| `Toast`, `Dialog`, `Event` | Notifications, popups, and the public `on` callback |
+| Provider                           | Holds                                                                                                                                                                                                   |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Auth`                             | The signed-in user, `authFetch` (fetch with the token), sign out, switch user                                                                                                                           |
+| `ImageViewer`                      | The slide id and tiler URL                                                                                                                                                                              |
+| `Collection`                       | Your collections on this slide, which one is active, sessions, invites, roles                                                                                                                           |
+| `Presence`                         | Everyone with an account, who's online and what they're doing                                                                                                                                           |
+| `Realtime`                         | The SignalR connection to the session's room - see [realtime-hub.md](realtime-hub.md#10-viewer-side)                                                                                                    |
+| `AnnotationStore`                  | Every annotation in the collection, plus the OpenLayers source they're drawn from. Bulk updates and deletes (each one change set, undone by restoring it), and the Saved list's filter the map draws by |
+| `AnnotationGroup`                  | The collection's groups, and which are hidden on the map while the Select tab's open                                                                                                                    |
+| `AnnotationSelect`                 | What's picked on the Select tab, and box or lasso. Your own, not shared                                                                                                                                 |
+| `CellCountStore`                   | Counts loaded so far (not all - see [section 11](#11-the-saved-lists))                                                                                                                                  |
+| `Draw`                             | Selected shape tool, colour, thickness, line style, the shape waiting to be named, quick draw                                                                                                           |
+| `CellCountDraw`                    | Whether you're counting, the tally, dot size, colour, ROI settings, the count waiting to be saved                                                                                                       |
+| `Rotation`, `Ruler`, `Adjustments` | Each tool's state. Adjustments also loads and saves presets                                                                                                                                             |
+| `Toolbar`                          | Which panels are open and which tab each is on                                                                                                                                                          |
+| `Navigation`                       | Follow and Present - whether your map should follow the host                                                                                                                                            |
+| `Comparison`, `SharedCount`        | The two group counting modes                                                                                                                                                                            |
+| `Toast`, `Dialog`, `Event`         | Notifications, popups, and the public `on` callback                                                                                                                                                     |
 
 `MapNode` is the one place that holds the OpenLayers map, so tools that
 need it (cell count undo, ruler clear) ring a counter in their context and
@@ -212,8 +212,7 @@ decides where everything is read from and saved to.
 - **Presets stay personal.** Image adjustments always go to your own
   collection, whichever one is active.
 - **Role.** `canEdit` is false for viewers and in ended sessions. The stores
-  check it before saving, so a viewer gets a "read only" toast rather than a
-  403.
+  check it before saving, so a viewer gets a "read only" toast rather than a 403.
 - **Being taken out or the session ending** - someone in the room tells
   everyone to refetch, and if you're no longer in it (or it's ended) you get
   a popup and go back to your own collection.
@@ -342,8 +341,8 @@ in place of the list, with a way back:
   ([ChangeList.tsx](../../image-viewer/src/components/collections/history/ChangeList.tsx)),
   loaded when it's opened from `GET /changesets/{id}/changes`, and turned
   into lines by [changes.ts](../../image-viewer/src/components/collections/history/changes.ts):
-  each field from and to - "Label  Region 4 -> Region 4 (checked)", nothing
-  as *(empty)*, colours as swatches, groups by name, yes or no, an image
+  each field from and to - "Label Region 4 -> Region 4 (checked)", nothing
+  as _(empty)_, colours as swatches, groups by name, yes or no, an image
   adjustment's settings one by one. Rows that all went to the same thing are
   one line ("10 annotations", the colours they started as -> the one they
   went to). One row's name is said once at the top. What it deleted is named
@@ -432,21 +431,21 @@ layer and keeps them in step with the contexts. Big sets of features go on
 WebGL layers; small ones that need things WebGL can't do (text, a shape at a
 line's end, style functions) stay on canvas.
 
-| Layer | Renderer | Shows |
-| ----- | -------- | ----- |
-| Slide tiles | WebGL | The image. Brightness, contrast, gamma and colour gains run in its shader |
-| Saved annotations | WebGL | Every annotation in the collection - minus hidden groups, and anything the open Saved list's search and filters leave out. Drawn with less detail zoomed out ([LessDetail.ts](../../image-viewer/src/components/open-layers/LessDetail.ts), see [rendering.md](../rendering.md#less-detail-zoomed-out---2026-10-25)) |
-| Selected annotations | Canvas | A teal halo round what's picked on the Select tab |
-| Arrowheads | Canvas | The heads of arrow annotations |
-| Viewed annotation | Canvas | A halo round the one picked with View on map |
-| Draw | Canvas | The shape being drawn or waiting to be named |
-| Cell count dots, ROI | WebGL | Your live count |
-| Viewed dots, viewed ROI | WebGL | A saved count picked with View |
-| Shared dots | WebGL | Everyone's dots in a shared count |
-| Double counts, comparison results | Canvas | Rings round problem cells |
-| Ruler | Canvas | Your measurement and its label |
-| Remote sketches, rulers, counts | Canvas | What other people are part way through |
-| Remote viewports | Canvas | Coloured boxes where other people are looking, on both maps |
+| Layer                             | Renderer | Shows                                                                                                                                                                                                                                                                                                                |
+| --------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Slide tiles                       | WebGL    | The image. Brightness, contrast, gamma and colour gains run in its shader                                                                                                                                                                                                                                            |
+| Saved annotations                 | WebGL    | Every annotation in the collection - minus hidden groups, and anything the open Saved list's search and filters leave out. Drawn with less detail zoomed out ([LessDetail.ts](../../image-viewer/src/components/open-layers/LessDetail.ts), see [rendering.md](../rendering.md#less-detail-zoomed-out---2026-10-25)) |
+| Selected annotations              | Canvas   | A teal halo round what's picked on the Select tab                                                                                                                                                                                                                                                                    |
+| Arrowheads                        | Canvas   | The heads of arrow annotations                                                                                                                                                                                                                                                                                       |
+| Viewed annotation                 | Canvas   | A halo round the one picked with View on map                                                                                                                                                                                                                                                                         |
+| Draw                              | Canvas   | The shape being drawn or waiting to be named                                                                                                                                                                                                                                                                         |
+| Cell count dots, ROI              | WebGL    | Your live count                                                                                                                                                                                                                                                                                                      |
+| Viewed dots, viewed ROI           | WebGL    | A saved count picked with View                                                                                                                                                                                                                                                                                       |
+| Shared dots                       | WebGL    | Everyone's dots in a shared count                                                                                                                                                                                                                                                                                    |
+| Double counts, comparison results | Canvas   | Rings round problem cells                                                                                                                                                                                                                                                                                            |
+| Ruler                             | Canvas   | Your measurement and its label                                                                                                                                                                                                                                                                                       |
+| Remote sketches, rulers, counts   | Canvas   | What other people are part way through                                                                                                                                                                                                                                                                               |
+| Remote viewports                  | Canvas   | Coloured boxes where other people are looking, on both maps                                                                                                                                                                                                                                                          |
 
 Layers for a tool are hidden while its panel is closed. Closing a panel
 also drops anything picked with View on map, so it doesn't come back on
@@ -518,7 +517,7 @@ which MapNode calls; what's picked is in `AnnotationSelectContext`, your own
 and not shared.
 
 - **Picking.** Drag a box (OpenLayers' `DragBox`) or draw a lasso (a
-  freehand `Draw`) - everything *fully* inside it is picked
+  freehand `Draw`) - everything _fully_ inside it is picked
   ([selection.ts](../../image-viewer/src/components/annotation/Select/selection.ts)).
   Shift adds to what's picked. Clicking a shape puts it in or takes it out,
   the smallest one under the click winning. Esc or clicking empty space
@@ -597,14 +596,14 @@ happen in the viewer.
 
 ## 9. The other tools
 
-| Tool | How it works |
-| ---- | ------------ |
-| **Rotate** | A dial and buttons in the panel, plus OpenLayers' own Alt+Shift+drag and pinch. Map and panel stay in sync both ways, compared with a small tolerance so they don't fight over rounding. |
-| **Ruler** | A two-point line `Draw`. Distance in µm using the slide's microns per pixel, or pixels without. One measurement at a time; closing the panel clears it. |
+| Tool                  | How it works                                                                                                                                                                                                                |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Rotate**            | A dial and buttons in the panel, plus OpenLayers' own Alt+Shift+drag and pinch. Map and panel stay in sync both ways, compared with a small tolerance so they don't fight over rounding.                                    |
+| **Ruler**             | A two-point line `Draw`. Distance in µm using the slide's microns per pixel, or pixels without. One measurement at a time; closing the panel clears it.                                                                     |
 | **Image adjustments** | Brightness, contrast, gamma and red/green/blue gain. Sliders update WebGL style variables on the tile layer - no shader rebuild, so dragging is smooth. Settings can be saved as named presets in your personal collection. |
-| **Fullscreen** | The browser's Fullscreen API. |
-| **RealTime** | Session and Users tabs - see [section 12](#12-working-together). |
-| **Collections** | Yours, your sessions and other people's shared ones, GeoJSON export and import - see [section 5](#the-collections-panel). |
+| **Fullscreen**        | The browser's Fullscreen API.                                                                                                                                                                                               |
+| **RealTime**          | Session and Users tabs - see [section 12](#12-working-together).                                                                                                                                                            |
+| **Collections**       | Yours, your sessions and other people's shared ones, GeoJSON export and import - see [section 5](#the-collections-panel).                                                                                                   |
 
 Which tools show is set by `index.tsx`'s `tools` list.
 
@@ -706,11 +705,11 @@ viewing one you've never paged to).
 Three providers deal with other people. The hub side is in
 [realtime-hub.md](realtime-hub.md).
 
-| Provider | Connection | What for |
-| -------- | ---------- | -------- |
-| `Presence` | Its own, the whole time | The Users tab: everyone with an account, who's online, what they're doing. Inviting someone online |
-| `Realtime` | Only in a session | The room: viewports, sketches, ops, shared text, comparison and shared counts |
-| `Navigation` | Uses `Realtime` | Follow and Present |
+| Provider     | Connection              | What for                                                                                           |
+| ------------ | ----------------------- | -------------------------------------------------------------------------------------------------- |
+| `Presence`   | Its own, the whole time | The Users tab: everyone with an account, who's online, what they're doing. Inviting someone online |
+| `Realtime`   | Only in a session       | The room: viewports, sketches, ops, shared text, comparison and shared counts                      |
+| `Navigation` | Uses `Realtime`         | Follow and Present                                                                                 |
 
 ### The Collaboration panel
 
@@ -804,16 +803,16 @@ all tested without a browser.
   One at a time; Escape runs the last button.
 - **Info boxes** ([InfoNote.tsx](../../image-viewer/src/components/info/InfoNote.tsx))
   - an (i) beside a label opens a small box saying how something works, so
-  the explanation's there when wanted without taking up the panel. What you
-  need before acting stays on the page as a short line instead ("Neither can
-  change once the session's started"). The box is a fixed-position portal
-  placed with `computePopupPosition`, like the colour picker's, since a
-  docked panel clips anything that spills out of it, and takes the viewer's
-  text size from `.app`. One open at a time across the viewer
-  ([oneOpen.ts](../../image-viewer/src/components/info/oneOpen.ts)); a
-  press outside, Esc (back to the button), a scroll or a resize closes it.
-  Used in the Collaboration panel for editors through the link, the edit
-  policy, navigation and guests.
+    the explanation's there when wanted without taking up the panel. What you
+    need before acting stays on the page as a short line instead ("Neither can
+    change once the session's started"). The box is a fixed-position portal
+    placed with `computePopupPosition`, like the colour picker's, since a
+    docked panel clips anything that spills out of it, and takes the viewer's
+    text size from `.app`. One open at a time across the viewer
+    ([oneOpen.ts](../../image-viewer/src/components/info/oneOpen.ts)); a
+    press outside, Esc (back to the button), a scroll or a resize closes it.
+    Used in the Collaboration panel for editors through the link, the edit
+    policy, navigation and guests.
 
 ## 15. Tests
 
@@ -821,16 +820,16 @@ all tested without a browser.
 the code they cover and test the plain `.ts` logic, not React components or
 a live map.
 
-| Area | Files | Covers |
-| ---- | ----- | ------ |
-| open-layers | OpenLayers, Styles, GeoJSON | Zoom ladder, styles, GeoJSON round trips |
-| realtime | realtime, sharedFields, sketch, autosave, editPolicy | `applyOp`, caret moves, Yjs merges, sketch simplifying, what to autosave; reading a 409, the conflict card's wording, saves one at a time |
-| cell-count | CellCountDots, CellCountView, compare, sharedCount | Dot parsing, view extent, comparison matching, double counts |
-| saved | paging, filters, savedBy, savedDates, sheetPlacement, useSavedTotal | Page maths, `mergePage` (pending deletes too), filter query strings, live filtering, search matching, the tab label, History's day headings and times |
-| annotation | selection, bulk | Fully inside a box or lasso, which shape a click is on; batches and one change set per bulk change |
-| collections | collectionGeoJson, history | Export and import, y flipping, QuPath-style files, groups, what's skipped; History labels, icons, initials, what's still deleted, day headings, who can put back, the ops sent |
-| toolbar | dock, focusOrder, panelPlacement | Docking, splitting, stacking, placing |
-| other | adjustments, rotation, ruler, popupPosition, presence, newId, icons | Clamping, angles, distances, out-of-order presence, every icon is a file with a viewBox and no fixed colour |
+| Area        | Files                                                               | Covers                                                                                                                                                                         |
+| ----------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| open-layers | OpenLayers, Styles, GeoJSON                                         | Zoom ladder, styles, GeoJSON round trips                                                                                                                                       |
+| realtime    | realtime, sharedFields, sketch, autosave, editPolicy                | `applyOp`, caret moves, Yjs merges, sketch simplifying, what to autosave; reading a 409, the conflict card's wording, saves one at a time                                      |
+| cell-count  | CellCountDots, CellCountView, compare, sharedCount                  | Dot parsing, view extent, comparison matching, double counts                                                                                                                   |
+| saved       | paging, filters, savedBy, savedDates, sheetPlacement, useSavedTotal | Page maths, `mergePage` (pending deletes too), filter query strings, live filtering, search matching, the tab label, History's day headings and times                          |
+| annotation  | selection, bulk                                                     | Fully inside a box or lasso, which shape a click is on; batches and one change set per bulk change                                                                             |
+| collections | collectionGeoJson, history                                          | Export and import, y flipping, QuPath-style files, groups, what's skipped; History labels, icons, initials, what's still deleted, day headings, who can put back, the ops sent |
+| toolbar     | dock, focusOrder, panelPlacement                                    | Docking, splitting, stacking, placing                                                                                                                                          |
+| other       | adjustments, rotation, ruler, popupPosition, presence, newId, icons | Clamping, angles, distances, out-of-order presence, every icon is a file with a viewBox and no fixed colour                                                                    |
 
 CI (`.github/workflows/image-viewer.yml`) runs lint (oxlint), tests and a
 build on every push that touches the viewer.
@@ -860,22 +859,22 @@ build on every push that touches the viewer.
 
 ## 17. Glossary
 
-| Term | Meaning |
-| ---- | ------- |
-| Context / provider | React's way of sharing state down the tree without passing props through every level |
-| OpenLayers | A JavaScript mapping library. Used here with a pixel projection instead of geography |
-| Layer / source | In OpenLayers, a source holds features or tiles, a layer draws a source |
-| WebGL layer | A layer drawn on the GPU - much faster for thousands of features |
-| Interaction | An OpenLayers mouse/touch behaviour - `Draw`, `Translate`, `DragPan` |
-| Feature | One drawn thing on the map - a shape, a dot, a box |
-| Sketch | A shape someone is part way through drawing |
-| Pending | A finished shape or count that's waiting on its save form |
-| View on map | Picking a saved annotation or count to fly to and highlight |
-| Optimistic write | Showing a change before the server has confirmed it |
-| Revision | A counter the stores bump when a save settles, so the Saved list knows to refetch |
-| Shared collection | Someone's own collection they've let anyone signed in look at, read-only |
-| Group | A named set of annotations in a collection, with notes - made and managed on the Select tab |
-| Picked | Annotations selected on the Select tab, to change together |
-| OIDC / PKCE | The sign-in standard Keycloak speaks, and the extra check that makes it safe in a browser |
-| Present / Follow | Navigation modes where your view follows the host's |
-| Dock | Snapping a panel to an edge of the screen |
+| Term               | Meaning                                                                                     |
+| ------------------ | ------------------------------------------------------------------------------------------- |
+| Context / provider | React's way of sharing state down the tree without passing props through every level        |
+| OpenLayers         | A JavaScript mapping library. Used here with a pixel projection instead of geography        |
+| Layer / source     | In OpenLayers, a source holds features or tiles, a layer draws a source                     |
+| WebGL layer        | A layer drawn on the GPU - much faster for thousands of features                            |
+| Interaction        | An OpenLayers mouse/touch behaviour - `Draw`, `Translate`, `DragPan`                        |
+| Feature            | One drawn thing on the map - a shape, a dot, a box                                          |
+| Sketch             | A shape someone is part way through drawing                                                 |
+| Pending            | A finished shape or count that's waiting on its save form                                   |
+| View on map        | Picking a saved annotation or count to fly to and highlight                                 |
+| Optimistic write   | Showing a change before the server has confirmed it                                         |
+| Revision           | A counter the stores bump when a save settles, so the Saved list knows to refetch           |
+| Shared collection  | Someone's own collection they've let anyone signed in look at, read-only                    |
+| Group              | A named set of annotations in a collection, with notes - made and managed on the Select tab |
+| Picked             | Annotations selected on the Select tab, to change together                                  |
+| OIDC / PKCE        | The sign-in standard Keycloak speaks, and the extra check that makes it safe in a browser   |
+| Present / Follow   | Navigation modes where your view follows the host's                                         |
+| Dock               | Snapping a panel to an edge of the screen                                                   |

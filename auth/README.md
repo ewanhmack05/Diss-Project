@@ -29,10 +29,10 @@ Everything goes through tokens and its admin API.
 
 Other services only keep a user's Keycloak id and a copy of their name:
 
-| Where | What |
-|---|---|
+| Where            | What                                                                                                                                                                                                      |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | annotation-store | `UserId`, `CreatedById` and similar are the token's `sub`. `DisplayName`, `CreatedByName` and `UserName` are their name when the row was written - see its [schema](../annotation-store/README.md#schema) |
-| realtime-hub | Nothing saved - who's connected is in memory, and it asks Keycloak for the list of everyone |
+| realtime-hub     | Nothing saved - who's connected is in memory, and it asks Keycloak for the list of everyone                                                                                                               |
 
 So renaming someone in Keycloak doesn't change what old rows say, and deleting
 them leaves ids that nothing can look up.

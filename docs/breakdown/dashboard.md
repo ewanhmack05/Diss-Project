@@ -60,11 +60,11 @@ containers, at the cost of nothing being kept between restarts.
 
 ## 2. Files
 
-| File | What it does |
-| ---- | ------------ |
-| [docker-compose.yml](../../dashboard/docker-compose.yml) | The one container. Opens ports 3000, 4317, 4318, mounts the dashboards, and sets the Services dashboard as Grafana's home page. |
-| [grafana/dashboards.yaml](../../dashboard/grafana/dashboards.yaml) | Grafana provisioning - load every JSON file in `/diss-dashboards` on startup. |
-| [grafana/dashboards/services.json](../../dashboard/grafana/dashboards/services.json) | The Services dashboard itself, as code. |
+| File                                                                                 | What it does                                                                                                                    |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| [docker-compose.yml](../../dashboard/docker-compose.yml)                             | The one container. Opens ports 3000, 4317, 4318, mounts the dashboards, and sets the Services dashboard as Grafana's home page. |
+| [grafana/dashboards.yaml](../../dashboard/grafana/dashboards.yaml)                   | Grafana provisioning - load every JSON file in `/diss-dashboards` on startup.                                                   |
+| [grafana/dashboards/services.json](../../dashboard/grafana/dashboards/services.json) | The Services dashboard itself, as code.                                                                                         |
 
 The sending side is a block in each service's `Program.cs` - the same in
 all three (see [section 4](#4-what-each-service-sends)).
@@ -75,11 +75,11 @@ reach it through `host.docker.internal:4317`.
 
 ## 3. Three kinds of telemetry
 
-| Kind | Stored in | Answers | Seen in |
-| ---- | --------- | ------- | ------- |
-| **Metrics** | Prometheus | How many, how fast, how much - numbers over time | The Services dashboard |
-| **Traces** | Tempo | What happened during one request, step by step, and how long each took | Explore → Tempo |
-| **Logs** | Loki | What the service wrote out, tied to the trace it happened in | Explore → Loki |
+| Kind        | Stored in  | Answers                                                                | Seen in                |
+| ----------- | ---------- | ---------------------------------------------------------------------- | ---------------------- |
+| **Metrics** | Prometheus | How many, how fast, how much - numbers over time                       | The Services dashboard |
+| **Traces**  | Tempo      | What happened during one request, step by step, and how long each took | Explore → Tempo        |
+| **Logs**    | Loki       | What the service wrote out, tied to the trace it happened in           | Explore → Loki         |
 
 All three go over **OTLP** (the OpenTelemetry protocol), so the services
 use one SDK and one exporter for everything rather than a Prometheus client,
@@ -97,11 +97,11 @@ builder.Services.AddOpenTelemetry()
     .WithLogging(l => l.AddOtlpExporter());
 ```
 
-| Service | Metrics | Traces | Logs |
-| ------- | ------- | ------ | ---- |
-| tiler | ASP.NET requests, .NET runtime | Every request | Yes |
-| annotation-store | Same | Every request | Yes |
-| realtime-hub | Same, plus SignalR connections (`Microsoft.AspNetCore.Http.Connections`) and each hub method call | Every request and hub call | Yes |
+| Service          | Metrics                                                                                           | Traces                     | Logs |
+| ---------------- | ------------------------------------------------------------------------------------------------- | -------------------------- | ---- |
+| tiler            | ASP.NET requests, .NET runtime                                                                    | Every request              | Yes  |
+| annotation-store | Same                                                                                              | Every request              | Yes  |
+| realtime-hub     | Same, plus SignalR connections (`Microsoft.AspNetCore.Http.Connections`) and each hub method call | Every request and hub call | Yes  |
 
 - **Every 5 seconds** rather than OpenTelemetry's default 60, so the charts
   keep up while you're watching a test run.
@@ -118,13 +118,13 @@ One dashboard, refreshing every 5 seconds. The **Service** picker at the top
 lists every `job` Prometheus has seen, so a new service shows up on its
 own. Pick one, several or all.
 
-| Row | Panels | Built from |
-| --- | ------ | ---------- |
-| **Load** | Requests/sec, slowest 5% time, server error %, in flight now, requests/sec and in flight by service | `http_server_request_duration_seconds_count`, `http_server_active_requests` |
-| **Timing** | Median, p95 and p99 request time per service | `histogram_quantile` over `http_server_request_duration_seconds_bucket` |
-| **Endpoints** | Table of every route: count, rate, median, p95, over the last 5 minutes | Same, grouped by `http_route` |
-| **Errors** | 4xx and 5xx per minute, by status code | Same, filtered on `http_response_status_code` |
-| **Machine** | CPU as % of all cores, memory, thread pool threads, GC pause time | `dotnet_process_*`, `dotnet_thread_pool_*`, `dotnet_gc_*` |
+| Row           | Panels                                                                                              | Built from                                                                  |
+| ------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| **Load**      | Requests/sec, slowest 5% time, server error %, in flight now, requests/sec and in flight by service | `http_server_request_duration_seconds_count`, `http_server_active_requests` |
+| **Timing**    | Median, p95 and p99 request time per service                                                        | `histogram_quantile` over `http_server_request_duration_seconds_bucket`     |
+| **Endpoints** | Table of every route: count, rate, median, p95, over the last 5 minutes                             | Same, grouped by `http_route`                                               |
+| **Errors**    | 4xx and 5xx per minute, by status code                                                              | Same, filtered on `http_response_status_code`                               |
+| **Machine**   | CPU as % of all cores, memory, thread pool threads, GC pause time                                   | `dotnet_process_*`, `dotnet_thread_pool_*`, `dotnet_gc_*`                   |
 
 Every panel has a description - hover the (i) by its title.
 
@@ -190,18 +190,18 @@ Two of the three causes were on the server side:
 
 ## 9. Glossary
 
-| Term | Meaning |
-| ---- | ------- |
-| Telemetry | Data a running service sends about itself - metrics, traces, logs |
-| OpenTelemetry (OTel) | The open standard and SDKs for producing telemetry |
-| OTLP | OpenTelemetry's wire protocol. 4317 is gRPC, 4318 is HTTP |
-| Collector | The process that receives OTLP and passes it to the right store |
-| Prometheus | Time-series database for metrics, queried with PromQL |
-| Tempo | Grafana's trace store |
-| Loki | Grafana's log store |
-| Grafana | The dashboard UI over all three |
-| Span | One timed step in a trace |
-| Histogram | A metric that counts values into buckets, so percentiles can be worked out |
-| p95 / p99 | The time 95% / 99% of requests are faster than |
-| Job | Prometheus' label for which service a metric came from |
-| Provisioning | Grafana loading dashboards and settings from files on startup |
+| Term                 | Meaning                                                                    |
+| -------------------- | -------------------------------------------------------------------------- |
+| Telemetry            | Data a running service sends about itself - metrics, traces, logs          |
+| OpenTelemetry (OTel) | The open standard and SDKs for producing telemetry                         |
+| OTLP                 | OpenTelemetry's wire protocol. 4317 is gRPC, 4318 is HTTP                  |
+| Collector            | The process that receives OTLP and passes it to the right store            |
+| Prometheus           | Time-series database for metrics, queried with PromQL                      |
+| Tempo                | Grafana's trace store                                                      |
+| Loki                 | Grafana's log store                                                        |
+| Grafana              | The dashboard UI over all three                                            |
+| Span                 | One timed step in a trace                                                  |
+| Histogram            | A metric that counts values into buckets, so percentiles can be worked out |
+| p95 / p99            | The time 95% / 99% of requests are faster than                             |
+| Job                  | Prometheus' label for which service a metric came from                     |
+| Provisioning         | Grafana loading dashboards and settings from files on startup              |

@@ -84,6 +84,25 @@ an afternoon, medium a few days, large a week or more.
   taken every 5,000 entries, so working that out only has to undo what's since
   the nearest one. Everyone else's viewer loads the collection again. See
   [version-control.md](breakdown/version-control.md#putting-a-whole-collection-back)
+- **Evaluation** (version control step 7) - conflicts, text merging, latency,
+  history cost and rendering, all simulated. See [evaluation.md](evaluation.md)
+- **Messaging** - its own [service](../messaging/README.md) with its own database:
+  one to one conversations and a chat for the session you're in. The hub only says
+  something's waiting, so a faked notice shows nobody anything. The viewer's Messages
+  tool is an inbox, with a list that folds down to a rail. See [messaging.md](messaging.md)
+- **Sending things** - **Send** on saved annotations and counts, both kinds of group,
+  what's picked on the Select tab and collections. **Attach** sends the area you're
+  looking at, or an invite to your session. What's sent is a copy, up to 5MB
+- **Looking at what's sent** - a preview on each card and **View** on the map, in
+  its own colours, without keeping anything. **Add to my collection** adds it as new rows
+- **Where something came from** - adding something sent records who sent it, the
+  message, the collection and which row each new one was copied from. History says
+  "Added 2 annotations from Bob". This is a recorded parent for a copy between
+  collections, for [personal vs session as branches](#things-to-decide-before-building)
+- **Cell count groups** - the same as annotation groups, merging and first change
+  wins included, and they go through history, put back, rollback and snapshots
+- **Playback videos** - `node record.js` in [playback](../playback/README.md) remakes
+  them all, messaging included, and each scene checks what it shows
 
 ## 1. Version control
 
@@ -142,17 +161,12 @@ Each one builds on the one before.
   `collections/history/rollback.ts` and the Editor check on
   `POST /changesets/{id}/rollback` in `History/CollectionRollback.cs`.
 - **Soft delete knock-ons.** Gone with soft delete - deleted rows are in
-  the history, and a deleted group comes back with what was in it. Still
-  open: a purge rule (nothing is purged now).
+  the history, and a deleted group comes back with what was in it.
 - **Undo vs rollback.** Undo is "take back my last change" and only touches
   your own edits - the command pattern, or Yjs's `Y.UndoManager` for text.
   Rollback is "put this back how it was at 3pm" and touches everyone's. They
   need different UI and behave differently when someone else has edited the
   same thing since.
-- **Text fields.** Labels and notes are merged live with Yjs, but nothing is
-  kept once the box closes. Either save a version to the history log when the
-  last editor closes it, or keep the Yjs updates. The first is simpler and
-  enough for a history view.
 - **Catching up.** The hub doesn't replay ops someone missed - they catch up
   on the next load. With a history log a client could ask for "everything
   since version N" instead - the same idea as a game sending the changes
@@ -160,9 +174,6 @@ Each one builds on the one before.
 - **Personal vs session as branches.** A personal collection and a session
   are close to branches. Copying your own annotations into a session is a
   merge. Worth a paragraph even if it isn't built.
-- **Privacy.** The log keeps user ids and names indefinitely. Needs a
-  retention rule, and guests (see section 3) should be logged by their guest
-  id only.
 
 ### Policies for two people editing the same thing
 
@@ -187,9 +198,7 @@ strongest thing the evaluation can show.
 
 ### Reading to add to [background.md](background.md)
 
-Already there: _Database Version Control - A Software Configuration
-Management Approach_, _Temporal and Real-Time Databases_. Worth finding and
-adding with links:
+Worth finding and adding with links:
 
 - Shapiro et al., _Conflict-free Replicated Data Types_ (2011) - the theory
   behind Yjs
@@ -204,7 +213,8 @@ adding with links:
 ## 2. Evaluation
 
 Measured, simulated - results and how far to trust them in
-[evaluation.md](evaluation.md). What's left is real people, if ethics allow it.
+[evaluation.md](evaluation.md). Real people depend on ethics, so that's in
+[section 11](#11-what-id-do-in-the-future).
 
 - **Latency** - how long a change takes to reach everyone else. The hub
   already stamps each op with `serverTime`
@@ -229,8 +239,6 @@ Guests are done (see Done). Still open:
   now. A flag on `CollectionInvites` and a switch in the invite UI
 - Running the name filter over the rest of what people type (labels,
   notes, group and session names) - `isClean` and `censorText` are there
-- Typed names bring back the ethics question of people putting in real
-  names, even unsaved - needs a line in the write up
 - Is the default editor cap right? Hosts pick their own now, starting from
   index.tsx's `maxEditors` (6 at the moment) - what they pick, saved as
   `MaxEditors` on each session, is the data to measure it with
@@ -262,23 +270,26 @@ The per-person on/off is done (see Done). Still open:
 - **Sessions are one slide each** - whether one should cover several (a
   case) is still open (see [thought-process.md](thought-process.md))
 - **Azure** - two options costed in [azure.md](azure.md), nothing deployed
-  yet. Tiler runs on linux now, so it isn't blocked
+  yet. Tiler runs on linux now, so it isn't blocked. The deploy workflow has
+  messaging in it, but has never run, and separate apps need the viewer's service
+  addresses made configurable first
 
-## 7. Messaging and sending things
+## 7. Messaging - what's left
 
-People with an account can message each other, chat in a session, and send a
-collection, a group, an annotation or an invite link. Size: large - a new service
-across the hub and viewer. Decided and drafted in [messaging.md](messaging.md): its
-own service, a copy rather than a live link, one to one and session chat, and kept
-until deleted for now. The [service](../messaging/README.md) and the hub's side are
-built, along with the viewer's tab and where something came from. Still to do: taking
-`InviteUser` out now that invites can be sent as messages.
+Built (see Done). Still open:
+
+- **`InviteUser`** - the Users tab's Invite still goes through the hub, which only
+  reaches someone online, next to invites sent as messages, which reach anyone
+- **Cell count groups in GeoJSON files** - exporting a collection to a file leaves
+  them out. Sending one, and the store's own export, keep them
+- **Send buttons not tried by hand** - on annotation groups, the Select tab and
+  collections. Same path as the ones that were, but no video or click has been through them
+- **Session chat and invites as messages aren't in the playback video** - see
+  `NOT_SHOWN` in [coverage.js](../playback/lib/coverage.js)
 
 For the write up: a copy between collections keeps where it came from, which makes
 it close to the merge in
-[Personal vs session as branches](#things-to-decide-before-building). It needs a
-line in the ethics question (section 10) too, since notes and slides may be patient
-data, and a sent copy outlives losing access to the original.
+[Personal vs session as branches](#things-to-decide-before-building).
 
 ## 8. Design
 
@@ -300,9 +311,25 @@ data, and a sent copy outlives losing access to the original.
 - Can I use work's resources, e.g. Azure?
 - Help from inside work, e.g. a UX review or a lab analyst trying it out
 - Does doing this dissertation with a company need declaring?
-- Is NHS ethical approval needed? Ask early - it takes a long time
+
+## 11. What I'd do in the future
+
+Not being done for this project - left for the write up as what comes next. See
+[ethics.md](ethics.md).
+
+- **Ethical approval** - whether NHS approval is needed, before any real data or
+  real people. Testing with people depends on it, so the evaluation stays simulated.
+  Notes and shapes may describe patient slides, a sent copy outlives losing access to
+  the original, and guests' typed names could be real ones
+- **Keeping history** - a purge rule. Nothing's purged now, so the log grows forever
+- **Retention** - the log keeps user ids and names indefinitely, and messages are kept
+  until someone deletes them. Both need a rule
+- **Label and notes history** - they're merged live with Yjs, but no version is kept
+  once the box closes. Saving one to the history log when the last editor closes it is
+  the simple way, and enough for a history view
 
 ## Suggested order
 
 1. **Reading list** for [background.md](background.md), alongside the others
-2. **Messaging and sending things** (section 7) - the decisions first
+2. **Writing it up** - version control is finished and measured
+3. **`InviteUser`** (section 7), which closes messaging off

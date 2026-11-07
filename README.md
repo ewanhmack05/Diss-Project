@@ -161,6 +161,7 @@ Todos and notes, split by area, in [docs/](docs):
 | [Libraries](docs/libraries.md)             | Yjs / Automerge / Loro, the WebSocket (SignalR) hub, CRDT vs server-authoritative                                                                        |
 | [Thought process](docs/thought-process.md) | how users connect, guest vs authenticated, host controls, navigation modes                                                                               |
 | [Guests](docs/guests.md)                   | joining without an account - the token, what's never saved, the name filter                                                                              |
+| [Ethics](docs/ethics.md)                   | what's needed before real data or real people - approval, retention, what's personal                                                                     |
 | [Rendering](docs/rendering.md)             | WebGPU question, what's on WebGL now, what the panning delay turned out to be                                                                            |
 | [Timing](docs/timing.md)                   | what annotation-store's reads take, the 40ms the dev proxy adds, what would help                                                                         |
 | [Breakdowns](docs/breakdown)               | how each service works, plus [version control](docs/breakdown/version-control.md) across all of them - change sets, putting things back, the History tab |

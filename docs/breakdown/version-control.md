@@ -185,9 +185,8 @@ flowchart LR
   soft-deleted row into a delete entry, using Postgres' own `to_jsonb` - the
   same shape `HistoryLog` writes - then took them out of the live tables and
   dropped the columns. It can be run back down.
-- **Nothing's purged.** History stays for good. A retention rule comes with
-  the privacy question in
-  [todo.md](../todo.md#things-to-decide-before-building).
+- **Nothing's purged.** History stays for good. A retention rule is future
+  work - see [ethics.md](../ethics.md#keeping-history).
 
 ### Why not a separate service
 
@@ -573,7 +572,7 @@ same moment, and the real migrations. CI runs the store's suite on both.
 
 ## 11. What's next
 
-- **Trying it with real people**, if ethics allow it - everything in
+- **Trying it with real people**, if [ethics](../ethics.md) allow it - everything in
   [evaluation.md](../evaluation.md) is simulated.
 
 The decisions still open - where the order comes from, text fields,

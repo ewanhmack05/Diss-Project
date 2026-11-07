@@ -55,14 +55,14 @@ gone without caring about the API.
 
 ## 2. Files
 
-| File | What it does |
-| ---- | ------------ |
-| [seed_stress.py](../../scripts/seed_stress.py) | Adds lots of annotations and cell counts to a user's collection on a slide. Defaults: slide 003, alice, 2000 annotations, counts of 1k, 10k and 50k dots. |
-| [clean_stress.py](../../scripts/clean_stress.py) | Removes exactly what `seed_stress.py` added, and nothing else. |
-| [keycloak_login.py](../../scripts/keycloak_login.py) | Signs the Python scripts in through Keycloak's real sign-in page. Not run on its own. |
-| [map_bench.js](../../scripts/map_bench.js) | Pasted into the browser console. Pans and zooms the map and reports frame times. |
-| [sql/](../../scripts/sql) | Row counts, targeted deletes and a full reset for the annotation-store database. |
-| [test_keycloak_login.py](../../scripts/test_keycloak_login.py), [test_seed_stress.py](../../scripts/test_seed_stress.py) | Unit tests for the parts that don't need anything running. |
+| File                                                                                                                     | What it does                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [seed_stress.py](../../scripts/seed_stress.py)                                                                           | Adds lots of annotations and cell counts to a user's collection on a slide. Defaults: slide 003, alice, 2000 annotations, counts of 1k, 10k and 50k dots. |
+| [clean_stress.py](../../scripts/clean_stress.py)                                                                         | Removes exactly what `seed_stress.py` added, and nothing else.                                                                                            |
+| [keycloak_login.py](../../scripts/keycloak_login.py)                                                                     | Signs the Python scripts in through Keycloak's real sign-in page. Not run on its own.                                                                     |
+| [map_bench.js](../../scripts/map_bench.js)                                                                               | Pasted into the browser console. Pans and zooms the map and reports frame times.                                                                          |
+| [sql/](../../scripts/sql)                                                                                                | Row counts, targeted deletes and a full reset for the annotation-store database.                                                                          |
+| [test_keycloak_login.py](../../scripts/test_keycloak_login.py), [test_seed_stress.py](../../scripts/test_seed_stress.py) | Unit tests for the parts that don't need anything running.                                                                                                |
 
 ## 3. A stress test from start to finish
 
@@ -175,9 +175,9 @@ is faster, without annotation-store running.
 
 ```js
 // paste into devtools, then
-await mapBench()                  // pan, zoom in, zoom out
-await mapBench({ seconds: 5 })    // longer pans
-await mapBench({ zoomTicks: 3 })  // zoom in less far
+await mapBench(); // pan, zoom in, zoom out
+await mapBench({ seconds: 5 }); // longer pans
+await mapBench({ zoomTicks: 3 }); // zoom in less far
 ```
 
 - **Real events.** It sends `PointerEvent` drags and `WheelEvent` ticks to
@@ -201,15 +201,15 @@ the first run after loading data is slower - run twice and use the second.
 For the annotation-store database, run from psql, pgAdmin or VS Code. Each
 runs in one transaction, so it either all happens or none of it does.
 
-| Script | Does | Scope |
-| ------ | ---- | ----- |
-| `counts.sql` | Rows per table and how many are deleted (hidden), then per slide | Read-only |
-| `delete_stress_test.sql` | Annotations and counts with notes `stress-test` | Every user, every slide |
-| `delete_all_annotations.sql` | Every annotation | Everything |
-| `delete_all_cell_counts.sql` | Every cell count (ROI boxes cascade) | Everything |
-| `delete_all_image_adjustments.sql` | Every preset | Everything |
-| `delete_slide_data.sql` | Annotations, counts and presets for one slide - edit the id | One slide |
-| `reset_all.sql` | Empties every table - collections, members, links, groups, change sets. Schema and migrations stay | Everything |
+| Script                             | Does                                                                                               | Scope                   |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------- |
+| `counts.sql`                       | Rows per table and how many are deleted (hidden), then per slide                                   | Read-only               |
+| `delete_stress_test.sql`           | Annotations and counts with notes `stress-test`                                                    | Every user, every slide |
+| `delete_all_annotations.sql`       | Every annotation                                                                                   | Everything              |
+| `delete_all_cell_counts.sql`       | Every cell count (ROI boxes cascade)                                                               | Everything              |
+| `delete_all_image_adjustments.sql` | Every preset                                                                                       | Everything              |
+| `delete_slide_data.sql`            | Annotations, counts and presets for one slide - edit the id                                        | One slide               |
+| `reset_all.sql`                    | Empties every table - collections, members, links, groups, change sets. Schema and migrations stay | Everything              |
 
 These remove rows for real, where annotation-store only ever hides them.
 Only `reset_all.sql` removes collections. The viewer copes with any of
@@ -222,10 +222,10 @@ collection the next time a slide is opened - just reload.
 python -m unittest discover -s scripts
 ```
 
-| File | Covers |
-| ---- | ------ |
+| File                     | Covers                                                                                                                            |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
 | `test_keycloak_login.py` | Finding the login form's action in Keycloak's HTML (either attribute order, HTML-escaped), and reading the code from the redirect |
-| `test_seed_stress.py` | The dot limit - what's refused, the message, and that a million-dot count fits under 80 MiB |
+| `test_seed_stress.py`    | The dot limit - what's refused, the message, and that a million-dot count fits under 80 MiB                                       |
 
 Nothing that needs a running service is tested here. CI
 ([scripts.yml](../../.github/workflows/scripts.yml)) runs these and lints
@@ -246,14 +246,14 @@ with ruff.
 
 ## 11. Glossary
 
-| Term | Meaning |
-| ---- | ------- |
-| Stress test | Deliberately loading a system far past normal use to find where it breaks |
-| Seed | Add test data. Also the random number seed that makes it repeatable |
-| Password grant | Swapping a username and password straight for a token - off for the viewer's client |
-| PKCE | The proof that makes the browser-style code flow safe - see [auth.md](auth.md#3-the-realm) |
-| Frame gap | Time between two drawn frames. Lower is smoother |
-| Long task | Main-thread work over 50ms, which freezes the page |
-| Settle | The redraw once the map stops moving |
-| Transaction | A group of database changes that all happen or none do |
-| TRUNCATE | Empties a table in one go, much faster than `DELETE` |
+| Term           | Meaning                                                                                    |
+| -------------- | ------------------------------------------------------------------------------------------ |
+| Stress test    | Deliberately loading a system far past normal use to find where it breaks                  |
+| Seed           | Add test data. Also the random number seed that makes it repeatable                        |
+| Password grant | Swapping a username and password straight for a token - off for the viewer's client        |
+| PKCE           | The proof that makes the browser-style code flow safe - see [auth.md](auth.md#3-the-realm) |
+| Frame gap      | Time between two drawn frames. Lower is smoother                                           |
+| Long task      | Main-thread work over 50ms, which freezes the page                                         |
+| Settle         | The redraw once the map stops moving                                                       |
+| Transaction    | A group of database changes that all happen or none do                                     |
+| TRUNCATE       | Empties a table in one go, much faster than `DELETE`                                       |

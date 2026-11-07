@@ -1,135 +1,127 @@
 {
- "settings": {
-  "people": [
-   2,
-   6,
-   12
-  ],
-  "notices": [
-   0.5,
-   2,
-   5
-  ],
-  "seeds": 5,
-  "seconds": 120
- },
- "summary": [
-  {
-   "people": 2,
-   "notice": 0.5,
-   "runs": 5,
-   "words": 47,
-   "yjsLetters": 1,
-   "yjsWordsIntact": 1,
-   "yjsConverged": true,
-   "lastSaveLetters": 0.5584131253806354,
-   "lastSaveWordsIntact": 0.5585269285579845,
-   "bytesPerLetterRelayed": 11.488138598228048,
-   "stateBytesPerLetter": 1.3854916012405365
-  },
-  {
-   "people": 2,
-   "notice": 2,
-   "runs": 5,
-   "words": 47,
-   "yjsLetters": 1,
-   "yjsWordsIntact": 0.9956521739130435,
-   "yjsConverged": true,
-   "lastSaveLetters": 0.5201407536179341,
-   "lastSaveWordsIntact": 0.5194485897125649,
-   "bytesPerLetterRelayed": 11.669234216243778,
-   "stateBytesPerLetter": 1.415619436974366
-  },
-  {
-   "people": 2,
-   "notice": 5,
-   "runs": 5,
-   "words": 47,
-   "yjsLetters": 1,
-   "yjsWordsIntact": 1,
-   "yjsConverged": true,
-   "lastSaveLetters": 0.5162729257490816,
-   "lastSaveWordsIntact": 0.5151007636256084,
-   "bytesPerLetterRelayed": 11.650094048201614,
-   "stateBytesPerLetter": 1.411854255090915
-  },
-  {
-   "people": 6,
-   "notice": 0.5,
-   "runs": 5,
-   "words": 140,
-   "yjsLetters": 1,
-   "yjsWordsIntact": 0.9985815602836879,
-   "yjsConverged": true,
-   "lastSaveLetters": 0.2676749031731384,
-   "lastSaveWordsIntact": 0.2680772062450599,
-   "bytesPerLetterRelayed": 11.956708309353388,
-   "stateBytesPerLetter": 1.4252661038530694
-  },
-  {
-   "people": 6,
-   "notice": 2,
-   "runs": 5,
-   "words": 140,
-   "yjsLetters": 1,
-   "yjsWordsIntact": 0.9971501014198783,
-   "yjsConverged": true,
-   "lastSaveLetters": 0.1920294084633738,
-   "lastSaveWordsIntact": 0.19211840253853424,
-   "bytesPerLetterRelayed": 11.952189399851715,
-   "stateBytesPerLetter": 1.4273500533411885
-  },
-  {
-   "people": 6,
-   "notice": 5,
-   "runs": 5,
-   "words": 140,
-   "yjsLetters": 1,
-   "yjsWordsIntact": 1,
-   "yjsConverged": true,
-   "lastSaveLetters": 0.16615159857546793,
-   "lastSaveWordsIntact": 0.16618866987828934,
-   "bytesPerLetterRelayed": 11.90396551475678,
-   "stateBytesPerLetter": 1.4295394472707121
-  },
-  {
-   "people": 12,
-   "notice": 0.5,
-   "runs": 5,
-   "words": 278,
-   "yjsLetters": 1,
-   "yjsWordsIntact": 0.9992857142857143,
-   "yjsConverged": true,
-   "lastSaveLetters": 0.15155872247990754,
-   "lastSaveWordsIntact": 0.15229902862027614,
-   "bytesPerLetterRelayed": 12.043226949626439,
-   "stateBytesPerLetter": 1.4255258161158553
-  },
-  {
-   "people": 12,
-   "notice": 2,
-   "runs": 5,
-   "words": 278,
-   "yjsLetters": 1,
-   "yjsWordsIntact": 0.9985686485379219,
-   "yjsConverged": true,
-   "lastSaveLetters": 0.10492096099620776,
-   "lastSaveWordsIntact": 0.1048898988551777,
-   "bytesPerLetterRelayed": 12.029702362582,
-   "stateBytesPerLetter": 1.4425143722449452
-  },
-  {
-   "people": 12,
-   "notice": 5,
-   "runs": 5,
-   "words": 278,
-   "yjsLetters": 1,
-   "yjsWordsIntact": 1,
-   "yjsConverged": true,
-   "lastSaveLetters": 0.08450134356499059,
-   "lastSaveWordsIntact": 0.08404626279645484,
-   "bytesPerLetterRelayed": 12.002526020742506,
-   "stateBytesPerLetter": 1.4583615759832174
-  }
- ]
+	"settings": {
+		"people": [2, 6, 12],
+		"notices": [0.5, 2, 5],
+		"seeds": 5,
+		"seconds": 120
+	},
+	"summary": [
+		{
+			"people": 2,
+			"notice": 0.5,
+			"runs": 5,
+			"words": 47,
+			"yjsLetters": 1,
+			"yjsWordsIntact": 1,
+			"yjsConverged": true,
+			"lastSaveLetters": 0.5584131253806354,
+			"lastSaveWordsIntact": 0.5585269285579845,
+			"bytesPerLetterRelayed": 11.488138598228048,
+			"stateBytesPerLetter": 1.3854916012405365
+		},
+		{
+			"people": 2,
+			"notice": 2,
+			"runs": 5,
+			"words": 47,
+			"yjsLetters": 1,
+			"yjsWordsIntact": 0.9956521739130435,
+			"yjsConverged": true,
+			"lastSaveLetters": 0.5201407536179341,
+			"lastSaveWordsIntact": 0.5194485897125649,
+			"bytesPerLetterRelayed": 11.669234216243778,
+			"stateBytesPerLetter": 1.415619436974366
+		},
+		{
+			"people": 2,
+			"notice": 5,
+			"runs": 5,
+			"words": 47,
+			"yjsLetters": 1,
+			"yjsWordsIntact": 1,
+			"yjsConverged": true,
+			"lastSaveLetters": 0.5162729257490816,
+			"lastSaveWordsIntact": 0.5151007636256084,
+			"bytesPerLetterRelayed": 11.650094048201614,
+			"stateBytesPerLetter": 1.411854255090915
+		},
+		{
+			"people": 6,
+			"notice": 0.5,
+			"runs": 5,
+			"words": 140,
+			"yjsLetters": 1,
+			"yjsWordsIntact": 0.9985815602836879,
+			"yjsConverged": true,
+			"lastSaveLetters": 0.2676749031731384,
+			"lastSaveWordsIntact": 0.2680772062450599,
+			"bytesPerLetterRelayed": 11.956708309353388,
+			"stateBytesPerLetter": 1.4252661038530694
+		},
+		{
+			"people": 6,
+			"notice": 2,
+			"runs": 5,
+			"words": 140,
+			"yjsLetters": 1,
+			"yjsWordsIntact": 0.9971501014198783,
+			"yjsConverged": true,
+			"lastSaveLetters": 0.1920294084633738,
+			"lastSaveWordsIntact": 0.19211840253853424,
+			"bytesPerLetterRelayed": 11.952189399851715,
+			"stateBytesPerLetter": 1.4273500533411885
+		},
+		{
+			"people": 6,
+			"notice": 5,
+			"runs": 5,
+			"words": 140,
+			"yjsLetters": 1,
+			"yjsWordsIntact": 1,
+			"yjsConverged": true,
+			"lastSaveLetters": 0.16615159857546793,
+			"lastSaveWordsIntact": 0.16618866987828934,
+			"bytesPerLetterRelayed": 11.90396551475678,
+			"stateBytesPerLetter": 1.4295394472707121
+		},
+		{
+			"people": 12,
+			"notice": 0.5,
+			"runs": 5,
+			"words": 278,
+			"yjsLetters": 1,
+			"yjsWordsIntact": 0.9992857142857143,
+			"yjsConverged": true,
+			"lastSaveLetters": 0.15155872247990754,
+			"lastSaveWordsIntact": 0.15229902862027614,
+			"bytesPerLetterRelayed": 12.043226949626439,
+			"stateBytesPerLetter": 1.4255258161158553
+		},
+		{
+			"people": 12,
+			"notice": 2,
+			"runs": 5,
+			"words": 278,
+			"yjsLetters": 1,
+			"yjsWordsIntact": 0.9985686485379219,
+			"yjsConverged": true,
+			"lastSaveLetters": 0.10492096099620776,
+			"lastSaveWordsIntact": 0.1048898988551777,
+			"bytesPerLetterRelayed": 12.029702362582,
+			"stateBytesPerLetter": 1.4425143722449452
+		},
+		{
+			"people": 12,
+			"notice": 5,
+			"runs": 5,
+			"words": 278,
+			"yjsLetters": 1,
+			"yjsWordsIntact": 1,
+			"yjsConverged": true,
+			"lastSaveLetters": 0.08450134356499059,
+			"lastSaveWordsIntact": 0.08404626279645484,
+			"bytesPerLetterRelayed": 12.002526020742506,
+			"stateBytesPerLetter": 1.4583615759832174
+		}
+	]
 }
