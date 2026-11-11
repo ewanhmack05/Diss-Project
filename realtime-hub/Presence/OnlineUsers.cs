@@ -72,14 +72,6 @@ public class OnlineUsers
         }
     }
 
-    public string? UserOf(string connectionId)
-    {
-        lock (_lock)
-        {
-            return _connections.TryGetValue(connectionId, out var connection) ? connection.UserId : null;
-        }
-    }
-
     // Works the user out again from their tabs, and gives it a new Version
     // only if something a client would see is different.
     private OnlineUser? Restamp(string userId)

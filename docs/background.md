@@ -42,7 +42,7 @@ Digital pathology in tau research: A comparison of QuPath and HALO: https://pubm
 
 Halo: https://indicalab.com/halo/
 QuPath: https://qupath.github.io/
-Sectra: https://medical.sectra.com/solutionarea/radiology-imaging/
+Sectra: https://medical.sectra.com/solutionarea/digital-pathology/
 
 Collaberative viewers:
 CytoBrowser: https://github.com/MIDA-group/CytoBrowser - https://ljmu.primo.exlibrisgroup.com/permalink/44JMU_INST/ilfgop/cdi_swepub_primary_oai_DiVA_org_uu_457604

@@ -112,7 +112,7 @@ has to settle:
   changed what might be required rather than optional. That's a question for whoever
   approves it, and it could pull against everything above
 
-Some areas, especially in pathology require data to be kept for up to 15 years. This is mostly slides and tissue samples, but data around these may also have to follow the same rules - not 100% sure
+Some areas, especially in pathology require data to be kept for up to 30 years (the Royal College of Pathologists' [G031](https://www.rcpath.org/static/049ea966-df5c-4a9f-9353ba24a69bb808/bd7ed2ba-8e77-4a2d-8c3ae7e74f3aaaa0/g031-The-retention-and-storage-of-pathological-records-and-specimens.pdf), October 2025: 30 years for tissue blocks and lab records that are part of the patient's record, at least 8 for slides and digital images used for diagnosis). This is mostly slides and tissue samples, but data around these may also have to follow the same rules - not 100% sure
 
 ## Retention
 

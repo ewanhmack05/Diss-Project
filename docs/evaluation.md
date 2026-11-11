@@ -105,7 +105,7 @@ replaces the last. 120 seconds of typing, 5 seeds each. From
 - **A plain box loses most of it** past two people, since someone with unsaved typing saves over
   whatever's happened since. It's nearly half even with two.
 - **Relayed text costs about 12 bytes a letter**, which is what the hub holds per letter while a
-  box is open. Saved in Yjs' own form it's about 1.5 bytes.
+  box is open. Saved in Yjs' own form it's about 1.4 bytes.
 
 **How far to trust this:** typing is simulated and constant, so everyone typing in one box for
 two minutes is far heavier than real use. This doesn't go through the viewer or the hub, and
