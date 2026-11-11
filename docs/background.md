@@ -41,13 +41,18 @@ Standardized Clinical Annotation of Digital Histopathology Slides at the Point o
 Digital pathology in tau research: A comparison of QuPath and HALO: https://pubmed.ncbi.nlm.nih.gov/40238207/
 
 Halo: https://indicalab.com/halo/
+
 QuPath: https://qupath.github.io/
+
 Sectra: https://medical.sectra.com/solutionarea/digital-pathology/
 
-Collaberative viewers:
+Collaborative viewers:
 CytoBrowser: https://github.com/MIDA-group/CytoBrowser - https://ljmu.primo.exlibrisgroup.com/permalink/44JMU_INST/ilfgop/cdi_swepub_primary_oai_DiVA_org_uu_457604
+
 PathCollab: https://github.com/PABannier/PathCollab
+
 Pathhub: https://pathhub.com/pages/pathhub-digital
+
 PathVU: https://www.prr.ai/pathvu/
 
 ### Ai tailored source control

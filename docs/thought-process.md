@@ -41,7 +41,7 @@ other?
 All three run on the same data: each user's viewport broadcast over the
 real-time channel, throttled to ~10 updates/sec.
 
-### Collaberation
+### Collaboration
 
 2 options for Cell Count:
 

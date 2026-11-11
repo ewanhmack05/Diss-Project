@@ -94,9 +94,9 @@ layers for annotations and cell-count dots.
 | `seed_history.py`         | A session with a few days of made-up changes, for the History tab - see [below](#history-test-data)                                                                               |
 | `teardown_users.py`       | Removes test users from Keycloak, and from the sessions they joined - see [below](#removing-test-users)                                                                           |
 | `keycloak_login.py`       | Signs the Python scripts in - not run on its own                                                                                                                                  |
-| `keycloak_admin.py`       | Keycloak's admin API for the two above - not run on its own                                                                                                                       |
+| `keycloak_admin.py`       | Keycloak's admin API for `simulate_session.py` and `teardown_users.py` - not run on its own                                                                                       |
 
-Both Python scripts need `annotation-store` and Keycloak (`auth/`) running.
+`seed_stress.py` and `clean_stress.py` need `annotation-store` and Keycloak (`auth/`) running.
 `seed_stress.py` also needs `tiler`, to look up the slide's size so shapes
 land on the slide.
 
@@ -272,9 +272,8 @@ only show in the viewer with the Annotations panel open, like any others.
 The first editor makes a few shared annotations in the middle of the slide,
 then every editor keeps recolouring them, each from their own copy of the
 colour. Someone else's change only reaches their copy `--notice` seconds
-after it's saved - the gap between something changing and a person noticing
-
-- which is what decides how often two changes collide.
+after it's saved - the gap between something changing and a person noticing -
+which is what decides how often two changes collide.
 
 Under first change wins, a save from an old copy is turned down, and they
 then put theirs over it (`--use-mine` of the time) or keep the other one.

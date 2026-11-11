@@ -35,7 +35,7 @@ work or whether people find the tools any good.
 Using work's data or a lab analyst's time are also open, in
 [section 10 of the todo](todo.md#10-questions-to-ask-supervisor--work).
 
-To my knowledge, NHS ethical approval shouldnt be needed, as the slide is fully anonymous by the time I get access to it.
+To my knowledge, NHS ethical approval shouldn't be needed, as the slide is fully anonymous by the time I get access to it.
 Slide being used at the moment states `	Free to use and distribute, with or without modification` (https://openslide.cs.cmu.edu/download/openslide-testdata/Mirax/)
 
 ## What could be personal data

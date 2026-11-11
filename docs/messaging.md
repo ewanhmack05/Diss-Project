@@ -5,8 +5,8 @@ API and the tables are in [messaging/README.md](../messaging/README.md), which i
 if this page ever disagrees.
 
 People with an account can message each other one to one, and chat in a session, and
-send a group, some annotations, a collection or an invite link. Today the only thing
-anyone can send someone is an invite code, and only while they're online.
+send a group, some annotations, a collection or an invite link. Before this the only thing
+anyone could send someone was an invite code, and only while they were online.
 
 ## What gets better
 

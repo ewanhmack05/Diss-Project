@@ -243,15 +243,15 @@ column, before, after, count, names }`, so a recolour of 48 annotations
   nobody's changed it again since. So a deleted or merged group comes back
   with what was in it, and a later edit is never undone. Any editor, for
   anyone's change set - except a deleted collection, which only its owner
-  can bring back (and not while they've a newer personal one for that slide
-  - 409). Answers `{ counts, annotations, groups, cellCounts,
+  can bring back (and not while they've a newer personal one for that slide -
+  409). Answers `{ counts, annotations, groups, cellCounts,
 imageAdjustments, changedAnnotations, changedCellCounts }`: `counts` is `{ annotations,
 groups, cellCounts, imageAdjustments, collection }`, how many of each came
-    back, the lists are the rows that came back as the reads give them -
-    groups with their member `count`, cell counts as the Saved list has them
-    (no `dots`) - and `changedAnnotations` and `changedCellCounts` are ones
-    that were already there and went back how they were. Restoring again
-    answers zeros and empty lists
+  back, the lists are the rows that came back as the reads give them -
+  groups with their member `count`, cell counts as the Saved list has them
+  (no `dots`) - and `changedAnnotations` and `changedCellCounts` are ones
+  that were already there and went back how they were. Restoring again
+  answers zeros and empty lists
 - `GET /annotations/{id}/history?collectionId=&skip=&take=`, and the same on
   `/cellcounts/{id}/history` - one row's timeline, newest first: `{ versions,
 total, latest, groups }`. Each version is `{ id, changeSetId, userId,
