@@ -23,7 +23,7 @@ const ShapeTools: Record<ShapeTool, ShapeToolConfig> = {
 
 const ShapeOrder: ShapeTool[] = ["line", "freehand", "polygon", "arrow", "rectangle", "circle"];
 
-// Same fixed palette as their ColourSelection (Tools.ts PreDefinedColours).
+// The colour picker's swatches, and the colours the Saved filters know by name.
 const PreDefinedColours = ["#FB0909", "#0913FB", "#FB09FB", "#000000", "#168304", "#06EAF9", "#F9E006", "#FFFFFF"];
 
 // What a new shape or cell-count dot starts in - the palette's yellow, so

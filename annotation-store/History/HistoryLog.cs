@@ -26,7 +26,7 @@ public static class HistoryLog
 
     // The rows that are versioned. Collections aren't on the list - deleting
     // one hides it (Collections.Deleted) and is logged by hand, see
-    // CollectionDeleted.
+    // CollectionDeletedAsync.
     public static readonly IReadOnlyDictionary<Type, string> Entities = new Dictionary<Type, string>
     {
         [typeof(Annotation)] = Annotation,
