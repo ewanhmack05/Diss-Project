@@ -1,5 +1,6 @@
 import * as solo from "./solo.js";
 import * as together from "./together.js";
+import * as gallery from "./gallery.js";
 
 export { SLIDE } from "./helpers.js";
 
@@ -16,6 +17,7 @@ export const SCENES = [
 	{ name: "tab-docking", title: "Panels - floating, every edge, sharing, closing", cast: ["sam"], run: solo.tabDocking },
 	{ name: "collections", title: "Collections - renaming, sharing, import, export, paging", cast: ["sam"], run: solo.collections },
 	{ name: "history", title: "History - every change, putting back, timelines, rollback", cast: ["sam"], run: solo.history },
+	{ name: "gallery", title: "Gallery - moving between slides, filmstrip, docking, being asked first", cast: ["sam"], run: gallery.galleryAlone },
 	{
 		name: "collaboration",
 		title: "Working together live - follow, present, annotations, counts, ruler, rotation, adjustments",
@@ -26,4 +28,10 @@ export const SCENES = [
 	{ name: "session-admin", title: "Running a session - links, roles, caps, collisions, ending", cast: ["sam", "jo"], run: together.sessionAdmin },
 	{ name: "messaging", title: "Messages - an annotation, a group of cell counts and a viewing area", cast: ["sam", "jo"], run: together.messaging },
 	{ name: "guests", title: "Guests - joining without an account", cast: ["sam", "guest"], run: together.guests },
+	{
+		name: "gallery-together",
+		title: "Gallery with two people - who's where, an invite to another slide, leaving the room, going after someone",
+		cast: ["sam", "jo"],
+		run: gallery.galleryTogether,
+	},
 ];

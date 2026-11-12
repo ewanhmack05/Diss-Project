@@ -22,16 +22,16 @@ GitHub Actions in [.github/workflows](.github/workflows). Each folder has
 its own workflow, run on a push to any branch that changes that folder (or
 the workflow itself). They can also be run by hand from the Actions tab.
 
-| Workflow                                                                                                                                                     | Runs                                                                                      |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| [annotation-store](.github/workflows/annotation-store.yml), [realtime-hub](.github/workflows/realtime-hub.yml), [messaging](.github/workflows/messaging.yml) | `dotnet format` check, build with warnings as errors, xUnit tests, Docker build           |
-| [tiler](.github/workflows/tiler.yml)                                                                                                                         | the same. No LFS, so tests needing a real slide skip and slide 003 is pointer files       |
-| [image-viewer](.github/workflows/image-viewer.yml)                                                                                                           | `npm ci`, oxlint, vitest, `tsc -b` + Vite build                                           |
-| [auth](.github/workflows/auth.yml)                                                                                                                           | shellcheck, compose check, realm has its clients, Keycloak starts and imports the realm   |
-| [dashboard](.github/workflows/dashboard.yml)                                                                                                                 | compose check, provisioning YAML and dashboard JSON parse                                 |
-| [scripts](.github/workflows/scripts.yml)                                                                                                                     | ruff, Python compiles                                                                     |
-| [playback](.github/workflows/playback.yml)                                                                                                                   | `npm ci`, the recorder's tests. Recording itself stays local                              |
-| [stack](.github/workflows/stack.yml)                                                                                                                         | root `docker-compose.yml` is valid                                                        |
+| Workflow                                                                                                                                                     | Runs                                                                                    |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| [annotation-store](.github/workflows/annotation-store.yml), [realtime-hub](.github/workflows/realtime-hub.yml), [messaging](.github/workflows/messaging.yml) | `dotnet format` check, build with warnings as errors, xUnit tests, Docker build         |
+| [tiler](.github/workflows/tiler.yml)                                                                                                                         | the same. No LFS, so tests needing a real slide skip and slide 003 is pointer files     |
+| [image-viewer](.github/workflows/image-viewer.yml)                                                                                                           | `npm ci`, oxlint, vitest, `tsc -b` + Vite build                                         |
+| [auth](.github/workflows/auth.yml)                                                                                                                           | shellcheck, compose check, realm has its clients, Keycloak starts and imports the realm |
+| [dashboard](.github/workflows/dashboard.yml)                                                                                                                 | compose check, provisioning YAML and dashboard JSON parse                               |
+| [scripts](.github/workflows/scripts.yml)                                                                                                                     | ruff, Python compiles                                                                   |
+| [playback](.github/workflows/playback.yml)                                                                                                                   | `npm ci`, the recorder's tests. Recording itself stays local                            |
+| [stack](.github/workflows/stack.yml)                                                                                                                         | root `docker-compose.yml` is valid                                                      |
 
 The three .NET workflows share their steps through
 [dotnet.yml](.github/workflows/dotnet.yml), a reusable workflow that
@@ -196,10 +196,10 @@ One person, per part of the viewer:
 | [![Ruler](https://img.youtube.com/vi/NOe85CuJPU8/hqdefault.jpg)](https://youtu.be/NOe85CuJPU8) | [![Image Adjustments](https://img.youtube.com/vi/5jnYVwugFS4/hqdefault.jpg)](https://youtu.be/5jnYVwugFS4) | [![Tab docking](https://img.youtube.com/vi/9Qyln1OU3EM/hqdefault.jpg)](https://youtu.be/9Qyln1OU3EM) |
 | [Watch](https://youtu.be/NOe85CuJPU8)                                                          | [Watch](https://youtu.be/5jnYVwugFS4)                                                                      | [Watch](https://youtu.be/9Qyln1OU3EM)                                                                |
 
-| Collections                                                                                          | History                                                                                          |
-| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| [![Collections](https://img.youtube.com/vi/yQWMZNl5pSI/hqdefault.jpg)](https://youtu.be/yQWMZNl5pSI) | [![History](https://img.youtube.com/vi/tbZCod-o8-U/hqdefault.jpg)](https://youtu.be/tbZCod-o8-U) |
-| [Watch](https://youtu.be/yQWMZNl5pSI)                                                                | [Watch](https://youtu.be/tbZCod-o8-U)                                                            |
+| Collections                                                                                          | History                                                                                          | Gallery                                                                                          |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| [![Collections](https://img.youtube.com/vi/yQWMZNl5pSI/hqdefault.jpg)](https://youtu.be/yQWMZNl5pSI) | [![History](https://img.youtube.com/vi/tbZCod-o8-U/hqdefault.jpg)](https://youtu.be/tbZCod-o8-U) | [![Gallery](https://img.youtube.com/vi/xMDpCv8MbPk/hqdefault.jpg)](https://youtu.be/xMDpCv8MbPk) |
+| [Watch](https://youtu.be/yQWMZNl5pSI)                                                                | [Watch](https://youtu.be/tbZCod-o8-U)                                                            | [Watch](https://youtu.be/xMDpCv8MbPk)                                                            |
 
 Two people side by side, each screen showing what the other does live:
 
@@ -213,7 +213,7 @@ Two people side by side, each screen showing what the other does live:
 | [![Session admin](https://img.youtube.com/vi/9Wq3UmFiga0/hqdefault.jpg)](https://youtu.be/9Wq3UmFiga0) | [![Guests](https://img.youtube.com/vi/HW5iUOAhO1A/hqdefault.jpg)](https://youtu.be/HW5iUOAhO1A) |
 | [Watch](https://youtu.be/9Wq3UmFiga0)                                                                  | [Watch](https://youtu.be/HW5iUOAhO1A)                                                           |
 
-| Messaging                                                                                          |
-| -------------------------------------------------------------------------------------------------- |
-| [![Messaging](https://img.youtube.com/vi/C_5mDSey0iM/hqdefault.jpg)](https://youtu.be/C_5mDSey0iM) |
-| [Watch](https://youtu.be/C_5mDSey0iM)                                                              |
+| Messaging                                                                                          | Gallery together                                                                                          |
+| -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| [![Messaging](https://img.youtube.com/vi/C_5mDSey0iM/hqdefault.jpg)](https://youtu.be/C_5mDSey0iM) | [![Gallery together](https://img.youtube.com/vi/I3NWuMHm5u4/hqdefault.jpg)](https://youtu.be/I3NWuMHm5u4) |
+| [Watch](https://youtu.be/C_5mDSey0iM)                                                              | [Watch](https://youtu.be/I3NWuMHm5u4)                                                                     |
