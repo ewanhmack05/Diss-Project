@@ -33,6 +33,14 @@ public static class CollectionAccess
         return shared ? CollectionRole.Viewer : null;
     }
 
+    // RoleAsync's rule for anyone signed in, as a filter - every collection
+    // they can open: one they're a member of, or someone else's personal one
+    // that's shared. The lists use this, so who can open what is only said
+    // here and in RoleAsync. Not for guests - they get the session in their
+    // token and nothing else.
+    public static IQueryable<Collections> VisibleTo(this IQueryable<Collections> collections, string userId) =>
+        collections.Where(c => c.Members.Any(m => m.UserId == userId) || (c.Kind == CollectionKind.Personal && c.Shared));
+
     // Null means go ahead, otherwise it's the response to send. Not a member
     // is a 404 rather than a 403, so it doesn't say whether it exists. An
     // ended session can still be read, but nothing in it can change.

@@ -246,6 +246,7 @@ public class GuestAccessTests : IClassFixture<CellCountApiFactory>
             (HttpMethod.Delete, $"/imageadjustments/{seeded.AdjustmentId}"),
             (HttpMethod.Get, $"/collections/{id}"),
             (HttpMethod.Get, $"/collections/{id}/export"),
+            (HttpMethod.Get, "/slides/summary"),
             (HttpMethod.Post, "/collections/ensure"),
             (HttpMethod.Post, "/collections"),
             (HttpMethod.Post, "/sessions"),

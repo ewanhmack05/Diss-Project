@@ -112,6 +112,7 @@ if (args.Contains("round-geojson"))
 }
 
 app.MapCollectionEndpoints();
+app.MapSlideSummaryEndpoints();
 app.MapAnnotationGroupEndpoints();
 app.MapCellCountGroupEndpoints();
 app.MapChangeSetEndpoints();
