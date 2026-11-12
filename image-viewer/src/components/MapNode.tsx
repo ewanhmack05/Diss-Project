@@ -20,7 +20,7 @@ import VectorLayer from "ol/layer/Vector";
 import WebGLVectorLayer from "ol/layer/WebGLVector";
 import type WebGLTileLayer from "ol/layer/WebGLTile";
 import VectorSource from "ol/source/Vector";
-import { OpenLayerMap } from "./open-layers/OpenLayers";
+import { OpenLayerMap, type ShowSlide } from "./open-layers/OpenLayers";
 import {
 	annotationStyle,
 	annotationFlatStyle,
@@ -205,6 +205,9 @@ function MapNode() {
 	const mapElement = useRef<HTMLDivElement | null>(null);
 	const mapRef = useRef<Map | null>(null);
 	const baseLayerRef = useRef<WebGLTileLayer | null>(null);
+	// Set once the map's built - see OpenLayerMap.
+	const showSlideRef = useRef<ShowSlide | null>(null);
+	const lessDetailRef = useRef<LessDetail | null>(null);
 	const drawSourceRef = useRef(new VectorSource());
 	// Read inside the drawend handler - refs so typing a quick draw label
 	// doesn't tear down and rebuild the Draw interaction on every keystroke.
@@ -247,6 +250,7 @@ function MapNode() {
 	const remoteSketchesSourceRef = useRef(new VectorSource());
 	const remoteSketchesLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
 	const remoteRulersSourceRef = useRef(new VectorSource());
+	const remoteRulersLayerRef = useRef<VectorLayer<VectorSource> | null>(null);
 	const remoteCountsSourceRef = useRef(new VectorSource());
 	// Whether our count is out there for people watching us present.
 	const countSentRef = useRef(false);
@@ -295,7 +299,6 @@ function MapNode() {
 		if (!mapElement.current) return;
 
 		let cancelled = false;
-		let lessDetail: LessDetail | null = null;
 
 		const slideUrl = `${source.tilerUrl}/slides/${source.slideId}`;
 		fetch(slideUrl)
@@ -306,6 +309,20 @@ function MapNode() {
 			.then((metadata) => {
 				if (cancelled || !mapElement.current) return;
 				slideMetadataRef.current = metadata;
+				// Another slide on the map that's already there - its tiles and
+				// view change, nothing else is rebuilt. What's drawn on it follows
+				// from the stores loading the new slide's collection.
+				if (showSlideRef.current) {
+					showSlideRef.current(
+						{ width: metadata.width, height: metadata.height },
+						{ baseUrl: `${slideUrl}/`, tileSize: metadata.tileSize },
+						metadata.objectivePower,
+						metadata.mppX,
+					);
+					remoteRulersLayerRef.current?.setStyle(remoteRulerStyle(metadata.mppX, metadata.mppY));
+					setMapVersion((version) => version + 1);
+					return;
+				}
 				// Saved annotations, dots and ROI boxes draw on the GPU. The draw
 				// layer (in-progress and pending shapes) and the ruler stay on
 				// canvas - they only ever hold a feature or two, and need style
@@ -314,7 +331,8 @@ function MapNode() {
 				// The GPU draws a copy of the saved annotations with less detail
 				// when zoomed out (see LessDetail); everything else reads the
 				// shapes as saved from annotationsSource.
-				lessDetail = new LessDetail(annotationsSource);
+				const lessDetail = new LessDetail(annotationsSource);
+				lessDetailRef.current = lessDetail;
 				const annotationsLayer =
 					annotationRenderer(window.location.search) === "canvas"
 						? new VectorLayer({
@@ -419,6 +437,7 @@ function MapNode() {
 					style: remoteRulerStyle(metadata.mppX, metadata.mppY),
 					...live,
 				});
+				remoteRulersLayerRef.current = remoteRulersLayer;
 				// The host's count while they present - shown whatever you have open.
 				const remoteCountsLayer = new VectorLayer({
 					source: remoteCountsSourceRef.current,
@@ -438,7 +457,7 @@ function MapNode() {
 				viewedDotsLayerRef.current = viewedDotsLayer;
 				viewedRoiLayerRef.current = viewedRoiLayer;
 				rulerLayerRef.current = rulerLayer;
-				const { map, baseLayer, overviewMap } = OpenLayerMap(
+				const { map, baseLayer, overviewMap, showSlide } = OpenLayerMap(
 					mapElement.current,
 					{ width: metadata.width, height: metadata.height },
 					{ baseUrl: `${slideUrl}/`, tileSize: metadata.tileSize },
@@ -473,6 +492,7 @@ function MapNode() {
 				lessDetail.follow(map);
 				mapRef.current = map;
 				baseLayerRef.current = baseLayer;
+				showSlideRef.current = showSlide;
 				// For scripts/map_bench.js, which turns layers off one at a time to
 				// see what each costs. Dev server only.
 				if (import.meta.env.DEV) {
@@ -503,15 +523,25 @@ function MapNode() {
 
 		return () => {
 			cancelled = true;
-			mapRef.current?.setTarget(undefined);
-			// Each WebGL layer holds its own GL context and browsers only allow
-			// about 16 at once, so free them rather than leaking a set per slide.
-			mapRef.current?.getLayers().forEach((layer) => layer.dispose());
-			lessDetail?.dispose();
-			mapRef.current = null;
-			baseLayerRef.current = null;
 		};
 	}, [source, emit]);
+
+	// The map lasts as long as the viewer does - a change of slide is dealt
+	// with above, on the one that's there.
+	useEffect(
+		() => () => {
+			mapRef.current?.setTarget(undefined);
+			// Each WebGL layer holds its own GL context and browsers only allow
+			// about 16 at once, so free them rather than leave them behind.
+			mapRef.current?.getLayers().forEach((layer) => layer.dispose());
+			lessDetailRef.current?.dispose();
+			lessDetailRef.current = null;
+			mapRef.current = null;
+			baseLayerRef.current = null;
+			showSlideRef.current = null;
+		},
+		[],
+	);
 
 	// Keep the map's annotations layer in sync with the saved-annotations store.
 	// Groups hidden on the Select tab are left off, and so is anything the
@@ -850,7 +880,8 @@ function MapNode() {
 			stopDragging();
 			map.removeInteraction(draw);
 		};
-	}, [rulerVisible, activeTool, counting, setLastMeasurement, sendSketch]);
+		// mapVersion so the line's label is in the slide's own microns after a move.
+	}, [rulerVisible, activeTool, counting, setLastMeasurement, sendSketch, mapVersion]);
 
 	useEffect(() => {
 		rotationDegreesRef.current = rotationDegrees;
@@ -1553,15 +1584,18 @@ function MapNode() {
 		};
 	}, [activeTool, annotationsVisible, pending, colour, lineThickness, lineStyle, setPending, sendSketch]);
 
-	if (error) {
-		return (
-			<div className="map-node map-node--error">
-				<p>{error}</p>
-			</div>
-		);
-	}
-
-	return <div ref={mapElement} className="map-node" />;
+	// The map's element stays whatever happens, since the map lasts longer
+	// than any one slide - an error goes over it, not instead of it.
+	return (
+		<>
+			<div ref={mapElement} className="map-node" />
+			{error && (
+				<div className="map-node map-node--error">
+					<p>{error}</p>
+				</div>
+			)}
+		</>
+	);
 }
 
 export default MapNode;

@@ -30,7 +30,7 @@ function AttachmentCard({ message, attachment, mine, onChanged, onGrew }: Attach
 	const { addToMine, shownFor, viewOnMap } = useSentThings();
 	const { shownArea, showArea } = useMessagingContext();
 	const { openInvite } = useInviteGate();
-	const { source } = useImageViewerContext();
+	const { source, moveToSlide } = useImageViewerContext();
 	const { addToast } = useToastContext();
 	const [adding, setAdding] = useState(false);
 	const [viewing, setViewing] = useState(false);
@@ -116,12 +116,17 @@ function AttachmentCard({ message, attachment, mine, onChanged, onGrew }: Attach
 				) : (
 					<>
 						{attachment.kind !== "area" && <span className="messages-card-meta">{formatBytes(attachment.bytes)}</span>}
-						{elsewhere && <span className="messages-card-meta">From slide {attachment.slideId}, so you can't see it from here</span>}
+						{elsewhere && <span className="messages-card-meta">From slide {attachment.slideId}</span>}
 						{attachment.lastAddedByMe && <span className="messages-card-meta">Added {formatShortDate(attachment.lastAddedByMe)}</span>}
 						<span className="messages-card-actions">
 							{previewable && big && !previewAsked && (
 								<button type="button" className="messages-button" onClick={() => setPreviewAsked(true)}>
 									Preview
+								</button>
+							)}
+							{elsewhere && (
+								<button type="button" className="messages-button" onClick={() => void moveToSlide(attachment.slideId!)}>
+									Open slide {attachment.slideId}
 								</button>
 							)}
 							{!elsewhere && (

@@ -1,5 +1,6 @@
-# No test project yet, so this is format, build and the Docker build.
-# The checkout skips LFS, so the Docker build copies slide 003's pointer
+# Format, build, tests and the Docker build. The checkout skips LFS, so
+# the slides are pointer files: the tests that read a real slide skip
+# themselves and the rest run. The Docker build copies slide 003's pointer
 # files rather than the 2.9 GB slide - enough to prove the Dockerfile
 # works, but that image won't serve tiles. The deploy workflow pulls the
 # real slide.
@@ -28,3 +29,4 @@ jobs:
     with:
       directory: tiler
       project: Tiler.csproj
+      tests: Tests/Tiler.Tests.csproj

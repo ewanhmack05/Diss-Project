@@ -419,10 +419,17 @@ function CollectionContextProvider({ baseUrl, maxEditors, editPolicy, children }
 	const acceptInvite = useCallback(
 		async (code: string) => {
 			const joined = await send<Collection>(`/invites/${encodeURIComponent(code)}/accept`, "POST");
+			// On another slide it isn't in this slide's list, which would read as
+			// being taken out of it. It's remembered for that slide instead, and
+			// opens once the viewer moves there.
+			if (joined.slideId !== slideId) {
+				storeActive(joined.slideId, joined.collectionId, false);
+				return;
+			}
 			await loadCollections();
 			setActive(joined.collectionId);
 		},
-		[send, loadCollections, setActive],
+		[send, slideId, loadCollections, setActive],
 	);
 
 	const setMemberRole = useCallback(

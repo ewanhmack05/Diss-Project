@@ -8,6 +8,9 @@ interface DockEdgeProps {
 	// actually competes for stacking order against floating panels and other
 	// edges - see App.tsx's stacking-key resolution.
 	zIndex?: number;
+	// Width at the sides, height along the top and bottom - see dock.ts's
+	// edgeSizeEm. Left out, it's DockEdge.css's.
+	sizeEm?: number;
 	// Fires on pointerdown anywhere within the edge (bubbles up from
 	// whichever panel or control inside it was pressed) - clicking either
 	// half of a split edge brings the whole edge forward as one unit.
@@ -21,8 +24,9 @@ interface DockEdgeProps {
 // stack top/bottom, row for top/bottom so they sit side by side) - so
 // dragging a second panel in and pulling one back out just changes how many
 // flex children there are, no manual half-sizing needed.
-function DockEdge({ side, zIndex, onActivate, children }: DockEdgeProps) {
-	const style: CSSProperties = { zIndex };
+function DockEdge({ side, zIndex, sizeEm, onActivate, children }: DockEdgeProps) {
+	const depth = sizeEm === undefined ? undefined : `${sizeEm}em`;
+	const style: CSSProperties = side === "left" || side === "right" ? { zIndex, width: depth } : { zIndex, height: depth };
 	return (
 		<div className={`dock-edge dock-edge--${side}`} style={style} onPointerDown={onActivate}>
 			{children}

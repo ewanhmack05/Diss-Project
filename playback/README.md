@@ -47,6 +47,7 @@ One person:
 | `tab-docking.mp4`       | Floating, bringing to the front, docking to all four edges, sharing an edge, undocking, a closed panel giving its space back and reopening where it was, then 5 seconds of every tab across the top           |
 | `collections.mp4`       | Renaming, sharing, importing GeoJSON with its preview, exporting, paging a long list                                                                                                                          |
 | `history.mp4`           | The list, its order and filter, one change, putting back, one annotation's timeline and going back on it, putting the whole collection back                                                                   |
+| `gallery.mp4`           | Every slide as a card, moving to one on the same map with panels open, its collections going up as work is saved, the filmstrip and its arrows, docked down the side and along the bottom, being asked before losing a drawing and Escape staying, back and forward |
 
 Side by side, each person's screen:
 
@@ -57,6 +58,7 @@ Side by side, each person's screen:
 | `session-admin.mp4`     | Viewing someone's shared collection, the editor cap, first change wins, renaming, link settings, inviting from Users, view only, changing roles, a collision and its choice, taking someone out, a quiet session reopened, leaving, ending, deleting                                                                                                              |
 | `messaging.mp4`         | Sending an annotation, a group of cell counts and the area you're looking at - it arriving live, previews in their own colours, viewing without keeping, adding a copy, folding the list                                                                                                                                                                          |
 | `guests.mp4`            | Joining with just a name, what a guest can't do, being listed for the host, being asked to edit, leaving                                                                                                                                                                                                                                                          |
+| `gallery-together.mp4`  | Who's on each slide live, an invite from the Users tab to a session on another slide, moving out of a live session and still being in it, going after someone from the Users tab |
 
 ## What "everything" means
 
@@ -91,7 +93,7 @@ Anything deliberately not shown is in `NOT_SHOWN` in the same file, with why.
   admin from `auth/docker-compose.yml`. Nobody's real annotations are touched or
   shown.
 - **Each scene starts empty.** Before recording it deletes the collections those
-  two own on the slide, and the viewer makes a new one on load. A deleted
+  two own on every slide, and the viewer makes a new one on load. A deleted
   collection is only hidden, so it and everything in it stay in Postgres until
   `scripts/sql/reset_all.sql`.
 - **Videos start once the app is ready.** Recording starts when the page opens,

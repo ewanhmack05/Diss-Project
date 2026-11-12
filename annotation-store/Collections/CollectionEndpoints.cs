@@ -163,7 +163,7 @@ public static class CollectionEndpoints
             var onSlide = db.Collections.Where(c => c.SlideId == slideId);
             var collections = await (user.IsGuest()
                     ? onSlide.Where(c => c.CollectionId == guestSession && c.Kind == CollectionKind.Session)
-                    : onSlide.Where(c => c.Members.Any(m => m.UserId == me) || (c.Kind == CollectionKind.Personal && c.Shared)))
+                    : onSlide.VisibleTo(me))
                 .Include(c => c.Members)
                 .ToListAsync();
 

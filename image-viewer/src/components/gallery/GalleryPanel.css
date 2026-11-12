@@ -1,0 +1,314 @@
+/* Fills the panel body, and scrolls itself - the body clips (see
+   DraggablePanel.css). */
+.gallery {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-height: 0;
+	font-family: var(--sans);
+	color: var(--chrome-text);
+}
+
+.gallery-bar {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5em;
+	padding: 0.5em 0.8em;
+	border-bottom: 1px solid var(--white-10);
+}
+
+.gallery-bar-text {
+	font-size: 0.82em;
+	color: var(--chrome-text-secondary);
+}
+
+.gallery-bar-button,
+.gallery-ribbon-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4em;
+	font-family: var(--sans);
+	font-weight: 600;
+	color: var(--chrome-text);
+	background: var(--white-08);
+	border: none;
+	border-radius: 0.3125rem;
+	cursor: pointer;
+	transition: color 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.gallery-bar-button {
+	padding: 0.4em 0.7em;
+	font-size: 0.85em;
+}
+
+.gallery-bar-button:hover,
+.gallery-ribbon-button:hover:not(:disabled) {
+	color: var(--accent);
+}
+
+.gallery-note {
+	margin: 0;
+	padding: 0.8em;
+	font-size: 0.82em;
+	line-height: 1.45;
+	color: var(--chrome-text-secondary);
+}
+
+/* The picture - a square from the middle of the slide (see thumbnailUrl).
+   Covered rather than contained, so the fallback tile of the whole slide is
+   cropped to the same middle square. */
+.gallery-thumb {
+	display: flex;
+	flex-shrink: 0;
+	aspect-ratio: 1;
+	overflow: hidden;
+	background: var(--white-05);
+	border-radius: 0.25em;
+}
+
+.gallery-thumb img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+/* Cards. */
+.gallery-cards {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5em;
+	margin: 0;
+	padding: 0.8em;
+	list-style: none;
+	overflow-y: auto;
+	scrollbar-width: thin;
+	scrollbar-color: var(--white-22) transparent;
+}
+
+.gallery-card {
+	display: flex;
+	gap: 0.7em;
+	width: 100%;
+	padding: 0.5em;
+	text-align: left;
+	font: inherit;
+	color: inherit;
+	background: var(--white-03);
+	border: 1px solid var(--white-10);
+	border-radius: 0.4em;
+	cursor: pointer;
+}
+
+.gallery-card:hover {
+	border-color: var(--white-30);
+}
+
+.gallery-card--current {
+	border-color: var(--accent);
+	cursor: default;
+}
+
+.gallery-card .gallery-thumb {
+	width: 6.5em;
+	align-self: flex-start;
+}
+
+.gallery-card-about {
+	display: flex;
+	flex-direction: column;
+	gap: 0.15em;
+	min-width: 0;
+}
+
+/* Wraps rather than cut off - scanner names are long and full of underscores. */
+.gallery-card-name {
+	font-size: 1em;
+	font-weight: 600;
+	overflow-wrap: anywhere;
+}
+
+.gallery-card-id,
+.gallery-card-line {
+	font-size: 0.8em;
+	line-height: 1.4;
+	color: var(--chrome-text-secondary);
+}
+
+.gallery-card-line--work {
+	margin-top: 0.3em;
+	color: var(--chrome-text);
+}
+
+.gallery-card-line--live,
+.gallery-card-line--current {
+	color: var(--accent);
+}
+
+/* Strips - pictures only, with the arrows on a ribbon floating over the
+   bottom. The list leaves room under the last one so the ribbon never hides
+   it. */
+.gallery-strip {
+	position: relative;
+	display: flex;
+	flex: 1;
+	min-height: 0;
+}
+
+.gallery-strip-list {
+	display: flex;
+	flex: 1;
+	gap: 0.5em;
+	margin: 0;
+	padding: 0.5em;
+	list-style: none;
+	scrollbar-width: thin;
+	scrollbar-color: var(--white-22) transparent;
+}
+
+.gallery-strip--vertical .gallery-strip-list {
+	flex-direction: column;
+	padding-bottom: 3.2em;
+	overflow-y: auto;
+}
+
+.gallery-strip--horizontal .gallery-strip-list {
+	flex-direction: row;
+	padding-bottom: 3.2em;
+	overflow-x: auto;
+}
+
+.gallery-strip-list > li {
+	flex-shrink: 0;
+}
+
+.gallery-tile {
+	display: flex;
+	flex-direction: column;
+	padding: 0.2em;
+	font: inherit;
+	color: inherit;
+	background: none;
+	border: 2px solid transparent;
+	border-radius: 0.4em;
+	cursor: pointer;
+}
+
+.gallery-tile:hover {
+	border-color: var(--white-30);
+}
+
+.gallery-tile--current,
+.gallery-tile--current:hover {
+	border-color: var(--accent);
+	cursor: default;
+}
+
+.gallery-strip--vertical .gallery-tile {
+	width: 100%;
+}
+
+/* As wide as the edge, square. */
+.gallery-strip--vertical .gallery-thumb {
+	width: 100%;
+}
+
+/* 7em squares floating. */
+.gallery-strip--horizontal .gallery-thumb {
+	height: 7em;
+}
+
+/* Docked they're smaller and fixed, so the strip doesn't take a big bite out
+   of the map. Down the side they sit in the middle of the edge. */
+.gallery--docked .gallery-thumb,
+.gallery--docked .gallery-strip--horizontal .gallery-thumb {
+	width: 8em;
+	height: 8em;
+}
+
+/* Along the top or bottom the strip is only as tall as the pictures, so the
+   ribbon stays with them however tall the dock is. */
+.gallery--docked .gallery-strip--horizontal {
+	flex: 0 0 auto;
+}
+
+/* Along the top or bottom the arrows don't get a row of their own - the
+   ribbon floats over the bottom of the pictures. */
+.gallery--docked .gallery-strip--horizontal .gallery-strip-list {
+	padding-bottom: 0.5em;
+}
+
+.gallery--docked .gallery-strip--vertical .gallery-tile {
+	width: auto;
+	margin: 0 auto;
+}
+
+/* The picture's corners are only rounded on top - the name sits under it. */
+.gallery-tile .gallery-thumb {
+	border-radius: 0.25em 0.25em 0 0;
+}
+
+/* A bar under the picture, as wide as it. width 0 with min-width 100% so a
+   long name is cut off rather than widening the tile. */
+.gallery-tile-name {
+	box-sizing: border-box;
+	width: 0;
+	min-width: 100%;
+	overflow: hidden;
+	padding: 0.25em 0.5em;
+	font-size: 0.75em;
+	line-height: 1.3;
+	text-align: left;
+	color: var(--chrome-text);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	background: var(--white-08);
+	border-radius: 0 0 0.33em 0.33em;
+}
+
+/* Someone's working on it now. */
+.gallery-tile--live .gallery-tile-name::before {
+	content: "";
+	display: inline-block;
+	width: 0.5em;
+	height: 0.5em;
+	margin-right: 0.35em;
+	vertical-align: 0.05em;
+	background: var(--accent);
+	border-radius: 50%;
+}
+
+.gallery-ribbon {
+	position: absolute;
+	left: 50%;
+	bottom: 0.6em;
+	display: flex;
+	align-items: center;
+	gap: 0.4em;
+	padding: 0.25em 0.35em;
+	transform: translateX(-50%);
+	background: var(--chrome-bg-solid);
+	border: 1px solid var(--white-22);
+	border-radius: 0.4em;
+	box-shadow: 0 0.25em 0.75em var(--black-35);
+}
+
+.gallery-ribbon-button {
+	padding: 0.35em 0.5em;
+}
+
+.gallery-ribbon-button:disabled {
+	color: var(--disabled);
+	cursor: not-allowed;
+}
+
+.gallery-ribbon-text {
+	min-width: 3.5em;
+	font-size: 0.8em;
+	text-align: center;
+	white-space: nowrap;
+	color: var(--chrome-text-secondary);
+}

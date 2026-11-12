@@ -53,7 +53,7 @@ const InviteGateContext = createContext<InviteGateContextValue | null>(null);
 // and to what, then joins or carries on as you were.
 function InviteGate({ children }: { children: ReactNode }) {
 	const { status, previewInvite, acceptInvite } = useCollectionContext();
-	const { source } = useImageViewerContext();
+	const { source, moveToSlide } = useImageViewerContext();
 	const { user, switchUser } = useAuthContext();
 	// A guest's link was used to get them in (see AuthContext), so there's
 	// nothing to ask.
@@ -129,10 +129,16 @@ function InviteGate({ children }: { children: ReactNode }) {
 	}
 
 	const { preview } = state;
+	// The viewer shows one slide at a time, so a session on another one means
+	// going there. The card closes first, so anything the move asks is seen.
+	const otherSlide = preview.slideId !== source.slideId;
 	const join = () => {
 		setState({ kind: "joining", preview });
 		acceptInvite(preview.code)
-			.then(carryOn)
+			.then(() => {
+				carryOn();
+				if (otherSlide) void moveToSlide(preview.slideId);
+			})
 			.catch(() => setState({ kind: "failed", preview }));
 	};
 
@@ -150,9 +156,6 @@ function InviteGate({ children }: { children: ReactNode }) {
 			</div>,
 		);
 	}
-
-	// The viewer shows one slide - a session on another can't be opened here.
-	const otherSlide = preview.slideId !== source.slideId;
 
 	return shown(
 		<div className="invite-card">
@@ -173,14 +176,16 @@ function InviteGate({ children }: { children: ReactNode }) {
 				<p className="invite-note">This session has as many editors as it lets in, so you'll join view only. The host can still let you edit.</p>
 			)}
 			{otherSlide && (
-				<p className="invite-note invite-note--warning">
-					This session is on slide {preview.slideId}, but this viewer has slide {source.slideId} open.
+				<p className="invite-note">
+					This session is on slide {preview.slideId}. Joining opens that slide in place of {source.slideId}.
 				</p>
 			)}
 			{state.kind === "failed" && <p className="invite-note invite-note--warning">Couldn't join - try again.</p>}
 			<div className="invite-actions">
-				<button type="button" className="invite-button invite-button--primary" disabled={otherSlide || state.kind === "joining"} onClick={join}>
-					{state.kind === "joining" ? "Joining…" : preview.alreadyMember ? "Open session" : "Join session"}
+				<button type="button" className="invite-button invite-button--primary" disabled={state.kind === "joining"} onClick={join}>
+					{state.kind === "joining"
+						? "Joining…"
+						: `${preview.alreadyMember ? "Open session" : "Join session"}${otherSlide ? ` on slide ${preview.slideId}` : ""}`}
 				</button>
 				<button type="button" className="invite-button" onClick={carryOn}>
 					{overlay ? "Not now" : "Work on my own"}

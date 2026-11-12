@@ -34,6 +34,7 @@ flowchart LR
   S[("annotation-store")]
   H["realtime-hub"]
   V -- "GET /slides/{id}" --> T
+  V -- "GET /slides/{id}/thumbnail.jpg" --> T
   V -- "GET /slides/{id}/TileGroup0/{z}-{x}-{y}.jpg" --> T
   T -- "reads" --> F
   V -. "annotations" .- S
@@ -52,15 +53,21 @@ they line up with the tiles no matter what zoom either is at.
 
 | File                                                               | What it does                                                                                                                                                                               |
 | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [Program.cs](../../tiler/Program.cs)                               | Startup and the three endpoints. The tile endpoint borrows a slide handle, reads a region, resizes it if needed and encodes it as JPEG (quality 85). Also wires up CORS and OpenTelemetry. |
-| [Slides/SlideCatalog.cs](../../tiler/Slides/SlideCatalog.cs)       | Finds every `.mrxs` under `data/` at startup, using the file name as the slide id. Reads each slide's size, magnification and microns per pixel once, then caches it.                      |
+| [Program.cs](../../tiler/Program.cs)                               | Startup and the four endpoints. The tile endpoint borrows a slide handle, reads a region, resizes it if needed and encodes it as JPEG (quality 85). Also wires up CORS and OpenTelemetry.  |
+| [Slides/SlideCatalog.cs](../../tiler/Slides/SlideCatalog.cs)       | Finds every `.mrxs` under `data/` at startup, using the file name as the slide id. Reads each slide's size, magnification, microns per pixel and gallery metadata once, then caches it.    |
+| [Slides/SlideMetadata.cs](../../tiler/Slides/SlideMetadata.cs)     | Tidies what the scanner wrote - name, kind, channels, objective, camera, background colour (see [section 3](#3-what-a-slide-is)).                                                          |
+| [Slides/Thumbnail.cs](../../tiler/Slides/Thumbnail.cs)             | The gallery's whole-slide picture: picks a small pyramid level, reads it, lays it on the background colour and shrinks it.                                                                 |
 | [Slides/SlideHandlePool.cs](../../tiler/Slides/SlideHandlePool.cs) | Up to 8 open OpenSlide handles per slide, each used by one thread at a time (see [section 6](#6-reading-in-parallel)).                                                                     |
 | [Slides/ZoomifyTiling.cs](../../tiler/Slides/ZoomifyTiling.cs)     | The maths. Works out the tier ladder the same way OpenLayers does, and turns a `(z, x, y)` tile into "read this box from this OpenSlide level, resize to this".                            |
 | [Slides/OpenSlideNative.cs](../../tiler/Slides/OpenSlideNative.cs) | Points OpenSlideSharp at the right native library on Linux (see [section 7](#7-windows-and-linux)).                                                                                        |
 | [Dockerfile](../../tiler/Dockerfile)                               | Linux image with slide 003 built in - what's deployed (see [azure.md](../azure.md)).                                                                                                       |
+| [Tests/](../../tiler/Tests)                                        | xUnit. The pure functions on their own, then the real API against the four sample slides.                                                                                                  |
 
-There's no test project. The maths in `ZoomifyTiling` is checked from the
-other side, by the viewer's
+`dotnet test tiler/Tests -c Release`. The metadata tidying, thumbnail sizes
+and encoding, and the tier ladder are tested without a slide. The rest runs
+the real app in memory against `data/`, and skips when the slides are
+missing or are LFS pointer files, as they are in CI. The tier maths is also
+checked from the other side, by the viewer's
 [OpenLayers.test.ts](../../image-viewer/src/components/open-layers/OpenLayers.test.ts).
 
 ## 3. What a slide is
@@ -86,6 +93,61 @@ it available - no config.
 recorded them, objective power and microns per pixel (`mppX`, `mppY`). The
 viewer needs microns per pixel for the ruler and for sizing a region of
 interest in real units. Slides without it fall back to pixels.
+
+The gallery gets more. A MIRAX slide's `Slidedat.ini` is a list of
+`KEY = value` lines under `[SECTION]` headers, and OpenSlide hands every one
+back as a property called `mirax.SECTION.KEY`, so nothing parses the file
+itself. `SlideMetadata` tidies them:
+
+| Field              | From                                    | 000                | 001                       | 003                |
+| ------------------ | --------------------------------------- | ------------------ | ------------------------- | ------------------ |
+| `name`             | `GENERAL.SLIDE_NAME`                    | `CMU-1`            | `25058_Epiderm_AcH3_3`    | `003` (file: None) |
+| `kind`             | `GENERAL.SLIDE_TYPE`                    | `brightfield`      | `fluorescence`            | `brightfield`      |
+| `channels`         | every `FILTER_NAME`, `Default` left out | `[]`               | `Rhodamine`, `FITC`, `UV` | `[]`               |
+| `levels`           | `ComputeTiers` (see section 4)          | 7                  | 11                        | 11                 |
+| `objectiveName`    | `GENERAL.OBJECTIVE_NAME`                | null (Default)     | `Plan-Apochromat`         | `Plan-Apochromat`  |
+| `camera`           | `GENERAL.CAMERA_TYPE`                   | `Hitachi_HV_F22CL` | `AxioCam Mrm Rev.3`       | `Hitachi_HV_F22CL` |
+| `backgroundColour` | `openslide.background-color`            | `#ffffff`          | `#808080`                 | `#ffffff`          |
+| `fileBytes`        | `.mrxs` plus its folder                 | 5.7 MB             | 66 MB                     | 3.1 GB             |
+
+OpenSlide lists property names alphabetically, so `LEVEL_10` would come
+before `LEVEL_2`. `FilterNameProperties` sorts the numbers as numbers to
+keep the channels in file order.
+
+The scan date, `SLIDE_ID`, `PROJECT_NAME` and the label and macro images are
+in the file too, and are never sent - they can identify a real slide. See
+[ethics.md](../ethics.md).
+
+`GET /slides/{id}/thumbnail.jpg?width=N` is the gallery card's picture:
+`N` wide (256 by default, held to 32-1024), height to match. It reads the
+smallest pyramid level that's still at least `N` wide
+(`GetBestLevelForDownsample`), through the same handle pool as tiles, then
+draws it onto the slide's background colour with Skia and encodes it. For
+slide 003 that's a 397x859 level rather than 22 gigapixels, about
+100-250 ms. Browsers can keep it for a day.
+
+`&square=true` gives an `N` x `N` card instead: the square in the very
+middle of the slide, with a side as long as the slide's shorter side.
+
+```
+slide 003: 101832 x 219976 (level 0)
+
+CentreSquare  side 101832, x 0, y (219976 - 101832) / 2 = 59072
+width=200     downsample 101832 / 200 = 509, best level 8 (256)
+SizeAtLevel   ceil(101832 / 256) = 398, so read 398 x 398 at level 8
+draw          the first 397.78 of those onto 200 x 200
+```
+
+`ReadRegion` takes `x`/`y` in level 0 pixels and the size in the level's
+own, so only the square is read, not the whole level. The size rounds up
+so the last part pixel is read, and only the part that's in the square is
+drawn, or the edge would get a pale line. An odd leftover puts the spare
+pixel after the square.
+
+The middle isn't always where the tissue is. Slide 001's tissue is a small
+patch off to the right, so its square is mostly grey, and slide 003's
+square cuts off the top of the tissue. OpenSlide knows the scanned area
+(`openslide.bounds-*`), which would make a better crop.
 
 ## 4. Tiers - the zoom ladder
 
@@ -216,16 +278,20 @@ came from.
 
 ## 9. Known gaps
 
-- **Transparent corners show black.** OpenSlide returns transparent pixels
-  outside the scanned area. They're encoded straight to JPEG without being
-  laid on white first, so they come out black.
-- **No caching.** Every tile is read and encoded every time. The browser
+- **Transparent corners show black on tiles.** OpenSlide returns
+  transparent pixels outside the scanned area. Tiles are encoded straight to
+  JPEG without being laid on a colour first, so they come out black.
+  Thumbnails are laid on the slide's background colour, so they don't -
+  tiles could do the same.
+- **No caching.** Every tile and thumbnail is read and encoded every time. The browser
   caches what it's seen, but two people looking at the same place both pay
   for it. A response cache or CDN in front would fix it.
 - **CORS allows any origin.** Left over from LAN testing. Needs a real
   origin list before deploying.
 - **No sign-in.** Anyone who can reach the tiler can load any slide in
   `data/`. Fine while the slides are public test data.
+- **Square thumbnails crop the middle, not the tissue.** See
+  [section 3](#3-what-a-slide-is).
 - **Slides found at startup only.** Adding a slide needs a restart.
 - **Only `.mrxs`.** OpenSlide reads SVS, NDPI, TIFF and others too, but the
   catalog only looks for `*.mrxs`.

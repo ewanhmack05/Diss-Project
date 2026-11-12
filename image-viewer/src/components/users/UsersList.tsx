@@ -22,7 +22,7 @@ const STATUS_TEXT = {
 function UsersList() {
 	const { status, users, onlineCount, everyoneLoaded } = usePresenceContext();
 	const { session } = useCollectionContext();
-	const { source } = useImageViewerContext();
+	const { source, moveToSlide } = useImageViewerContext();
 	const emit = useEmitEvent();
 	const { status: messaging, messageUser, send } = useMessagingContext();
 	const { inviteFor } = useSentThings();
@@ -59,6 +59,8 @@ function UsersList() {
 		const why = whyCantInvite(person.online, me);
 		const joined = !!me.sessionId && person.online?.sessionId === me.sessionId;
 		const wasAsked = askedHere.includes(person.userId);
+		const theirSlide = person.online?.slideId;
+		const elsewhere = !!theirSlide && theirSlide !== source.slideId;
 		return (
 			<li key={person.userId} className="realtime-person users-person" title={person.userId}>
 				<span className={`realtime-presence${person.online ? " realtime-presence--here" : ""}`} aria-label={person.online ? "Online" : "Offline"} />
@@ -66,6 +68,16 @@ function UsersList() {
 					<span className={`realtime-person-name${person.online ? "" : " realtime-person-name--away"}`}>{person.displayName || person.userId}</span>
 					<span className="users-where">{describeUser(person.online, me)}</span>
 				</span>
+				{elsewhere && (
+					<button
+						type="button"
+						className="realtime-button"
+						aria-label={`Open slide ${theirSlide}, where ${person.displayName} is`}
+						onClick={() => void moveToSlide(theirSlide!)}
+					>
+						Go there
+					</button>
+				)}
 				{messaging !== "off" && (
 					<button type="button" className="realtime-button" aria-label={`Message ${person.displayName}`} onClick={() => messageUser(person.userId)}>
 						Message

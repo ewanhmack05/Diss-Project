@@ -13,6 +13,8 @@ import {
 	chooseScaleBarLength,
 	formatScaleLength,
 	mapInteractions,
+	magnificationAt,
+	slideGeometry,
 } from "./OpenLayers";
 import MouseWheelZoom from "ol/interaction/MouseWheelZoom";
 import DragPan from "ol/interaction/DragPan";
@@ -268,5 +270,43 @@ describe("overview following the main view", () => {
 		const before = overview.getCenter();
 		followMainView(overview, main, undefined);
 		expect(overview.getCenter()).toEqual(before);
+	});
+});
+
+// Each slide gets its own view from this when the map moves to it, so two
+// slides of different sizes can't share a zoom ladder or an edge.
+describe("slideGeometry", () => {
+	it("is the slide's own extent and ladder", () => {
+		const geometry = slideGeometry({ width: 7436, height: 15494 }, 256, 20);
+		expect(geometry.extent).toEqual([0, -15494, 7436, 0]);
+		expect(geometry.resolutions).toEqual([64, 32, 16, 8, 4, 2, 1]);
+		expect(geometry.viewResolutions).toEqual([64, 16, 8, 4, 2, 1]);
+		expect(geometry.projection.getExtent()).toEqual(geometry.extent);
+	});
+
+	it("differs between slides, so moving from one to the other can't keep the old one's", () => {
+		const small = slideGeometry({ width: 7436, height: 15494 }, 256, 20);
+		const big = slideGeometry({ width: 101832, height: 219976 }, 256, 20);
+		expect(big.resolutions[0]).toBe(1024);
+		expect(small.resolutions[0]).toBe(64);
+		expect(big.extent).not.toEqual(small.extent);
+		expect(big.projection).not.toBe(small.projection);
+	});
+
+	it("keeps the whole ladder when there's no objective power", () => {
+		const geometry = slideGeometry({ width: 7436, height: 15494 }, 256, null);
+		expect(geometry.viewResolutions).toEqual(geometry.resolutions);
+	});
+});
+
+describe("magnificationAt", () => {
+	it("is the objective power at native resolution, and less zoomed out", () => {
+		expect(magnificationAt(1, [1024, 1], 20)).toBe(20);
+		expect(magnificationAt(1024, [1024, 1], 20)).toBeCloseTo(0.0195);
+	});
+
+	it("is relative to the whole slide when there's no objective power", () => {
+		expect(magnificationAt(64, [64, 32, 1], null)).toBe(1);
+		expect(magnificationAt(1, [64, 32, 1], null)).toBe(64);
 	});
 });

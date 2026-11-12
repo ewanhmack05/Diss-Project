@@ -107,4 +107,32 @@ app.MapGet("/slides/{id}/TileGroup{group:int}/{z:int}-{x:int}-{y:int}.jpg", (str
     return Results.Bytes(data.ToArray(), "image/jpeg");
 });
 
+// A picture of the whole slide for the viewer's gallery, or with square=true
+// the square in its middle. width is clamped rather than refused, so a card
+// can ask for whatever its layout works out.
+app.MapGet("/slides/{id}/thumbnail.jpg", (string id, int? width, bool? square, SlideCatalog catalog, HttpContext http) =>
+{
+    var pool = catalog.GetPool(id);
+    var info = catalog.GetInfo(id);
+    if (pool is null || info is null) return Results.NotFound();
+
+    var thumbnailWidth = Thumbnail.ClampWidth(width);
+    var isSquare = square == true;
+    var thumbnailHeight = isSquare ? thumbnailWidth : Thumbnail.HeightFor(info.Width, info.Height, thumbnailWidth);
+    var centre = Thumbnail.CentreSquare(info.Width, info.Height);
+
+    // The handle goes back before the resize and encode, which don't need it.
+    var level = pool.Use(slide => isSquare
+        ? Thumbnail.ReadSquare(slide, centre, thumbnailWidth)
+        : Thumbnail.ReadLevel(slide, thumbnailWidth));
+    var jpeg = Thumbnail.Encode(level, thumbnailWidth, thumbnailHeight, info.BackgroundColour);
+
+    // A slide's pixels never change, so the browser can keep it for a day.
+    http.Response.Headers.CacheControl = "public, max-age=86400";
+    return Results.Bytes(jpeg, "image/jpeg");
+});
+
 app.Run();
+
+// Lets the test project point WebApplicationFactory<Program> at this app.
+public partial class Program;

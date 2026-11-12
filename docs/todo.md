@@ -104,6 +104,13 @@ an afternoon, medium a few days, large a week or more.
 - **Invites are messages** - Invite on the Users tab opens your conversation with them
   and sends it there, so they can be offline and nothing pops up. `InviteUser` is gone
   from the hub
+- **Gallery** - every slide the tiler has, as cards or a filmstrip, docked or
+  floating, and moving between them without a reload: one map, new tiles and
+  view, annotations redrawn, panels left open. The address follows the slide.
+  The tiler gives names, kinds, channels and a square thumbnail from the middle
+  of the slide; annotation-store counts collections and live sessions per
+  slide. Invites, sent things and the Users tab can go to another slide now.
+  See [gallery.md](gallery.md)
 - **Playback videos** - `node record.js` in [playback](../playback/README.md) remakes
   them all, messaging included, and each scene checks what it shows
 
@@ -270,8 +277,11 @@ The per-person on/off is done (see Done). Still open:
 
 - **Rotation and image adjustments** are only shared in Present, not live
   otherwise
-- **Sessions are one slide each** - whether one should cover several (a
-  case) is still open (see [thought-process.md](thought-process.md))
+- **Sessions are one slide each** - the Gallery moves between slides, but a
+  session stays on one. Next is a session that moves with its people, the
+  others asked whether to follow - a `CollectionSlides` join table, reads by
+  slide, a "moved slide" hub message. Large. Written up in
+  [gallery.md](gallery.md#whats-next---sessions-across-slides)
 - **Azure** - two options costed in [azure.md](azure.md), nothing deployed
   yet. Tiler runs on linux now, so it isn't blocked. The deploy workflow has
   messaging in it, but has never run, and separate apps need the viewer's service

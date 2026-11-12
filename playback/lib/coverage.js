@@ -210,6 +210,19 @@ export const FEATURES = {
 	"count-group-make": "Making a group of cell counts",
 	"count-group-move": "Moving cell counts into a group",
 
+	// Gallery
+	"gallery-cards": "A card per slide with what's known about it",
+	"gallery-move": "Moving to another slide on the same map, zoomed out, panels still open",
+	"gallery-collections": "Each slide's collections, counted as work is saved",
+	"gallery-filmstrip": "The filmstrip and its arrows",
+	"gallery-docked": "Docked, a strip down the side or along the bottom",
+	"gallery-guard": "Being asked before losing unsaved work, and Escape staying",
+	"gallery-address": "The address following the slide, with back and forward",
+	"gallery-people": "Who's on each slide, live",
+	"gallery-invite-elsewhere": "Joining a session on another slide",
+	"gallery-leave-session": "Moving out of a live session, still a member",
+	"gallery-go-there": "Going to someone on another slide from the Users tab",
+
 	// Guests
 	"guest-join": "Joining as a guest with just a name",
 	"guest-view-only": "What a guest can and can't do",

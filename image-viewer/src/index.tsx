@@ -13,7 +13,7 @@ const backend = window.location.origin;
 //   000  CMU-1 (1/16 downsample) - H&E brightfield, 7436x15494
 //   001  Mirax2-Fluorescence-1   - 3-channel fluorescence
 //   002  Mirax2-Fluorescence-2   - 3-channel fluorescence
-//   003  HPS stain, brightfield   - HPS brightfield, 10000x10000
+//   003  HPS stain, brightfield   - HPS brightfield, 101832x219976
 createRoot(document.getElementById("root")!).render(
 	<StrictMode>
 		<App
@@ -27,7 +27,7 @@ createRoot(document.getElementById("root")!).render(
 				fontSize: "11px",
 				maxEditors: 6,
 				editPolicy: "lastWriteWins",
-				tools: ["fullscreen", "annotations", "cellcount", "rotate", "ruler", "adjustments", "realtime", "collections", "messages"],
+				tools: ["fullscreen", "gallery", "annotations", "cellcount", "rotate", "ruler", "adjustments", "realtime", "collections", "messages"],
 			}}
 			on={(event, payload) => {
 				console.log("on");

@@ -7,6 +7,8 @@ import { defaults as defaultInteractions } from "ol/interaction/defaults";
 import Control from "ol/control/Control";
 import { getCenter, getHeight, getWidth, scaleFromCenter } from "ol/extent";
 import type BaseLayer from "ol/layer/Base";
+import type { EventsKey } from "ol/events";
+import { unByKey } from "ol/Observable";
 import { DEFAULT_ADJUSTMENTS, type ImageAdjustmentValues } from "../adjustments/adjustments";
 
 interface ImageSize {
@@ -137,7 +139,15 @@ function adjustmentsStyle(values: ImageAdjustmentValues) {
 // underneath. Used for both the main map's base layer and the overview's
 // separate copy; only the main one ever has its style variables updated at
 // runtime (see MapNode), so the overview stays a neutral reference thumbnail.
-function zoomifyLayer(baseUrl: string, tileSize: number, size: ImageSize, projection: Projection, extent: number[]): WebGLTileLayer {
+type TileLayerSource = NonNullable<WebGLTileLayerOptions["source"]>;
+
+// WebGLTileLayer's own Options type only declares DataTileSource-based
+// sources, but ol/layer/WebGLTile.js's getSourceBandCount_ works with any
+// TileImage-based source too - it just falls back to a 4-band (r,g,b,a)
+// default when the source doesn't declare its own bandCount, which is
+// exactly Zoomify's case. This is a gap in ol's .d.ts, not a real
+// runtime mismatch.
+function zoomifySource(baseUrl: string, tileSize: number, size: ImageSize, projection: Projection, extent: number[]): TileLayerSource {
 	const source = new Zoomify({
 		url: baseUrl,
 		size: [size.width, size.height],
@@ -146,14 +156,12 @@ function zoomifyLayer(baseUrl: string, tileSize: number, size: ImageSize, projec
 		projection,
 		crossOrigin: "anonymous",
 	});
+	return source as unknown as TileLayerSource;
+}
+
+function zoomifyLayer(baseUrl: string, tileSize: number, size: ImageSize, projection: Projection, extent: number[]): WebGLTileLayer {
 	return new WebGLTileLayer({
-		// WebGLTileLayer's own Options type only declares DataTileSource-based
-		// sources, but ol/layer/WebGLTile.js's getSourceBandCount_ works with any
-		// TileImage-based source too - it just falls back to a 4-band (r,g,b,a)
-		// default when the source doesn't declare its own bandCount, which is
-		// exactly Zoomify's case. This is a gap in ol's .d.ts, not a real
-		// runtime mismatch.
-		source: source as unknown as WebGLTileLayerOptions["source"],
+		source: zoomifySource(baseUrl, tileSize, size, projection, extent),
 		style: adjustmentsStyle(DEFAULT_ADJUSTMENTS),
 		// Loads every lower-res level under the view too, so a tile that isn't in
 		// yet shows a blurry preview instead of a white gap. Each level down is a
@@ -213,11 +221,22 @@ interface BaseLayerSpec {
 	tileSize: number;
 }
 
-// Layers can't be shared between two Map instances, so the overview needs
-// its own copy built the same way - same projection/extent instance as
-// the main map, so the two line up exactly.
+// Same projection/extent instance for the main map and the overview, so the
+// two line up exactly.
 function buildBaseLayer(spec: BaseLayerSpec, projection: Projection, extent: number[], size: ImageSize): WebGLTileLayer {
 	return zoomifyLayer(spec.baseUrl, spec.tileSize, size, projection, extent);
+}
+
+type WatchZoom = (view: View, resolutions: number[], objectivePower: number | null) => EventsKey;
+
+// objectivePower (openslide.objective-power) is the scanner's real
+// objective magnification at native resolution - when the slide reports
+// one, resolution 1 genuinely means e.g. "x40", and it scales down from
+// there as you zoom out. Without it (a format that doesn't report it),
+// fall back to a relative multiple of the most zoomed-out tier, which is
+// the closest honest stand-in.
+function magnificationAt(resolution: number, resolutions: number[], objectivePower: number | null): number {
+	return objectivePower !== null ? objectivePower / resolution : resolutions[0] / resolution;
 }
 
 // Formats a magnification ratio as "x1", "x40", "x0.3" etc - integer once it
@@ -237,13 +256,10 @@ function formatMagnification(value: number): string {
 // even when the thumbnail itself is collapsed. `overview.element` is
 // protected, so the container is found by querying the DOM instead - safe
 // to do right after addControl(), which appends it synchronously.
-function attachOverviewStatusBar(
-	overview: OverviewMap,
-	container: HTMLElement,
-	view: View,
-	resolutions: number[],
-	objectivePower: number | null,
-): void {
+//
+// The view is the slide's (see OpenLayerMap), so what comes back is called
+// with each slide's own - it reads the zoom off that one from then on.
+function attachOverviewStatusBar(overview: OverviewMap, container: HTMLElement): WatchZoom {
 	const bar = document.createElement("div");
 	bar.className = "ol-overviewmap-statusbar";
 
@@ -255,18 +271,6 @@ function attachOverviewStatusBar(
 	toggleButton.className = "ol-overviewmap-toggle";
 	toggleButton.setAttribute("aria-label", "Toggle overview map");
 
-	// objectivePower (openslide.objective-power) is the scanner's real
-	// objective magnification at native resolution - when the slide reports
-	// one, resolution 1 genuinely means e.g. "x40", and it scales down from
-	// there as you zoom out. Without it (a format that doesn't report it),
-	// fall back to a relative multiple of the most zoomed-out tier, which is
-	// the closest honest stand-in.
-	const updateZoomLabel = () => {
-		const resolution = view.getResolution() ?? 1;
-		const magnification = objectivePower !== null ? objectivePower / resolution : resolutions[0] / resolution;
-		zoomLabel.textContent = formatMagnification(magnification);
-	};
-
 	const updateToggleIcon = () => {
 		toggleButton.textContent = overview.getCollapsed() ? "›" : "‹";
 	};
@@ -276,13 +280,19 @@ function attachOverviewStatusBar(
 		updateToggleIcon();
 	});
 
-	view.on("change:resolution", updateZoomLabel);
-	updateZoomLabel();
 	updateToggleIcon();
 
 	bar.appendChild(zoomLabel);
 	bar.appendChild(toggleButton);
 	container.appendChild(bar);
+
+	return (view, resolutions, objectivePower) => {
+		const updateZoomLabel = () => {
+			zoomLabel.textContent = formatMagnification(magnificationAt(view.getResolution() ?? 1, resolutions, objectivePower));
+		};
+		updateZoomLabel();
+		return view.on("change:resolution", updateZoomLabel);
+	};
 }
 
 // Largest "nice" value (a 1-2-5 progression scaled by a power of ten) that
@@ -328,7 +338,8 @@ const MAX_SCALE_BAR_WIDTH_PX = 220;
 // or just resolution itself when the slide has no mpp data. Only mppX (not
 // mppY) is used, matching how every other map viewer's horizontal scale bar
 // works - a fine approximation even for the rare non-square-pixel slide.
-function buildScaleBarControl(view: View, mppX: number | null): Control {
+// watch is called with each slide's view and mpp, like the zoom label.
+function buildScaleBarControl(): { control: Control; watch: (view: View, mppX: number | null) => EventsKey } {
 	// Positioning (bottom/right, in em) lives on this outer element, which
 	// carries no font-size of its own - .ol-scalebar-chip's bigger font-size
 	// stays local to the chip's own text/padding instead of also inflating
@@ -347,22 +358,23 @@ function buildScaleBarControl(view: View, mppX: number | null): Control {
 	const label = document.createElement("span");
 	label.className = "ol-scalebar-label";
 
-	const update = () => {
-		const resolution = view.getResolution() ?? 1;
-		const unitsPerScreenPixel = mppX !== null ? resolution * mppX : resolution;
-		const { length, widthPx } = chooseScaleBarLength(unitsPerScreenPixel, MAX_SCALE_BAR_WIDTH_PX);
-		line.style.width = `${widthPx}px`;
-		label.textContent = formatScaleLength(length, mppX !== null ? "micron" : "pixel");
-	};
-
-	view.on("change:resolution", update);
-	update();
-
 	chip.appendChild(line);
 	chip.appendChild(label);
 	element.appendChild(chip);
 
-	return new Control({ element });
+	const watch = (view: View, mppX: number | null) => {
+		const update = () => {
+			const resolution = view.getResolution() ?? 1;
+			const unitsPerScreenPixel = mppX !== null ? resolution * mppX : resolution;
+			const { length, widthPx } = chooseScaleBarLength(unitsPerScreenPixel, MAX_SCALE_BAR_WIDTH_PX);
+			line.style.width = `${widthPx}px`;
+			label.textContent = formatScaleLength(length, mppX !== null ? "micron" : "pixel");
+		};
+		update();
+		return view.on("change:resolution", update);
+	};
+
+	return { control: new Control({ element }), watch };
 }
 
 // Asked for rather than left to Map, whose own default is onFocusOnly - with a
@@ -372,6 +384,24 @@ export function mapInteractions() {
 	return defaultInteractions();
 }
 
+// Everything about the map that comes from the slide's own size.
+interface SlideGeometry {
+	extent: number[];
+	projection: Projection;
+	// The whole ladder, and the part of it the main view can reach.
+	resolutions: number[];
+	viewResolutions: number[];
+}
+
+function slideGeometry(size: ImageSize, tileSize: number, objectivePower: number | null): SlideGeometry {
+	const extent = getExtent(size);
+	const resolutions = computeResolutionLadder(size, tileSize);
+	return { extent, projection: olProjection(extent), resolutions, viewResolutions: capResolutionsAtNativeScale(resolutions, objectivePower) };
+}
+
+// Puts another slide on a map that's already built - see OpenLayerMap.
+type ShowSlide = (size: ImageSize, spec: BaseLayerSpec, objectivePower?: number | null, mppX?: number | null) => void;
+
 export function OpenLayerMap(
 	target: HTMLElement,
 	size: ImageSize,
@@ -379,18 +409,17 @@ export function OpenLayerMap(
 	objectivePower: number | null = null,
 	mppX: number | null = null,
 	extraLayers: BaseLayer[] = [],
-): { map: Map; baseLayer: WebGLTileLayer; overviewMap: Map } {
-	const extent = getExtent(size);
-	const projection = olProjection(extent);
-	const resolutions = computeResolutionLadder(size, spec.tileSize);
-	const viewResolutions = capResolutionsAtNativeScale(resolutions, objectivePower);
-
-	const baseLayer = buildBaseLayer(spec, projection, extent, size);
+): { map: Map; baseLayer: WebGLTileLayer; overviewMap: Map; showSlide: ShowSlide } {
+	const first = slideGeometry(size, spec.tileSize, objectivePower);
+	const baseLayer = buildBaseLayer(spec, first.projection, first.extent, size);
+	// Layers can't be shared between two Map instances, so the overview has
+	// its own copy.
+	const overviewLayer = buildBaseLayer(spec, first.projection, first.extent, size);
 
 	const map = new Map({
 		target,
 		layers: [baseLayer, ...extraLayers],
-		view: olView(projection, viewResolutions),
+		view: olView(first.projection, first.viewResolutions),
 		interactions: mapInteractions(),
 	});
 	// OL only hears arrow keys and +/- on its target while focus is inside it,
@@ -404,34 +433,34 @@ export function OpenLayerMap(
 	// web-mercator-ish projection, which silently fails to render anything in
 	// our custom pixel one.
 	const overview = new OverviewMap({
-		view: overviewView(projection, extent),
-		layers: [buildBaseLayer(spec, projection, extent, size)],
+		view: overviewView(first.projection, first.extent),
+		layers: [overviewLayer],
 		collapsed: false,
 		collapsible: true,
 	});
 	map.addControl(overview);
-	map.addControl(buildScaleBarControl(map.getView(), mppX));
+	const scaleBar = buildScaleBarControl();
+	map.addControl(scaleBar.control);
 
 	// Runs on 'change', before the render where OverviewMap checks its own
 	// frame, so that check finds nothing to fix. Left to OverviewMap alone it
 	// only re-frames when the box gets too small or leaves the overview, so it
-	// jumped between zoom levels and lagged behind a drag.
-	const overviewMapView = overview.getOverviewMap().getView();
-	const follow = () => followMainView(overviewMapView, map.getView(), map.getSize());
-	map.getView().on("change", follow);
+	// jumped between zoom levels and lagged behind a drag. Both views are
+	// looked up when it runs, since each slide has its own.
+	const overviewMap = overview.getOverviewMap();
+	const follow = () => followMainView(overviewMap.getView(), map.getView(), map.getSize());
 	map.on("change:size", follow);
 	// Grows when hovered (see MapNode.css). OL resizes its canvas itself, but
 	// the frame needs refitting to the new size and the viewport box is only
 	// redrawn on a main map render.
-	overview.getOverviewMap().on("change:size", () => {
+	overviewMap.on("change:size", () => {
 		follow();
 		map.render();
 	});
 
 	const overviewContainer = target.querySelector<HTMLElement>(".ol-overviewmap");
+	const watchZoom = overviewContainer ? attachOverviewStatusBar(overview, overviewContainer) : null;
 	if (overviewContainer) {
-		attachOverviewStatusBar(overview, overviewContainer, map.getView(), resolutions, objectivePower);
-
 		// OverviewMap recomputes the box's width/height from scratch in its own
 		// 'postrender' handler (registered by addControl() above, so it runs
 		// before this one on the same event) - floor it right after, every
@@ -450,8 +479,35 @@ export function OpenLayerMap(
 		}
 	}
 
-	map.getView().fit(extent);
-	return { map, baseLayer, overviewMap: overview.getOverviewMap() };
+	// A view's zoom ladder is fixed when it's made and comes from the slide's
+	// size, so every slide gets a view of its own. Whatever read the last one
+	// - the overview, the zoom label, the scale bar - is moved onto the new
+	// one here, then it opens on the whole slide.
+	let viewKeys: EventsKey[] = [];
+	const watchView = (geometry: SlideGeometry, slideObjectivePower: number | null, slideMppX: number | null) => {
+		unByKey(viewKeys);
+		const view = map.getView();
+		viewKeys = [view.on("change", follow), scaleBar.watch(view, slideMppX)];
+		if (watchZoom) viewKeys.push(watchZoom(view, geometry.resolutions, slideObjectivePower));
+		view.fit(geometry.extent);
+	};
+	watchView(first, objectivePower, mppX);
+
+	// The map, its layers and its controls all stay - only the tiles and the
+	// two views are the slide's. Nothing's rebuilt, so no GL context is made
+	// or thrown away and whatever's on the other layers is left alone.
+	const showSlide: ShowSlide = (nextSize, nextSpec, nextObjectivePower = null, nextMppX = null) => {
+		const next = slideGeometry(nextSize, nextSpec.tileSize, nextObjectivePower);
+		baseLayer.setSource(zoomifySource(nextSpec.baseUrl, nextSpec.tileSize, nextSize, next.projection, next.extent));
+		overviewLayer.setSource(zoomifySource(nextSpec.baseUrl, nextSpec.tileSize, nextSize, next.projection, next.extent));
+		// The overview's first, so it's already the new slide's when the main
+		// map tells the control its view changed.
+		overviewMap.setView(overviewView(next.projection, next.extent));
+		map.setView(olView(next.projection, next.viewResolutions));
+		watchView(next, nextObjectivePower, nextMppX);
+	};
+
+	return { map, baseLayer, overviewMap, showSlide };
 }
 
 export {
@@ -461,9 +517,11 @@ export {
 	OVERVIEW_CONTEXT,
 	computeResolutionLadder,
 	capResolutionsAtNativeScale,
+	magnificationAt,
+	slideGeometry,
 	clampOverviewBoxSize,
 	niceScaleValue,
 	chooseScaleBarLength,
 	formatScaleLength,
 };
-export type { ImageSize, BaseLayerSpec };
+export type { ImageSize, BaseLayerSpec, ShowSlide };

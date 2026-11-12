@@ -32,6 +32,8 @@ import AdjustmentsPanel from "./components/adjustments/AdjustmentsPanel";
 import RealTimePanel from "./components/realtime/RealTimePanel";
 import CollectionsPanel from "./components/collections/CollectionsPanel";
 import MessagesPanel from "./components/messages/MessagesPanel";
+import GalleryPanel from "./components/gallery/GalleryPanel";
+import MoveGuard from "./components/gallery/MoveGuard";
 import { MessagingContextProvider } from "./context/MessagingContext";
 import { AnnotationGroupContextProvider } from "./context/AnnotationGroupContext";
 import { AnnotationSelectContextProvider } from "./context/AnnotationSelectContext";
@@ -51,6 +53,8 @@ import {
 	sideOfPanel,
 	resolvesToStart,
 	computePreviewRect,
+	edgeSizeEm,
+	edgeRectAtDepth,
 	type DockAssignments,
 	type DockRect,
 	type DockSide,
@@ -61,15 +65,8 @@ import ToastStack from "./components/toast/ToastStack";
 import DialogHost from "./components/dialog/DialogHost";
 import PresenceList from "./components/presence/PresenceList";
 import GuestEditPrompt from "./components/guest/GuestEditPrompt";
-import type { ImageSource } from "./interfaces/ImageSource";
 import type { EditPolicy } from "./components/realtime/editPolicy";
 import "./App.css";
-
-// Fixed height of a top/bottom DockEdge (see DockEdge.css) - used to inset
-// the left/right edges when top or bottom is occupied, so they stop where
-// that panel starts instead of running underneath it. Must match
-// DockEdge.css's .dock-edge--top/--bottom height.
-const EDGE_CROSS_SIZE = "21em";
 
 // A floating panel's fixed width (see DraggablePanel.css's .draggable-panel)
 // - used to work out where to place a panel the instant it's pulled off a
@@ -110,6 +107,8 @@ interface AppOptions {
 }
 
 interface AppProps {
+	// The slide it opens on, unless the address says another (?slide=). The
+	// gallery moves between the rest.
 	source: string;
 	tilerServiceUrl: string;
 	annotationStoreUrl: string;
@@ -125,14 +124,12 @@ interface AppProps {
 }
 
 function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, messagingUrl, auth, options, on }: AppProps) {
-	const imageSource: ImageSource = { tilerUrl: tilerServiceUrl, slideId: source };
-
 	return (
 		<ToastContextProvider>
 			<DialogContextProvider>
 				<EventContextProvider on={on}>
 					<AuthContextProvider auth={auth} storeUrl={annotationStoreUrl} hubUrl={realtimeHubUrl}>
-						<ImageViewerContextProvider source={imageSource}>
+						<ImageViewerContextProvider tilerUrl={tilerServiceUrl} startSlideId={source}>
 							{/* Collections decide which session you're in, and so which
               realtime room - working alone there's no room at all. An
               invite link is dealt with before the viewer opens. Presence
@@ -157,7 +154,7 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, mess
 																								<ComparisonContextProvider>
 																									<SharedCountContextProvider>
 																										<MessagingContextProvider baseUrl={messagingUrl}>
-																											<ViewerShell fontSize={options?.fontSize} tools={options?.tools} />
+																											<ViewerShell fontSize={options?.fontSize} tools={options?.tools} storeUrl={annotationStoreUrl} />
 																										</MessagingContextProvider>
 																									</SharedCountContextProvider>
 																								</ComparisonContextProvider>
@@ -213,9 +210,10 @@ function samePositions(a: Record<string, Position>, b: Record<string, Position>)
 interface ViewerShellProps {
 	fontSize?: string;
 	tools?: ToolName[];
+	storeUrl: string;
 }
 
-function ViewerShell({ fontSize, tools }: ViewerShellProps) {
+function ViewerShell({ fontSize, tools, storeUrl }: ViewerShellProps) {
 	const { activeTools, toggleTool, raised } = useToolbarContext();
 	const [positions, setPositions] = useState<Record<string, Position>>({});
 	const [dockAssignments, setDockAssignments] = useState<DockAssignments>(emptyDockAssignments);
@@ -231,6 +229,7 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
 		realtime: createRef<HTMLDivElement>(),
 		collections: createRef<HTMLDivElement>(),
 		messages: createRef<HTMLDivElement>(),
+		"gallery-panel": createRef<HTMLDivElement>(),
 	}).current;
 	// One hidden, always-mounted probe per edge, sized/positioned exactly
 	// like a real DockEdge (see .dock-edge--probe in DockEdge.css) purely so
@@ -251,6 +250,12 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
 		{ id: "realtime", title: "Collaboration", tool: "realtime", content: <RealTimePanel /> },
 		{ id: "collections", title: "Collections", tool: "collections", content: <CollectionsPanel /> },
 		{ id: "messages", title: "Messages", tool: "messages", content: <MessagesPanel /> },
+		{
+			id: "gallery-panel",
+			title: "Gallery",
+			tool: "gallery",
+			content: <GalleryPanel storeUrl={storeUrl} dockedSide={sideOfPanel(dockAssignments, "gallery-panel")} />,
+		},
 	];
 
 	// Docked, it's the whole edge that comes forward.
@@ -346,8 +351,13 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
 			return;
 		}
 		const id = String(event.active.id);
-		const hasOccupant = openDocks[target.side].some((panelId) => panelId !== id);
-		setPreviewRect(computePreviewRect(target.side, target.activeRect, target.zoneRect, edgeRect, hasOccupant));
+		const others = openDocks[target.side].filter((panelId) => panelId !== id);
+		// The probe is always full size - the preview shows the edge as it'll be
+		// with this panel on it, which is slim for the gallery on its own.
+		const probe = edgeProbeRefs[target.side].current;
+		const emPx = probe ? parseFloat(getComputedStyle(probe).fontSize) : 16;
+		const sized = edgeRectAtDepth(target.side, edgeRect, edgeSizeEm(target.side, [...others, id]) * emPx);
+		setPreviewRect(computePreviewRect(target.side, target.activeRect, target.zoneRect, sized, others.length > 0));
 	};
 
 	const handleDragEnd = (event: DragEndEvent) => {
@@ -466,20 +476,23 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
 
 	// Left/right stop short of whichever of top/bottom is currently occupied
 	// (see DockZone.css and DockEdge.css) - top/bottom always own the full
-	// width, left/right just get whatever vertical space is left over.
+	// width, left/right just get whatever vertical space is left over. Each
+	// edge is as deep as what's on it (see dock.ts's edgeSizeEm).
+	const insetFor = (side: DockSide) => (openDocks[side].length > 0 ? `${edgeSizeEm(side, openDocks[side])}em` : "0em");
 	const shellStyle = {
 		...(fontSize ? { fontSize } : undefined),
-		"--dock-top-inset": openDocks.top.length > 0 ? EDGE_CROSS_SIZE : "0em",
-		"--dock-bottom-inset": openDocks.bottom.length > 0 ? EDGE_CROSS_SIZE : "0em",
+		"--dock-top-inset": insetFor("top"),
+		"--dock-bottom-inset": insetFor("bottom"),
 		// Lets the bottom-right scale bar (see MapNode.css's .ol-scalebar) step
 		// out of the way of a right-docked panel, the same way the two insets
 		// above already do for left/right and top/bottom.
-		"--dock-right-inset": openDocks.right.length > 0 ? `${FLOATING_PANEL_WIDTH_EM}em` : "0em",
+		"--dock-right-inset": insetFor("right"),
 	} as CSSProperties;
 
 	return (
 		<div ref={appRef} className="app" style={shellStyle}>
 			<MapNode />
+			<MoveGuard />
 
 			<DndContext
 				onDragStart={handleDragStart}
@@ -514,6 +527,7 @@ function ViewerShell({ fontSize, tools }: ViewerShellProps) {
 					<DockEdge
 						key={side}
 						side={side}
+						sizeEm={edgeSizeEm(side, openDocks[side])}
 						zIndex={PANEL_Z_BASE + stackIndex(focusOrder, dockEdgeStackKey(side))}
 						onActivate={() => handleActivate(dockEdgeStackKey(side))}
 					>

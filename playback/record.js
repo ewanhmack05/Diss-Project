@@ -56,7 +56,8 @@ async function checkServices(options) {
 	const viewerPort = Number(new URL(options.url).port || 443);
 	const missing = [];
 	for (const [name, port] of [["viewer", viewerPort], ...NEEDED]) {
-		if (!(await portOpen(port))) missing.push(`${name} on port ${port}`);
+		// Vite listens on localhost, which can be IPv6 only.
+		if (!(await portOpen(port)) && !(await portOpen(port, "::1"))) missing.push(`${name} on port ${port}`);
 	}
 	if (missing.length) throw new Error(`Not running: ${missing.join(", ")}. Start them with: python scripts/run_all.py`);
 }
@@ -77,12 +78,19 @@ async function resetPerson(browser, options, person) {
 	const page = await context.newPage();
 	try {
 		await signIn(page, options, person);
-		const owned = await page.evaluate(async (slide) => {
+		// Every slide, since the gallery scenes move between them.
+		const owned = await page.evaluate(async (fallback) => {
 			const key = Object.keys(sessionStorage).find((name) => name.startsWith("oidc.user:"));
 			const token = JSON.parse(sessionStorage.getItem(key)).access_token;
-			const response = await fetch(`/store/collections?slideId=${slide}`, { headers: { Authorization: `Bearer ${token}` } });
-			if (!response.ok) throw new Error(`listing collections: ${response.status}`);
-			return { token, collections: await response.json() };
+			const listed = await fetch("/tiler/slides");
+			const slides = listed.ok ? (await listed.json()).map((slide) => slide.id) : [fallback];
+			const collections = [];
+			for (const slide of slides) {
+				const response = await fetch(`/store/collections?slideId=${encodeURIComponent(slide)}`, { headers: { Authorization: `Bearer ${token}` } });
+				if (!response.ok) throw new Error(`listing collections on ${slide}: ${response.status}`);
+				collections.push(...(await response.json()));
+			}
+			return { token, collections };
 		}, SLIDE);
 		for (const id of collectionsToDelete(owned.collections)) {
 			const status = await page.evaluate(

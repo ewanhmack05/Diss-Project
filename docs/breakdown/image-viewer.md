@@ -72,7 +72,7 @@ What each service is for, from the viewer's side:
 
 ```
 src/
-  index.tsx          entry - slide id, service URLs, which tools show
+  index.tsx          entry - the slide it starts on, service URLs, which tools show
   App.tsx            the provider tree, then the shell: map, panels, docking, toolbar
   newId.ts           UUIDs that work over plain http too
   interfaces/        Annotation, CellCount, ImageAdjustment, ImageSource
@@ -85,6 +85,7 @@ src/
     saved/           paging, search, filters - shared by both Saved lists
     realtime/        Collaboration panel, invite gate, sketches, shared text, autosave
     collections/     Collections panel - yours, sessions, shared ones, GeoJSON in and out
+    gallery/         Gallery panel, ?slide= in the address, what a move would lose
     users/           Users tab, presence state, join with a code
     presence/        who's here, top left
     rotation/ ruler/ adjustments/   one panel each, plus their maths
@@ -423,6 +424,10 @@ builds the map once the slide's size has come back from the tiler:
   microns per pixel), always a round number.
 - `preload: Infinity` on the tile layer, so blurry lower-res tiles fill in
   while sharper ones load rather than leaving white gaps.
+- **Built once.** Another slide goes on the same map through `showSlide`:
+  new tile sources and a new view for the main map and the overview, the
+  zoom label and scale bar moved onto it, and nothing else rebuilt - see
+  [gallery.md](../gallery.md#moving-to-another-slide).
 
 ### What's drawn on it
 
@@ -604,6 +609,7 @@ happen in the viewer.
 | **Fullscreen**        | The browser's Fullscreen API.                                                                                                                                                                                               |
 | **RealTime**          | Session and Users tabs - see [section 12](#12-working-together).                                                                                                                                                            |
 | **Collections**       | Yours, your sessions and other people's shared ones, GeoJSON export and import - see [section 5](#the-collections-panel).                                                                                                   |
+| **Gallery**           | Every slide the tiler has, as cards or a filmstrip, and moving between them without a reload - see [gallery.md](../gallery.md).                                                                                             |
 
 Which tools show is set by `index.tsx`'s `tools` list.
 
@@ -851,8 +857,9 @@ build on every push that touches the viewer.
 - **Dev server only.** It's run with `vite`, whose proxy is what joins the
   services up. A production build would need something else doing that
   (see [azure.md](../azure.md)).
-- **One slide, set in code.** `index.tsx` picks it (`003`); there's no slide
-  picker.
+- **One slide per session.** The Gallery moves between slides, but a session
+  stays on the one it started on - sessions that move are next, see
+  [gallery.md](../gallery.md#whats-next---sessions-across-slides).
 - **Guests only look.** Someone joining from a link without an account is
   view only, and has no collection of their own - see
   [guests.md](../guests.md).

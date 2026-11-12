@@ -3,7 +3,23 @@ using OpenSlideSharp;
 
 namespace Tiler.Slides;
 
-public sealed record SlideInfo(string Id, string FileName, long Width, long Height, int TileSize, double? ObjectivePower, double? MppX, double? MppY);
+public sealed record SlideInfo(
+    string Id,
+    string FileName,
+    long Width,
+    long Height,
+    int TileSize,
+    double? ObjectivePower,
+    double? MppX,
+    double? MppY,
+    string Name,
+    string? Kind,
+    IReadOnlyList<string> Channels,
+    int Levels,
+    string? ObjectiveName,
+    string? Camera,
+    string? BackgroundColour,
+    long FileBytes);
 
 /// <summary>
 /// Discovers .mrxs (and other OpenSlide-readable) files under a data directory
@@ -71,7 +87,37 @@ public sealed class SlideCatalog : IDisposable
             && double.TryParse(rawMppY, System.Globalization.CultureInfo.InvariantCulture, out var parsedMppY)
                 ? parsedMppY
                 : null;
-        return new SlideInfo(id, Path.GetFileName(_pathsById[id]), dimensions.Width, dimensions.Height, ZoomifyTiling.TileSize, objectivePower, mppX, mppY);
+        var path = _pathsById[id];
+        var filterNames = SlideMetadata.FilterNameProperties(slide.GetPropertyNames()).Select(name => Property(slide, name));
+        return new SlideInfo(
+            id,
+            Path.GetFileName(path),
+            dimensions.Width,
+            dimensions.Height,
+            ZoomifyTiling.TileSize,
+            objectivePower,
+            mppX,
+            mppY,
+            SlideMetadata.Name(Property(slide, SlideMetadata.NameProperty), id),
+            SlideMetadata.Kind(Property(slide, SlideMetadata.KindProperty)),
+            SlideMetadata.Channels(filterNames),
+            ZoomifyTiling.ComputeTiers(dimensions.Width, dimensions.Height).Count,
+            SlideMetadata.ObjectiveName(Property(slide, SlideMetadata.ObjectiveNameProperty)),
+            SlideMetadata.Camera(Property(slide, SlideMetadata.CameraProperty)),
+            SlideMetadata.BackgroundColour(Property(slide, SlideMetadata.BackgroundColourProperty)),
+            FileBytes(path));
+    }
+
+    private static string? Property(OpenSlideImage slide, string name) =>
+        slide.TryGetProperty(name, out var value) ? value : null;
+
+    /// <summary>What a slide takes on disk - the .mrxs file plus everything in its companion folder.</summary>
+    public static long FileBytes(string mrxsPath)
+    {
+        var bytes = new FileInfo(mrxsPath).Length;
+        var companion = new DirectoryInfo(Path.ChangeExtension(mrxsPath, null));
+        if (companion.Exists) bytes += companion.EnumerateFiles("*", SearchOption.AllDirectories).Sum(file => file.Length);
+        return bytes;
     }
 
     public void Dispose()
