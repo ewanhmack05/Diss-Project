@@ -62,6 +62,10 @@ any edge of the screen - two panels on the same edge split it evenly.
   as annotations. Saved counts page and search the same way. A count's dots
   load only when it's viewed on the map - the list and the edit form use
   the colour and placed-by summary annotation-store sends instead
+- **Gallery** - every slide the tiler has, as cards (size, zoom, real size,
+  channels, collections, who's on it) or a filmstrip, and going to another
+  without a reload. Docked it's always a filmstrip. Asks first if you'd lose
+  something - see [docs/gallery.md](../docs/gallery.md)
 - **Rotate** - rotate the slide view
 - **Ruler** - measure a straight-line distance, shown in µm using the slide's
   microns-per-pixel, or in pixels
@@ -123,8 +127,9 @@ retrying in the background and shows "Offline" top-left.
 
 ## Pointing it at a slide
 
-`src/index.tsx` sets which slide opens (`source`, currently `003`) and which
-tools appear in the toolbar. Every backend goes through the page's own
+`src/index.tsx` sets which slide it starts on (`source`, currently `003`) and
+which tools appear in the toolbar. `?slide=001` in the address opens another,
+and the Gallery moves between them. Every backend goes through the page's own
 server - `/tiler`, `/store`, `/hub`, `/messaging` and `/auth`, proxied by
 `vite.config.ts` to ports 5095, 5252, 5180, 5260 and 8080 - so it works the
 same from `localhost`, the LAN or the VPN with only port 5173 reachable.
@@ -172,6 +177,8 @@ src/
                             dot + view helpers
     saved/                what both Saved lists share - rows, paging, filters
     collections/          Collections panel, export and import, history/
+    gallery/              Gallery panel, ?slide= in the address, the check
+                            before moving
                             (History tab, one row's timeline, put back, rollback)
     realtime/             RealTime panel, the hub connection, shared label and
                             notes (Yjs), live sketches, sessions and invites,

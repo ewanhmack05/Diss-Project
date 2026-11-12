@@ -58,6 +58,19 @@ function sideOfPanel(assignments: DockAssignments, panelId: string): DockSide | 
 	return DOCK_SIDES.find((side) => assignments[side].includes(panelId)) ?? null;
 }
 
+// How deep each edge is - its width at the sides, its height along the top
+// and bottom. Must match DockEdge.css. The gallery's strip is narrower than
+// any other panel, so an edge with only the gallery on it shrinks to fit -
+// see GalleryPanel.css for what the slim sizes hold.
+const EDGE_SIZE_EM: Record<DockSide, number> = { left: 20, right: 20, top: 21, bottom: 21 };
+const SLIM_EDGE_SIZE_EM: Record<DockSide, number> = { left: 11, right: 11, top: 14, bottom: 14 };
+const SLIM_PANELS = ["gallery-panel"];
+
+function edgeSizeEm(side: DockSide, panelIds: string[]): number {
+	const slim = panelIds.length > 0 && panelIds.every((id) => SLIM_PANELS.includes(id));
+	return slim ? SLIM_EDGE_SIZE_EM[side] : EDGE_SIZE_EM[side];
+}
+
 interface DockRect {
 	top: number;
 	left: number;
@@ -113,8 +126,25 @@ function computePreviewRect(side: DockSide, activeRect: DockRect, zoneRect: Dock
 	};
 }
 
+// An edge's rect at another depth, kept against its own screen edge - the
+// probe is always full size, so this gives the preview of a slim edge.
+function edgeRectAtDepth(side: DockSide, edgeRect: DockRect, depth: number): DockRect {
+	switch (side) {
+		case "left":
+			return { ...edgeRect, width: depth };
+		case "right":
+			return { ...edgeRect, left: edgeRect.left + edgeRect.width - depth, width: depth };
+		case "top":
+			return { ...edgeRect, height: depth };
+		case "bottom":
+			return { ...edgeRect, top: edgeRect.top + edgeRect.height - depth, height: depth };
+	}
+}
+
 export {
 	DOCK_SIDES,
+	edgeSizeEm,
+	edgeRectAtDepth,
 	dockZoneId,
 	emptyDockAssignments,
 	dockPanel,

@@ -11,6 +11,7 @@ import rulerIconSvg from "../../icons/ruler.svg?raw";
 import realtimeIconSvg from "../../icons/realtime.svg?raw";
 import collectionsIconSvg from "../../icons/collections.svg?raw";
 import messagesIconSvg from "../../icons/messages.svg?raw";
+import galleryIconSvg from "../../icons/gallery.svg?raw";
 import { useMessagingContext } from "../../context/MessagingContext";
 import "./Toolbar.css";
 
@@ -27,9 +28,30 @@ function Icon({ svg }: { svg: string }) {
 	return <span className="toolbar-icon" dangerouslySetInnerHTML={{ __html: svg }} />;
 }
 
-type ToolName = "fullscreen" | "annotations" | "cellcount" | "rotate" | "ruler" | "adjustments" | "realtime" | "collections" | "messages";
+type ToolName =
+	| "fullscreen"
+	| "annotations"
+	| "cellcount"
+	| "rotate"
+	| "ruler"
+	| "adjustments"
+	| "realtime"
+	| "collections"
+	| "messages"
+	| "gallery";
 
-const DEFAULT_TOOLS: ToolName[] = ["fullscreen", "annotations", "cellcount", "rotate", "ruler", "adjustments", "realtime", "collections", "messages"];
+const DEFAULT_TOOLS: ToolName[] = [
+	"fullscreen",
+	"gallery",
+	"annotations",
+	"cellcount",
+	"rotate",
+	"ruler",
+	"adjustments",
+	"realtime",
+	"collections",
+	"messages",
+];
 
 interface ToolbarProps {
 	tools?: ToolName[];
@@ -39,9 +61,9 @@ function Toolbar({ tools: wanted = DEFAULT_TOOLS }: ToolbarProps) {
 	const { activeTools, toggleTool } = useToolbarContext();
 	const { user } = useAuthContext();
 	const { unread } = useMessagingContext();
-	// A guest has no collections of their own - only the session they came in on -
-	// and isn't a named person anyone can message.
-	const tools = user.guest ? wanted.filter((tool) => tool !== "collections" && tool !== "messages") : wanted;
+	// A guest has no collections of their own - only the session they came in on,
+	// which is on one slide - and isn't a named person anyone can message.
+	const tools = user.guest ? wanted.filter((tool) => tool !== "collections" && tool !== "messages" && tool !== "gallery") : wanted;
 	const [isFullscreen, setIsFullscreen] = useState(false);
 
 	const toggleFullscreen = () => {
@@ -74,6 +96,16 @@ function Toolbar({ tools: wanted = DEFAULT_TOOLS }: ToolbarProps) {
 			{tools.includes("fullscreen") && (
 				<button type="button" className="toolbar-button" title="Toggle fullscreen (F)" onClick={toggleFullscreen}>
 					<Icon svg={isFullscreen ? fullscreenExitIconSvg : fullscreenEnterIconSvg} />
+				</button>
+			)}
+			{tools.includes("gallery") && (
+				<button
+					type="button"
+					className={`toolbar-button${activeTools.includes("gallery") ? " toolbar-button--active" : ""}`}
+					title="Gallery"
+					onClick={() => toggleTool("gallery")}
+				>
+					<Icon svg={galleryIconSvg} />
 				</button>
 			)}
 			{tools.includes("annotations") && (

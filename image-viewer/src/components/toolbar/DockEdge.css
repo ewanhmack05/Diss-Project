@@ -11,6 +11,7 @@
      whatever's docked to the top or bottom edge. */
 	top: var(--dock-top-inset, 0);
 	bottom: calc(3.69em + var(--dock-bottom-inset, 0em));
+	/* Must match dock.ts's EDGE_SIZE_EM. */
 	width: 20em;
 	flex-direction: column;
 }
@@ -19,8 +20,8 @@
 .dock-edge--bottom {
 	left: 0;
 	right: 0;
-	/* Must match App.tsx's EDGE_CROSS_SIZE, which insets the left/right
-     edges by this same amount. */
+	/* Must match dock.ts's EDGE_SIZE_EM. An edge with only the gallery on it
+     is slimmer, set on the element (see DockEdge.tsx). */
 	height: 21em;
 	flex-direction: row;
 }

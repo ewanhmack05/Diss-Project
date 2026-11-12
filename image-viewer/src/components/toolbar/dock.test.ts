@@ -9,6 +9,8 @@ import {
 	sideOfPanel,
 	resolvesToStart,
 	computePreviewRect,
+	edgeSizeEm,
+	edgeRectAtDepth,
 } from "./dock";
 
 describe("dockZoneId", () => {
@@ -183,5 +185,42 @@ describe("openDockAssignments", () => {
 		const before = structuredClone(docked);
 		openDockAssignments(docked, []);
 		expect(docked).toEqual(before);
+	});
+});
+
+describe("edgeSizeEm", () => {
+	it("is the usual size for any panel but the gallery", () => {
+		expect(edgeSizeEm("left", ["annotations-panel"])).toBe(20);
+		expect(edgeSizeEm("bottom", ["annotations-panel"])).toBe(21);
+		expect(edgeSizeEm("top", [])).toBe(21);
+	});
+
+	// The gallery's strip is narrow, so an edge with only it on is slim.
+	it("is slim with only the gallery on it", () => {
+		expect(edgeSizeEm("left", ["gallery-panel"])).toBe(11);
+		expect(edgeSizeEm("right", ["gallery-panel"])).toBe(11);
+		expect(edgeSizeEm("top", ["gallery-panel"])).toBe(14);
+		expect(edgeSizeEm("bottom", ["gallery-panel"])).toBe(14);
+	});
+
+	// Sharing, the other panel needs the room.
+	it("is the usual size when the gallery shares the edge", () => {
+		expect(edgeSizeEm("left", ["gallery-panel", "messages"])).toBe(20);
+		expect(edgeSizeEm("bottom", ["ruler-panel", "gallery-panel"])).toBe(21);
+	});
+});
+
+describe("edgeRectAtDepth", () => {
+	const side = { top: 0, left: 0, width: 220, height: 600 };
+	const along = { top: 500, left: 0, width: 1000, height: 231 };
+
+	it("keeps left and top against their screen edge", () => {
+		expect(edgeRectAtDepth("left", side, 121)).toEqual({ top: 0, left: 0, width: 121, height: 600 });
+		expect(edgeRectAtDepth("top", { ...along, top: 0 }, 170)).toEqual({ top: 0, left: 0, width: 1000, height: 170 });
+	});
+
+	it("keeps right and bottom against theirs", () => {
+		expect(edgeRectAtDepth("right", { ...side, left: 780 }, 121)).toEqual({ top: 0, left: 879, width: 121, height: 600 });
+		expect(edgeRectAtDepth("bottom", along, 170)).toEqual({ top: 561, left: 0, width: 1000, height: 170 });
 	});
 });

@@ -15,7 +15,10 @@
 	outline-offset: -2px;
 }
 
+/* Over the map rather than instead of it - see MapNode. */
 .map-node--error {
+	position: absolute;
+	inset: 0;
 	display: flex;
 	align-items: center;
 	justify-content: center;
