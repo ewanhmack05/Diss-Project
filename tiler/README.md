@@ -18,6 +18,22 @@ dotnet run --project tiler --urls http://localhost:5095
 Localhost is enough even when sharing the viewer with other machines -
 the viewer's dev server proxies to it (see the root README).
 
+## Tests
+
+```bash
+dotnet test tiler/Tests -c Release
+```
+
+xUnit, in `Tests/`. The maths, the metadata tidying and the thumbnail
+encoding are tested on their own. The rest goes through the real API
+(`WebApplicationFactory`) against the four slides in `data/`. Those are in
+Git LFS, and when they're missing or only LFS pointer files (as in CI,
+which checks out without LFS) the slide tests skip rather than fail.
+`git lfs pull` first to run them all.
+
+`-c Release` so it doesn't fight a tiler already running from `bin/Debug`
+over the locked dll.
+
 ### On Linux (Docker)
 
 The same tiler as a Linux container, with slide 003 built in - what gets
@@ -56,7 +72,7 @@ saved. What it holds is in memory, and it works it out again after a restart:
 | What               | Where                                                   | What it's for                                                                                                                                                                                          |
 | ------------------ | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Slide ids to paths | `SlideCatalog`, read at startup                         | Which slides there are. The id is the filename without its extension, and it's what annotation-store keeps as `SlideId` - not a foreign key, so removing a file leaves collections pointing at nothing |
-| `SlideInfo`        | `SlideCatalog`, read the first time a slide's asked for | Width, height, tile size, objective power and microns per pixel. Every tile request needs them                                                                                                         |
+| `SlideInfo`        | `SlideCatalog`, read the first time a slide's asked for | Width, height, tile size, objective power, microns per pixel and the gallery's metadata (name, kind, channels and so on). Every tile request needs the size                                           |
 | Open slides        | `SlideHandlePool`, one pool per slide                   | A few OpenSlide handles, each used by one thread at a time. One handle crashes if it's read from several threads at once, and locking it would make every tile in a pan wait in line                   |
 
 Slides live in `tiler/data/` as `<id>.mrxs` + a same-named companion folder
@@ -75,14 +91,50 @@ Included samples, all from [OpenSlide's public test data](https://openslide.org/
 | `000` | CMU-1 (1/16 downsample) | H&E brightfield, 6-level pyramid, 7436x15494px |
 | `001` | Mirax2-Fluorescence-1   | 3-channel fluorescence                         |
 | `002` | Mirax2-Fluorescence-2   | 3-channel fluorescence                         |
+| `003` | HPS stain               | Brightfield, 101832x219976px, ~2.9 GB          |
 
 `image-viewer/src/index.tsx`'s `DEFAULT_SLIDE_ID` picks which one loads by
 default; `?slide=<id>` overrides it per-request.
 
 ## API
 
-- `GET /slides` - every discovered slide: `{ id, fileName, width, height, tileSize }`
-- `GET /slides/{id}` - metadata for one slide
+- `GET /slides` - every discovered slide, each as below
+- `GET /slides/{id}` - metadata for one slide:
+
+  | Field              | What it is                                                                                                            |
+  | ------------------ | --------------------------------------------------------------------------------------------------------------------- |
+  | `id`, `fileName`   | The file name without `.mrxs`, and with it                                                                            |
+  | `width`, `height`  | Level 0 size in pixels                                                                                                |
+  | `tileSize`         | Always 256                                                                                                            |
+  | `objectivePower`   | Objective magnification, or null                                                                                      |
+  | `mppX`, `mppY`     | Microns per level 0 pixel, or null                                                                                    |
+  | `name`             | The scanner's slide name (`SLIDE_NAME`), trimmed. The id when it's missing, blank or `None`                           |
+  | `kind`             | `"brightfield"`, `"fluorescence"` or null, from `SLIDE_TYPE`                                                          |
+  | `channels`         | Fluorescence filter names in file order, each once, `Default` left out. `[]` for brightfield                          |
+  | `levels`           | How many zoom tiers the tile ladder has (`ZoomifyTiling.ComputeTiers(...).Count`)                                     |
+  | `objectiveName`    | `OBJECTIVE_NAME`, null when missing or `Default objective`                                                            |
+  | `camera`           | `CAMERA_TYPE`, or null                                                                                                |
+  | `backgroundColour` | `#rrggbb`, lower case - the colour of the parts that weren't scanned, from the file's `IMAGE_FILL_COLOR_BGR`. Or null |
+  | `fileBytes`        | The `.mrxs` plus everything in its folder                                                                             |
+
+  The MIRAX values come from OpenSlide, which hands every line of the
+  slide's `Slidedat.ini` back as a property named `mirax.SECTION.KEY`.
+  `Slides/SlideMetadata.cs` tidies them. The scan date, `SLIDE_ID`,
+  `PROJECT_NAME` and the label and macro images are never sent, since they
+  can identify a real slide - see `docs/ethics.md`.
+
+- `GET /slides/{id}/thumbnail.jpg?width=N` - a JPEG of the whole slide, `N`
+  pixels wide (256 if left out, clamped to 32-1024) and as tall as the
+  slide's shape makes it. Read from the smallest pyramid level that's still
+  at least that wide, so even slide 003 takes about 100-250 ms. Laid on the
+  slide's background colour (white if it has none), so unscanned corners
+  don't come out black. `Cache-Control: public, max-age=86400`.
+- `GET /slides/{id}/thumbnail.jpg?width=N&square=true` - `N` x `N`, the
+  square in the very middle of the slide, as big as its shorter side. A
+  1:2 portrait slide shows its middle half. Only that square is read, from
+  the smallest level with at least `N` pixels across it. Same clamp,
+  background and cache header. `square=false` or left out is the whole
+  slide as above.
 - `GET /slides/{id}/TileGroup{n}/{z}-{x}-{y}.jpg` - a tile. `{n}` (Zoomify's
   static-file bucketing number) is accepted but ignored since we serve
   dynamically; `z` is the zoom tier (0 = single tile covering the whole
@@ -110,5 +162,6 @@ comments for how it's derived per slide.
 **Known simplification:** OpenSlide returns pre-multiplied BGRA; tiles are
 encoded straight to JPEG (no alpha channel) without compositing onto a
 background colour first, so fully-transparent regions (e.g. corners outside
-a MIRAX slide's scanned area) render black instead of white. Fine for now;
-revisit if it looks wrong once annotations/collaboration are layered on top.
+a MIRAX slide's scanned area) render black instead of white. Thumbnails
+don't have this - `Slides/Thumbnail.cs` lays them on the background colour
+first - and tiles could do the same.

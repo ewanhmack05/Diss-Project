@@ -1,5 +1,6 @@
 bin/
 obj/
+Tests/
 *.log
 Properties/
 appsettings.Development.json
