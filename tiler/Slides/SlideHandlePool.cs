@@ -24,17 +24,26 @@ public sealed class SlideHandlePool : IDisposable
         _slots = new SemaphoreSlim(size, size);
     }
 
+    /// <summary>
+    /// Opens a slide. Opening isn't safe to do on several threads at once, only
+    /// reading, so every open in the tiler goes through here - a pool's, or a
+    /// one-off like checking a volume's slice sizes.
+    /// </summary>
+    public static OpenSlideImage Open(string path)
+    {
+        lock (OpenLock)
+        {
+            return OpenSlideApi.Open(path);
+        }
+    }
+
     /// <summary>Runs read on a handle nobody else is using, opening a new one if all are busy (up to the pool size).</summary>
     public T Use<T>(Func<OpenSlideImage, T> read)
     {
         _slots.Wait();
         if (!_idle.TryTake(out var handle))
         {
-            // Opening isn't safe to do on several threads at once, only reading.
-            lock (OpenLock)
-            {
-                handle = OpenSlideImage.Open(_path);
-            }
+            handle = Open(_path);
             _all.Add(handle);
         }
 

@@ -31,6 +31,13 @@ Git LFS, and when they're missing or only LFS pointer files (as in CI,
 which checks out without LFS) the slide tests skip rather than fail.
 `git lfs pull` first to run them all.
 
+Volumes are tested against slices the tests make themselves -
+`Tests/TiledTiff.cs` writes small one-colour tiled TIFFs, so each slice is a
+different colour and a test can tell which one it got. They need OpenSlide
+installed but no slide files, so CI (which installs `libopenslide0`) runs
+them. `Tests/ConcurrencyTests.cs` reads properties while other slides are
+read and opened - see [OpenSlideSharp's strings](#openslidesharps-strings).
+
 `-c Release` so it doesn't fight a tiler already running from `bin/Debug`
 over the locked dll.
 
@@ -64,6 +71,30 @@ SkiaSharp needs its own Linux native library too -
 `SkiaSharp.NativeAssets.Linux.NoDependencies`. Tiles come out byte for
 byte the same on both.
 
+Both are OpenSlide 3.4. It doesn't work out microns per pixel for a
+generic TIFF (4.0 does), so `SlideMetadata.MicronsPerPixel` falls back to
+the TIFF's own `XResolution` and `ResolutionUnit` - without it a volume
+would have no pixel size, and the ruler would be wrong on it.
+
+### OpenSlideSharp's strings
+
+OpenSlideSharp passes strings to and from OpenSlide through its
+`CustomStringMarshaler`, which keeps the native copy of a string in a
+field. .NET makes one marshaler and shares it between every call on every
+thread, so two string calls at the same time free each other's memory.
+Reading slide properties while anything else used OpenSlide crashed the
+process - the first `/slides` while someone was panning would have done it,
+and the test host died every run once the volume tests ran alongside the
+slide tests. 1.1.2 is the latest OpenSlideSharp and the marshaler hasn't
+changed since 2021.
+
+So `Slides/OpenSlideApi.cs` opens slides and reads their properties
+itself, with .NET's own UTF-8 marshalling (a fresh copy per call), and
+OpenSlideSharp is only used for reading pixels. Nothing in the tiler hands
+it a string any more. Don't call `OpenSlideImage.Open`, `TryGetProperty`,
+`GetPropertyNames` or the indexer - use `SlideHandlePool.Open` and
+`OpenSlideApi.Properties`.
+
 ## Data
 
 The tiler has no database. It only reads slide files, and nothing it does is
@@ -71,9 +102,9 @@ saved. What it holds is in memory, and it works it out again after a restart:
 
 | What               | Where                                                   | What it's for                                                                                                                                                                                          |
 | ------------------ | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Slide ids to paths | `SlideCatalog`, read at startup                         | Which slides there are. The id is the filename without its extension, and it's what annotation-store keeps as `SlideId` - not a foreign key, so removing a file leaves collections pointing at nothing |
+| Slide ids to paths | `SlideCatalog`, read at startup                         | Which slides there are, and each one's files - one for a flat slide, one per slice for a volume. The id is what annotation-store keeps as `SlideId` - not a foreign key, so removing a file leaves collections pointing at nothing |
 | `SlideInfo`        | `SlideCatalog`, read the first time a slide's asked for | Width, height, tile size, objective power, microns per pixel and the gallery's metadata (name, kind, channels and so on). Every tile request needs the size                                           |
-| Open slides        | `SlideHandlePool`, one pool per slide                   | A few OpenSlide handles, each used by one thread at a time. One handle crashes if it's read from several threads at once, and locking it would make every tile in a pan wait in line                   |
+| Open slides        | `SlideHandlePool`, one pool per slice                   | A few OpenSlide handles, each used by one thread at a time. One handle crashes if it's read from several threads at once, and locking it would make every tile in a pan wait in line                   |
 
 Slides live in `tiler/data/` as `<id>.mrxs` + a same-named companion folder
 (both required - that's how MIRAX stores a slide). `SlideCatalog` discovers
@@ -84,6 +115,44 @@ make it available - no config needed.
 `Slides:DataPath` (or the `Slides__DataPath` environment variable) points it
 at a different folder - relative to the app's folder unless it's absolute.
 
+### Volumes
+
+A volume is a stack of serial sections - slices cut one after another from
+the same tissue - lined up so the same pixel is the same place on every
+slice. It's one slide with several slices. The folder for one is what
+`volume-prep/register_sections.py --write` makes (see
+[volume-prep](../volume-prep/README.md)): a `registration.json` and a tiled
+TIFF per slice, all the same size.
+
+Any folder in `data/` with a `registration.json` in it is a volume, with
+the folder's name as its id - so `data/liver/` is the slide `liver`, found
+at startup like the `.mrxs` files, no config needed. The MIRAX slides' own
+folders (`data/000/` and so on) have no `registration.json`, so they're
+left alone. The slices are `.tif`, which `.gitattributes` puts in Git LFS
+like the slides.
+
+Checked out without LFS (as CI does) a volume's `.tif` files are small text
+pointers, not pictures. The tiler leaves that volume out and logs a warning
+saying to `git lfs pull`, rather than not starting - the same as the slide
+tests skip.
+
+A volume kept somewhere else can be given in config as an id and a folder,
+relative to the app's folder unless it's absolute:
+
+```bash
+Slides__Volumes__kidney=../../zstack-data/kidney/registered dotnet run --project tiler --urls http://localhost:5095
+```
+
+A volume that's there but wrong stops the tiler starting, with a message
+that says why: a folder that isn't there, no `registration.json`, a slice
+file missing, slices of different sizes, or the same id as a `.mrxs` or
+another volume.
+
+From `registration.json` the tiler takes the slice order, the default slice
+(the one the rest were lined up to) and where the gaps are - a link
+registration could only line up by the tissue's outline, because the cuts
+between are missing.
+
 Included samples, all from [OpenSlide's public test data](https://openslide.org/):
 
 | id    | source file             | notes                                          |
@@ -92,6 +161,12 @@ Included samples, all from [OpenSlide's public test data](https://openslide.org/
 | `001` | Mirax2-Fluorescence-1   | 3-channel fluorescence                         |
 | `002` | Mirax2-Fluorescence-2   | 3-channel fluorescence                         |
 | `003` | HPS stain               | Brightfield, 101832x219976px, ~2.9 GB          |
+
+And one volume, `liver` - 15 serial H&E sections of mouse liver and small
+intestine from [EPFL BIOP on Zenodo](https://zenodo.org/records/12072433)
+(CC BY 4.0), converted and registered by `volume-prep` onto one
+40288x45104px canvas, 1.9 GB. Sections 0-9 and 10-14 are two separate runs,
+so slice 10 has a gap before it. See [docs/zstack.md](../docs/zstack.md).
 
 `image-viewer/src/index.tsx`'s `DEFAULT_SLIDE_ID` picks which one loads by
 default; `?slide=<id>` overrides it per-request.
@@ -103,11 +178,11 @@ default; `?slide=<id>` overrides it per-request.
 
   | Field              | What it is                                                                                                            |
   | ------------------ | --------------------------------------------------------------------------------------------------------------------- |
-  | `id`, `fileName`   | The file name without `.mrxs`, and with it                                                                            |
+  | `id`, `fileName`   | The file name without `.mrxs`, and with it. For a volume, its config id and its folder's name                         |
   | `width`, `height`  | Level 0 size in pixels                                                                                                |
   | `tileSize`         | Always 256                                                                                                            |
   | `objectivePower`   | Objective magnification, or null                                                                                      |
-  | `mppX`, `mppY`     | Microns per level 0 pixel, or null                                                                                    |
+  | `mppX`, `mppY`     | Microns per level 0 pixel, or null. OpenSlide's, or worked out from the TIFF's resolution                             |
   | `name`             | The scanner's slide name (`SLIDE_NAME`), trimmed. The id when it's missing, blank or `None`                           |
   | `kind`             | `"brightfield"`, `"fluorescence"` or null, from `SLIDE_TYPE`                                                          |
   | `channels`         | Fluorescence filter names in file order, each once, `Default` left out. `[]` for brightfield                          |
@@ -115,7 +190,9 @@ default; `?slide=<id>` overrides it per-request.
   | `objectiveName`    | `OBJECTIVE_NAME`, null when missing or `Default objective`                                                            |
   | `camera`           | `CAMERA_TYPE`, or null                                                                                                |
   | `backgroundColour` | `#rrggbb`, lower case - the colour of the parts that weren't scanned, from the file's `IMAGE_FILL_COLOR_BGR`. Or null |
-  | `fileBytes`        | The `.mrxs` plus everything in its folder                                                                             |
+  | `fileBytes`        | The `.mrxs` plus everything in its folder. For a volume, every slice's file                                           |
+  | `slices`           | `[{index, gapBefore}]`, one for a flat slide. `gapBefore` is true when the cuts before it are missing                |
+  | `defaultSlice`     | The slice tiles come from when none is asked for. `0` for a flat slide                                                |
 
   The MIRAX values come from OpenSlide, which hands every line of the
   slide's `Slidedat.ini` back as a property named `mirax.SECTION.KEY`.
@@ -123,7 +200,7 @@ default; `?slide=<id>` overrides it per-request.
   `PROJECT_NAME` and the label and macro images are never sent, since they
   can identify a real slide - see `docs/ethics.md`.
 
-- `GET /slides/{id}/thumbnail.jpg?width=N` - a JPEG of the whole slide, `N`
+- `GET /slides/{id}/thumbnail.jpg?width=N` - a JPEG of the whole slide (its default slice, or `&slice=S`), `N`
   pixels wide (256 if left out, clamped to 32-1024) and as tall as the
   slide's shape makes it. Read from the smallest pyramid level that's still
   at least that wide, so even slide 003 takes about 100-250 ms. Laid on the
@@ -139,7 +216,15 @@ default; `?slide=<id>` overrides it per-request.
   static-file bucketing number) is accepted but ignored since we serve
   dynamically; `z` is the zoom tier (0 = single tile covering the whole
   slide, increasing tiers double resolution up to native), `x`/`y` are the
-  tile's column/row within that tier.
+  tile's column/row within that tier. From the default slice, so a viewer
+  that doesn't know about slices still works.
+- `GET /slides/{id}/slice/{slice}/TileGroup{n}/{z}-{x}-{y}.jpg` - the same
+  tile from one slice. Every slice is on the same grid, so the same
+  `z-x-y` is the same place on each. 404 for a slice that isn't there; a flat
+  slide only has slice 0.
+
+  On the liver volume (15 slices of 40288 x 45104) a full-resolution tile
+  takes 6-46 ms, the same as a flat slide's.
 
 ## How tiling works
 

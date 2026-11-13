@@ -41,12 +41,15 @@ public class SlideApiTests : IClassFixture<TilerApiFactory>
         return SKBitmap.Decode(jpeg);
     }
 
+    // The four MIRAX samples, and any volume in data/ as well - tiler/data/liver
+    // when it's been pulled from LFS. Nothing else.
     [SlideFact]
-    public async Task Slides_lists_the_four_samples()
+    public async Task Slides_lists_the_four_samples_and_any_volumes()
     {
         var slides = await SlidesAsync();
 
-        Assert.Equal(SampleSlides.Ids, slides.Keys.Order());
+        Assert.All(SampleSlides.Ids, id => Assert.Contains(id, slides.Keys));
+        Assert.All(slides.Values.Where(slide => !SampleSlides.Ids.Contains(slide.Id)), slide => Assert.True(slide.Slices.Count > 1, $"{slide.Id} isn't a sample or a volume"));
     }
 
     [SlideTheory]
@@ -122,6 +125,28 @@ public class SlideApiTests : IClassFixture<TilerApiFactory>
         Assert.Equal(expected, (await SlidesAsync())["000"].FileBytes);
     }
 
+    [SlideTheory]
+    [InlineData("000")]
+    [InlineData("003")]
+    public async Task A_flat_slide_is_one_slice(string id)
+    {
+        var slide = (await SlidesAsync())[id];
+
+        Assert.Equal([new Slice(0, false)], slide.Slices);
+        Assert.Equal(0, slide.DefaultSlice);
+    }
+
+    [SlideFact]
+    public async Task A_flat_slides_slice_0_is_its_usual_tiles()
+    {
+        var client = _factory.CreateClient();
+        var usual = await client.GetByteArrayAsync("/slides/000/TileGroup0/3-1-1.jpg");
+        var slice0 = await client.GetByteArrayAsync("/slides/000/slice/0/TileGroup0/3-1-1.jpg");
+
+        Assert.Equal(usual, slice0);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/slides/000/slice/1/TileGroup0/3-1-1.jpg")).StatusCode);
+    }
+
     // Nothing that could identify a real slide goes out - no scan date,
     // SLIDE_ID or PROJECT_NAME. See docs/ethics.md.
     [SlideFact]
@@ -135,6 +160,7 @@ public class SlideApiTests : IClassFixture<TilerApiFactory>
                 [
                     "id", "fileName", "width", "height", "tileSize", "objectivePower", "mppX", "mppY",
                     "name", "kind", "channels", "levels", "objectiveName", "camera", "backgroundColour", "fileBytes",
+                    "slices", "defaultSlice",
                 ],
                 slide.EnumerateObject().Select(field => field.Name));
         }

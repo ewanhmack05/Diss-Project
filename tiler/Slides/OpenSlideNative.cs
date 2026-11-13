@@ -16,10 +16,22 @@ public static class OpenSlideNative
     private const string RequestedName = "libopenslide-0";
     private static readonly string[] LinuxNames = ["libopenslide.so.1", "libopenslide.so.0"];
 
+    private static readonly object RegisterLock = new();
+    private static bool _registered;
+
+    // Safe to call more than once. .NET throws if a resolver is set twice, and
+    // the app starts more than once in one process under the tests.
     public static void Register()
     {
         if (OperatingSystem.IsWindows()) return;
-        NativeLibrary.SetDllImportResolver(typeof(OpenSlideImage).Assembly, Resolve);
+        lock (RegisterLock)
+        {
+            if (_registered) return;
+            // OpenSlideSharp's calls and the tiler's own (OpenSlideApi) both ask for it by the Windows name.
+            NativeLibrary.SetDllImportResolver(typeof(OpenSlideImage).Assembly, Resolve);
+            NativeLibrary.SetDllImportResolver(typeof(OpenSlideNative).Assembly, Resolve);
+            _registered = true;
+        }
     }
 
     private static IntPtr Resolve(string name, Assembly assembly, DllImportSearchPath? searchPath)
