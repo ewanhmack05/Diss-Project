@@ -27,6 +27,25 @@
 	font-size: 1em;
 }
 
+/* Which slice of a volume is showing - top middle, clear of a top-docked
+   panel. Same chip look as the scale bar. Not there for a flat slide. */
+.map-node-slice {
+	position: absolute;
+	top: calc(1em + var(--dock-top-inset, 0em));
+	left: 50%;
+	transform: translateX(-50%);
+	padding: 0.35em 0.9em;
+	background: var(--chrome-bg);
+	border-radius: 0.4em;
+	font-family: var(--sans);
+	font-size: 0.95em;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	color: var(--black);
+	pointer-events: none;
+	transition: top 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 /* Restyle OpenLayers' default zoom control to match the dark, translucent
    chrome used elsewhere (toolbar, side panel) instead of its stock blue. */
 .map-node .ol-zoom {

@@ -1,0 +1,29 @@
+/* Over the 2D map, which stays underneath so coming back to 2D is instant. */
+.volume-view {
+	position: absolute;
+	inset: 0;
+	background: var(--canvas-bg);
+	cursor: grab;
+}
+
+.volume-view:active {
+	cursor: grabbing;
+}
+
+.volume-view canvas {
+	display: block;
+	width: 100%;
+	height: 100%;
+}
+
+.volume-view-status {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--chrome-text-secondary);
+	font-family: var(--sans);
+	font-size: 1em;
+	pointer-events: none;
+}

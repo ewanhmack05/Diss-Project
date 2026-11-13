@@ -105,12 +105,46 @@ any edge of the screen - two panels on the same edge split it evenly.
     found and what it can't use, then saves it all in one go
     (`src/components/collections/`)
 - **Fullscreen** - uses the Fullscreen API (`requestFullscreen`)
+- **Depth** - moving through a volume's slices: serial sections lined up on
+  one canvas (see [docs/zstack.md](../docs/zstack.md)). The button's only
+  there when the slide has more than one slice, and the panel closes itself
+  on a flat slide. A slider with a mark per slice (a gap - cuts that are
+  missing - is a break in the row), Previous and Next, and back to the
+  slice it opened on. A note says when the slice is next to a gap. Page Up
+  and Page Down, or Shift and the wheel on the slide, do the same from the
+  map - a trackpad swipe adds up to one slice rather than racing through.
+  The slice showing is in a chip at the top of the map. In Present it's
+  locked, like panning (`src/components/depth/`, `src/context/SliceContext.tsx`)
+  - **3D** - the switch at the top of the Depth tab shows the volume as a
+    block ([three.js](https://threejs.org/), loaded the first time it's
+    opened). Drag to turn it, scroll to zoom, right-drag to move it. Cut it on
+    X, Y, Z or a diagonal to see inside, draw fewer slices to make it
+    thinner, lower the opacity, stretch the depth, turn the outline and grid
+    off. A frame on the block shows the slice the 2D view's on, and a gap is
+    an empty layer. Clicking the tissue opens that slice at that place in 2D.
+    The block is built in the browser from one thumbnail per slice, 512 px
+    wide (`thumbnail.jpg?slice=`), about 250 KB in all, and kept for the
+    page's life. It's ray marched in a fragment shader
+    (`src/components/depth/volumeShader.ts`), stored premultiplied so
+    filtering next to glass or a gap doesn't darken it. Sections are much
+    thinner than the slide is wide, so it's drawn thicker than it is, and
+    assumes 4 um sections since the data doesn't say
 
 ## Rendering
 
 Slide tiles, saved annotations, cell-count dots and ROI boxes are drawn with
 WebGL layers. Canvas is only used for arrowheads, the shape currently being
 drawn, and the ruler label. See `docs/rendering.md`.
+
+On a volume the slice showing has its neighbours loaded too, as tile layers
+at opacity 0 - a hidden layer wouldn't load anything - so a step to the next
+slice only swaps opacities and fetches nothing for the slice now showing,
+just the new neighbour. Each tile layer is a GL context and browsers allow
+about 16, so `SliceLayers` (`src/components/open-layers/sliceLayers.ts`)
+keeps at most three and gives a new slice the layer that dropped out,
+with a new source, rather than making another. Moving through every slice,
+or to another slide, makes no new GL contexts. A flat slide is one layer on
+the slide's own tile route, the same URLs as before volumes.
 
 ## Running
 
@@ -135,6 +169,15 @@ server - `/tiler`, `/store`, `/hub`, `/messaging` and `/auth`, proxied by
 same from `localhost`, the LAN or the VPN with only port 5173 reachable.
 
 Available slide IDs are listed in `tiler/README.md`.
+
+`TILER_URL` points `/tiler` at another tiler, e.g. one started with a volume
+on another port, without stopping the usual one:
+
+```bash
+TILER_URL=http://localhost:5096 npx vite --port 5175 --strictPort --mode http
+```
+
+`.claude/launch.json`'s `image-viewer-volume` does the same.
 
 ### Vendored colour picker
 

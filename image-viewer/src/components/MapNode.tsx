@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Feature, type Map, type MapBrowserEvent } from "ol";
 import type Geometry from "ol/geom/Geometry";
 import type LineString from "ol/geom/LineString";
@@ -18,7 +18,6 @@ import PinchRotate from "ol/interaction/PinchRotate";
 import PinchZoom from "ol/interaction/PinchZoom";
 import VectorLayer from "ol/layer/Vector";
 import WebGLVectorLayer from "ol/layer/WebGLVector";
-import type WebGLTileLayer from "ol/layer/WebGLTile";
 import VectorSource from "ol/source/Vector";
 import { OpenLayerMap, type ShowSlide } from "./open-layers/OpenLayers";
 import {
@@ -85,6 +84,16 @@ import { useEmitEvent } from "../context/EventContext";
 import { ShapeTools } from "./annotation/Tools";
 import "./MapNode.css";
 import { newId } from "../newId";
+import { useSliceContext } from "../context/SliceContext";
+import { isVolume, keyStep, readSlices, sliceLabel, sliceWindow, wheelStepper, type Slice } from "./depth/slices";
+import { isTypingTarget } from "../typing";
+
+// three.js only loads the first time someone opens a volume in 3D.
+const VolumeView = lazy(() => import("./depth/VolumeView"));
+
+// How far in the 2D map goes when a click in 3D sends it somewhere - 4 slide
+// pixels to a screen pixel, about a millimetre across on a laptop.
+const LOOK_AT_RESOLUTION = 4;
 
 interface SlideMetadata {
 	width: number;
@@ -93,6 +102,9 @@ interface SlideMetadata {
 	objectivePower: number | null;
 	mppX: number | null;
 	mppY: number | null;
+	// Missing from a tiler from before volumes - see readSlices.
+	slices?: Slice[];
+	defaultSlice?: number;
 }
 
 // The box is a fixed size (see RoiBoxSizeOptions) - dragging only ever
@@ -146,6 +158,9 @@ function MapNode() {
 		useAnnotationStoreContext();
 	const { activeTool, colour, lineThickness, lineStyle, pending, setPending, quickDraw } = useDrawContext();
 	const { rotationDegrees, setRotationDegrees, resetRotation } = useRotationContext();
+	const { slices, current: currentSlice, setSlices, step: stepSlice, view: depthView, lookAt: depthLookAt } = useSliceContext();
+	// The slide's size, for the 3D view - set with each slide.
+	const [slideSize, setSlideSize] = useState<{ width: number; height: number; mppX: number | null } | null>(null);
 	const { setLastMeasurement, clearSignal: rulerClearSignal } = useRulerContext();
 	const { values: adjustmentValues, resetValues: resetAdjustments } = useAdjustmentsContext();
 	const {
@@ -204,7 +219,8 @@ function MapNode() {
 
 	const mapElement = useRef<HTMLDivElement | null>(null);
 	const mapRef = useRef<Map | null>(null);
-	const baseLayerRef = useRef<WebGLTileLayer | null>(null);
+	// The slide's tiles, one layer per slice that's loaded - see SliceLayers.
+	const tilesRef = useRef<ReturnType<typeof OpenLayerMap>["tiles"] | null>(null);
 	// Set once the map's built - see OpenLayerMap.
 	const showSlideRef = useRef<ShowSlide | null>(null);
 	const lessDetailRef = useRef<LessDetail | null>(null);
@@ -309,6 +325,8 @@ function MapNode() {
 			.then((metadata) => {
 				if (cancelled || !mapElement.current) return;
 				slideMetadataRef.current = metadata;
+				const { slices: slideSlices, defaultSlice } = readSlices(metadata);
+				setSlideSize({ width: metadata.width, height: metadata.height, mppX: metadata.mppX });
 				// Another slide on the map that's already there - its tiles and
 				// view change, nothing else is rebuilt. What's drawn on it follows
 				// from the stores loading the new slide's collection.
@@ -320,6 +338,7 @@ function MapNode() {
 						metadata.mppX,
 					);
 					remoteRulersLayerRef.current?.setStyle(remoteRulerStyle(metadata.mppX, metadata.mppY));
+					setSlices(slideSlices, defaultSlice, source.slideId);
 					setMapVersion((version) => version + 1);
 					return;
 				}
@@ -457,7 +476,7 @@ function MapNode() {
 				viewedDotsLayerRef.current = viewedDotsLayer;
 				viewedRoiLayerRef.current = viewedRoiLayer;
 				rulerLayerRef.current = rulerLayer;
-				const { map, baseLayer, overviewMap, showSlide } = OpenLayerMap(
+				const { map, tiles, overviewMap, showSlide } = OpenLayerMap(
 					mapElement.current,
 					{ width: metadata.width, height: metadata.height },
 					{ baseUrl: `${slideUrl}/`, tileSize: metadata.tileSize },
@@ -491,7 +510,7 @@ function MapNode() {
 				);
 				lessDetail.follow(map);
 				mapRef.current = map;
-				baseLayerRef.current = baseLayer;
+				tilesRef.current = tiles;
 				showSlideRef.current = showSlide;
 				// For scripts/map_bench.js, which turns layers off one at a time to
 				// see what each costs. Dev server only.
@@ -501,7 +520,10 @@ function MapNode() {
 							map,
 							lessDetail,
 							layers: {
-								tiles: baseLayer,
+								// Whichever slice is showing.
+							get tiles() {
+								return tiles.current();
+							},
 								annotations: annotationsLayer,
 								arrowheads: annotationArrowsLayer,
 								dots: cellCountDotsLayer,
@@ -512,6 +534,7 @@ function MapNode() {
 						},
 					});
 				}
+				setSlices(slideSlices, defaultSlice, source.slideId);
 				setMapVersion((version) => version + 1);
 			})
 			.catch(() => {
@@ -524,7 +547,7 @@ function MapNode() {
 		return () => {
 			cancelled = true;
 		};
-	}, [source, emit]);
+	}, [source, emit, setSlices]);
 
 	// The map lasts as long as the viewer does - a change of slide is dealt
 	// with above, on the one that's there.
@@ -532,12 +555,14 @@ function MapNode() {
 		() => () => {
 			mapRef.current?.setTarget(undefined);
 			// Each WebGL layer holds its own GL context and browsers only allow
-			// about 16 at once, so free them rather than leave them behind.
+			// about 16 at once, so free them rather than leave them behind. The
+			// tiles first - they keep spare layers that aren't on the map.
+			tilesRef.current?.dispose();
 			mapRef.current?.getLayers().forEach((layer) => layer.dispose());
 			lessDetailRef.current?.dispose();
 			lessDetailRef.current = null;
 			mapRef.current = null;
-			baseLayerRef.current = null;
+			tilesRef.current = null;
 			showSlideRef.current = null;
 		},
 		[],
@@ -932,16 +957,27 @@ function MapNode() {
 		};
 	}, [mapVersion, setRotationDegrees]);
 
-	// Pushes live slider/preset values onto the base layer's WebGL style
-	// variables - cheap, no shader rebuild (see adjustmentsStyle in
-	// OpenLayers.ts). mapVersion has to be a dep too, not just
-	// adjustmentValues: a slider dragged while the next slide is still
-	// loading changes adjustmentValues while baseLayerRef.current is still
-	// null, so that call is a no-op - without mapVersion here, the freshly
-	// built layer (which always starts at DEFAULT_ADJUSTMENTS, see
-	// zoomifyLayer) would never pick up that pending change once it exists.
+	// Shows the slice that's current, with the ones either side loaded so a
+	// step to them is instant. A flat slide is its one layer on the slide's
+	// own route, the same tiles it always had.
 	useEffect(() => {
-		baseLayerRef.current?.updateStyleVariables({
+		const tiles = tilesRef.current;
+		if (!tiles) return;
+		if (!isVolume(slices)) tiles.show(null, [null]);
+		else tiles.show(currentSlice, sliceWindow(currentSlice, slices.length));
+	}, [slices, currentSlice, mapVersion]);
+
+	// Pushes live slider/preset values onto the tile layers' WebGL style
+	// variables - cheap, no shader rebuild (see adjustmentsStyle in
+	// OpenLayers.ts). Every slice's layer gets them, so stepping through a
+	// volume doesn't change how it looks. mapVersion has to be a dep too, not
+	// just adjustmentValues: a slider dragged while the next slide is still
+	// loading changes adjustmentValues while tilesRef.current is still null,
+	// so that call is a no-op - without mapVersion here, the freshly built
+	// layers (which start at DEFAULT_ADJUSTMENTS, see tileLayer) would never
+	// pick up that pending change once they exist.
+	useEffect(() => {
+		tilesRef.current?.setStyleVariables({
 			red: adjustmentValues.red,
 			green: adjustmentValues.green,
 			blue: adjustmentValues.blue,
@@ -1586,9 +1622,70 @@ function MapNode() {
 
 	// The map's element stays whatever happens, since the map lasts longer
 	// than any one slide - an error goes over it, not instead of it.
+	// A click on the block in 3D: the map goes there, on that slice (the slice
+	// context has already moved it).
+	useEffect(() => {
+		const map = mapRef.current;
+		if (!map || !depthLookAt) return;
+		const view = map.getView();
+		view.animate({
+			center: [depthLookAt.x, -depthLookAt.y],
+			resolution: Math.min(view.getResolution() ?? LOOK_AT_RESOLUTION, LOOK_AT_RESOLUTION),
+			duration: 400,
+		});
+	}, [depthLookAt]);
+
+	// PageUp/PageDown and Shift+wheel move through a volume's slices. Not in
+	// Present - the host's moving everyone, the same as panning is locked.
+	const volume = isVolume(slices);
+	useEffect(() => {
+		const element = mapElement.current;
+		if (!volume || locked || !element) return;
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (isTypingTarget(event.target)) return;
+			const delta = keyStep(event);
+			if (delta === null) return;
+			event.preventDefault();
+			stepSlice(delta);
+		};
+		const wheel = wheelStepper();
+		// Capture, on the map's own element, so it gets there before OL's
+		// wheel zoom (on the viewport inside it) and can stop it.
+		const onWheel = (event: WheelEvent) => {
+			if (!event.shiftKey) return;
+			event.preventDefault();
+			event.stopPropagation();
+			const delta = wheel(event.deltaX, event.deltaY, event.deltaMode, event.timeStamp);
+			if (delta !== null) stepSlice(delta);
+		};
+		window.addEventListener("keydown", onKeyDown);
+		element.addEventListener("wheel", onWheel, { capture: true, passive: false });
+		return () => {
+			window.removeEventListener("keydown", onKeyDown);
+			element.removeEventListener("wheel", onWheel, { capture: true });
+		};
+	}, [volume, locked, stepSlice]);
+
 	return (
 		<>
 			<div ref={mapElement} className="map-node" />
+			{volume && depthView === "3d" && slideSize && !error && (
+				<Suspense fallback={<div className="volume-view" />}>
+					<VolumeView
+						key={source.slideId}
+						tilerUrl={source.tilerUrl}
+						slideId={source.slideId}
+						slideWidth={slideSize.width}
+						slideHeight={slideSize.height}
+						micronsPerPixel={slideSize.mppX}
+					/>
+				</Suspense>
+			)}
+			{volume && !error && (
+				<div className="map-node-slice" aria-live="polite">
+					{sliceLabel(currentSlice, slices.length)}
+				</div>
+			)}
 			{error && (
 				<div className="map-node map-node--error">
 					<p>{error}</p>
