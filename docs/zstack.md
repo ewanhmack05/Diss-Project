@@ -95,7 +95,10 @@ DOI [10.5281/zenodo.12072433](https://doi.org/10.5281/zenodo.12072433).
 | Size | 3.0 GB, one `Serial_Sections.zip`. The biggest `.ets` per section is 137-164 MB |
 | Licence | CC BY 4.0 |
 | Download | Direct from Zenodo, no account, no Aspera |
-| Not stated | Section thickness, pixel size, liver vs intestine split. The `.vsi` metadata should give pixel size once it's open |
+| Full-res image | Series 13 (`20x_BF_01`) in every `.vsi`, UPLXAPO 20x / 0.8 NA, 0.27366 um/pixel, one focal plane |
+| Section size | 28014-32430 x 35801-37822 pixels, about 8 x 10 mm. Different for every section |
+| On each slide | A liver lobe and a cross-section of small intestine |
+| Not stated | Section thickness - not on Zenodo, not in the VSI metadata |
 
 Why this one:
 
@@ -163,9 +166,55 @@ as it is:
    lined up, so the tiler serves registered tiles with no transform at request
    time.
 
-All three go in one script under `scripts/`, deterministic, with a test that
-runs it on one section. `SlideCatalog` only looks for `*.mrxs` today, so it'll
-need to pick up `.tif` too.
+These live in [volume-prep/](../volume-prep/README.md), one script for
+converting and one for registering. `SlideCatalog` only looks for `*.mrxs`
+today, so it'll need to pick up `.tif` too.
+
+### Tried on section 0
+
+Steps 1 and 2 work. Tools: Bio-Formats bftools 7.3.1 (the last line that runs
+on Java 8), libvips 8.18.7, OpenSlide 4.0.1 through openslide-python 1.4.7.
+
+```bash
+bfconvert -series 13 -tilex 512 -tiley 512 -compression JPEG -bigtiff Image_00.vsi Image_00_flat.ome.tif
+vips tiffsave Image_00_flat.ome.tif Image_00.tif --tile --tile-width 256 --tile-height 256 --pyramid --compression jpeg --Q 85 --bigtiff
+```
+
+| What | Result |
+| --- | --- |
+| Time | 52 s for `bfconvert`, 2 s for `vips` |
+| Size | 65 MB flat, 119 MB pyramid (the VSI's own 20x `.ets` is 154 MB) |
+| OpenSlide | Opens it as `generic-tiff`, 29833 x 37633, 9 levels |
+| Pixel size | `openslide.mpp-x` 0.273656, `openslide.mpp-y` 0.273660 - carried through from the VSI, so the ruler and ROI sizes will be right |
+| Pixels | Thumbnail shows the liver lobe and intestine, no black tiles |
+
+A VSI holds several images, so `-series` matters: 0-5 are the label and its
+pyramid, 6-12 the 2x overview, 13 the 20x scan, 14-20 its pyramid, 21 the
+macro image. Series 13 is the same in all 15 files, but the script finds it by
+name (`20x_BF_01`), not by number.
+
+### All 15 sections
+
+[volume-prep/convert_sections.py](../volume-prep/convert_sections.py) does steps 1
+and 2 for a whole folder - see the
+[volume-prep README](../volume-prep/README.md#1-converting). On the liver set it
+takes about 55 s a section, 13-14 minutes for all 15, and writes 1.7 GB.
+Each output is checked against its source's size and pixel size before it
+counts, and checked again independently with OpenSlide afterwards: all 15
+open as `generic-tiff` with 9 levels and the right pixel size.
+
+**Section 8 claims more than was scanned.** Its VSI says 32430 x 37531, but
+every level of its own pyramid stops at 35840 rows, 1691 short. Bio-Formats
+fills the missing rows with black, which showed as a black band along the
+bottom of the first conversion - and would have been a black slab in the 3D
+block. The other 14 match their pyramids to within rounding. The script now
+works out the scanned size from the pyramid and crops to it.
+
+**The sections don't line up as they come.** A contact sheet of all 15 shows
+the same liver lobe and intestine on each, but shifted and turned a little
+from one to the next - section 13 most. That's what
+[registration](#6-registration) is for. The sections are also all different
+sizes, so registration has to put them on one shared canvas too.
 
 ## 6. Registration
 
@@ -178,17 +227,42 @@ first rigid or affine (shift, turn, scale), then non-rigid (a smooth warp for
 the stretching). Every published 3D histology pipeline does this, DPLab
 included.
 
-- **Do it offline.** It's slow and deterministic, so it belongs in the
-  conversion script, not in the viewer or the tiler. The output is registered
-  pyramids, one per section, all in one coordinate frame.
-- **Don't write our own.** Candidates to compare before choosing (CLAUDE.md
-  "search before building"): VALIS (Python, built for serial whole-slide
-  images), and EPFL BIOP's own QuPath Warpy / ABBA tools, since the pick
-  dataset comes from them. Neither is checked yet.
-- **Measure it.** HyReCo ships landmark points marking the same spot on each
-  section, which gives a registration error in microns. For the liver set,
-  the measure is how far matching features move between neighbouring slices
-  before and after.
+- **Offline.** It's deterministic, so it's a script that runs once, not
+  something in the viewer or the tiler. The output is registered pyramids,
+  one per section, all on one canvas, so the tiler serves them as they are.
+- **Tool.** VALIS is the standard for serial whole-slide images, but it's had
+  no change in 17 months (116 open issues) and pulls in torch, numpy<2 and
+  Java. Warpy applies transforms made by hand in Fiji, and ABBA registers to a
+  brain atlas, so neither fits a script. So
+  [volume-prep/register_sections.py](../volume-prep/register_sections.py)
+  does what VALIS does - features, RANSAC, chaining to the middle section -
+  in a few hundred lines of OpenCV that are tested and can be explained. How
+  it works and why each choice was made is in the
+  [volume-prep README](../volume-prep/README.md#2-registering).
+- **Rigid, for now.** Turn and shift only. Letting scale float made it drift
+  1.5% and doubled the error. Non-rigid comes later if the 3D view needs it.
+
+### On the liver set
+
+| What | Result |
+| --- | --- |
+| Links | 13 by features, 1 gap (09 to 10) |
+| Median residual | 7.4 um |
+| Skip-one error (i to i+2 direct against chained) | median 38.1 um, worst 56.5 um |
+| Neighbour overlap (Dice) | 0.787 before, 0.906 after |
+| Canvas | 40288 x 45104 px |
+| Time | 12 s to register, about 70 s to write all 15 full size |
+| Written | 1.9 GB. Full-size patches match the originals to 2.7-3.6 grey levels |
+
+**The liver set is two runs, not one.** Sections 0-9 and 10-14 are each
+consecutive - every section's best match is its neighbour in file order - but
+nothing links the two runs: every pair across them sits at the noise floor.
+Not blur (evening it out didn't help), just cuts that aren't there. So the
+block has a gap of unknown depth between 9 and 10, lined up by tissue outline
+only. The 3D view should show it as a gap, not draw the block as continuous.
+
+**What's left** is the 38 um skip-one error, mostly tissue stretched
+differently on each slide. A non-rigid step would take that out.
 
 ## 7. Changes by service
 
@@ -197,16 +271,26 @@ sections: both are "slice N of M at depth d".
 
 ### tiler
 
-- **Catalog.** A volume is one slide id with N slices. `SlideCatalog` maps an
-  id to one path today. It would map to an ordered list, each slice with its
-  own `SlideHandlePool`. A flat slide is a volume of one, so nothing else
-  needs a special case.
-- **Metadata.** `SlideInfo` gains `slices` (index and depth in microns for
-  each) and the default slice.
-- **Tiles.** Zoomify already uses `z` for the zoom tier, so the slice needs
-  its own name in the route, e.g.
-  `/slides/{id}/slice/{slice}/TileGroup{n}/{z}-{x}-{y}.jpg`. The old route
-  stays and means the default slice.
+Done - see the [tiler README](../tiler/README.md#volumes).
+
+- **Catalog.** A volume is one slide id with N slices, configured as
+  `Slides:Volumes:{id} = {folder of register_sections.py's output}`. Every
+  slide is now an ordered list of files with a `SlideHandlePool` per slice; a
+  flat slide is a list of one, so nothing else needs a special case. A
+  volume set up wrong stops the tiler starting, saying why.
+- **Metadata.** `SlideInfo` gains `slices` (`index`, `gapBefore`) and
+  `defaultSlice`. No depth in microns yet - the liver set doesn't say how
+  thick its sections are.
+- **Tiles.** `/slides/{id}/slice/{slice}/TileGroup{n}/{z}-{x}-{y}.jpg`. The
+  old route serves the default slice, byte for byte the same, so the viewer
+  as it is can already open the liver volume as a flat slide.
+- **Two fixes it needed.** OpenSlide 3.4 (what the tiler runs) gives no
+  pixel size for a generic TIFF, so it's now worked out from the TIFF's
+  resolution. And OpenSlideSharp's string marshaling isn't thread-safe:
+  reading properties while anything else used OpenSlide crashed the process.
+  That was already there for flat slides; the volume tests were the first to
+  run OpenSlide on two threads in the tests, and found it. The tiler now
+  opens slides and reads properties itself.
 - **Volume for the 3D view.** A small, downsampled copy of the whole block
   (e.g. 512 x 512 x N, RGB) as one file, for [the 3D view](#8-the-3d-view).
   Made by the conversion script, served as a static file.
@@ -222,8 +306,9 @@ sections: both are "slice N of M at depth d".
   `preload: Infinity` already adds. Measure it the way
   [rendering.md](rendering.md) did before deciding how many neighbours to
   keep.
-- **Controls.** A slice slider, Shift+wheel, PageUp/PageDown. The status bar
-  shows the slice and its depth in microns.
+- **Controls.** In the Depth tab (see [section 8](#8-the-3d-view)), plus
+  Shift+wheel and PageUp/PageDown on the map. The status bar shows the slice
+  and its depth in microns.
 - **Adjustments** are style variables, so applying them to every slice layer
   is cheap.
 - **Annotations on other slices** - probably faded for the slices either side
@@ -255,7 +340,39 @@ sections: both are "slice N of M at depth d".
 
 ## 8. The 3D view
 
-A second view next to the 2D one, not a replacement. The 2D viewer stays
+### The Depth tab
+
+Everything for volumes lives in one new toolbar tab, and it's only there when
+the slide open has more than one slice. A flat slide looks exactly as it does
+now. Same pattern as the other panels: an entry in `panelDefs` in `App.tsx`
+(`{ id: "depth-panel", title: "Depth", tool: "depth", ... }`), its button in
+the toolbar, docks and floats like the rest. The button's shown from the
+slide's metadata - `slices` longer than one - so nothing else needs to know.
+
+What's in it:
+
+| Part | 2D | 3D |
+| --- | --- | --- |
+| **View switch** | 2D / 3D toggle at the top. Swaps what the map area shows; the panel stays open | |
+| **Slice** | Slider and number, with depth in microns. Same as Shift+wheel and PageUp/PageDown | Moves the cut plane through the block |
+| **Neighbours** | Fade annotations on the slices either side, on/off | |
+| **Thickness** | | How many slices are drawn, round the current one |
+| **Cut** | | Clip on X, Y, Z or a diagonal, with a slider for where |
+| **Opacity** | | How see-through the block is |
+| **Guides** | | Gridlines and the block's boundary, on/off |
+| **Reset** | | Camera back to the default view |
+
+Basic controls first. Markers, measuring in 3D and following someone's camera
+come after.
+
+The switch swaps the whole map area rather than splitting it, so the 2D view
+keeps the full screen when you're working in it. The two stay linked:
+switching to 3D opens on the slice and place you were at in 2D, and clicking
+the block in 3D switches back to 2D at that slice and place.
+
+### Drawing the block
+
+A separate view from the 2D one, not a replacement. The 2D viewer stays
 where the detail is - full resolution, one slice at a time. The 3D view shows
 the shape of the whole block at low resolution and is where you choose where
 to look.
@@ -269,8 +386,8 @@ to look.
   tooling, which helps the games tie-in) and vtk.js (built for medical
   volumes). Neither is checked against this data yet.
 - **Linked to 2D.** Clicking a point in 3D opens that slice at that place in
-  2D. The 2D view's current slice and viewport show as a plane and a box in
-  3D.
+  2D, through the Depth tab's switch. The 2D view's current slice and
+  viewport show as a plane and a box in 3D.
 - **Size.** 512 x 512 x 15 RGB is about 11.8 MB raw. That's fine for one
   block. Bigger volumes need bricking (loading the block in chunks by level of
   detail), which is phase-later work.
@@ -279,19 +396,23 @@ to look.
 
 ## 9. Phases
 
-1. **Get the data in.** Download the liver set, convert VSI to tiled
-   pyramids, read pixel size from the metadata, load one section in the
-   existing viewer as a flat slide. Proves the conversion.
-2. **Register.** Pick a tool (VALIS or Warpy/ABBA), register the 15 sections,
-   write registered pyramids. Measure alignment before and after.
-3. **Step through slices, read only.** Tiler catalog, metadata and route.
-   Viewer layers and slice controls.
+1. **Get the data in.** Done - all 15 converted and checked. Still to do:
+   load one in the existing viewer as a flat slide.
+2. **Register.** Done, rigid - 15 registered pyramids on one canvas, measured
+   before and after. Non-rigid is open.
+3. **Step through slices, read only.** Done - tiler catalog, metadata and
+   route, and the viewer's Depth tab, 2D only. See the
+   [viewer README](../image-viewer/README.md#tools).
 4. **Live.** `Z` on `Viewport`, Follow and Present on the host's slice.
 5. **Annotate at a depth.** `Z` on annotations and dots, conflicts, history
    lines that say which slice moved where.
-6. **3D view.** Downsampled volume, clipping, thickness, markers, linked to
-   the 2D view. Camera and cut shared live.
-7. **Bigger data.** PCa_Bx_3Dpathology for true 3D, HyReCo for mixed stains
+6. **3D view.** Done - the Depth tab's 2D / 3D switch, a ray-marched block
+   with cut (X, Y, Z, diagonal), slices drawn, opacity, depth stretch,
+   guides and reset, and a click on the tissue opening that place in 2D.
+   Built from one 512 px thumbnail per slice, no extra file to make. See the
+   [viewer README](../image-viewer/README.md#tools).
+7. **More 3D.** Markers, camera and cut shared live, Follow in 3D.
+8. **Bigger data.** PCa_Bx_3Dpathology for true 3D, HyReCo for mixed stains
    and measured registration.
 
 Each phase measures something: alignment error (2), tile requests and time to
@@ -303,7 +424,9 @@ view while cutting (6).
 
 - Is the 3D view in scope for the dissertation, or the stretch goal after
   slices, live and history?
-- VALIS or Warpy/ABBA for registration?
+- Is rigid registration good enough for the 3D view, or does it need a
+  non-rigid step for the 38 um that's left?
+- How should the 3D view show the gap between sections 9 and 10?
 - three.js or vtk.js for the 3D view?
 - Plane index or microns for `Z`? Storing the index and showing microns from
   `slices` covers both.
@@ -318,10 +441,29 @@ view while cutting (6).
 | Goal figure is DPLab, Shen et al., Phys. Med. Biol. 2022, built from registered serial sections | ResearchGate figure page, PubMed and bioRxiv listings | Checked |
 | Liver set: 15 H&E serial sections, VS200, CC BY 4.0, 3.0 GB, direct download | Zenodo record page | Checked |
 | Liver set is VSI + ETS, 15 `.vsi` files | Zenodo zip preview listing | Checked |
-| Liver set downloads without an account | Zenodo page shows plain download links. Not downloaded | Not tested |
-| Liver set pixel size and section thickness | Not stated anywhere | **Unknown** until the `.vsi` is opened |
-| OpenSlide can't read VSI | Not on OpenSlide's format list. One low-authority page says it can | **Check** on the first file |
-| `bfconvert` + `vips tiffsave` gives a TIFF OpenSlide reads | vsi2tif README, OpenSlide generic TIFF page | Not tried yet |
+| Liver set downloads without an account | Downloaded with plain `curl`, 2,963,985,418 bytes, md5 `98450391714bbcfff551c85d6702d935` matches Zenodo's | Checked |
+| Liver set pixel size 0.27366 um, 20x, one focal plane, sizes per section | Bio-Formats `showinf` OME-XML on all 15 files | Checked |
+| Liver set section thickness | Not on Zenodo, not in the VSI metadata | **Unknown** - ask the EPFL contact, or assume 4 um and say so |
+| OpenSlide can't read VSI | Not on OpenSlide's format list. Not needed now, since we convert | Not tested |
+| `bfconvert` + `vips tiffsave` gives a TIFF OpenSlide reads | All 15 converted, each opened with OpenSlide 4.0.1: generic-tiff, right size, 9 levels, mpp kept | Checked |
+| Section 8's VSI claims 1691 rows it has no pixels for | Its 7 pyramid levels all stop at 35840 rows. Black band starts at row 35840 in the first conversion | Checked |
+| A second run of the script skips finished sections | Ran it again: "15 already done, 0 to convert" | Checked |
+| Liver sections 0-9 and 10-14 are two separate runs | All-pairs inlier matrix: 48-165 between file-order neighbours, at most 9 across the runs | Checked |
+| The gap isn't a sharpness difference | Blurring all sections to sigma 1-3 first left 09 to 10 at 4-5 inliers | Checked |
+| Rigid beats similarity | Skip-one error worst 114 um similarity, 57 um rigid, same 11 checks | Checked |
+| Registered sections are placed right at full size | 512 px patches against originals through the inverse transform, sections 0, 8, 14: 2.7-3.6 grey levels apart, 14-21 when shifted 3 px | Checked |
+| libvips affine uses the same convention as OpenCV | Section 0 written by vips, read back small, against OpenCV's warp: tissue Dice 0.9935 | Checked |
+| Section thickness, so the gap's depth | Not in the data | **Unknown** - the 3D view assumes 4 um and says so |
+| The 3D view draws the liver block, cuts it and opens 2D where clicked | Browser against the liver volume: block, X and diagonal cuts, a click on the front landed on slice 1 in the liver lobe in 2D | Checked |
+| 2D / 3D back and forth leaks no GL contexts and fetches nothing again | 5 round trips: canvases 4 before and after, 0 thumbnails fetched again, 3D back in about 60 ms | Checked |
+| The liver volume is found in tiler/data with no config | Tiler started with no volume setting lists 000-003 and liver (15 slices) | Checked |
+| A step to a neighbouring slice fetches nothing for the slice it shows | Viewer against the liver volume, resource timings: Next fetched 15 tiles of the new neighbour only, the same for PageDown and Shift+wheel | Checked |
+| Moving through slices and slides makes no new GL contexts | 4 WebGL canvases before and after stepping, jumping, a flat slide and back. Unit test: 3 layers made across a full sweep both ways | Checked |
+| A flat slide's tiles are unchanged | Opening 000 after the volume: 1 tile layer, every tile on `/slides/000/TileGroup...`, no `/slice/` | Checked |
+| The tiler serves the liver volume | Ran it with `Slides__Volumes__liver`: 15 slices, gap before 10, default 7, mpp 0.273655, tiles 6-46 ms, slice 15 is a 404 | Checked |
+| The old tile route is the default slice | Same bytes as `/slice/7/` for the same tile | Checked |
+| OpenSlide 3.4.1 gives no mpp for a generic TIFF | Read the bundled DLL's version, printed a TIFF's properties: `tiff.XResolution` and `tiff.ResolutionUnit`, no `openslide.mpp-x` | Checked |
+| OpenSlideSharp crashes on property reads alongside other calls | Three repros crashed every run (MIRAX properties next to TIFF opens, TIFF reads, MIRAX reads). Its marshaler keeps the native string in a shared field. With the tiler's own interop all three pass, nine runs | Checked |
 | PCa_Bx_3Dpathology: CC BY 4.0, HDF5, 3.8 TB, Aspera, one package | TCIA collection page | Checked |
 | HyReCo: 9 cases x 4 sections, BigTIFF, CC BY-SA 4.0, login | IEEE DataPort listing via search | Checked |
 | HyReCo zip sizes (233 GB, 274 GB) | Test mirror only | **Unconfirmed** |
