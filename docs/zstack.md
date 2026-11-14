@@ -264,6 +264,40 @@ only. The 3D view should show it as a gap, not draw the block as continuous.
 **What's left** is the 38 um skip-one error, mostly tissue stretched
 differently on each slide. A non-rigid step would take that out.
 
+### Against landmarks: Kartasalo's liver and prostate
+
+The EPFL numbers above all come from the registration checking itself.
+Kartasalo et al. (Bioinformatics 2018) published two mouse sets made to
+score registration against: 47 liver sections with four laser holes through
+the block, and 260 prostate sections with nuclei marked on each pair of
+neighbours, both by two observers, both 5 um sections at 0.46 um a pixel.
+They're big (15 GB and 68 GB as they come), so they're a test only - kept
+off the repo and served through tiler config, never in `tiler/data`.
+
+The plain script made every liver link a gap: one patch of liver looks like
+the next, so the ratio test throws most matches away. Three changes, each
+kept only because the landmarks said so (full table in the
+[volume-prep README](../volume-prep/README.md#a-harder-set-kartasalos-liver)):
+
+- **Guided matching** (`--guided`) - match again, keeping only matches near
+  where the tissue outline puts them. Off by default: on the EPFL liver it
+  would hide the real gap between 9 and 10.
+- **Every turn for the outline** - a torn, near-round section moved the main
+  axis the old alignment relied on.
+- **`--clahe`** - evens out pale and dark sections before features.
+
+| Set | Links | Landmark error, median, before to after |
+| --- | --- | --- |
+| Liver (47, through the block) | 4 features, 37 guided, 5 gaps | 586 to 43 um (observer 2: 586 to 46) |
+| Prostate (260, neighbour pairs) | 208 features, 51 guided, 0 gaps | 301 to 42 um (observer 2: 263 to 29) |
+
+The two liver observers put the same hole 7 um apart, so 43 um is real
+error, not marking noise. Five liver pairs can't be lined up rigidly closer
+than 290-440 um even fitted straight to their own landmarks - the tissue
+tore - and those are the five gaps. The paper's own finding is the same:
+methods that allow local deformation beat rigid ones. That's the case for
+a non-rigid step, now with numbers behind it.
+
 ## 7. Changes by service
 
 The viewer, store and hub changes are the same for focal planes and serial
@@ -359,6 +393,7 @@ What's in it:
 | **Thickness** | | How many slices are drawn, round the current one |
 | **Cut** | | Clip on X, Y, Z or a diagonal, with a slider for where |
 | **Opacity** | | How see-through the block is |
+| **Gap between slices** | | Spaces the slices out, up to 8 times a slice's thickness, so they show one by one |
 | **Guides** | | Gridlines and the block's boundary, on/off |
 | **Reset** | | Camera back to the default view |
 
@@ -407,9 +442,11 @@ to look.
 5. **Annotate at a depth.** `Z` on annotations and dots, conflicts, history
    lines that say which slice moved where.
 6. **3D view.** Done - the Depth tab's 2D / 3D switch, a ray-marched block
-   with cut (X, Y, Z, diagonal), slices drawn, opacity, depth stretch,
-   guides and reset, and a click on the tissue opening that place in 2D.
-   Built from one 512 px thumbnail per slice, no extra file to make. See the
+   with cut (X, Y, Z, diagonal), slices drawn, opacity, depth stretch (or true depth), a
+   gap between slices, guides and reset, and a click on the tissue opening that place in 2D.
+   Built from one thumbnail per slice (up to 1024 px), no extra file to
+   make, with the slice being looked at drawn sharp from the slide's own
+   tiles (about 3.7 um a pixel on Kartasalo's sets). See the
    [viewer README](../image-viewer/README.md#tools).
 7. **More 3D.** Markers, camera and cut shared live, Follow in 3D.
 8. **Bigger data.** PCa_Bx_3Dpathology for true 3D, HyReCo for mixed stains
@@ -425,7 +462,8 @@ view while cutting (6).
 - Is the 3D view in scope for the dissertation, or the stretch goal after
   slices, live and history?
 - Is rigid registration good enough for the 3D view, or does it need a
-  non-rigid step for the 38 um that's left?
+  non-rigid step for the 38 um that's left? Kartasalo's liver says rigid
+  stops at 43 um median and can't fix torn sections.
 - How should the 3D view show the gap between sections 9 and 10?
 - three.js or vtk.js for the 3D view?
 - Plane index or microns for `Z`? Storing the index and showing microns from
@@ -472,3 +510,25 @@ view while cutting (6).
 | OpenSlide skips MIRAX z layers | openslide-users post, 2014 | Old source |
 | Slide 003 has a focus level layer with one plane | `tiler/data/003/Slidedat.ini` | Checked |
 | 512 x 512 x 15 x 3 bytes is about 11.8 MB | Arithmetic | Checked |
+| Kartasalo sets: 47 liver and 260 prostate H&E sections, 0.46 um a pixel, laser holes through the liver, nuclei on prostate pairs, two observers | The dataset's own readme.txt | Checked |
+| Kartasalo sections are 5 um | The paper's methods, "serial 5 µm sections", read through Europe PMC's full text | Checked |
+| Guided matching, the outline sweep and CLAHE each lower the landmark error | One change at a time on the 46 liver pairs against observer 1 (table in the volume-prep README) | Checked |
+| The EPFL liver is unchanged by them (default flags) | Re-registered: same links, inliers, canvas and Dice; transforms within 1 full-size pixel | Checked |
+| Liver through-block error 586 to 43 um, prostate pair error 301 to 42 um | `landmark_error.py` on the written registration.json, both observers | Checked |
+| 1/32 with CLAHE beats the default 1/8 on the prostate | Both scored on the landmarks: 42 against 44 um (observer 1), 29 against 33 um (observer 2) | Checked |
+| A section turned past 90 degrees broke `vips affine` | Liver write stopped at section 8 with "Unknown option -0.9998..."; fixed with a leading space, checked on a test image turned 180 degrees | Checked |
+| The prostate's written sections are where registration put them | Read-back check over 0.02 (0.021); seven worst sections compared with their prediction: within 6 um, masks 4-5% smaller from JPEG at pale edges | Checked |
+| The viewer shows both Kartasalo volumes in 2D and 3D | Test tiler and viewer: liver 47 slices with gap notes, X cut; prostate 260 slices, 3D block at width 387, diagonal cut; every tiler request 200 | Checked |
+| Gap between slices draws every slice, however thin | Prostate, 260 slices, gap 3x: regular stripes, none missing; liver, gap 8x: 47 separate slices side on. Unit test: a slab a third of a step deep is still hit | Checked |
+| A click with gaps on still opens that slice in 2D | Prostate, gap 3x: pointer events on the block opened slice 134 in 2D | Checked |
+| The sharp slice adds real detail in 3D | Kartasalo liver, the same close-up rendered with and without it: Laplacian variance 294 against 4.2 (70x); individual nuclei visible on the front face | Checked |
+| No flicker panning at true depth | Bug: at true depth a liver layer is 1/3000 of the block's width and a ray step 1/600, so steps skipped sections and which ones changed as the camera moved - patches of deeper sections showing through the front one. Fix: a step never crosses more than half a layer. Same frame at the normal step and at 1/50 of it: mean difference 0.79 of 255 (washed-out patches before). 0.25 degree pan steps change smoothly (1.8-1.9). 1.2 ms a frame at 1600x1000. Test: `volumeShader.test.ts` fails without the fix | Checked |
+| Cut face bands and True depth | Liver X cut at the default stretch: with the face, detail down the face 290 against 5 without (variance of the vertical second difference), each section a sharp-edged band. True depth: block 0.01745 deep, the 260 um / 14.9 mm the slide and sections say; moving the slider to x2 unticks it | Checked |
+| X and Y cut faces are sharp | Kartasalo liver, same close-up with and without: nuclei along the face instead of a smear, Laplacian variance 95 against 43 (it only adds detail along the face; across it's still one band a section). Prostate: 903 px along the face against the block's 551 | Checked |
+| The cut face lines up with the block | Liver Y cut, 5 layers: face line shrunk to the block's width matches the block's row best at 0 px shift, correlation 0.97-0.98 | Checked |
+| Dragging the cut doesn't flood the tiler | 21 slider steps 40 ms apart: no tile requests during the drag, then one load of 752 tiles, 1.8 s | Checked |
+| Cut faces don't cost the tiler memory | Fresh tiler: liver X and Y faces (752 tiles each) and two prostate faces (1040 each): peak 177 MB from 149 MB at start | Checked |
+| The sharp slice is the right one | Front view: slice 1; camera behind: slice 260 (prostate); spaced out: the framed slice, 131 then 132 after Next. Unit tests for gaps, slices drawn and a Z cut | Checked |
+| 1024 px thumbnails tripled tiler memory, and the fix | 47 liver thumbnails on a fresh tiler: peak 842 MB at 1024 against 306 at 512, from reading the 2024 px level for the last 1%. Reading the 1012 px level instead: peak 311 MB, thumbnails still 1024 x 1008 | Checked |
+| Tiler memory stays flat on a 260-slice volume | After all 260 3D thumbnails and 60 slice steps in 2D: 226 MB working set, 265 MB peak | Checked |
+| The tiler serves a set numbered from 1 | Kartasalo liver refused before ("numbered 0 to 46"), served after: 47 slices, gaps before 4, 5, 11, 12, 13 | Checked |
