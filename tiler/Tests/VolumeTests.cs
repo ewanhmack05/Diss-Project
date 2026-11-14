@@ -374,7 +374,7 @@ public sealed class VolumeConfigTests : IDisposable
         Assert.Contains("liver", catalog.SlideIds);
         Assert.Equal(3, catalog.GetInfo("liver")!.Slices.Count);
         Assert.Equal("liver", catalog.GetInfo("liver")!.FileName);
-        Assert.Empty(catalog.SkippedVolumes);
+        Assert.Empty(catalog.Skipped);
     }
 
     [Fact]
@@ -387,7 +387,49 @@ public sealed class VolumeConfigTests : IDisposable
         using var catalog = Catalog();
 
         Assert.DoesNotContain("liver", catalog.SlideIds);
-        Assert.Equal(["liver"], catalog.SkippedVolumes);
+        Assert.Equal(["liver"], catalog.Skipped);
+    }
+
+    // CI checks out without LFS, and the sample MIRAX slides' Slidedat.ini and
+    // .dat files are LFS files. Listing the slides opened 001 and threw.
+    private const string LfsPointer = "version https://git-lfs.github.com/spec/v1\noid sha256:abc\nsize 123\n";
+
+    [Fact]
+    public void A_mirax_slide_checked_out_without_lfs_is_left_out_not_fatal()
+    {
+        var data = Folder("data");
+        File.WriteAllText(Path.Combine(data, "001.mrxs"), "[GENERAL]\nSLIDE_VERSION = 1.9\n");
+        var folder = Folder(Path.Combine("data", "001"));
+        File.WriteAllText(Path.Combine(folder, "Slidedat.ini"), LfsPointer);
+
+        using var catalog = Catalog();
+
+        Assert.DoesNotContain("001", catalog.SlideIds);
+        Assert.Equal(["001"], catalog.Skipped);
+    }
+
+    [Fact]
+    public void A_mirax_slide_whose_mrxs_is_a_pointer_is_left_out()
+    {
+        File.WriteAllText(Path.Combine(Folder("data"), "002.mrxs"), LfsPointer);
+
+        using var catalog = Catalog();
+
+        Assert.DoesNotContain("002", catalog.SlideIds);
+        Assert.Equal(["002"], catalog.Skipped);
+    }
+
+    [OpenSlideFact]
+    public void Listing_slides_works_with_pointer_slides_next_to_real_ones()
+    {
+        DataVolume("stack", slices: 2);
+        File.WriteAllText(Path.Combine(Folder("data"), "001.mrxs"), LfsPointer);
+
+        using var catalog = Catalog();
+        // What GET /slides does.
+        var listed = catalog.SlideIds.Select(catalog.GetInfo).Where(info => info is not null).ToList();
+
+        Assert.Equal(["stack"], listed.Select(info => info!.Id));
     }
 
     [Fact]
@@ -400,7 +442,7 @@ public sealed class VolumeConfigTests : IDisposable
         using var catalog = Catalog();
 
         Assert.DoesNotContain("000", catalog.SlideIds);
-        Assert.Empty(catalog.SkippedVolumes);
+        Assert.Empty(catalog.Skipped);
     }
 
     [Fact]

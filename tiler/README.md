@@ -160,9 +160,11 @@ left alone. The slices are `.tif`, which `.gitattributes` puts in Git LFS
 like the slides.
 
 Checked out without LFS (as CI does) a volume's `.tif` files are small text
-pointers, not pictures. The tiler leaves that volume out and logs a warning
-saying to `git lfs pull`, rather than not starting - the same as the slide
-tests skip.
+pointers, not pictures, and so are a MIRAX slide's `.mrxs`, `Slidedat.ini`
+and `.dat` files. The tiler leaves that slide or volume out of the list and
+logs a warning saying to `git lfs pull`, rather than not starting or failing
+the first request for it - the same as the slide tests skip. Which were left
+out is `SlideCatalog.Skipped`.
 
 A volume kept somewhere else can be given in config as an id and a folder,
 relative to the app's folder unless it's absolute:

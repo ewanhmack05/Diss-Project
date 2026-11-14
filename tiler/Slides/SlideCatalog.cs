@@ -71,12 +71,22 @@ public sealed class SlideCatalog : IDisposable
         _trim = new Timer(_ => Budget.TrimIdle(_idleFor), null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
 
         var dataDirectory = Path.Combine(env.ContentRootPath, configuration["Slides:DataPath"] ?? "data");
-        _sources = Directory.Exists(dataDirectory)
-            ? Directory.GetFiles(dataDirectory, "*.mrxs").ToDictionary(
-                path => Path.GetFileNameWithoutExtension(path)!,
-                path => new Source(Path.GetFileName(path), [path], [new Slice(0, false)], 0),
-                StringComparer.OrdinalIgnoreCase)
-            : new Dictionary<string, Source>(StringComparer.OrdinalIgnoreCase);
+        _sources = new Dictionary<string, Source>(StringComparer.OrdinalIgnoreCase);
+        var mirax = Directory.Exists(dataDirectory) ? Directory.GetFiles(dataDirectory, "*.mrxs").Order() : Enumerable.Empty<string>();
+        foreach (var path in mirax)
+        {
+            var id = Path.GetFileNameWithoutExtension(path)!;
+            // Without Git LFS the .mrxs, Slidedat.ini and .dat files are all
+            // pointers, and OpenSlide fails on the first request instead.
+            var pointer = MiraxFiles(path).FirstOrDefault(IsLfsPointer);
+            if (pointer is not null)
+            {
+                _skipped.Add(id);
+                logger?.LogWarning("Leaving out slide {Id}: {File} is a Git LFS pointer, not the picture - git lfs pull to get it", id, Path.GetRelativePath(dataDirectory, pointer));
+                continue;
+            }
+            _sources[id] = new Source(Path.GetFileName(path), [path], [new Slice(0, false)], 0);
+        }
 
         // Volumes in the data folder. The MIRAX slides' own folders (000/ and
         // so on) have no registration.json, so they're left alone.
@@ -119,8 +129,17 @@ public sealed class SlideCatalog : IDisposable
     /// <summary>How many OpenSlide handles are open across every slide - see HandleBudget.</summary>
     public HandleBudget Budget { get; }
 
-    /// <summary>Volumes in the data folder that were left out because their files are Git LFS pointers.</summary>
-    public IReadOnlyList<string> SkippedVolumes => _skipped;
+    /// <summary>Slides and volumes in the data folder that were left out because their files are Git LFS pointers.</summary>
+    public IReadOnlyList<string> Skipped => _skipped;
+
+    // A MIRAX slide is the .mrxs and everything in the folder of the same name.
+    private static IEnumerable<string> MiraxFiles(string mrxs)
+    {
+        yield return mrxs;
+        var folder = Path.Combine(Path.GetDirectoryName(mrxs)!, Path.GetFileNameWithoutExtension(mrxs));
+        if (!Directory.Exists(folder)) yield break;
+        foreach (var file in Directory.EnumerateFiles(folder)) yield return file;
+    }
 
     /// <summary>Whether a file is a Git LFS pointer - what's there in place of the file when it's checked out without LFS.</summary>
     public static bool IsLfsPointer(string path)
