@@ -23,7 +23,10 @@ public sealed record SlideInfo(
     // A flat slide is one slice. A volume's slices all share one size and
     // pixel grid, so the same tile from each lines up.
     IReadOnlyList<Slice> Slices,
-    int DefaultSlice);
+    int DefaultSlice,
+    // How thick each slice was cut, in microns - only for a volume whose
+    // registration.json says. The 3D view assumes when it's null.
+    double? SectionMicrons);
 
 /// <summary>
 /// The slides there are and a pool of opened OpenSlide handles for each slice
@@ -40,13 +43,20 @@ public sealed class SlideCatalog : IDisposable
     // Browsers send about 6 tile requests at once per host, so 8 covers a pan
     // from one viewer with a little room for a second.
     private const int HandlesPerSlide = 8;
+    // Across every slide and slice - see HandleBudget. 24 is three slices'
+    // worth of full pans (a volume's slice and the two either side) at about
+    // 32 MB a warm handle: under 1 GB however many slices there are.
+    private const int DefaultMaxOpenHandles = 24;
+    private const double DefaultIdleHandleMinutes = 5;
 
-    private sealed record Source(string FileName, IReadOnlyList<string> Files, IReadOnlyList<Slice> Slices, int DefaultSlice);
+    private sealed record Source(string FileName, IReadOnlyList<string> Files, IReadOnlyList<Slice> Slices, int DefaultSlice, double? SectionMicrons = null);
 
     private readonly Dictionary<string, Source> _sources;
     private readonly ConcurrentDictionary<(string Id, int Slice), Lazy<SlideHandlePool>> _pools = new();
     private readonly ConcurrentDictionary<string, SlideInfo> _infos = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<string> _skipped = [];
+    private readonly Timer _trim;
+    private readonly TimeSpan _idleFor;
 
     // What a file checked out without Git LFS starts with - see IsLfsPointer.
     private const string LfsPointerStart = "version https://git-lfs";
@@ -55,6 +65,11 @@ public sealed class SlideCatalog : IDisposable
     // set. A relative path, there or in Slides:Volumes, is from the app's folder.
     public SlideCatalog(IWebHostEnvironment env, IConfiguration configuration, ILogger<SlideCatalog>? logger = null)
     {
+        // Slides:MaxOpenHandles and Slides:IdleHandleMinutes change the budget.
+        Budget = new HandleBudget(configuration.GetValue("Slides:MaxOpenHandles", DefaultMaxOpenHandles));
+        _idleFor = TimeSpan.FromMinutes(configuration.GetValue("Slides:IdleHandleMinutes", DefaultIdleHandleMinutes));
+        _trim = new Timer(_ => Budget.TrimIdle(_idleFor), null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
+
         var dataDirectory = Path.Combine(env.ContentRootPath, configuration["Slides:DataPath"] ?? "data");
         _sources = Directory.Exists(dataDirectory)
             ? Directory.GetFiles(dataDirectory, "*.mrxs").ToDictionary(
@@ -83,7 +98,7 @@ public sealed class SlideCatalog : IDisposable
                 logger?.LogWarning("Leaving out volume {Id}: {File} is a Git LFS pointer, not the picture - git lfs pull to get it", id, Path.GetFileName(pointer));
                 continue;
             }
-            _sources[id] = new Source(id, manifest.Files, manifest.Slices, manifest.DefaultSlice);
+            _sources[id] = new Source(id, manifest.Files, manifest.Slices, manifest.DefaultSlice, manifest.SectionMicrons);
             CheckSameSize(id, manifest.Files);
         }
 
@@ -94,12 +109,15 @@ public sealed class SlideCatalog : IDisposable
             var folder = Path.GetFullPath(Path.Combine(env.ContentRootPath, volume.Value));
             if (!Directory.Exists(folder)) throw new InvalidOperationException($"Slides:Volumes:{volume.Key} points at {folder}, which isn't there");
             var manifest = VolumeManifest.Read(folder);
-            _sources[volume.Key] = new Source(Path.GetFileName(folder), manifest.Files, manifest.Slices, manifest.DefaultSlice);
+            _sources[volume.Key] = new Source(Path.GetFileName(folder), manifest.Files, manifest.Slices, manifest.DefaultSlice, manifest.SectionMicrons);
             CheckSameSize(volume.Key, manifest.Files);
         }
     }
 
     public IReadOnlyCollection<string> SlideIds => _sources.Keys;
+
+    /// <summary>How many OpenSlide handles are open across every slide - see HandleBudget.</summary>
+    public HandleBudget Budget { get; }
 
     /// <summary>Volumes in the data folder that were left out because their files are Git LFS pointers.</summary>
     public IReadOnlyList<string> SkippedVolumes => _skipped;
@@ -123,7 +141,7 @@ public sealed class SlideCatalog : IDisposable
         var index = slice ?? source.DefaultSlice;
         if (index < 0 || index >= source.Files.Count) return null;
         var path = source.Files[index];
-        return _pools.GetOrAdd((id.ToLowerInvariant(), index), _ => new Lazy<SlideHandlePool>(() => new SlideHandlePool(path, HandlesPerSlide))).Value;
+        return _pools.GetOrAdd((id.ToLowerInvariant(), index), _ => new Lazy<SlideHandlePool>(() => new SlideHandlePool(path, HandlesPerSlide, Budget))).Value;
     }
 
     /// <summary>Slide dimensions and metadata - read once, then cached, since every tile request needs them.</summary>
@@ -190,7 +208,8 @@ public sealed class SlideCatalog : IDisposable
             SlideMetadata.BackgroundColour(Property(SlideMetadata.BackgroundColourProperty)),
             source.Files.Sum(FileBytes),
             source.Slices,
-            source.DefaultSlice);
+            source.DefaultSlice,
+            source.SectionMicrons);
     }
 
     /// <summary>What a slide file takes on disk - for .mrxs, the file plus everything in its companion folder.</summary>
@@ -205,6 +224,7 @@ public sealed class SlideCatalog : IDisposable
 
     public void Dispose()
     {
+        _trim.Dispose();
         foreach (var pool in _pools.Values.Where(pool => pool.IsValueCreated))
         {
             pool.Value.Dispose();

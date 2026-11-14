@@ -160,7 +160,7 @@ public class SlideApiTests : IClassFixture<TilerApiFactory>
                 [
                     "id", "fileName", "width", "height", "tileSize", "objectivePower", "mppX", "mppY",
                     "name", "kind", "channels", "levels", "objectiveName", "camera", "backgroundColour", "fileBytes",
-                    "slices", "defaultSlice",
+                    "slices", "defaultSlice", "sectionMicrons",
                 ],
                 slide.EnumerateObject().Select(field => field.Name));
         }

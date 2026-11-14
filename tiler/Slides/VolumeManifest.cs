@@ -12,9 +12,11 @@ public sealed record Slice(int Index, bool GapBefore);
 /// <summary>
 /// A stack of registered sections: volume-prep/register_sections.py's
 /// registration.json plus the .tif it wrote for each section, all on one
-/// canvas. Files are full paths, in slice order.
+/// canvas. Files are full paths, in slice order. SectionMicrons is how thick
+/// each section was cut, when whoever registered the volume said
+/// (register_sections.py --section-microns), and null otherwise.
 /// </summary>
-public sealed record VolumeManifest(IReadOnlyList<string> Files, IReadOnlyList<Slice> Slices, int DefaultSlice)
+public sealed record VolumeManifest(IReadOnlyList<string> Files, IReadOnlyList<Slice> Slices, int DefaultSlice, double? SectionMicrons = null)
 {
     public const string FileName = "registration.json";
 
@@ -33,11 +35,14 @@ public sealed record VolumeManifest(IReadOnlyList<string> Files, IReadOnlyList<S
             : throw new InvalidDataException($"{FileName} in {folder} has no sections");
         if (sections.Count == 0) throw new InvalidDataException($"{FileName} in {folder} has no sections");
 
+        // Order is the section's own number, so it can start at 1 or skip a section that
+        // was left out. Slices, links and the reference all count by position after sorting.
         sections.Sort((a, b) => a.Order.CompareTo(b.Order));
         var files = new List<string>();
-        foreach (var (section, expected) in sections.Select((section, i) => (section, i)))
+        for (var i = 0; i < sections.Count; i++)
         {
-            if (section.Order != expected) throw new InvalidDataException($"{FileName} in {folder}: sections should be numbered 0 to {sections.Count - 1}, found {section.Order} where {expected} should be");
+            var section = sections[i];
+            if (i > 0 && section.Order == sections[i - 1].Order) throw new InvalidDataException($"{FileName} in {folder}: two sections are both numbered {section.Order}");
             // Only a file name - nothing that could point outside the folder.
             if (section.File != Path.GetFileName(section.File) || section.File.Length == 0) throw new InvalidDataException($"{FileName} in {folder}: '{section.File}' isn't a plain file name");
             var full = Path.Combine(folder, section.File);
@@ -58,6 +63,9 @@ public sealed record VolumeManifest(IReadOnlyList<string> Files, IReadOnlyList<S
         if (reference < 0 || reference >= files.Count) throw new InvalidDataException($"{FileName} in {folder}: reference {reference} isn't one of its {files.Count} sections");
 
         var slices = Enumerable.Range(0, files.Count).Select(i => new Slice(i, gapsBefore.Contains(i))).ToList();
-        return new VolumeManifest(files, slices, reference);
+        double? sectionMicrons = root.TryGetProperty("sectionMicrons", out var thickness) && thickness.ValueKind == JsonValueKind.Number && thickness.GetDouble() > 0
+            ? thickness.GetDouble()
+            : null;
+        return new VolumeManifest(files, slices, reference, sectionMicrons);
     }
 }

@@ -135,6 +135,12 @@ public class VolumeApiTests : IClassFixture<VolumeApiFactory>
     }
 
     [OpenSlideFact]
+    public async Task Volume_without_a_thickness_says_null()
+    {
+        Assert.Null((await InfoAsync()).SectionMicrons);
+    }
+
+    [OpenSlideFact]
     public async Task Volume_is_in_the_slide_list()
     {
         var slides = await _factory.CreateClient().GetFromJsonAsync<List<SlideInfo>>("/slides", Json);
@@ -465,6 +471,30 @@ public class VolumeManifestTests
     }
 
     [Fact]
+    public void Sections_numbered_from_one_or_with_one_missing_are_fine()
+    {
+        // Kartasalo's sets are 001.tif onwards, so order starts at 1. Positions still count from 0.
+        var manifest = Parse("""
+            {"reference": 1,
+             "sections": [{"order": 1, "file": "Image_00.tif"}, {"order": 2, "file": "Image_01.tif"}, {"order": 5, "file": "Image_02.tif"}],
+             "links": [{"a": 1, "b": 2, "kind": "gap"}]}
+            """);
+
+        Assert.Equal(["Image_00.tif", "Image_01.tif", "Image_02.tif"], manifest.Files.Select(Path.GetFileName));
+        Assert.Equal([0, 1, 2], manifest.Slices.Select(s => s.Index));
+        Assert.Equal([false, false, true], manifest.Slices.Select(s => s.GapBefore));
+        Assert.Equal(1, manifest.DefaultSlice);
+    }
+
+    [Fact]
+    public void Two_sections_with_one_number_are_refused()
+    {
+        var error = Assert.Throws<InvalidDataException>(() => Parse("""{"sections": [{"order": 3, "file": "Image_00.tif"}, {"order": 3, "file": "Image_01.tif"}]}"""));
+
+        Assert.Contains("both numbered 3", error.Message);
+    }
+
+    [Fact]
     public void A_gap_link_marks_the_slice_after_it()
     {
         var manifest = Parse("""
@@ -477,6 +507,18 @@ public class VolumeManifestTests
     }
 
     [Fact]
+    public void A_guided_link_is_not_a_gap()
+    {
+        var manifest = Parse("""
+            {"reference": 0,
+             "sections": [{"order": 0, "file": "Image_00.tif"}, {"order": 1, "file": "Image_01.tif"}],
+             "links": [{"a": 0, "b": 1, "kind": "guided"}]}
+            """);
+
+        Assert.Equal([false, false], manifest.Slices.Select(s => s.GapBefore));
+    }
+
+    [Fact]
     public void No_reference_means_the_middle()
     {
         var manifest = Parse("""{"sections": [{"order": 0, "file": "Image_00.tif"}, {"order": 1, "file": "Image_01.tif"}, {"order": 2, "file": "Image_02.tif"}]}""");
@@ -484,10 +526,28 @@ public class VolumeManifestTests
         Assert.Equal(1, manifest.DefaultSlice);
     }
 
+    [Fact]
+    public void Section_thickness_comes_through_when_given()
+    {
+        var manifest = Parse("""{"sectionMicrons": 5, "sections": [{"order": 0, "file": "Image_00.tif"}]}""");
+
+        Assert.Equal(5, manifest.SectionMicrons);
+    }
+
+    [Theory]
+    [InlineData("""{"sections": [{"order": 0, "file": "Image_00.tif"}]}""")]
+    [InlineData("""{"sectionMicrons": null, "sections": [{"order": 0, "file": "Image_00.tif"}]}""")]
+    [InlineData("""{"sectionMicrons": 0, "sections": [{"order": 0, "file": "Image_00.tif"}]}""")]
+    [InlineData("""{"sectionMicrons": -4, "sections": [{"order": 0, "file": "Image_00.tif"}]}""")]
+    public void No_or_impossible_thickness_is_null(string json)
+    {
+        Assert.Null(Parse(json).SectionMicrons);
+    }
+
     [Theory]
     [InlineData("""{"sections": []}""", "no sections")]
     [InlineData("""{}""", "no sections")]
-    [InlineData("""{"sections": [{"order": 0, "file": "Image_00.tif"}, {"order": 2, "file": "Image_02.tif"}]}""", "numbered 0 to 1")]
+    [InlineData("""{"sections": [{"order": 0, "file": "Image_00.tif"}, {"order": 0, "file": "Image_02.tif"}]}""", "both numbered 0")]
     [InlineData("""{"sections": [{"order": 0, "file": "../Image_00.tif"}]}""", "plain file name")]
     [InlineData("""{"sections": [{"order": 0, "file": ""}]}""", "plain file name")]
     [InlineData("""{"reference": 5, "sections": [{"order": 0, "file": "Image_00.tif"}]}""", "reference 5")]
