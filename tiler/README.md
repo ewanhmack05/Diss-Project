@@ -76,6 +76,34 @@ generic TIFF (4.0 does), so `SlideMetadata.MicronsPerPixel` falls back to
 the TIFF's own `XResolution` and `ResolutionUnit` - without it a volume
 would have no pixel size, and the ruler would be wrong on it.
 
+### Memory
+
+Each OpenSlide handle keeps its own cache of decoded tiles, in native memory -
+about 32 MB once it's warm. The tiler keeps up to 8 handles a slice so a pan
+reads in parallel, and it never used to close them, so memory only went up:
+from 128 MB to 788 MB over 900 tiles across the liver volume and slide 003,
+and about 3 GB after a real session. It wasn't .NET's heap - the same test
+with the workstation garbage collector gave 771 MB.
+
+So handles are now on a budget (`HandleBudget` in
+`Slides/SlideHandlePool.cs`), across every slide and slice:
+
+- At most `Slides:MaxOpenHandles` open at once (default 24). Opening one more
+  first closes whichever handle has been idle longest, wherever it is. If
+  every handle is busy, the request waits for one to come back.
+- Handles idle for `Slides:IdleHandleMinutes` (default 5) are closed, checked
+  once a minute.
+
+The same 900 tiles now peak at 624 MB, and a second round on the same tiler
+stays there (612-621 MB) instead of climbing. A slice you've stopped looking
+at no longer holds memory - which matters for a volume with hundreds of
+slices. On a 260-slice volume (Kartasalo's prostate), loading every slice
+for the 3D view and then stepping through 60 slices in 2D peaked at 265 MB.
+
+```bash
+Slides__MaxOpenHandles=16 dotnet run --project tiler --urls http://localhost:5095
+```
+
 ### OpenSlideSharp's strings
 
 OpenSlideSharp passes strings to and from OpenSlide through its
@@ -104,7 +132,7 @@ saved. What it holds is in memory, and it works it out again after a restart:
 | ------------------ | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Slide ids to paths | `SlideCatalog`, read at startup                         | Which slides there are, and each one's files - one for a flat slide, one per slice for a volume. The id is what annotation-store keeps as `SlideId` - not a foreign key, so removing a file leaves collections pointing at nothing |
 | `SlideInfo`        | `SlideCatalog`, read the first time a slide's asked for | Width, height, tile size, objective power, microns per pixel and the gallery's metadata (name, kind, channels and so on). Every tile request needs the size                                           |
-| Open slides        | `SlideHandlePool`, one pool per slice                   | A few OpenSlide handles, each used by one thread at a time. One handle crashes if it's read from several threads at once, and locking it would make every tile in a pan wait in line                   |
+| Open slides        | `SlideHandlePool`, one pool per slice                   | A few OpenSlide handles, each used by one thread at a time. One handle crashes if it's read from several threads at once, and locking it would make every tile in a pan wait in line. All of them share one budget - see [Memory](#memory) |
 
 Slides live in `tiler/data/` as `<id>.mrxs` + a same-named companion folder
 (both required - that's how MIRAX stores a slide). `SlideCatalog` discovers
@@ -151,7 +179,12 @@ another volume.
 From `registration.json` the tiler takes the slice order, the default slice
 (the one the rest were lined up to) and where the gaps are - a link
 registration could only line up by the tissue's outline, because the cuts
-between are missing.
+between are missing. A "guided" link isn't a gap.
+
+Each section's `order` is its own number, so a set can start at 1 or skip a
+section that was left out; slices are numbered 0 up in that order, and the
+links and default slice count the same way. Two sections with the same
+number stop it starting.
 
 Included samples, all from [OpenSlide's public test data](https://openslide.org/):
 
@@ -193,6 +226,7 @@ default; `?slide=<id>` overrides it per-request.
   | `fileBytes`        | The `.mrxs` plus everything in its folder. For a volume, every slice's file                                           |
   | `slices`           | `[{index, gapBefore}]`, one for a flat slide. `gapBefore` is true when the cuts before it are missing                |
   | `defaultSlice`     | The slice tiles come from when none is asked for. `0` for a flat slide                                                |
+  | `sectionMicrons`   | How thick each slice was cut, from `registration.json`, or null. The 3D view assumes 4 um when it's null              |
 
   The MIRAX values come from OpenSlide, which hands every line of the
   slide's `Slidedat.ini` back as a property named `mirax.SECTION.KEY`.
@@ -202,8 +236,13 @@ default; `?slide=<id>` overrides it per-request.
 
 - `GET /slides/{id}/thumbnail.jpg?width=N` - a JPEG of the whole slide (its default slice, or `&slice=S`), `N`
   pixels wide (256 if left out, clamped to 32-1024) and as tall as the
-  slide's shape makes it. Read from the smallest pyramid level that's still
-  at least that wide, so even slide 003 takes about 100-250 ms. Laid on the
+  slide's shape makes it. Read from the smallest pyramid level that's at
+  least that wide, or up to 5% narrower and scaled up (`NarrowerBy` in
+  `Slides/Thumbnail.cs`), so even slide 003 takes about 100-250 ms. The 5%
+  matters for volumes: 1024 of Kartasalo's 32384 px liver would otherwise
+  read the 2024 px level, not the 1012 one, for the last 1% - four times
+  the pixels for every slice, and its 47 thumbnails took the tiler to 842
+  MB. With it, 311 MB. Laid on the
   slide's background colour (white if it has none), so unscanned corners
   don't come out black. `Cache-Control: public, max-age=86400`.
 - `GET /slides/{id}/thumbnail.jpg?width=N&square=true` - `N` x `N`, the

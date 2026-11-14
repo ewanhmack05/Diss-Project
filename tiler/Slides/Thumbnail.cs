@@ -16,6 +16,22 @@ public static class Thumbnail
 
     private const int JpegQuality = 85;
 
+    /// <summary>
+    /// How much narrower than asked a pyramid level can be and still be read.
+    /// Levels halve, so asking for just over one - 1024 of a 32384 px slide,
+    /// whose levels are 1012 and 2024 - would read four times the pixels for
+    /// the last 1%, and leave that much more in OpenSlide's cache for every
+    /// slice of a volume. Scaling 1012 up to 1024 doesn't show.
+    /// </summary>
+    public const double NarrowerBy = 1.05;
+
+    /// <summary>
+    /// The downsample to ask OpenSlide for: the slide's width over the
+    /// thumbnail's, give or take NarrowerBy. OpenSlide reads the level with
+    /// the biggest downsample up to it.
+    /// </summary>
+    public static double DownsampleFor(double sourceWidth, int width) => sourceWidth / width * NarrowerBy;
+
     public static int ClampWidth(int? requested) => Math.Clamp(requested ?? DefaultWidth, MinWidth, MaxWidth);
 
     /// <summary>The height that keeps the slide's shape at the given width.</summary>
@@ -55,7 +71,7 @@ public static class Thumbnail
     /// </summary>
     public static LevelPixels ReadLevel(OpenSlideImage slide, int width)
     {
-        var level = slide.GetBestLevelForDownsample(slide.Dimensions.Width / (double)width);
+        var level = slide.GetBestLevelForDownsample(DownsampleFor(slide.Dimensions.Width, width));
         var size = slide.GetLevelDimension(level);
         var bgra = slide.ReadRegion(level, 0, 0, size.Width, size.Height);
         return new LevelPixels(bgra, (int)size.Width, (int)size.Height);
@@ -67,7 +83,7 @@ public static class Thumbnail
     /// </summary>
     public static LevelPixels ReadSquare(OpenSlideImage slide, Square square, int width)
     {
-        var level = slide.GetBestLevelForDownsample(square.Side / (double)width);
+        var level = slide.GetBestLevelForDownsample(DownsampleFor(square.Side, width));
         var downsample = slide.GetLevelDownsample(level);
         var size = SizeAtLevel(square.Side, downsample);
         // ReadRegion's x and y are in level 0 pixels, the size in the level's.
