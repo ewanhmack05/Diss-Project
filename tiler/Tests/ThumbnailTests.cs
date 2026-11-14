@@ -115,6 +115,22 @@ public class ThumbnailTests
         Assert.InRange(after - before, 0, 1);
     }
 
+    // Kartasalo's liver is 32384 px wide, so its levels are 1012 and 2024 px
+    // either side of 1024. The 1012 one does, not four times the pixels.
+    [Theory]
+    [InlineData(32384, 1024, 32)]
+    [InlineData(32384, 512, 64)]
+    [InlineData(40288, 1024, 32)]
+    [InlineData(1024, 1024, 1)]
+    public void A_level_a_little_narrower_than_asked_is_read(double slideWidth, int width, double levelDownsample)
+    {
+        var asked = Thumbnail.DownsampleFor(slideWidth, width);
+        Assert.True(asked >= levelDownsample, $"{asked} is below {levelDownsample}, so that level wouldn't be read");
+        Assert.True(asked < levelDownsample * 2, $"{asked} reaches the next level down, {levelDownsample * 2}");
+        // Never more than 5% narrower than asked.
+        Assert.InRange(slideWidth / levelDownsample / width, 1 / Thumbnail.NarrowerBy, 2.0);
+    }
+
     [Theory]
     [InlineData(1024, 1, 1024)]
     [InlineData(1024, 4, 256)]

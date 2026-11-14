@@ -15,6 +15,7 @@ import { CellCountGroupContextProvider } from "./context/CellCountGroupContext";
 import { CellCountDrawContextProvider } from "./context/CellCountDrawContext";
 import { DrawContextProvider } from "./context/DrawContext";
 import { RotationContextProvider } from "./context/RotationContext";
+import { SliceContextProvider } from "./context/SliceContext";
 import { RulerContextProvider } from "./context/RulerContext";
 import { AdjustmentsContextProvider } from "./context/AdjustmentsContext";
 import { ToastContextProvider } from "./context/ToastContext";
@@ -27,6 +28,7 @@ import MapNode from "./components/MapNode";
 import AnnotationsPanel from "./components/annotation/AnnotationsPanel";
 import CellCountPanel from "./components/cell-count/CellCountPanel";
 import RotationPanel from "./components/rotation/RotationPanel";
+import DepthPanel from "./components/depth/DepthPanel";
 import RulerPanel from "./components/ruler/RulerPanel";
 import AdjustmentsPanel from "./components/adjustments/AdjustmentsPanel";
 import RealTimePanel from "./components/realtime/RealTimePanel";
@@ -154,7 +156,9 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, mess
 																								<ComparisonContextProvider>
 																									<SharedCountContextProvider>
 																										<MessagingContextProvider baseUrl={messagingUrl}>
-																											<ViewerShell fontSize={options?.fontSize} tools={options?.tools} storeUrl={annotationStoreUrl} />
+																											<SliceContextProvider>
+																												<ViewerShell fontSize={options?.fontSize} tools={options?.tools} storeUrl={annotationStoreUrl} />
+																											</SliceContextProvider>
 																										</MessagingContextProvider>
 																									</SharedCountContextProvider>
 																								</ComparisonContextProvider>
@@ -224,6 +228,7 @@ function ViewerShell({ fontSize, tools, storeUrl }: ViewerShellProps) {
 		"annotations-panel": createRef<HTMLDivElement>(),
 		"cellcount-panel": createRef<HTMLDivElement>(),
 		"rotation-panel": createRef<HTMLDivElement>(),
+		"depth-panel": createRef<HTMLDivElement>(),
 		"ruler-panel": createRef<HTMLDivElement>(),
 		"adjustments-panel": createRef<HTMLDivElement>(),
 		realtime: createRef<HTMLDivElement>(),
@@ -245,6 +250,7 @@ function ViewerShell({ fontSize, tools, storeUrl }: ViewerShellProps) {
 		{ id: "annotations-panel", title: "Annotations", tool: "annotations", content: <AnnotationsPanel /> },
 		{ id: "cellcount-panel", title: "Cell Count", tool: "cellcount", content: <CellCountPanel /> },
 		{ id: "rotation-panel", title: "Rotate", tool: "rotate", content: <RotationPanel /> },
+		{ id: "depth-panel", title: "Depth", tool: "depth", content: <DepthPanel /> },
 		{ id: "ruler-panel", title: "Ruler", tool: "ruler", content: <RulerPanel /> },
 		{ id: "adjustments-panel", title: "Adjustments", tool: "adjustments", content: <AdjustmentsPanel /> },
 		{ id: "realtime", title: "Collaboration", tool: "realtime", content: <RealTimePanel /> },

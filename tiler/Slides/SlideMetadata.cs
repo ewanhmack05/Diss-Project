@@ -82,6 +82,34 @@ public static partial class SlideMetadata
         return "#" + hex.ToLowerInvariant();
     }
 
+    public const string ResolutionUnitProperty = "tiff.ResolutionUnit";
+    public const string XResolutionProperty = "tiff.XResolution";
+    public const string YResolutionProperty = "tiff.YResolution";
+
+    /// <summary>
+    /// Microns per pixel. OpenSlide's own openslide.mpp-x/-y when it gives one,
+    /// otherwise worked out from the TIFF's resolution. OpenSlide only does
+    /// that itself for generic TIFFs from 4.0, and the tiler runs 3.4.1 on
+    /// Windows and the distro's 3.4 in Docker - without this a registered
+    /// volume would have no pixel size, and the ruler would be wrong on it.
+    /// </summary>
+    public static double? MicronsPerPixel(string? openSlideMpp, string? tiffResolution, string? tiffUnit)
+    {
+        if (TryPositive(openSlideMpp, out var mpp)) return mpp;
+        if (!TryPositive(tiffResolution, out var pixelsPerUnit)) return null;
+        return tiffUnit?.Trim().ToLowerInvariant() switch
+        {
+            "centimeter" => 10000 / pixelsPerUnit,
+            "inch" => 25400 / pixelsPerUnit,
+            // No unit means the resolution is only a ratio, not a size.
+            _ => null,
+        };
+    }
+
+    private static bool TryPositive(string? raw, out double value) =>
+        double.TryParse(raw, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out value)
+        && value > 0 && double.IsFinite(value);
+
     // Scanners aren't consistent about case - the samples have both
     // "Default Camera" and "Default camera".
     private static bool IsPlaceholder(string value, string placeholder) =>

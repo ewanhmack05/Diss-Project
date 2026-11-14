@@ -97,9 +97,12 @@ function previewTiles(slide: SlideInfo, bounds: Bounds, pixelsWide: number): Pre
 	return tiles;
 }
 
-function tileUrl(tilerUrl: string, slideId: string, tile: Pick<PreviewTile, "z" | "x" | "y">): string {
+// slice for one slice of a volume; left out, the slide's own tiles (a volume's
+// default slice).
+function tileUrl(tilerUrl: string, slideId: string, tile: Pick<PreviewTile, "z" | "x" | "y">, slice?: number): string {
+	const slide = `${tilerUrl}/slides/${encodeURIComponent(slideId)}${slice === undefined ? "" : `/slice/${slice}`}`;
 	// The group number's only for static Zoomify files, and the tiler ignores it.
-	return `${tilerUrl}/slides/${encodeURIComponent(slideId)}/TileGroup0/${tile.z}-${tile.x}-${tile.y}.jpg`;
+	return `${slide}/TileGroup0/${tile.z}-${tile.x}-${tile.y}.jpg`;
 }
 
 // Keeps the shape of what's being shown, within limits that fit a panel.
@@ -168,5 +171,5 @@ function shapesOf(features: Feature<Geometry>[]): PreviewShapes {
 	return shapes;
 }
 
-export { boundsOf, previewScale, previewSize, previewTiles, shapesOf, tiersOf, tileUrl };
-export type { Bounds, PreviewShapes, PreviewTile, SlideInfo };
+export { boundsOf, previewScale, previewSize, previewTiles, shapesOf, tiersOf, tilesAt, tileUrl };
+export type { Bounds, PreviewShapes, PreviewTile, SlideInfo, Tier };

@@ -70,9 +70,19 @@ app.MapGet("/slides/{id}", (string id, SlideCatalog catalog) =>
     return info is null ? Results.NotFound() : Results.Ok(info);
 });
 
+// The default slice - for a flat slide, its only one - so a viewer that
+// doesn't know about slices still works.
 app.MapGet("/slides/{id}/TileGroup{group:int}/{z:int}-{x:int}-{y:int}.jpg", (string id, int z, int x, int y, SlideCatalog catalog) =>
+    Tile(catalog, id, null, z, x, y));
+
+// One slice of a volume. Every slice is on the same grid, so the same z-x-y
+// is the same place on each.
+app.MapGet("/slides/{id}/slice/{slice:int}/TileGroup{group:int}/{z:int}-{x:int}-{y:int}.jpg", (string id, int slice, int z, int x, int y, SlideCatalog catalog) =>
+    Tile(catalog, id, slice, z, x, y));
+
+static IResult Tile(SlideCatalog catalog, string id, int? slice, int z, int x, int y)
 {
-    var pool = catalog.GetPool(id);
+    var pool = catalog.GetPool(id, slice);
     var info = catalog.GetInfo(id);
     if (pool is null || info is null) return Results.NotFound();
 
@@ -105,14 +115,16 @@ app.MapGet("/slides/{id}/TileGroup{group:int}/{z:int}-{x:int}-{y:int}.jpg", (str
     using var image = SKImage.FromBitmap(tileBitmap);
     using var data = image.Encode(SKEncodedImageFormat.Jpeg, 85);
     return Results.Bytes(data.ToArray(), "image/jpeg");
-});
+}
 
 // A picture of the whole slide for the viewer's gallery, or with square=true
 // the square in its middle. width is clamped rather than refused, so a card
 // can ask for whatever its layout works out.
-app.MapGet("/slides/{id}/thumbnail.jpg", (string id, int? width, bool? square, SlideCatalog catalog, HttpContext http) =>
+// slice picks one slice of a volume - the default slice if it's left out.
+// The viewer's 3D view builds its block from one of these per slice.
+app.MapGet("/slides/{id}/thumbnail.jpg", (string id, int? width, bool? square, int? slice, SlideCatalog catalog, HttpContext http) =>
 {
-    var pool = catalog.GetPool(id);
+    var pool = catalog.GetPool(id, slice);
     var info = catalog.GetInfo(id);
     if (pool is null || info is null) return Results.NotFound();
 
