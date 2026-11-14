@@ -1,8 +1,8 @@
 """Lines up converted serial sections so they stack into a volume, then writes
 each one out already lined up, all on one canvas.
 
-Works on a small copy of each section (1/16 scale, about 4.4 um a pixel on the
-liver set). For each section and the next one:
+Works on a small copy of each section, its longest side about WORK_SIZE pixels
+(1/16 scale on the EPFL liver set, about 4.4 um a pixel). For each section and the next one:
 
 - RootSIFT features on the tissue, matched both ways with a ratio test. RANSAC
   picks the matches that agree, and a rigid transform (turn and shift) is
@@ -38,12 +38,31 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-WORK_DOWNSAMPLE = 16
+# How big the working copies are: the biggest section's longest side comes
+# out about this many pixels, at a power-of-two downsample so it lines up with
+# the pyramid's own levels. The EPFL liver (32430 px) gets 16 - about 4.4 um a
+# pixel, which is what the matching was tuned on. Bigger sets get a bigger
+# downsample, so 260 sections still fit in memory.
+WORK_SIZE = 2000
+# Previews are for looking at, not measuring: at most this many frames, this wide.
+PREVIEW_FRAMES = 60
+PREVIEW_SIZE = 600
 MIN_INLIERS = 30
 RATIO = 0.8
 RANSAC_PX = 3.0
 SATURATION = 25
 N_FEATURES = 20000
+# Guided matching, for links where features alone don't agree enough: the
+# outline says roughly where each feature should land, and only matches within
+# this distance of that count. On Kartasalo's liver - uniform tissue, so the
+# usual ratio test throws most matches out as ambiguous - it took the median
+# landmark error from 68 um (outline only) to 41 um.
+GUIDED_RADIUS_UM = 300
+GUIDED_RATIO = 0.9
+GUIDED_MIN_INLIERS = 5
+# Outline alignment tries every rotation this many degrees apart, not just the
+# tissue's main axis and its flip - a near-symmetric piece fooled that.
+OUTLINE_STEP_DEGREES = 5
 RESULT = "registration.json"
 # Reading the written pyramid back goes through JPEG and a second resample, so
 # overlap moves a little. A wrong transform moves it by tenths.
@@ -54,7 +73,7 @@ WRITTEN_TOLERANCE = 0.02
 class Link:
     a: int
     b: int
-    kind: str  # "features" or "gap"
+    kind: str  # "features", "guided" or "gap"
     matches: int
     inliers: int
     residual_um: float | None
@@ -72,6 +91,15 @@ def parse_args(argv=None):
     parser.add_argument("--vips", type=Path, help="folder with the vips and vipsheader executables (needed for --write)")
     parser.add_argument("--write", action="store_true", help="also write the full-resolution registered sections")
     parser.add_argument("--quality", type=int, default=85, help="JPEG quality of the written tiles (default: %(default)s)")
+    parser.add_argument("--downsample", type=int, help="working scale, e.g. 16 (default: worked out from the sections' size)")
+    parser.add_argument("--guided", action="store_true",
+                        help="where features alone fail, try again near where the outline puts them, and call the "
+                             "link guided rather than a gap - only for sets with no missing cuts, since a gap "
+                             "means cuts are missing")
+    parser.add_argument("--clahe", action="store_true",
+                        help="even out staining (CLAHE) before finding features - for sections stained very differently")
+    parser.add_argument("--section-microns", type=float,
+                        help="how thick each section was cut, if known - saved for the 3D view, which assumes 4 otherwise")
     args = parser.parse_args(argv)
     if args.write and args.vips is None:
         parser.error("--write needs --vips")
@@ -79,6 +107,13 @@ def parse_args(argv=None):
 
 
 # ---- geometry: plain numpy, no images ----
+
+def working_downsample(widths, heights, target=WORK_SIZE):
+    """The power of two that brings the biggest section's longest side nearest target."""
+    longest = max(max(widths), max(heights))
+    if longest <= target:
+        return 1
+    return int(2 ** round(np.log2(longest / target)))
 
 def as_3x3(m):
     return np.vstack([np.asarray(m, dtype=np.float64)[:2], [0.0, 0.0, 1.0]])
@@ -145,7 +180,9 @@ def vips_affine_args(vips, source, target, m, width, height, background):
     a, b, odx, c, d, ody = (repr(float(v)) for v in as_3x3(m)[:2].ravel())
     exe = str(Path(vips) / ("vips.exe" if os.name == "nt" else "vips"))
     return [exe, "affine", str(source), str(target),
-            f"{a} {b} {c} {d}",
+            # The leading space: a section turned past 90 degrees starts with a minus, and
+            # vips' option parser takes any argument starting "-" for an option.
+            f" {a} {b} {c} {d}",
             "--odx", odx, "--ody", ody,
             "--oarea", f"0 0 {width} {height}",
             "--interpolate", "bilinear",
@@ -166,10 +203,21 @@ def background_colour(rgb, mask):
     return tuple(int(c) for c in np.median(glass, axis=0)) if len(glass) else (255, 255, 255)
 
 
-def rootsift(rgb, mask):
+def feature_image(rgb, clahe=False):
+    """What features are found on: grey, or with clahe, contrast evened out tile by tile and
+    slightly blurred - so a pale section and a dark one look alike, and features are cell
+    clusters rather than single nuclei."""
+    gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+    if not clahe:
+        return gray
+    gray = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8)).apply(gray)
+    return cv2.GaussianBlur(gray, (0, 0), 2)
+
+
+def rootsift(rgb, mask, clahe=False):
     """SIFT with each descriptor L1-normalised and square-rooted (Arandjelovic and
     Zisserman 2012), which matches better than plain SIFT for the same cost."""
-    gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+    gray = feature_image(rgb, clahe)
     keypoints, descriptors = cv2.SIFT_create(nfeatures=N_FEATURES).detectAndCompute(gray, mask)
     points = np.float32([k.pt for k in keypoints]).reshape(-1, 2)
     if descriptors is None:
@@ -220,9 +268,40 @@ def feature_transform(features_a, features_b):
     return m, len(src), int(keep.sum()), float(np.median(residual))
 
 
+def guided_transform(features_a, features_b, rough, radius_px):
+    """Rigid transform from a to b using only matches that land near where rough puts them.
+    A looser, one-way ratio test than mutual_matches, since rough does the job of throwing
+    out the wrong ones. Same return as feature_transform."""
+    (points_a, desc_a), (points_b, desc_b) = features_a, features_b
+    if len(desc_a) < 2 or len(desc_b) < 2:
+        return None, 0, 0, None
+    pairs = [m for m, n in (p for p in cv2.BFMatcher(cv2.NORM_L2).knnMatch(desc_a, desc_b, k=2) if len(p) == 2)
+             if m.distance < GUIDED_RATIO * n.distance]
+    if len(pairs) < 3:
+        return None, len(pairs), 0, None
+    src = points_a[[m.queryIdx for m in pairs]]
+    dst = points_b[[m.trainIdx for m in pairs]]
+    rough = np.asarray(rough, dtype=np.float64)[:2]
+    near = np.linalg.norm(src @ rough[:, :2].T + rough[:, 2] - dst, axis=1) <= radius_px
+    if near.sum() < 3:
+        return None, len(pairs), int(near.sum()), None
+    src, dst = src[near], dst[near]
+    m, inliers = cv2.estimateAffinePartial2D(src, dst, method=cv2.RANSAC, ransacReprojThreshold=RANSAC_PX,
+                                             maxIters=10000, confidence=0.999)
+    if m is None:
+        return None, len(pairs), 0, None
+    keep = inliers.ravel().astype(bool)
+    if keep.sum() < 2:
+        return None, len(pairs), int(keep.sum()), None
+    m = rigid_fit(src[keep], dst[keep])
+    residual = np.linalg.norm(src[keep] @ m[:, :2].T + m[:, 2] - dst[keep], axis=1)
+    return m, len(pairs), int(keep.sum()), float(np.median(residual))
+
+
 def outline_transform(mask_a, mask_b):
-    """Rigid transform from a to b using only the tissue's outline: centroids and
-    main axes first (trying the axis both ways round), then ECC on blurred masks."""
+    """Rigid transform from a to b using only the tissue's outline: centroids together, every
+    rotation OUTLINE_STEP_DEGREES apart (and the main axes both ways round), the best overlap,
+    then ECC on blurred masks."""
     def centre_and_angle(mask):
         mo = cv2.moments(mask, binaryImage=True)
         centre = np.array([mo["m10"] / mo["m00"], mo["m01"] / mo["m00"]])
@@ -231,8 +310,9 @@ def outline_transform(mask_a, mask_b):
     (centre_a, angle_a), (centre_b, angle_b) = centre_and_angle(mask_a), centre_and_angle(mask_b)
     size = (mask_b.shape[1], mask_b.shape[0])
     best = None
-    for flip in (0.0, np.pi):
-        r = angle_b - angle_a + flip
+    candidates = [angle_b - angle_a, angle_b - angle_a + np.pi]
+    candidates += list(np.radians(np.arange(0, 360, OUTLINE_STEP_DEGREES)))
+    for r in candidates:
         rot = np.array([[np.cos(r), -np.sin(r)], [np.sin(r), np.cos(r)]])
         m = np.hstack([rot, (centre_b - rot @ centre_a)[:, None]])
         score = dice(cv2.warpAffine(mask_a, m, size, flags=cv2.INTER_NEAREST), mask_b)
@@ -274,26 +354,45 @@ def place(image, size, fill):
 
 # ---- the run ----
 
-def register(images, masks, um_per_pixel):
+def register(images, masks, um_per_pixel, clahe=False, use_guided=False):
     """Links between neighbours, every section's transform onto the reference, and the canvas -
-    all at the working scale."""
-    features = [rootsift(img, m) for img, m in zip(images, masks)]
+    all at the working scale. A link is "features" when features alone agree, "guided" when
+    they agree once the outline has said roughly where to look, and "gap" when only the
+    outline lines them up."""
+    # Features for three sections at a time - a section, the next, and the one
+    # after for the skip-one check. 20000 RootSIFT descriptors are 10 MB a
+    # section, so keeping all 260 of a big set would be 2.6 GB for nothing.
+    window = {}
+
+    def features(i):
+        if i not in window:
+            window[i] = rootsift(images[i], masks[i], clahe)
+            for old in [k for k in window if k < i - 2]:
+                del window[old]
+        return window[i]
+
     pair_transforms, links = [], []
     for i in range(len(images) - 1):
-        m, matches, inliers, residual = feature_transform(features[i], features[i + 1])
+        m, matches, inliers, residual = feature_transform(features(i), features(i + 1))
         kind = "features" if m is not None and inliers >= MIN_INLIERS else "gap"
         if kind == "gap":
-            m = outline_transform(masks[i], masks[i + 1])
-            residual = None
+            rough = outline_transform(masks[i], masks[i + 1])
+            m, residual = rough, None
+        if kind == "gap" and use_guided:
+            guided, guided_matches, guided_inliers, guided_residual = guided_transform(
+                features(i), features(i + 1), rough, GUIDED_RADIUS_UM / um_per_pixel)
+            if guided is not None and guided_inliers >= GUIDED_MIN_INLIERS:
+                kind, m, matches, inliers, residual = "guided", guided, guided_matches, guided_inliers, guided_residual
         rotation, scale = rotation_and_scale(m)
         pair_transforms.append(m)
         links.append(Link(i, i + 1, kind, matches, inliers,
                           None if residual is None else round(residual * um_per_pixel, 1),
                           round(rotation, 2), round(scale, 4), 0.0, 0.0))
 
+    window.clear()
     for i in range(len(images) - 2):
         if links[i].kind == links[i + 1].kind == "features":
-            direct, _, inliers, _ = feature_transform(features[i], features[i + 2])
+            direct, _, inliers, _ = feature_transform(features(i), features(i + 2))
             if direct is not None and inliers >= MIN_INLIERS:
                 chained = as_3x3(pair_transforms[i + 1]) @ as_3x3(pair_transforms[i])
                 ys, xs = np.nonzero(masks[i][::4, ::4])
@@ -305,20 +404,27 @@ def register(images, masks, um_per_pixel):
     sizes = [(img.shape[1], img.shape[0]) for img in images]
     width, height, on_canvas = canvas_for(sizes, to_ref)
 
-    before = [place(m, (width, height), 0) for m in masks]
-    after = [cv2.warpAffine(m, t[:2], (width, height), flags=cv2.INTER_NEAREST) for m, t in zip(masks, on_canvas)]
+    # Neighbour by neighbour - a canvas-sized mask per section for all of them
+    # at once is gigabytes on a big set.
+    def placed(i):
+        return place(masks[i], (width, height), 0), cv2.warpAffine(masks[i], on_canvas[i][:2], (width, height), flags=cv2.INTER_NEAREST)
+
+    previous = placed(0) if links else None
     for link in links:
-        link.dice_before = round(dice(before[link.a], before[link.b]), 3)
-        link.dice_after = round(dice(after[link.a], after[link.b]), 3)
+        following = placed(link.b)
+        link.dice_before = round(dice(previous[0], following[0]), 3)
+        link.dice_after = round(dice(previous[1], following[1]), 3)
+        previous = following
     return links, reference, on_canvas, (width, height)
 
 
 def summary(links):
-    feats = [link for link in links if link.kind == "features"]
+    feats = [link for link in links if link.kind in ("features", "guided")]
     skip = [link.skip_one_um for link in links if link.skip_one_um is not None]
     return {
-        "feature_links": len(feats),
-        "gap_links": len(links) - len(feats),
+        "feature_links": sum(link.kind == "features" for link in links),
+        "guided_links": sum(link.kind == "guided" for link in links),
+        "gap_links": sum(link.kind == "gap" for link in links),
         "median_residual_um": round(float(np.median([link.residual_um for link in feats])), 1) if feats else None,
         "median_skip_one_um": round(float(np.median(skip)), 1) if skip else None,
         "mean_dice_before": round(float(np.mean([link.dice_before for link in links])), 3),
@@ -326,16 +432,31 @@ def summary(links):
     }
 
 
+def preview_frames(count, most=PREVIEW_FRAMES):
+    """Which sections go in a preview: all of them, or evenly spread if there are more than most."""
+    if count <= most:
+        return list(range(count))
+    return sorted({round(i * (count - 1) / (most - 1)) for i in range(most)})
+
+
 def save_previews(images, on_canvas, size, backgrounds, out):
-    """Animated GIFs stepping through the sections, before and after - the quickest way to see it worked."""
+    """Animated GIFs stepping through the sections, before and after - the quickest way to see it worked.
+    Made a frame at a time and kept small, so a big set doesn't hold every canvas in memory."""
     from PIL import Image
 
-    before = [Image.fromarray(place(img, size, bg)) for img, bg in zip(images, backgrounds)]
-    after = [Image.fromarray(cv2.warpAffine(img, t[:2], size, flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT,
-                                            borderValue=bg)) for img, t, bg in zip(images, on_canvas, backgrounds)]
-    for name, frames in (("before", before), ("after", after)):
-        small = [f.resize((f.width // 2, f.height // 2)) for f in frames]
-        small[0].save(out / f"preview_{name}.gif", save_all=True, append_images=small[1:], duration=250, loop=0)
+    scale = min(1.0, PREVIEW_SIZE / max(size))
+    small_size = (max(1, round(size[0] * scale)), max(1, round(size[1] * scale)))
+    chosen = preview_frames(len(images))
+    for name in ("before", "after"):
+        frames = []
+        for i in chosen:
+            if name == "before":
+                frame = place(images[i], size, backgrounds[i])
+            else:
+                frame = cv2.warpAffine(images[i], on_canvas[i][:2], size, flags=cv2.INTER_LINEAR,
+                                       borderMode=cv2.BORDER_CONSTANT, borderValue=backgrounds[i])
+            frames.append(Image.fromarray(cv2.resize(frame, small_size, interpolation=cv2.INTER_AREA)))
+        frames[0].save(out / f"preview_{name}.gif", save_all=True, append_images=frames[1:], duration=250, loop=0)
 
 
 def run(args, label):
@@ -376,16 +497,18 @@ def write_sections(sections, folder, out, transforms, size, backgrounds, vips, q
               f"ETA {int(left // 60)}m {int(left % 60)}s - {target.name}", flush=True)
 
 
-def check_written(out, sections, links):
+def check_written(out, sections, links, downsample):
     """Reads the written sections back small and measures neighbour overlap again. It should match
-    what registration predicted from the small copies - if not, the full-size transform is wrong."""
-    masks = [tissue_mask(read_small(out / s["file"], WORK_DOWNSAMPLE)) for s in sections]
+    what registration predicted from the small copies - if not, the full-size transform is wrong.
+    Two sections at a time."""
     result = []
+    previous = tissue_mask(read_small(out / sections[0]["file"], downsample)) if links else None
     for link in links:
-        a, b = masks[link.a], masks[link.b]
-        h, w = min(a.shape[0], b.shape[0]), min(a.shape[1], b.shape[1])
-        measured = round(dice(a[:h, :w], b[:h, :w]), 3)
+        following = tissue_mask(read_small(out / sections[link.b]["file"], downsample))
+        h, w = min(previous.shape[0], following.shape[0]), min(previous.shape[1], following.shape[1])
+        measured = round(dice(previous[:h, :w], following[:h, :w]), 3)
         result.append({"a": link.a, "b": link.b, "predicted": link.dice_after, "measured": measured})
+        previous = following
     return result
 
 
@@ -398,27 +521,34 @@ def main(argv=None):
     mpps = [s["mpp_x"] for s in manifest]
     if (max(mpps) - min(mpps)) / min(mpps) > 1e-3:
         sys.exit(f"sections have different pixel sizes ({min(mpps)} to {max(mpps)}), scale them first")
-    um_per_pixel = float(np.mean(mpps)) * WORK_DOWNSAMPLE
+    downsample = args.downsample or working_downsample([s["width"] for s in manifest], [s["height"] for s in manifest])
+    um_per_pixel = float(np.mean(mpps)) * downsample
     args.out.mkdir(parents=True, exist_ok=True)
+    print(f"{len(manifest)} sections, working at 1/{downsample} ({um_per_pixel:.2f} um a pixel)", flush=True)
 
     started = time.monotonic()
-    images = [read_small(args.sections / s["file"], WORK_DOWNSAMPLE) for s in manifest]
+    images = [read_small(args.sections / s["file"], downsample) for s in manifest]
     masks = [tissue_mask(img) for img in images]
     backgrounds = [background_colour(img, m) for img, m in zip(images, masks)]
-    links, reference, on_canvas, size = register(images, masks, um_per_pixel)
+    links, reference, on_canvas, size = register(images, masks, um_per_pixel, args.clahe, args.guided)
     print(f"registered {len(images)} sections in {time.monotonic() - started:.1f}s", flush=True)
     for link in links:
-        note = "" if link.kind == "features" else "  <- gap: outline only"
+        note = {"features": "", "guided": "  <- guided by the outline"}.get(link.kind, "  <- gap: outline only")
         print(f"  {link.a:02d}->{link.b:02d} {link.kind:8s} inliers={link.inliers:3d} residual={link.residual_um} um "
               f"skip-one={link.skip_one_um} um rot={link.rotation_deg:+.2f} scale={link.scale:.4f} "
               f"dice {link.dice_before:.3f}->{link.dice_after:.3f}{note}", flush=True)
 
-    full = [to_full_res(t, WORK_DOWNSAMPLE) for t in on_canvas]
-    full_size = (size[0] * WORK_DOWNSAMPLE, size[1] * WORK_DOWNSAMPLE)
+    full = [to_full_res(t, downsample) for t in on_canvas]
+    full_size = (size[0] * downsample, size[1] * downsample)
     result = {
-        "method": {"downsample": WORK_DOWNSAMPLE, "min_inliers": MIN_INLIERS, "ratio": RATIO, "ransac_px": RANSAC_PX,
-                   "saturation": SATURATION, "features": N_FEATURES, "opencv": cv2.__version__},
+        "method": {"downsample": downsample, "min_inliers": MIN_INLIERS, "ratio": RATIO, "ransac_px": RANSAC_PX,
+                   "saturation": SATURATION, "features": N_FEATURES, "clahe": args.clahe,
+                   "guided": {"radius_um": GUIDED_RADIUS_UM, "ratio": GUIDED_RATIO,
+                              "min_inliers": GUIDED_MIN_INLIERS} if args.guided else None,
+                   "outline_step_degrees": OUTLINE_STEP_DEGREES, "opencv": cv2.__version__},
         "reference": reference,
+        # How thick the sections were cut, if anyone said - the tiler passes it on to the 3D view.
+        "sectionMicrons": args.section_microns,
         "canvas": {"width": full_size[0], "height": full_size[1], "mpp": float(np.mean(mpps))},
         "summary": summary(links),
         "links": [asdict(link) for link in links],
@@ -433,7 +563,7 @@ def main(argv=None):
 
     if args.write:
         write_sections(manifest, args.sections, args.out, full, full_size, backgrounds, args.vips, args.quality)
-        checks = check_written(args.out, manifest, links)
+        checks = check_written(args.out, manifest, links, downsample)
         worst = max(abs(c["predicted"] - c["measured"]) for c in checks)
         result["written_check"] = {"max_dice_difference": round(worst, 3), "links": checks}
         (args.out / RESULT).write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")

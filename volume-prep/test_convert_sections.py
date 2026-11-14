@@ -23,6 +23,8 @@ from convert_sections import (
     scanned_extent,
     section_order,
     still_to_do,
+    tiff_series,
+    tiff_vips_args,
     vips_args,
 )
 
@@ -144,6 +146,43 @@ class Sections(unittest.TestCase):
             Path(raw, "notes.txt").touch()
             self.assertEqual(["Image_00", "Image_01", "Image_02", "Image_10"], [f.stem for f in find_sections(raw)])
             self.assertEqual(["Image_02", "Image_10"], [f.stem for f in find_sections(raw, only=[10, 2])])
+
+
+class Tiffs(unittest.TestCase):
+    def setUp(self):
+        self.HEADER = {"width": 30000, "height": 20000, "mpp_x": 0.46, "mpp_y": 0.46}
+
+    def test_pixel_size_from_the_file(self):
+        series = tiff_series(self.HEADER)
+        self.assertEqual((30000, 20000, 0.46, 0.46), (series.width, series.height, series.mpp_x, series.mpp_y))
+
+    def test_mpp_overrides_the_file(self):
+        self.assertEqual(0.5, tiff_series(self.HEADER, mpp=0.5).mpp_x)
+
+    def test_no_resolution_in_the_file_needs_mpp(self):
+        # libvips says 1 pixel per mm when a TIFF has no resolution - 1000 um a pixel.
+        none = self.HEADER | {"mpp_x": 1000.0, "mpp_y": 1000.0}
+        with self.assertRaisesRegex(ValueError, "--mpp"):
+            tiff_series(none)
+        self.assertEqual(0.46, tiff_series(none, mpp=0.46).mpp_x)
+
+    def test_pyramid_gets_the_pixel_size_stamped_in(self):
+        args = tiff_vips_args(Path("v"), Path("in.tif"), Path("out.tif"), 85, 0.5)
+        self.assertEqual("2000.0", args[args.index("--xres") + 1])
+        self.assertEqual("2000.0", args[args.index("--yres") + 1])
+        self.assertIn("--pyramid", args)
+
+    def test_tiffs_are_found_when_there_are_no_vsis(self):
+        with tempfile.TemporaryDirectory() as raw:
+            for name in ("prostate_010.tif", "prostate_002.tiff", "prostate_001.svs", "notes.txt", "landmarks_001.csv"):
+                Path(raw, name).touch()
+            self.assertEqual(["prostate_001", "prostate_002", "prostate_010"], [f.stem for f in find_sections(raw)])
+
+    def test_vsis_win_over_tiffs(self):
+        with tempfile.TemporaryDirectory() as raw:
+            Path(raw, "Image_00.vsi").touch()
+            Path(raw, "overview_01.tif").touch()
+            self.assertEqual(["Image_00"], [f.stem for f in find_sections(raw)])
 
 
 class Commands(unittest.TestCase):

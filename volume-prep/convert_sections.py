@@ -1,6 +1,9 @@
-"""Converts a folder of serial sections from Olympus cellSens VSI into tiled,
-pyramidal TIFFs that OpenSlide (and so the tiler) can read, one per section,
-and writes a manifest.json saying what each one is.
+"""Converts a folder of serial sections - Olympus cellSens VSI, or TIFFs - into
+tiled, pyramidal TIFFs that OpenSlide (and so the tiler) can read, one per
+section, and writes a manifest.json saying what each one is.
+
+A TIFF goes straight through libvips. Its pixel size comes from the file, or
+--mpp when the file doesn't give a real one.
 
 Each .vsi holds several images - label, overview, the full scan, macro - so the
 full scan is picked by name (20x_BF_01 on the EPFL liver set), not by number.
@@ -66,14 +69,17 @@ class Section:
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--raw", required=True, type=Path, help="folder with the .vsi files and their _Name_ folders")
+    parser.add_argument("--raw", required=True, type=Path,
+                        help="folder with the sections: .vsi files and their _Name_ folders, or TIFFs (.tif, .tiff, .svs)")
     parser.add_argument("--out", required=True, type=Path, help="folder for the .tif files and manifest.json")
-    parser.add_argument("--bftools", required=True, type=Path, help="Bio-Formats bftools folder (has bfconvert and showinf)")
+    parser.add_argument("--bftools", type=Path, help="Bio-Formats bftools folder (has bfconvert and showinf) - needed for .vsi")
     parser.add_argument("--vips", required=True, type=Path, help="folder with the vips and vipsheader executables")
     parser.add_argument("--series-name", default="20x_BF_01", help="name of the image to take from each .vsi (default: %(default)s)")
     parser.add_argument("--quality", type=int, default=85, help="JPEG quality of the tiles (default: %(default)s)")
     parser.add_argument("--only", type=int, nargs="*", help="section numbers to do, e.g. --only 0 3 (default: all)")
     parser.add_argument("--force", action="store_true", help="convert again even if the manifest says it's done")
+    parser.add_argument("--mpp", type=float,
+                        help="microns per pixel, for TIFFs that don't say or say wrong (default: what the file says)")
     return parser.parse_args(argv)
 
 
@@ -92,8 +98,14 @@ def section_order(path):
     return int(match.group(1))
 
 
+TIFF_SUFFIXES = (".tif", ".tiff", ".svs")
+
+
 def find_sections(raw, only=None):
+    """The sections in raw, in cutting order: .vsi files if there are any, otherwise TIFFs."""
     files = sorted(Path(raw).glob("*.vsi"), key=section_order)
+    if not files:
+        files = sorted((f for f in Path(raw).iterdir() if f.is_file() and f.suffix.lower() in TIFF_SUFFIXES), key=section_order)
     if only is not None:
         files = [f for f in files if section_order(f) in set(only)]
     return files
@@ -257,7 +269,66 @@ def run(args, label):
     return result.stdout
 
 
+# What a sensible microns-per-pixel looks like for a slide scan - from a 100x
+# objective to a low-power overview. Outside it, the TIFF's resolution is
+# libvips' default (1 pixel per mm) or plain wrong.
+PLAUSIBLE_MPP = (0.05, 20.0)
+
+
+def tiff_series(header, mpp=None):
+    """A TIFF section as a Series, its pixel size from mpp if given, otherwise from the file.
+    Refuses a pixel size that can't be real rather than carry it into every measurement."""
+    mpp_x, mpp_y = (mpp, mpp) if mpp else (header["mpp_x"], header["mpp_y"])
+    low, high = PLAUSIBLE_MPP
+    if not (low <= mpp_x <= high and low <= mpp_y <= high):
+        raise ValueError(f"pixel size {mpp_x:.4g} x {mpp_y:.4g} um isn't a slide scan's - give it with --mpp")
+    return Series(index=0, name="tiff", width=header["width"], height=header["height"], mpp_x=mpp_x, mpp_y=mpp_y, planes=1)
+
+
+def tiff_vips_args(vips, source, out, quality, mpp):
+    """The same pyramid as for a VSI, written straight from the TIFF, with the pixel size stamped
+    in (libvips takes it in pixels per mm) so OpenSlide reports it."""
+    per_mm = repr(1000 / mpp)
+    return vips_args(vips, source, out, quality) + ["--xres", per_mm, "--yres", per_mm]
+
+
+def convert_tiff(source, out, args):
+    started = time.monotonic()
+    series = tiff_series(parse_header(run(header_args(args.vips, source), "vipsheader")), args.mpp)
+    part = out / f"{source.stem}.tif.part"
+    target = out / f"{source.stem}.tif"
+    if target.resolve() == source.resolve():
+        raise RuntimeError(f"{source.name}: --out is the same folder as --raw")
+    try:
+        run(tiff_vips_args(args.vips, source, part, args.quality, series.mpp_x), "vips")
+        problems = check_output(series, parse_header(run(header_args(args.vips, part), "vipsheader")))
+        if problems:
+            raise RuntimeError(f"{source.name}: " + "; ".join(problems))
+        os.replace(part, target)
+    finally:
+        part.unlink(missing_ok=True)
+    return Section(
+        order=section_order(source),
+        source=source.name,
+        file=target.name,
+        series=0,
+        series_name="tiff",
+        width=series.width,
+        height=series.height,
+        declared_width=series.width,
+        declared_height=series.height,
+        mpp_x=series.mpp_x,
+        mpp_y=series.mpp_y,
+        bytes=target.stat().st_size,
+        seconds=round(time.monotonic() - started, 1),
+    )
+
+
 def convert(source, out, args):
+    if source.suffix.lower() in TIFF_SUFFIXES:
+        return convert_tiff(source, out, args)
+    if args.bftools is None:
+        raise SystemExit(f"{source.name} is a .vsi - converting it needs --bftools")
     started = time.monotonic()
     every = parse_ome(run([tool(args.bftools, "showinf"), "-nopix", "-omexml-only", str(source)], "showinf"))
     series = pick_series(every, args.series_name)
@@ -299,7 +370,7 @@ def main(argv=None):
     args = parse_args(argv)
     files = find_sections(args.raw, args.only)
     if not files:
-        sys.exit(f"no .vsi files in {args.raw}")
+        sys.exit(f"no .vsi or TIFF files in {args.raw}")
     args.out.mkdir(parents=True, exist_ok=True)
     done = load_manifest(args.out)
     todo = still_to_do(files, done, args.out, args.force)
