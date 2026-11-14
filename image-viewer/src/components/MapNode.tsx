@@ -105,6 +105,7 @@ interface SlideMetadata {
 	// Missing from a tiler from before volumes - see readSlices.
 	slices?: Slice[];
 	defaultSlice?: number;
+	sectionMicrons?: number | null;
 }
 
 // The box is a fixed size (see RoiBoxSizeOptions) - dragging only ever
@@ -160,7 +161,7 @@ function MapNode() {
 	const { rotationDegrees, setRotationDegrees, resetRotation } = useRotationContext();
 	const { slices, current: currentSlice, setSlices, step: stepSlice, view: depthView, lookAt: depthLookAt } = useSliceContext();
 	// The slide's size, for the 3D view - set with each slide.
-	const [slideSize, setSlideSize] = useState<{ width: number; height: number; mppX: number | null } | null>(null);
+	const [slideSize, setSlideSize] = useState<{ width: number; height: number; mppX: number | null; tileSize: number } | null>(null);
 	const { setLastMeasurement, clearSignal: rulerClearSignal } = useRulerContext();
 	const { values: adjustmentValues, resetValues: resetAdjustments } = useAdjustmentsContext();
 	const {
@@ -325,8 +326,8 @@ function MapNode() {
 			.then((metadata) => {
 				if (cancelled || !mapElement.current) return;
 				slideMetadataRef.current = metadata;
-				const { slices: slideSlices, defaultSlice } = readSlices(metadata);
-				setSlideSize({ width: metadata.width, height: metadata.height, mppX: metadata.mppX });
+				const { slices: slideSlices, defaultSlice, sectionMicrons } = readSlices(metadata);
+				setSlideSize({ width: metadata.width, height: metadata.height, mppX: metadata.mppX, tileSize: metadata.tileSize });
 				// Another slide on the map that's already there - its tiles and
 				// view change, nothing else is rebuilt. What's drawn on it follows
 				// from the stores loading the new slide's collection.
@@ -338,7 +339,7 @@ function MapNode() {
 						metadata.mppX,
 					);
 					remoteRulersLayerRef.current?.setStyle(remoteRulerStyle(metadata.mppX, metadata.mppY));
-					setSlices(slideSlices, defaultSlice, source.slideId);
+					setSlices(slideSlices, defaultSlice, source.slideId, sectionMicrons);
 					setMapVersion((version) => version + 1);
 					return;
 				}
@@ -534,7 +535,7 @@ function MapNode() {
 						},
 					});
 				}
-				setSlices(slideSlices, defaultSlice, source.slideId);
+				setSlices(slideSlices, defaultSlice, source.slideId, sectionMicrons);
 				setMapVersion((version) => version + 1);
 			})
 			.catch(() => {
@@ -1678,6 +1679,7 @@ function MapNode() {
 						slideWidth={slideSize.width}
 						slideHeight={slideSize.height}
 						micronsPerPixel={slideSize.mppX}
+						tileSize={slideSize.tileSize}
 					/>
 				</Suspense>
 			)}

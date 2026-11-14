@@ -14,6 +14,11 @@ interface VolumeSettings {
 	opacity: number;
 	// Times the default depth (see defaultStretch in volume.ts).
 	stretch: number;
+	// As thick as the sections really are instead - see depthStretch.
+	trueDepth: boolean;
+	// The gap between slices against a slice's thickness - 0 is a solid block
+	// (see slabAt in volume.ts).
+	spacing: number;
 	// Which slices are drawn, inclusive - fewer is a thinner block.
 	firstSlice: number;
 	lastSlice: number;
@@ -26,6 +31,8 @@ const DEFAULT_SETTINGS: Omit<VolumeSettings, "firstSlice" | "lastSlice"> = {
 	cutPosition: 0.5,
 	opacity: 1,
 	stretch: 1,
+	trueDepth: false,
+	spacing: 0,
 	guides: true,
 };
 
@@ -37,8 +44,11 @@ interface SliceContextValue {
 	// The one showing.
 	current: number;
 	volume: boolean;
+	// How thick the sections were cut, if the volume says. Null means the 3D
+	// view assumes (see ASSUMED_SECTION_MICRONS).
+	sectionMicrons: number | null;
 	// Called by the map once a slide's loaded. Opens it on its default slice, in 2D.
-	setSlices: (slices: Slice[], defaultSlice: number, slideId: string) => void;
+	setSlices: (slices: Slice[], defaultSlice: number, slideId: string, sectionMicrons?: number | null) => void;
 	// Clamped to the slices there are.
 	showSlice: (slice: number) => void;
 	step: (delta: number) => void;
@@ -71,6 +81,7 @@ function SliceContextProvider({ children }: { children: ReactNode }) {
 	const [slices, setSlicesState] = useState<Slice[]>(FLAT);
 	const [defaultSlice, setDefaultSlice] = useState(0);
 	const [current, setCurrent] = useState(0);
+	const [sectionMicrons, setSectionMicrons] = useState<number | null>(null);
 	const [view, setViewState] = useState<DepthView>("2d");
 	const [settings, setSettings] = useState<VolumeSettings>({ ...DEFAULT_SETTINGS, ...allSlices(1) });
 	const [cameraReset, setCameraReset] = useState(0);
@@ -79,11 +90,12 @@ function SliceContextProvider({ children }: { children: ReactNode }) {
 	// move. Only these setters change slice state, and they keep it up to date.
 	const stateRef = useRef<{ slices: Slice[]; current: number; slideId: string }>({ slices: FLAT, current: 0, slideId: "" });
 
-	const setSlices = useCallback((next: Slice[], nextDefault: number, slideId: string) => {
+	const setSlices = useCallback((next: Slice[], nextDefault: number, slideId: string, thickness: number | null = null) => {
 		stateRef.current = { slices: next, current: nextDefault, slideId };
 		setSlicesState(next);
 		setDefaultSlice(nextDefault);
 		setCurrent(nextDefault);
+		setSectionMicrons(thickness);
 		// A new slide starts flat, with the whole block and no cut.
 		setViewState("2d");
 		setSettings({ ...DEFAULT_SETTINGS, ...allSlices(next.length) });
@@ -130,6 +142,7 @@ function SliceContextProvider({ children }: { children: ReactNode }) {
 			defaultSlice,
 			current,
 			volume: isVolume(slices),
+			sectionMicrons,
 			setSlices,
 			showSlice,
 			step,
@@ -142,7 +155,7 @@ function SliceContextProvider({ children }: { children: ReactNode }) {
 			lookAt,
 			openInTwoD,
 		}),
-		[slices, defaultSlice, current, setSlices, showSlice, step, view, setView, settings, changeSettings, cameraReset, resetCamera, lookAt, openInTwoD],
+		[slices, defaultSlice, current, sectionMicrons, setSlices, showSlice, step, view, setView, settings, changeSettings, cameraReset, resetCamera, lookAt, openInTwoD],
 	);
 	return <SliceContext.Provider value={value}>{children}</SliceContext.Provider>;
 }

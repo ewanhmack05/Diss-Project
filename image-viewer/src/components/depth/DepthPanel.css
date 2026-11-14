@@ -199,3 +199,18 @@
 	font-size: 0.9em;
 	cursor: pointer;
 }
+
+/* Many slices: no space between marks, and a gap shown as a dark line instead. */
+.depth-panel-marks--dense {
+	gap: 0;
+}
+
+.depth-panel-marks--dense .depth-panel-mark {
+	border-radius: 0;
+	min-width: 0;
+}
+
+.depth-panel-marks--dense .depth-panel-mark--gap {
+	margin-left: 0;
+	box-shadow: inset 2px 0 0 var(--chrome-bg);
+}

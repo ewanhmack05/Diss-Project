@@ -119,16 +119,56 @@ any edge of the screen - two panels on the same edge split it evenly.
     block ([three.js](https://threejs.org/), loaded the first time it's
     opened). Drag to turn it, scroll to zoom, right-drag to move it. Cut it on
     X, Y, Z or a diagonal to see inside, draw fewer slices to make it
-    thinner, lower the opacity, stretch the depth, turn the outline and grid
-    off. A frame on the block shows the slice the 2D view's on, and a gap is
-    an empty layer. Clicking the tissue opens that slice at that place in 2D.
-    The block is built in the browser from one thumbnail per slice, 512 px
-    wide (`thumbnail.jpg?slice=`), about 250 KB in all, and kept for the
-    page's life. It's ray marched in a fragment shader
+    thinner, lower the opacity, stretch the depth, space the slices out, turn
+    the outline and grid off. A frame on the block shows the slice the 2D
+    view's on, and a gap is an empty layer. **Gap between slices** (none up to
+    8 times a slice's thickness) pulls the block apart into separate slices
+    so each one can be seen on its own: the block gets deeper to make room,
+    and each slice stays as thick as it was. Slices can be thinner than a
+    step of the ray, so the shader jumps across each gap to the next slice
+    rather than stepping through it, and a click in a gap lands on nothing
+    (`slabAt` in `src/components/depth/volume.ts`). Clicking the tissue opens that slice at that place in 2D.
+    The block is built in the browser from one thumbnail per slice
+    (`thumbnail.jpg?slice=`), each written into it as it arrives - 1024 px
+    wide, or narrower for a volume with many slices so the block stays under
+    64 million voxels (256 MB): 1024 for both livers (15 and 47 slices, about
+    15 um a pixel on Kartasalo's), 447 for the 260-slice prostate. The last
+    two blocks opened are kept, so 2D and 3D back and forth fetches nothing.
+    **The slice you're looking at is sharp**: one slice is drawn from the
+    slide's own tiles instead of the block, at the finest level that fits 4096
+    x 4096 pixels (64 MB) - 1/8 of Kartasalo's slides, about 3.7 um a pixel,
+    individual nuclei. Which slice (`detailSlice` in `volume.ts`): with no gap,
+    the face towards the camera - the first slice drawn from the front, the
+    last from behind, or the face a Z cut leaves; spaced out, the framed one,
+    so stepping through slices sharpens each in turn. It's stitched from
+    tiles (`loadDetail.ts`) - the 2D view's, so usually cached - rather than
+    one big thumbnail, so the tiler never holds a large picture for it, and
+    "Sharpening slice N" shows in the corner while it comes, about 3 s for
+    256 tiles. It has mipmaps, picked in the shader by how far the ray's gone,
+    so it doesn't shimmer zoomed out. **An X or Y cut's face is sharp too**:
+    the face is one line of each slice, so it's read from one column (X) or
+    row (Y) of every slice's tiles, at the finest tier that keeps it under
+    1200 tiles (`faceTier` in `volume.ts`, `loadFace.ts`) - 1/8 for
+    Kartasalo's liver, 752 tiles in 1.2-3.4 s, four times the block along the
+    face; 1/32 for the 260-slice prostate. It fills in slice by slice
+    ("Sharpening the cut, N of M slices"), waits until the cut slider's been
+    still for 250 ms, and only fetches again when the cut moves onto
+    another line of pixels. Through the slices it can't be finer than the
+    sections are, so each one's its own sharp-edged band, not blended into
+    the next: nothing was measured between sections, and neighbours only
+    line up to tens of microns, so a blend just smears cells. The block's
+    drawn about 11x deeper than it is by default (Kartasalo's liver), which
+    makes each band wide; **True depth** in the panel draws it as thick as
+    the sections really are (`depthStretch` in `volume.ts`) - a thin sheet,
+    but the cut face is then real tissue at real proportions, about a pixel
+    a section. Moving the Depth slider turns it off. Zoomed out it fades into the block,
+    which is as good there. A Z cut's face is a slice, so the sharp slice
+    covers it; a diagonal cut runs across tiles and isn't sharpened. It's ray marched in a fragment shader
     (`src/components/depth/volumeShader.ts`), stored premultiplied so
     filtering next to glass or a gap doesn't darken it. Sections are much
-    thinner than the slide is wide, so it's drawn thicker than it is, and
-    assumes 4 um sections since the data doesn't say
+    thinner than the slide is wide, so it's drawn thicker than it is. How
+    thick comes from the volume's `sectionMicrons` when it has one, and is
+    assumed to be 4 um when it doesn't
 
 ## Rendering
 

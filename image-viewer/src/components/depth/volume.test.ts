@@ -2,16 +2,33 @@ import { describe, expect, it } from "vitest";
 import {
 	BLOCK_WIDTH,
 	blockSize,
+	blockWidthFor,
+	VOXEL_BUDGET,
 	buildVolume,
+	addSlice,
+	emptyVolume,
+	DETAIL_PIXELS,
+	detailSlice,
+	detailTier,
+	FACE_TILES,
+	faceAxis,
+	faceLength,
+	facePixel,
+	faceTier,
+	faceTiles,
 	cutPlane,
 	defaultStretch,
+	depthStretch,
 	firstHit,
 	layerSlices,
 	layerZ,
+	slabAt,
+	spacingText,
 	textureRay,
 	thumbnailUrl,
 	tissueAlpha,
 	type Clip,
+	type DetailView,
 	type SliceImage,
 } from "./volume";
 import type { Slice } from "./slices";
@@ -101,6 +118,26 @@ describe("buildVolume", () => {
 	});
 });
 
+describe("emptyVolume and addSlice", () => {
+	it("fill the block a slice at a time, in any order, the same as buildVolume", () => {
+		const pictures = [picture(3, 2, PINK), picture(3, 2, GLASS, { x: 1, y: 0, size: 1, colour: PURPLE }), picture(3, 2, PURPLE)];
+		const volume = emptyVolume(3, 2, slices(3, [2]));
+		addSlice(volume, 2, pictures[2]);
+		addSlice(volume, 0, pictures[0]);
+		addSlice(volume, 1, pictures[1]);
+
+		expect(volume).toEqual(buildVolume(pictures, slices(3, [2])));
+		expect(volume.layerSlice).toEqual([0, 1, null, 2]);
+	});
+
+	it("refuses a picture of the wrong size or a slice it hasn't got", () => {
+		const volume = emptyVolume(2, 2, slices(2));
+		expect(() => addSlice(volume, 0, picture(3, 2, PINK))).toThrow(/differ in size/);
+		expect(() => addSlice(volume, 5, picture(2, 2, PINK))).toThrow(/no slice 5/);
+		expect(() => emptyVolume(2, 2, [])).toThrow(/no slices/);
+	});
+});
+
 describe("blockSize", () => {
 	// The liver volume: 40288 x 45104 at 0.27366 um, 16 layers.
 	const W = 40288;
@@ -128,6 +165,96 @@ describe("blockSize", () => {
 
 	it("without a pixel size, counts layers against the block's pixels", () => {
 		expect(blockSize(1000, 500, 16, null, 1)[2]).toBeCloseTo(16 / BLOCK_WIDTH, 9);
+	});
+
+	it("gets deeper to make room for gaps, so a slice keeps its thickness", () => {
+		const [, , solid] = blockSize(W, H, 16, MPP, 1);
+		expect(blockSize(W, H, 16, MPP, 1, undefined, 0)[2]).toBeCloseTo(solid, 12);
+		expect(blockSize(W, H, 16, MPP, 1, undefined, 1)[2]).toBeCloseTo(2 * solid, 12);
+		expect(blockSize(W, H, 16, MPP, 1, undefined, 3)[2]).toBeCloseTo(4 * solid, 12);
+		// Each slice's share is solid / 16 * 4, and its slab a quarter of that.
+		expect(blockSize(W, H, 16, MPP, 1, undefined, -2)[2]).toBeCloseTo(solid, 12);
+	});
+});
+
+describe("depthStretch", () => {
+	// Kartasalo's liver: 32384 px at 0.46 um, 52 layers at 5 um.
+	const liver = { width: 32384, height: 31872, mpp: 0.46, layers: 52, microns: 5 };
+	const scale = defaultStretch(liver.width, liver.layers, liver.mpp, liver.microns);
+
+	it("is the panel's stretch times the default when not true", () => {
+		expect(depthStretch(false, scale, 1)).toBeCloseTo(scale);
+		expect(depthStretch(false, scale, 2)).toBeCloseTo(2 * scale);
+	});
+
+	it("is no stretch at all for true depth, whatever the slider says", () => {
+		expect(depthStretch(true, scale, 1)).toBe(1);
+		expect(depthStretch(true, scale, 4)).toBe(1);
+	});
+
+	it("makes the liver block 0.26 mm deep against 14.9 mm across, about 11.5x thinner than default", () => {
+		const [, , trueDepth] = blockSize(liver.width, liver.height, liver.layers, liver.mpp, depthStretch(true, scale, 1), liver.microns);
+		const [, , drawnDepth] = blockSize(liver.width, liver.height, liver.layers, liver.mpp, depthStretch(false, scale, 1), liver.microns);
+		expect(trueDepth).toBeCloseTo((52 * 5) / (32384 * 0.46), 6);
+		expect(drawnDepth / trueDepth).toBeCloseTo(11.46, 1);
+	});
+});
+
+describe("slabAt", () => {
+	it("with no gap, every depth is in a layer", () => {
+		expect(slabAt(0, 4, 0)).toBe(0);
+		expect(slabAt(0.26, 4, 0)).toBe(1);
+		expect(slabAt(1, 4, 0)).toBe(3);
+	});
+
+	it("a gap as thick as a slice leaves the middle half of each share", () => {
+		// 4 layers: shares 0.25 deep, slabs the middle 0.125 of each.
+		expect(slabAt(0.125, 4, 1)).toBe(0);
+		expect(slabAt(0.0625, 4, 1)).toBe(0);
+		expect(slabAt(0.1875, 4, 1)).toBe(0);
+		expect(slabAt(0.06, 4, 1)).toBeNull();
+		expect(slabAt(0.2, 4, 1)).toBeNull();
+		expect(slabAt(0.26, 4, 1)).toBeNull();
+		expect(slabAt(0.375, 4, 1)).toBe(1);
+		expect(slabAt(0.875, 4, 1)).toBe(3);
+	});
+
+	it("stays inside the block at its faces", () => {
+		expect(slabAt(-0.5, 4, 0)).toBe(0);
+		expect(slabAt(1.5, 4, 0)).toBe(3);
+		expect(slabAt(1, 4, 1)).toBeNull();
+	});
+});
+
+describe("spacingText", () => {
+	it("says none, or how many slices thick", () => {
+		expect(spacingText(0)).toBe("None");
+		expect(spacingText(1)).toBe("1x a slice");
+		expect(spacingText(2.5)).toBe("2.5x a slice");
+	});
+});
+
+describe("blockWidthFor", () => {
+	it("is the full 1024 for the 16-layer liver", () => {
+		expect(BLOCK_WIDTH).toBe(1024);
+		expect(blockWidthFor(16, 45104 / 40288)).toBe(BLOCK_WIDTH);
+	});
+
+	it("is the full 1024 for Kartasalo's liver too - 47 slices and 5 gaps, 215 MB", () => {
+		const width = blockWidthFor(52, 31872 / 32384);
+		expect(width).toBe(1024);
+		expect(width * Math.round((width * 31872) / 32384) * 52 * 4).toBeLessThan(220e6);
+	});
+
+	it("is narrower for 260 slices, and keeps the block inside the budget", () => {
+		const width = blockWidthFor(260, 1);
+		expect(width).toBeLessThan(BLOCK_WIDTH);
+		expect(width * width * 260).toBeLessThanOrEqual(VOXEL_BUDGET);
+		expect((width + 1) * (width + 1) * 260).toBeGreaterThan(VOXEL_BUDGET);
+	});
+
+	it("never goes below what the tiler will make", () => {
+		expect(blockWidthFor(100000, 1)).toBe(32);
 	});
 });
 
@@ -193,6 +320,39 @@ describe("firstHit", () => {
 		expect(hit!.x).toBeGreaterThanOrEqual(0.6);
 		expect(hit!.x).toBeLessThan(0.62);
 	});
+
+	describe("spaced out", () => {
+		// All tissue, every layer - so anything but a gap is a hit.
+		const solid = buildVolume([picture(10, 10, PURPLE), picture(10, 10, PURPLE), picture(10, 10, PURPLE)], slices(3));
+		const spaced: Clip = { ...everything, spacing: 1 };
+
+		it("can't land in a gap - nothing's drawn there", () => {
+			// Layer 0's share is z 0-1/3, its slab the middle half: 1/12 to 3/12.
+			expect(firstHit(solid, [-1, 0.5, 0.02], [1, 0, 0], spaced)).toBeNull();
+			expect(firstHit(solid, [-1, 0.5, 0.3], [1, 0, 0], spaced)).toBeNull();
+			expect(firstHit(solid, [-1, 0.5, 0.02], [1, 0, 0], everything)).not.toBeNull();
+		});
+
+		it("lands on a slab from the side", () => {
+			expect(firstHit(solid, [-1, 0.5, 0.5], [1, 0, 0], spaced)!.layer).toBe(1);
+			expect(firstHit(solid, [-1, 0.5, 0.84], [1, 0, 0], spaced)!.layer).toBe(2);
+		});
+
+		it("doesn't step over a slab however thin it is", () => {
+			// Tissue only on the last layer, whose slab is centred at z 5/6. A gap 20
+			// slices thick leaves it 0.0159 deep - half-voxel steps of 0.05 from the
+			// front land at 0.80 and 0.85, either side of it.
+			const back = buildVolume([picture(10, 10, GLASS), picture(10, 10, GLASS), picture(10, 10, GLASS, { x: 6, y: 2, size: 3, colour: PURPLE })], slices(3));
+			const hit = firstHit(back, [0.75, 0.35, -1], down, { ...everything, spacing: 20 });
+			expect(hit!.layer).toBe(2);
+			expect(hit!.x).toBeCloseTo(0.75, 9);
+		});
+
+		it("going in from the front, lands on the first slab, not in the gap before it", () => {
+			const hit = firstHit(solid, [0.5, 0.5, -1], down, spaced);
+			expect(hit!.layer).toBe(0);
+		});
+	});
 });
 
 describe("textureRay", () => {
@@ -236,6 +396,153 @@ describe("layerZ", () => {
 
 describe("thumbnailUrl", () => {
 	it("asks the tiler for one slice at the block's width", () => {
-		expect(thumbnailUrl("/tiler", "liver", 3)).toBe("/tiler/slides/liver/thumbnail.jpg?width=512&slice=3");
+		expect(thumbnailUrl("/tiler", "liver", 3)).toBe("/tiler/slides/liver/thumbnail.jpg?width=1024&slice=3");
+	});
+});
+
+describe("detailTier", () => {
+	const liver = { width: 32384, height: 31872, tileSize: 256 };
+
+	it("is the sharpest tier that fits the budget - 1/8 of Kartasalo's liver", () => {
+		const tier = detailTier(liver, 16384);
+		expect(tier.downsample).toBe(8);
+		expect([tier.width, tier.height]).toEqual([4048, 3984]);
+		expect(tier.width * tier.height).toBeLessThanOrEqual(DETAIL_PIXELS);
+		expect([tier.cols, tier.rows]).toEqual([16, 16]);
+	});
+
+	it("and the prostate", () => {
+		const tier = detailTier({ width: 23456, height: 28896, tileSize: 256 }, 16384);
+		expect([tier.downsample, tier.width, tier.height]).toEqual([8, 2932, 3612]);
+	});
+
+	it("stays inside the GPU's biggest texture", () => {
+		expect(detailTier(liver, 2048).downsample).toBe(16);
+	});
+
+	it("takes the slide as it is when it's small enough", () => {
+		expect(detailTier({ width: 3000, height: 2000, tileSize: 256 }, 16384)).toMatchObject({ downsample: 1, width: 3000, height: 2000 });
+	});
+
+	it("falls back to the coarsest when nothing fits", () => {
+		expect(detailTier(liver, 16384, 10).z).toBe(0);
+	});
+});
+
+describe("the sharp cut face", () => {
+	const liver = { width: 32384, height: 31872, tileSize: 256 };
+	const prostate = { width: 23456, height: 28896, tileSize: 256 };
+
+	it("is only for X and Y cuts", () => {
+		expect(faceAxis("x")).toBe("x");
+		expect(faceAxis("y")).toBe("y");
+		expect(faceAxis("z")).toBeNull();
+		expect(faceAxis("diagonal")).toBeNull();
+		expect(faceAxis("none")).toBeNull();
+	});
+
+	it("is 1/8 of Kartasalo's liver: 16 tiles down each of 47 slices, 4x the block", () => {
+		const tier = faceTier(liver, "x", 47, 16384, 1008);
+		expect(tier?.downsample).toBe(8);
+		expect(faceLength(tier!, "x")).toBe(3984);
+		expect(tier!.rows * 47).toBe(752);
+		expect(tier!.rows * 47).toBeLessThanOrEqual(FACE_TILES);
+	});
+
+	it("goes coarser for more slices: 1/32 for the 260-slice prostate", () => {
+		const down = faceTier(prostate, "x", 260, 16384, 551);
+		expect([down?.downsample, faceLength(down!, "x"), down!.rows * 260]).toEqual([32, 903, 1040]);
+		const across = faceTier(prostate, "y", 260, 16384, 447);
+		expect([across?.downsample, faceLength(across!, "y"), across!.cols * 260]).toEqual([32, 733, 780]);
+	});
+
+	it("is none when nothing finer than the block fits", () => {
+		// 1000 slices of the prostate: even 1/64 is 2 tiles each, and no finer than its block.
+		expect(faceTier(prostate, "x", 1000, 16384, 551)).toBeNull();
+		expect(faceTier(liver, "x", 47, 16384, 4000)).toBeNull();
+	});
+
+	it("stays inside the GPU's biggest texture", () => {
+		expect(faceTier(liver, "x", 1, 2048, 1008)?.downsample).toBe(16);
+	});
+
+	it("is the column the cut goes through, in that tier's pixels", () => {
+		const tier = faceTier(liver, "x", 47, 16384, 1008)!;
+		expect(facePixel(tier, "x", 0.5)).toBe(2024);
+		expect(facePixel(tier, "y", 0.5)).toBe(1992);
+		// Nothing cut away: the face is the block's side, its last column.
+		expect(facePixel(tier, "x", 1)).toBe(4047);
+		expect(facePixel(tier, "x", 0)).toBeNull();
+	});
+
+	it("comes from one column of tiles for an X cut, end to end down the slide", () => {
+		const tier = faceTier(liver, "x", 47, 16384, 1008)!;
+		const tiles = faceTiles(tier, 256, "x", 2024);
+		expect(tiles).toHaveLength(16);
+		expect(tiles.every((tile) => tile.x === 7 && tile.pick === 2024 - 7 * 256 && tile.z === tier.z)).toBe(true);
+		expect(tiles.map((tile) => tile.y)).toEqual([...Array(16).keys()]);
+		expect(tiles.map((tile) => tile.at)).toEqual([...Array(16).keys()].map((i) => i * 256));
+	});
+
+	it("and one row of tiles for a Y cut, across it", () => {
+		const tier = faceTier(liver, "y", 47, 16384, 1024)!;
+		const tiles = faceTiles(tier, 256, "y", 300);
+		expect(tiles).toHaveLength(tier.cols);
+		expect(tiles.every((tile) => tile.y === 1 && tile.pick === 44)).toBe(true);
+		expect(tiles.map((tile) => tile.x)).toEqual([...Array(tier.cols).keys()]);
+	});
+});
+
+describe("detailSlice", () => {
+	// Slices 0-4, a gap before 3: layers [0, 1, 2, gap, 3, 4].
+	const layerSlice = [0, 1, 2, null, 3, 4];
+	const view: DetailView = {
+		layerSlice,
+		current: 2,
+		firstLayer: 0,
+		lastLayer: 5,
+		spacing: 0,
+		cut: "none",
+		cutPosition: 0.5,
+		cameraInFront: true,
+	};
+
+	it("solid, from the front: the front slice - it's the only one that shows", () => {
+		expect(detailSlice(view)).toBe(0);
+	});
+
+	it("solid, from behind: the back slice", () => {
+		expect(detailSlice({ ...view, cameraInFront: false })).toBe(4);
+	});
+
+	it("follows the slices drawn", () => {
+		expect(detailSlice({ ...view, firstLayer: 1 })).toBe(1);
+		expect(detailSlice({ ...view, lastLayer: 2, cameraInFront: false })).toBe(2);
+	});
+
+	it("steps past a gap layer to the next slice in", () => {
+		expect(detailSlice({ ...view, firstLayer: 3 })).toBe(3);
+		expect(detailSlice({ ...view, lastLayer: 3, cameraInFront: false })).toBe(2);
+	});
+
+	it("from behind a Z cut, the face it leaves", () => {
+		// The cut at 0.5 keeps layers 0-2.
+		expect(detailSlice({ ...view, cut: "z", cameraInFront: false })).toBe(2);
+		expect(detailSlice({ ...view, cut: "z", cutPosition: 0.75, cameraInFront: false })).toBe(3);
+		// 0.9 keeps part of the last layer, so its face is there.
+		expect(detailSlice({ ...view, cut: "z", cutPosition: 0.9, cameraInFront: false })).toBe(4);
+		// From the front a Z cut changes nothing.
+		expect(detailSlice({ ...view, cut: "z" })).toBe(0);
+	});
+
+	it("spaced out: the slice the 2D view's on, wherever the camera is", () => {
+		expect(detailSlice({ ...view, spacing: 1 })).toBe(2);
+		expect(detailSlice({ ...view, spacing: 1, current: 4, cameraInFront: false })).toBe(4);
+	});
+
+	it("nothing when that slice isn't drawn, or nothing is", () => {
+		expect(detailSlice({ ...view, spacing: 1, firstLayer: 4 })).toBeNull();
+		expect(detailSlice({ ...view, cut: "z", cutPosition: 0, cameraInFront: false })).toBeNull();
+		expect(detailSlice({ ...view, firstLayer: 3, lastLayer: 3 })).toBeNull();
 	});
 });

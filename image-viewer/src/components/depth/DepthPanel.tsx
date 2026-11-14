@@ -2,8 +2,10 @@ import type { ChangeEvent } from "react";
 import { useSliceContext } from "../../context/SliceContext";
 import { useNavigationContext } from "../../context/NavigationContext";
 import { gapsAround, sliceLabel } from "./slices";
-import { ASSUMED_SECTION_MICRONS, type CutAxis } from "./volume";
+import { spacingText, type CutAxis } from "./volume";
 import "./DepthPanel.css";
+
+const MARKS_WITH_GAPS = 60;
 
 const CUTS: { axis: CutAxis; label: string }[] = [
 	{ axis: "none", label: "None" },
@@ -22,6 +24,8 @@ function numberFrom(event: ChangeEvent<HTMLInputElement>): number | null {
 // the slide has more than one slice (see Toolbar).
 function DepthPanel() {
 	const { slices, current, defaultSlice, showSlice, step, view, setView, settings, changeSettings, resetCamera } = useSliceContext();
+	// Past this, a mark per slice with space between doesn't fit, so they close up.
+	const dense = slices.length > MARKS_WITH_GAPS;
 	const { following, mode } = useNavigationContext();
 	// In Present the host moves everyone - the same lock as panning.
 	const locked = following && mode === "present";
@@ -58,7 +62,7 @@ function DepthPanel() {
 					aria-valuetext={sliceLabel(current, count)}
 				/>
 				{/* One mark per slice, under the slider. A gap is a break in the row. */}
-				<div className="depth-panel-marks" aria-hidden="true">
+				<div className={`depth-panel-marks${dense ? " depth-panel-marks--dense" : ""}`} aria-hidden="true">
 					{slices.map((slice) => (
 						<span
 							key={slice.index}
@@ -186,7 +190,7 @@ function DepthPanel() {
 					<div className="depth-panel-slider">
 						<div className="depth-panel-slider-header">
 							<span>Depth</span>
-							<span className="depth-panel-value">x{settings.stretch.toFixed(2).replace(/\.?0+$/, "")}</span>
+							<span className="depth-panel-value">{settings.trueDepth ? "True" : `x${settings.stretch.toFixed(2).replace(/\.?0+$/, "")}`}</span>
 						</div>
 						<input
 							type="range"
@@ -197,7 +201,30 @@ function DepthPanel() {
 							aria-label="Depth"
 							onChange={(event) => {
 								const value = numberFrom(event);
-								if (value !== null) changeSettings({ stretch: value });
+								if (value !== null) changeSettings({ stretch: value, trueDepth: false });
+							}}
+						/>
+						<label className="depth-panel-check">
+							<input type="checkbox" checked={settings.trueDepth} onChange={(event) => changeSettings({ trueDepth: event.target.checked })} />
+							True depth - as thick as the sections are
+						</label>
+					</div>
+
+					<div className="depth-panel-slider">
+						<div className="depth-panel-slider-header">
+							<span>Gap between slices</span>
+							<span className="depth-panel-value">{spacingText(settings.spacing)}</span>
+						</div>
+						<input
+							type="range"
+							min={0}
+							max={8}
+							step={0.5}
+							value={settings.spacing}
+							aria-label="Gap between slices"
+							onChange={(event) => {
+								const value = numberFrom(event);
+								if (value !== null) changeSettings({ spacing: value });
 							}}
 						/>
 					</div>

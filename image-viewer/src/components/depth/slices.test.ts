@@ -26,9 +26,17 @@ describe("volumes", () => {
 	});
 
 	it("come from the tiler, or a flat slide from an older one", () => {
-		expect(readSlices({ slices: LIVER, defaultSlice: 7 })).toEqual({ slices: LIVER, defaultSlice: 7 });
-		expect(readSlices({})).toEqual({ slices: FLAT, defaultSlice: 0 });
-		expect(readSlices({ slices: [] })).toEqual({ slices: FLAT, defaultSlice: 0 });
+		expect(readSlices({ slices: LIVER, defaultSlice: 7 })).toEqual({ slices: LIVER, defaultSlice: 7, sectionMicrons: null });
+		expect(readSlices({})).toEqual({ slices: FLAT, defaultSlice: 0, sectionMicrons: null });
+		expect(readSlices({ slices: [] })).toEqual({ slices: FLAT, defaultSlice: 0, sectionMicrons: null });
+	});
+
+	it("carry how thick the sections are, when the volume says and it's real", () => {
+		expect(readSlices({ slices: LIVER, sectionMicrons: 5 }).sectionMicrons).toBe(5);
+		expect(readSlices({ slices: LIVER, sectionMicrons: null }).sectionMicrons).toBeNull();
+		expect(readSlices({ slices: LIVER, sectionMicrons: 0 }).sectionMicrons).toBeNull();
+		expect(readSlices({ slices: LIVER, sectionMicrons: -5 }).sectionMicrons).toBeNull();
+		expect(readSlices({ slices: LIVER, sectionMicrons: Number.NaN }).sectionMicrons).toBeNull();
 	});
 
 	it("open on the first slice if the default isn't one of them", () => {

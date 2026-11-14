@@ -1,10 +1,12 @@
-import { buildVolume, thumbnailUrl, type SliceImage, type Volume } from "./volume";
+import { keepRecent } from "./keepRecent";
+import { addSlice, emptyVolume, thumbnailUrl, type SliceImage, type Volume } from "./volume";
 import type { Slice } from "./slices";
 
 // Fetches each slice's picture from the tiler and stacks them (see
-// buildVolume). Kept per slide for as long as the page is open, so going
-// back and forth between 2D and 3D doesn't fetch them again - the tiler
-// says they can be cached for a day anyway.
+// buildVolume). The last few are kept, so going back and forth between 2D
+// and 3D doesn't fetch them again - the tiler says they can be cached for a
+// day anyway. Only a few: a block can be 256 MB.
+const KEEP = 2;
 const loaded = new Map<string, Promise<Volume>>();
 
 async function slicePicture(url: string): Promise<SliceImage> {
@@ -22,24 +24,39 @@ async function slicePicture(url: string): Promise<SliceImage> {
 	return { data, width, height };
 }
 
-function loadVolume(tilerUrl: string, slideId: string, slices: readonly Slice[], onProgress?: (done: number, total: number) => void): Promise<Volume> {
-	const key = `${tilerUrl}|${slideId}|${slices.length}`;
+function loadVolume(
+	tilerUrl: string,
+	slideId: string,
+	slices: readonly Slice[],
+	width: number,
+	onProgress?: (done: number, total: number) => void,
+): Promise<Volume> {
+	const key = `${tilerUrl}|${slideId}|${slices.length}|${width}`;
 	const cached = loaded.get(key);
 	if (cached) {
+		keepRecent(loaded, key, cached, KEEP);
 		onProgress?.(slices.length, slices.length);
 		return cached;
 	}
 	let done = 0;
+	// Each picture goes into the block as it comes in and is let go, rather
+	// than all of them being held until the last arrives - at 1024 wide that's
+	// as much again as the block.
+	let volume: Volume | null = null;
 	const promise = Promise.all(
 		slices.map((slice) =>
-			slicePicture(thumbnailUrl(tilerUrl, slideId, slice.index)).then((picture) => {
+			slicePicture(thumbnailUrl(tilerUrl, slideId, slice.index, width)).then((picture) => {
+				volume ??= emptyVolume(picture.width, picture.height, slices);
+				addSlice(volume, slice.index, picture);
 				done++;
 				onProgress?.(done, slices.length);
-				return picture;
 			}),
 		),
-	).then((pictures) => buildVolume(pictures, slices));
-	loaded.set(key, promise);
+	).then(() => {
+		if (!volume) throw new Error("no slices");
+		return volume;
+	});
+	keepRecent(loaded, key, promise, KEEP);
 	// A failure shouldn't stick - the next try fetches again.
 	promise.catch(() => loaded.delete(key));
 	return promise;

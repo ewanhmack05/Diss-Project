@@ -16,6 +16,17 @@
 	height: 100%;
 }
 
+/* A note in the corner while the slice being looked at loads sharp. */
+.volume-view-sharpening {
+	position: absolute;
+	left: 12px;
+	bottom: 12px;
+	color: var(--chrome-text-secondary);
+	font-family: var(--sans);
+	font-size: 0.85em;
+	pointer-events: none;
+}
+
 .volume-view-status {
 	position: absolute;
 	inset: 0;

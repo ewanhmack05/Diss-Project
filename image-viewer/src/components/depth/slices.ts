@@ -121,11 +121,19 @@ function wheelStepper(perSlice = WHEEL_PER_SLICE, resetMs = WHEEL_RESET_MS) {
 
 // What the tiler's /slides/{id} says, made safe: an older tiler sends no
 // slices, and a default that isn't one of them falls back to the first.
-function readSlices(metadata: { slices?: Slice[]; defaultSlice?: number }): { slices: Slice[]; defaultSlice: number } {
+// sectionMicrons is how thick the sections were cut, if the volume says -
+// null otherwise, and for anything that isn't a positive number.
+function readSlices(metadata: { slices?: Slice[]; defaultSlice?: number; sectionMicrons?: number | null }): {
+	slices: Slice[];
+	defaultSlice: number;
+	sectionMicrons: number | null;
+} {
 	const slices = metadata.slices && metadata.slices.length > 0 ? metadata.slices : FLAT;
 	const fallback = metadata.defaultSlice ?? 0;
 	const defaultSlice = fallback >= 0 && fallback < slices.length ? fallback : 0;
-	return { slices, defaultSlice };
+	const thickness = metadata.sectionMicrons;
+	const sectionMicrons = typeof thickness === "number" && Number.isFinite(thickness) && thickness > 0 ? thickness : null;
+	return { slices, defaultSlice, sectionMicrons };
 }
 
 export { FLAT, NEIGHBOURS, isVolume, clampSlice, sliceWindow, sliceBaseUrl, sliceUrlFrom, sliceLabel, gapsAround, keyStep, wheelStep, wheelStepper, readSlices };
