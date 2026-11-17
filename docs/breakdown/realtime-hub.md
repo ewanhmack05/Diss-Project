@@ -530,7 +530,7 @@ connections. If Grafana isn't running nothing breaks.
 | Hub              | A SignalR class whose public methods browsers can call, and which can call methods back on browsers                 |
 | Group            | A named set of connections. Sending to a group sends to everyone in it                                              |
 | Connection id    | A unique id SignalR gives each live connection. New on every reconnect                                              |
-| Viewport         | What part of the slide someone can see: centre, zoom (resolution), rotation and bounding box                        |
+| Viewport         | What part of the slide someone can see: centre, zoom (resolution), rotation and bounding box, and on a volume `z`, the slice |
 | Op               | Short for operation. One create, update or delete of an annotation or cell count                                    |
 | Last write wins  | When two changes clash, the later one replaces the earlier one                                                      |
 | CRDT             | Conflict-free replicated data type. Edits from different people merge in any order and everyone ends up the same    |

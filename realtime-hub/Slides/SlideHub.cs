@@ -114,6 +114,7 @@ public partial class SlideHub(SlideRooms rooms, ISessionAccess sessions, ILogger
     // Clients throttle this to ~10/sec, the hub just passes it on.
     public async Task UpdateViewport(Viewport viewport)
     {
+        if (viewport.Z is < 0) throw new HubException("viewport.z can't be negative");
         var me = rooms.SetViewport(Context.ConnectionId, viewport) ?? throw NotJoined();
         await Clients.OthersInGroup(GroupName(me.RoomId))
             .ViewportUpdated(new ViewportUpdate(Context.ConnectionId, viewport));

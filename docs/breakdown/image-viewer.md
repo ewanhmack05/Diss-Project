@@ -768,6 +768,22 @@ The other tabs:
 The host can also **ask** everyone, or one person, to look where they are or
 open a panel. It comes up as a toast with Go / Not now.
 
+On a **volume** the viewport carries the slice (`z`), so all of this works in
+depth too:
+
+- Follow and Present put you on the host's slice as well as their view.
+  Stepping slices yourself breaks Follow, like panning; in Present the
+  Depth tab's slice controls are off and you're held on the host's
+  (`followSlice` in `realtime.ts`, used by `MapNode`).
+- Someone on another slice has a dashed box labelled with it - "Bob Hughes ·
+  slice 6" - on the map and the overview (`sliceNote`). Same slice, a solid
+  box as before.
+- The Active list says which slice each person's on. Not your own row, and
+  not the Users tab, which only has app-wide presence.
+- Go on a "look here" takes you to the host's slice too.
+
+See [volume-live.md](../volume-live.md) for the rest of working together in 3D.
+
 Everyone sends a small **screen** message (open panels, tabs, adjustments,
 what's being viewed or edited) whenever it changes, which is what Present
 copies.

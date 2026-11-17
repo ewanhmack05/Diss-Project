@@ -42,7 +42,9 @@ public record HostRequest(string FromConnectionId, string FromName, string Kind,
 // OpenLayers view state. Extent is the view box before rotation, in map
 // units - turn it by Rotation round Center to get what's actually on screen.
 // Saves everyone else working it out from a screen size they don't know.
-public record Viewport(double[] Center, double Resolution, double Rotation, double[] Extent);
+// Z is which slice they're on when the slide's a volume - null on a flat
+// slide, and from a viewer from before slices were sent.
+public record Viewport(double[] Center, double Resolution, double Rotation, double[] Extent, int? Z = null);
 
 public record ViewportUpdate(string ConnectionId, Viewport Viewport);
 

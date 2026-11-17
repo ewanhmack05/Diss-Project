@@ -89,4 +89,16 @@ describe("splitActive", () => {
 		expect(splitActive(activeUsers(null, [person("g", { guest: true })])).signedIn).toEqual([]);
 		expect(splitActive(activeUsers(null, [person("a")])).guests).toEqual([]);
 	});
+
+	it("says which slice each person's on, from their first tab that's sent one", () => {
+		const viewport = (z: number | null) => ({ center: [0, 0] as [number, number], resolution: 1, rotation: 0, extent: [0, 0, 1, 1] as [number, number, number, number], z });
+		const others = [
+			person("ann", { connectionId: "a1", viewport: null }),
+			person("ann", { connectionId: "a2", viewport: viewport(4) }),
+			person("bob", { viewport: viewport(0) }),
+			person("cy", { viewport: viewport(null) }),
+		];
+		const users = activeUsers(null, others);
+		expect(Object.fromEntries(users.map((u) => [u.userId, u.slice]))).toEqual({ ann: 4, bob: 0, cy: null });
+	});
 });

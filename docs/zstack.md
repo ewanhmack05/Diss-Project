@@ -459,7 +459,9 @@ to look.
 3. **Step through slices, read only.** Done - tiler catalog, metadata and
    route, and the viewer's Depth tab, 2D only. See the
    [viewer README](../image-viewer/README.md#tools).
-4. **Live.** `Z` on `Viewport`, Follow and Present on the host's slice.
+4. **Live.** Done - `Z` on `Viewport`, Follow and Present on the host's
+   slice, boxes and the Active list saying the slice. See
+   [volume-live.md](volume-live.md#51-phase-1-built).
 5. **Annotate at a depth.** `Z` on annotations and dots, conflicts, history
    lines that say which slice moved where.
 6. **3D view.** Done - the Depth tab's 2D / 3D switch, a ray-marched block
@@ -469,7 +471,8 @@ to look.
    make, with the slice being looked at drawn sharp from the slide's own
    tiles (about 3.7 um a pixel on Kartasalo's sets). See the
    [viewer README](../image-viewer/README.md#tools).
-7. **More 3D.** Markers, camera and cut shared live, Follow in 3D.
+7. **More 3D.** Markers, camera and cut shared live, Follow in 3D. Drafted
+   with phase 4 in [volume-live.md](volume-live.md).
 8. **Bigger data.** PCa_Bx_3Dpathology for true 3D, HyReCo for mixed stains
    and measured registration.
 

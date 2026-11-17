@@ -380,8 +380,10 @@ function labelledViewportStyle(feature: FeatureLike, outlineWidth: number, fontS
 	const pointed = emphasis === "pointed";
 	const strokeColour = emphasis === "faded" ? withAlpha(colour, FADED_VIEWPORT_ALPHA) : colour;
 	const zIndex = pointed ? 1 : 0;
+	// Dashed when they're on another slice of a volume.
+	const lineDash = feature.get("otherSlice") === true ? [6, 4] : undefined;
 	const outline = new Style({
-		stroke: new Stroke({ color: strokeColour, width: pointed ? outlineWidth * 2 : outlineWidth }),
+		stroke: new Stroke({ color: strokeColour, width: pointed ? outlineWidth * 2 : outlineWidth, lineDash }),
 		fill: pointed ? new Fill({ color: withAlpha(colour, 0.12) }) : undefined,
 		zIndex,
 	});

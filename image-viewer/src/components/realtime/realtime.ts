@@ -15,6 +15,9 @@ interface Viewport {
 	// The view box before rotation - centre ± half the screen size, in map
 	// units. Turn it by `rotation` round the centre to get what's on screen.
 	extent: [number, number, number, number];
+	// Which slice, when the slide's a volume. Null or missing on a flat slide,
+	// and from a viewer from before slices were sent.
+	z?: number | null;
 }
 
 interface Participant {
@@ -389,6 +392,26 @@ function followView(host: Viewport, size: [number, number]): Pick<Viewport, "cen
 	return { center: host.center, resolution: Number.isFinite(resolution) && resolution > 0 ? resolution : host.resolution, rotation: host.rotation };
 }
 
+// What following does about the slice, each time the host's or yours
+// changes. hostBefore is the host's slice the last time this was asked - a
+// change in it means the host moved, otherwise it's you that did. In Follow,
+// stepping away yourself breaks it, as panning does; in Present it puts you
+// back.
+type SliceFollow = "stay" | "go" | "break";
+
+function followSlice(host: number | null | undefined, mine: number, hostBefore: number | null, locked: boolean): SliceFollow {
+	if (host === null || host === undefined || host === mine) return "stay";
+	if (host !== hostBefore) return "go";
+	return locked ? "go" : "break";
+}
+
+// What someone's box says about their slice: nothing when you're on the same
+// one, or either of you isn't on a volume. Slices are shown from 1.
+function sliceNote(theirs: number | null | undefined, mine: number, volume: boolean): string | null {
+	if (!volume || theirs === null || theirs === undefined || theirs === mine) return null;
+	return `slice ${theirs + 1}`;
+}
+
 type ViewState = Pick<Viewport, "center" | "resolution" | "rotation">;
 
 // Whether the view is still where following put it - so something else
@@ -493,6 +516,8 @@ export {
 	sketchFor,
 	leaderOf,
 	followView,
+	followSlice,
+	sliceNote,
 	sameView,
 	panelChanges,
 	tabChanges,
@@ -514,6 +539,7 @@ export type {
 	Viewport,
 	ViewportDisplay,
 	ViewState,
+	SliceFollow,
 	Participant,
 	NavigationMode,
 	Screen,

@@ -148,7 +148,8 @@ type Screen = {
 type ScreenUpdate = { connectionId: string; screen: Screen };
 // extent is the view box before rotation (centre ± half the screen size, in
 // map units) - turn it by rotation round the centre to get what's on screen.
-type Viewport = { center: [number, number]; resolution: number; rotation: number; extent: [number, number, number, number] };
+// z is the slice when the slide's a volume, null (or missing) on a flat one.
+type Viewport = { center: [number, number]; resolution: number; rotation: number; extent: [number, number, number, number]; z?: number | null };
 type ViewportUpdate = { connectionId: string; viewport: Viewport };
 type Sketch = { tool: string; data: unknown }; // tool: 'annotation', 'ruler' (stays up once done, until cleared) or 'cellCount' (the host's count while presenting)
 type SketchUpdate = { connectionId: string; tool: string; sketch: Sketch | null };

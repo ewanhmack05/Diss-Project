@@ -52,7 +52,17 @@ import { pixelDistance, physicalDistanceMicrons, formatDistanceMicrons, formatDi
 import { parseCellCountDots, dotsFromHistory } from "./cell-count/CellCountDots";
 import { computeViewedCellCountExtent } from "./cell-count/CellCountView";
 import { compareCounts } from "./cell-count/comparison/compare";
-import { followView, sameView, viewportDisplay, viewportFrom, viewportRing, watchView, type ViewState } from "./realtime/realtime";
+import {
+	followSlice,
+	followView,
+	sameView,
+	sliceNote,
+	viewportDisplay,
+	viewportFrom,
+	viewportRing,
+	watchView,
+	type ViewState,
+} from "./realtime/realtime";
 import {
 	annotationSketch,
 	remoteSketchFeatures,
@@ -159,7 +169,16 @@ function MapNode() {
 		useAnnotationStoreContext();
 	const { activeTool, colour, lineThickness, lineStyle, pending, setPending, quickDraw } = useDrawContext();
 	const { rotationDegrees, setRotationDegrees, resetRotation } = useRotationContext();
-	const { slices, current: currentSlice, setSlices, step: stepSlice, view: depthView, lookAt: depthLookAt } = useSliceContext();
+	const {
+		slices,
+		current: currentSlice,
+		setSlices,
+		step: stepSlice,
+		showSlice,
+		volume,
+		view: depthView,
+		lookAt: depthLookAt,
+	} = useSliceContext();
 	// The slide's size, for the 3D view - set with each slide.
 	const [slideSize, setSlideSize] = useState<{ width: number; height: number; mppX: number | null; tileSize: number } | null>(null);
 	const { setLastMeasurement, clearSignal: rulerClearSignal } = useRulerContext();
@@ -595,8 +614,10 @@ function MapNode() {
 
 	useMapSelection(mapRef, mapVersion, annotationsSource, annotations, annotationsVisible);
 
-	// Tell the hub where you are whenever the view moves or the window
-	// resizes. The context throttles it and resends it after a reconnect.
+	// Tell the hub where you are whenever the view moves, the window resizes
+	// or you step to another slice. The context throttles it and resends it
+	// after a reconnect.
+	const sentSlice = volume ? currentSlice : null;
 	useEffect(() => {
 		const map = mapRef.current;
 		if (!map) return;
@@ -607,12 +628,12 @@ function MapNode() {
 			const resolution = view.getResolution();
 			const size = map.getSize();
 			if (!center || resolution === undefined || !size) return;
-			sendViewport(viewportFrom([center[0], center[1]], resolution, view.getRotation(), [size[0], size[1]]));
+			sendViewport({ ...viewportFrom([center[0], center[1]], resolution, view.getRotation(), [size[0], size[1]]), z: sentSlice });
 		};
 
 		send();
 		return watchView(view, map, send);
-	}, [mapVersion, sendViewport]);
+	}, [mapVersion, sendViewport, sentSlice]);
 
 	// Follow me and Present - keep the view on the host's (see
 	// NavigationContext). Fitted to your screen, so you see roughly what they
@@ -661,8 +682,23 @@ function MapNode() {
 		};
 	}, [leaderViewport, locked, breakAway, mapVersion]);
 
+	// And the host's slice, on a volume (see followSlice). hostSliceRef is the
+	// host's slice last time round, to tell their step from yours.
+	const leaderSlice = following && volume ? (leader?.viewport?.z ?? null) : null;
+	const hostSliceRef = useRef<number | null>(null);
+	useEffect(() => {
+		if (leaderSlice === null) {
+			hostSliceRef.current = null;
+			return;
+		}
+		const action = followSlice(leaderSlice, currentSlice, hostSliceRef.current, locked);
+		hostSliceRef.current = leaderSlice;
+		if (action === "go") showSlice(leaderSlice);
+		else if (action === "break") breakAway();
+	}, [leaderSlice, currentSlice, locked, showSlice, breakAway]);
+
 	// Said yes to the host's "look here" - glide to roughly what they saw,
-	// fitted to your screen like following is.
+	// fitted to your screen like following is, on their slice.
 	useEffect(() => {
 		const map = mapRef.current;
 		const size = map?.getSize();
@@ -670,6 +706,15 @@ function MapNode() {
 		const target = followView(lookAt.viewport, [size[0], size[1]]);
 		glideTo(map, target, setRotationDegrees);
 	}, [lookAt]);
+
+	// And onto the slice they were on. Once for each request, so the slide
+	// turning out to be a volume later doesn't replay an old one.
+	const lookedAtRef = useRef<number | null>(null);
+	useEffect(() => {
+		if (!lookAt || lookedAtRef.current === lookAt.id) return;
+		lookedAtRef.current = lookAt.id;
+		if (volume && typeof lookAt.viewport.z === "number") showSlice(lookAt.viewport.z);
+	}, [lookAt, volume, showSlice]);
 
 	// Something sent being looked at: drawn, and the map goes there once for each.
 	useEffect(() => {
@@ -703,13 +748,17 @@ function MapNode() {
 				const display = viewportDisplay(participant.userId, pointedAt, viewportsShown, large, others);
 				if (!participant.viewport || display === "hidden") return [];
 				const feature = new Feature({ geometry: new Polygon([viewportRing(participant.viewport)]) });
+				// On another slice, dashed and saying which - they're looking at
+				// different tissue in the same place.
+				const elsewhere = sliceNote(participant.viewport.z, currentSlice, volume);
 				feature.set("colour", participant.colour);
-				feature.set("label", participant.displayName);
+				feature.set("label", elsewhere ? `${participant.displayName} · ${elsewhere}` : participant.displayName);
+				feature.set("otherSlice", !!elsewhere);
 				feature.set("emphasis", display);
 				return [feature];
 			}),
 		);
-	}, [others, large, pointedAt, viewportsShown]);
+	}, [others, large, pointedAt, viewportsShown, currentSlice, volume]);
 
 	// Redraw what everyone else is mid-drawing whenever it changes.
 	useEffect(() => {
@@ -1638,7 +1687,6 @@ function MapNode() {
 
 	// PageUp/PageDown and Shift+wheel move through a volume's slices. Not in
 	// Present - the host's moving everyone, the same as panning is locked.
-	const volume = isVolume(slices);
 	useEffect(() => {
 		const element = mapElement.current;
 		if (!volume || locked || !element) return;
