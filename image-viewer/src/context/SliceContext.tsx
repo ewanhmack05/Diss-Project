@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState, type
 import { clampSlice, FLAT, isVolume, type Slice } from "../components/depth/slices";
 import type { CutAxis } from "../components/depth/volume";
 import { useEmitEvent } from "./EventContext";
+import type { Camera } from "../components/realtime/realtime";
 
 type DepthView = "2d" | "3d";
 
@@ -64,6 +65,12 @@ interface SliceContextValue {
 	lookAt: { x: number; y: number; id: number } | null;
 	// A click in the 3D view: that slice, that place, in 2D.
 	openInTwoD: (slice: number, x: number, y: number) => void;
+	// Your 3D camera in block units, as the 3D view last said - null out of
+	// 3D. Kept out of state so turning the block doesn't re-render everything
+	// that reads this; onCamera hears each change (the map sends it on).
+	reportCamera: (camera: Camera | null) => void;
+	cameraNow: () => Camera | null;
+	onCamera: (listener: () => void) => () => void;
 }
 
 const SliceContext = createContext<SliceContextValue | null>(null);
@@ -127,6 +134,20 @@ function SliceContextProvider({ children }: { children: ReactNode }) {
 	const changeSettings = useCallback((change: Partial<VolumeSettings>) => setSettings((now) => ({ ...now, ...change })), []);
 	const resetCamera = useCallback(() => setCameraReset((count) => count + 1), []);
 
+	const cameraRef = useRef<Camera | null>(null);
+	const cameraListeners = useRef(new Set<() => void>());
+	const reportCamera = useCallback((camera: Camera | null) => {
+		cameraRef.current = camera;
+		cameraListeners.current.forEach((listener) => listener());
+	}, []);
+	const cameraNow = useCallback(() => cameraRef.current, []);
+	const onCamera = useCallback((listener: () => void) => {
+		cameraListeners.current.add(listener);
+		return () => {
+			cameraListeners.current.delete(listener);
+		};
+	}, []);
+
 	const openInTwoD = useCallback(
 		(slice: number, x: number, y: number) => {
 			showSlice(slice);
@@ -154,8 +175,30 @@ function SliceContextProvider({ children }: { children: ReactNode }) {
 			resetCamera,
 			lookAt,
 			openInTwoD,
+			reportCamera,
+			cameraNow,
+			onCamera,
 		}),
-		[slices, defaultSlice, current, sectionMicrons, setSlices, showSlice, step, view, setView, settings, changeSettings, cameraReset, resetCamera, lookAt, openInTwoD],
+		[
+			slices,
+			defaultSlice,
+			current,
+			sectionMicrons,
+			setSlices,
+			showSlice,
+			step,
+			view,
+			setView,
+			settings,
+			changeSettings,
+			cameraReset,
+			resetCamera,
+			lookAt,
+			openInTwoD,
+			reportCamera,
+			cameraNow,
+			onCamera,
+		],
 	);
 	return <SliceContext.Provider value={value}>{children}</SliceContext.Provider>;
 }

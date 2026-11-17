@@ -178,6 +178,8 @@ function MapNode() {
 		volume,
 		view: depthView,
 		lookAt: depthLookAt,
+		cameraNow,
+		onCamera,
 	} = useSliceContext();
 	// The slide's size, for the 3D view - set with each slide.
 	const [slideSize, setSlideSize] = useState<{ width: number; height: number; mppX: number | null; tileSize: number } | null>(null);
@@ -614,10 +616,11 @@ function MapNode() {
 
 	useMapSelection(mapRef, mapVersion, annotationsSource, annotations, annotationsVisible);
 
-	// Tell the hub where you are whenever the view moves, the window resizes
-	// or you step to another slice. The context throttles it and resends it
-	// after a reconnect.
+	// Tell the hub where you are whenever the view moves, the window resizes,
+	// you step to another slice or turn the block in 3D. The context throttles
+	// it and resends it after a reconnect.
 	const sentSlice = volume ? currentSlice : null;
+	const inThreeD = volume && depthView === "3d";
 	useEffect(() => {
 		const map = mapRef.current;
 		if (!map) return;
@@ -628,12 +631,21 @@ function MapNode() {
 			const resolution = view.getResolution();
 			const size = map.getSize();
 			if (!center || resolution === undefined || !size) return;
-			sendViewport({ ...viewportFrom([center[0], center[1]], resolution, view.getRotation(), [size[0], size[1]]), z: sentSlice });
+			sendViewport({
+				...viewportFrom([center[0], center[1]], resolution, view.getRotation(), [size[0], size[1]]),
+				z: sentSlice,
+				camera: inThreeD ? cameraNow() : null,
+			});
 		};
 
 		send();
-		return watchView(view, map, send);
-	}, [mapVersion, sendViewport, sentSlice]);
+		const stopWatching = watchView(view, map, send);
+		const stopCamera = onCamera(send);
+		return () => {
+			stopWatching();
+			stopCamera();
+		};
+	}, [mapVersion, sendViewport, sentSlice, inThreeD, cameraNow, onCamera]);
 
 	// Follow me and Present - keep the view on the host's (see
 	// NavigationContext). Fitted to your screen, so you see roughly what they

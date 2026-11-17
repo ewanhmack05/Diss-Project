@@ -19,6 +19,16 @@ interface Viewport {
 	// Which slice, when the slide's a volume. Null or missing on a flat slide,
 	// and from a viewer from before slices were sent.
 	z?: number | null;
+	// The 3D view's camera, while they're in it - see Camera. Null in 2D.
+	camera?: Camera | null;
+}
+
+// A 3D view's camera, in block units: each axis as a fraction of the block,
+// its middle at 0. fov is vertical, in degrees. See depth/cameras.ts.
+interface Camera {
+	position: [number, number, number];
+	target: [number, number, number];
+	fov: number;
 }
 
 interface Participant {
@@ -560,6 +570,7 @@ export {
 };
 export type {
 	Viewport,
+	Camera,
 	ViewportDisplay,
 	ViewState,
 	SliceFollow,

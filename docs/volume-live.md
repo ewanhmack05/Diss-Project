@@ -2,8 +2,9 @@
 
 A draft of what a live session does when someone's in the Depth tab's 3D
 view. Phases 4 and 7 of [zstack.md](zstack.md#9-phases), worked out in
-detail. **Phases 1 and 2 are built** (the slice live, and who's in 3D) - see
-[phase 1](#51-phase-1-built) and [phase 2](#52-phase-2-built). The rest is
+detail. **Phases 1 to 3 are built** (the slice live, who's in 3D, and
+other people's cameras) - see [phase 1](#51-phase-1-built),
+[phase 2](#52-phase-2-built) and [phase 3](#53-phase-3-built). The rest is
 design.
 
 ## Contents
@@ -193,9 +194,11 @@ axis, and each viewer turns it back into its own world space. A follower
 with a different stretch then looks at the same tissue from the same side,
 just with the depth drawn differently.
 
-**Size.** A camera is seven numbers - about 150 bytes as JSON with the rest
-of the viewport. At ten a second for ten people that's 15 KB/s through the
-hub, the same order as viewports today.
+**Size.** A camera is seven numbers. Measured in phase 3: a viewport is
+about 181 bytes of JSON in 2D, 187 with the slice and 295 with a camera, so
+ten people turning at ten a second is about 30 KB/s through the hub against
+18 KB/s panning in 2D. (This draft first guessed 150 bytes; the numbers are
+written out in full, which is where the rest goes.)
 
 ### Late joiners
 
@@ -287,6 +290,58 @@ no cut back, and his controls on again. No failed requests on either page.
 nothing from a viewer that doesn't send it) and the Active list's 3D flag
 across two tabs. Viewer: 1069 in all.
 
+### 5.3 Phase 3, built
+
+`Viewport.Camera` in the hub (position, target, field of view; three finite
+numbers each and a field of view between 0 and 180, or it's refused) and the
+viewer. The 3D view reports your camera in block units as you turn it, and
+again when the block changes size; `SliceContext` keeps it out of React
+state, so turning doesn't re-render the viewer, and the map sends it with
+the viewport. The shapes are worked out in `depth/cameras.ts`.
+
+| Draft said | Built | Why |
+| --- | --- | --- |
+| Others' cameras as a small pyramid in their colour, named | As designed, from their field of view, at a 16:10 screen | Screens differ; the shape only has to say which way they look |
+| Faded when still for a while | After 30 s still, see-through, name dimmed | |
+| Others' 2D view boxes on their slice | As designed, rotation and all | |
+| Their cut as a thin outline | As designed, faint, any of X, Y, Z and the diagonal | |
+| Past six cameras, only the host's and anyone who's moved in the last minute | As designed | |
+| Go there from a camera or box | Click their name. A camera moves yours to theirs; a 2D box opens their slice and place in 2D | Someone in 2D has no camera to go to |
+
+**Checked by hand**, two tabs on the liver volume plus simulated people:
+the other tab's camera drawn as a pyramid to the side of the block, named;
+Go there putting the camera exactly where theirs was; the other tab
+stretching its block's depth to twice and its camera, unmoved, being drawn at
+half the depth in the first tab's block - the same place against the tissue;
+a diagonal cut drawn as a closed six-sided outline; a 2D tab drawn as a box
+on its slice, and Go there on it opening slice 3 in 2D. (Halfway through,
+the second tab's sign-in quietly renewed as the first person's - both tabs
+share Keycloak's sign-in cookie - so some of this was one person in two
+tabs. Two connections either way, which is what's drawn.)
+
+**Measured**, with `simulate_session.py --three-d` putting simulated people in
+3D, each on a slice and going round the block (see the
+[scripts README](../scripts/README.md#simulated-people-in-a-session)): a
+whole frame of the 3D view, drawn and read back so the GPU has to finish,
+at 1351 x 1253:
+
+| Others in the block | Median | 95th percentile |
+| --- | --- | --- |
+| 1 (a 2D box) | 1.1 ms | 1.5 ms |
+| 5 cameras and the box | 1.1 ms | 1.5 ms |
+| 20 cameras and the box | 1.1 ms | 1.5 ms |
+
+The cameras are a few lines each against a ray-marched block, so they cost
+nothing that shows. With 20 moving twice a second for ten seconds there was
+no long task on the main thread besides the timing loop itself.
+
+**Tests.** Hub: the camera relayed and given to late joiners, and five bad
+ones refused (137 in all). Viewer: `cameras.ts` - block units both ways and
+against different depths, the pyramid's shape, a 2D box on its slice, cut
+outlines for every axis going round in order, who's drawn past six, fading
+(18 tests; 1087 in all). Scripts: the orbiting camera and the 3D screen (179
+in all).
+
 ## 6. How it's measured
 
 - **Follower lag on the slice** (phase 1): from the host stepping a slice to
@@ -334,7 +389,9 @@ across two tabs. Viewer: 1069 in all.
 | The 3D view's camera is a three.js `PerspectiveCamera` with `OrbitControls` | `VolumeView.tsx` | Checked |
 | The 3D view draws your own slice as a frame | `sliceFrame` in the scene in `VolumeView.tsx` | Checked |
 | The 2D map animates when sent somewhere | `view.animate` with a 600 ms duration in `MapNode.tsx` | Checked |
-| About 150 bytes per viewport with a camera | Estimated from the field count, not measured | **To measure** in phase 3 |
+| A viewport is about 295 bytes with a camera, 181 in 2D | 200 of the simulator's viewports, sized as compact JSON | Checked - corrected from a guess of 150 |
+| Phase 3: 20 other cameras don't slow the 3D view | A frame timed drawn and read back, 0, 5 and 20 simulated people in 3D (5.3) | Checked |
+| Phase 3: a camera's in the same place against blocks stretched differently | Two tabs, one at twice the depth (5.3), and a unit test | Checked |
 | Phase 1: a step reaches a follower in a median 14 ms on localhost | Two tabs, real hub, 30 steps timed with a `MutationObserver` (5.1) | Checked - localhost only, no real network |
 | Phase 1: Follow, breaking away, Present and look here all take the slice | Two tabs on the liver volume, by hand (5.1) | Checked |
 | Phase 2: Present takes followers into 3D with the host's block, and gives theirs back after | Two tabs on the liver volume, by hand (5.2) | Checked |

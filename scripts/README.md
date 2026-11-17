@@ -207,6 +207,7 @@ python scripts/simulate_session.py "https://localhost:5173/?invite=juyhsUFHC4gB"
 python scripts/simulate_session.py juyhsUFHC4gB --people 12 --seconds 60
 python scripts/simulate_session.py juyhsUFHC4gB --no-hub     # join, but don't show up live
 python scripts/simulate_session.py juyhsUFHC4gB --leave      # take them out of the session again
+python scripts/simulate_session.py juyhsUFHC4gB --three-d    # on a volume: each in 3D on a slice, circling the block
 ```
 
 Each one opens the link like a real person would, so annotation-store
@@ -225,6 +226,11 @@ Then they connect to realtime-hub and look round the slide until Ctrl+C
 (or `--seconds`), so they show up as chips in the viewer with viewport
 boxes that move. In a large session the boxes start off - click a chip to
 see one. Stopping leaves them in the session; `--leave` takes them out.
+
+On a volume, `--three-d` has each one say they're in 3D, on a slice of their
+own, with a camera going round the block - for seeing many people's cameras
+in the 3D view, and timing it (see
+[docs/volume-live.md](../docs/volume-live.md#53-phase-3-built)).
 
 The people are Keycloak users `sim1`, `sim2`, ... (password `password`),
 up to 40. The script makes any that don't exist yet through Keycloak's

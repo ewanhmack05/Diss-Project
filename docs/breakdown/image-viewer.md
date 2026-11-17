@@ -792,6 +792,17 @@ depth too:
   switch you. `SliceContextProvider` sits above `NavigationContextProvider`
   in `App.tsx` for this.
 
+- In 3D you see everyone else in the block: a small pyramid for each
+  person in 3D, where their camera is and which way it's looking, with
+  their cut as a faint outline; a box on their slice for each person in 2D.
+  Their name sits by it - click it to go to their camera, or open their
+  slice and place in 2D. A camera still for 30 s fades; past six, only the
+  host's and those that moved in the last minute are drawn. Cameras go out
+  in block units (`Viewport.camera`), so someone who's stretched their block
+  deeper is still drawn in the same place against the tissue. The maths is
+  in `depth/cameras.ts`; `SliceContext` holds your camera outside React
+  state so turning the block doesn't re-render the viewer.
+
 See [volume-live.md](../volume-live.md) for the rest of working together in 3D.
 
 Everyone sends a small **screen** message (open panels, tabs, adjustments,

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { useSliceContext } from "../../context/SliceContext";
@@ -24,6 +24,9 @@ import {
 	type Volume,
 } from "./volume";
 import { fragmentShader, vertexShader } from "./volumeShader";
+import { useRealtimeContext } from "../../context/RealtimeContext";
+import { inThreeD, type Camera } from "../realtime/realtime";
+import { cameraFromBlock, cameraToBlock, camerasToDraw, cutOutline, frustumLines, isStill, sameCamera, viewBoxInBlock, STILL_MS } from "./cameras";
 import "./VolumeView.css";
 
 interface VolumeViewProps {
@@ -55,6 +58,22 @@ function cssColour(name: string, fallback: string): THREE.Color {
 	}
 }
 
+// How big other people's cameras are drawn, against a block 1 wide.
+const FRUSTUM_SIZE = 0.12;
+// A still camera, and someone else's cut, are drawn this see-through.
+const FADED = 0.35;
+
+// Someone else, drawn in the block: their camera, or their 2D view box on
+// its slice. anchor is where their name goes.
+interface Person {
+	connectionId: string;
+	name: string;
+	colour: string;
+	kind: "camera" | "box";
+	anchor: Vec3;
+	faded: boolean;
+}
+
 // Everything the scene holds, kept between renders.
 interface Scene {
 	renderer: THREE.WebGLRenderer;
@@ -65,19 +84,44 @@ interface Scene {
 	outline: THREE.LineSegments;
 	grid: THREE.GridHelper;
 	sliceFrame: THREE.LineLoop;
+	// Other people's cameras, view boxes and cuts - rebuilt as they move.
+	people: THREE.Group;
 	texture: THREE.Data3DTexture;
 	// The sharp slice's picture, once there is one.
 	detail: THREE.DataTexture | null;
 	// The sharp cut face's picture and which of its layers are in.
 	face: { picture: THREE.DataTexture; ready: THREE.DataTexture } | null;
 	render: () => void;
+	// Tells the map where your camera is, in block units.
+	report: () => void;
+}
+
+// Throws away what's in a group, GPU buffers and all.
+function clearGroup(group: THREE.Group): void {
+	for (const child of [...group.children]) {
+		group.remove(child);
+		if (child instanceof THREE.Line) {
+			child.geometry.dispose();
+			(child.material as THREE.Material).dispose();
+		}
+	}
 }
 
 // The volume as a block in 3D: turn it round, zoom, pan, cut into it. Click
 // the tissue to go to that slice and place in 2D. Drawn only when something
 // changes, not every frame.
 function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixel, tileSize }: VolumeViewProps) {
-	const { slices, current, settings, cameraReset, openInTwoD, sectionMicrons } = useSliceContext();
+	const { slices, current, settings, cameraReset, openInTwoD, sectionMicrons, reportCamera } = useSliceContext();
+	const { others } = useRealtimeContext();
+	// Other people, and where their names go - positioned by render().
+	const [people, setPeople] = useState<Person[]>([]);
+	const peopleRef = useRef<Person[]>([]);
+	const labelRefs = useRef(new Map<string, HTMLButtonElement>());
+	// When each connection's camera last moved, and what it was then.
+	const movedRef = useRef(new Map<string, { camera: Camera | null | undefined; at: number }>());
+	// Bumped every few seconds while anyone's drawn, so a camera that's gone
+	// still fades without anything else happening.
+	const [tick, setTick] = useState(0);
 	const thickness = sectionMicrons ?? ASSUMED_SECTION_MICRONS;
 	// Narrower pictures for a volume with many slices - see blockWidthFor.
 	const pictureWidth = useMemo(() => blockWidthFor(layerSlices(slices).length, slideHeight / slideWidth), [slices, slideHeight, slideWidth]);
@@ -123,6 +167,13 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 				: [1, 1, 1],
 		[volume, slideWidth, slideHeight, micronsPerPixel, stretchScale, settings.stretch, settings.trueDepth, thickness, settings.spacing],
 	);
+
+	// Read by the camera reports, which come from the controls rather than a render.
+	// Set before the effects below run, which report with it.
+	const sizeRef = useRef(size);
+	useEffect(() => {
+		sizeRef.current = size;
+	}, [size]);
 
 	// The scene, once the volume's in. Thrown away with the view, GL context and all.
 	useEffect(() => {
@@ -202,15 +253,36 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 			new THREE.LineBasicMaterial({ color: cssColour("--accent", "#3fb6a8") }),
 		);
 		scene.add(sliceFrame);
+		const people = new THREE.Group();
+		scene.add(people);
 
+		const placeLabels = () => {
+			const { clientWidth, clientHeight } = host;
+			const point = new THREE.Vector3();
+			for (const person of peopleRef.current) {
+				const label = labelRefs.current.get(person.connectionId);
+				if (!label) continue;
+				point.set(...person.anchor).project(camera);
+				// Behind the camera, or off the screen.
+				const off = point.z > 1 || point.z < -1 || Math.abs(point.x) > 1.1 || Math.abs(point.y) > 1.1;
+				label.style.visibility = off ? "hidden" : "visible";
+				label.style.transform = `translate(${((point.x + 1) / 2) * clientWidth}px, ${((1 - point.y) / 2) * clientHeight}px)`;
+			}
+		};
 		const render = () => {
 			// The shader wants the camera in the block's own space - it's at the
 			// origin, unrotated, so that's the scene's.
 			material.uniforms.uCamera.value.copy(camera.position);
 			renderer.render(scene, camera);
+			placeLabels();
 		};
+		const report = () =>
+			reportCamera(
+				cameraToBlock([camera.position.x, camera.position.y, camera.position.z], [controls.target.x, controls.target.y, controls.target.z], camera.fov, sizeRef.current),
+			);
 		controls.addEventListener("change", () => setCameraInFront(camera.position.z >= 0));
 		controls.addEventListener("change", render);
+		controls.addEventListener("change", report);
 
 		const resize = () => {
 			const { clientWidth, clientHeight } = host;
@@ -225,7 +297,8 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 		observer.observe(host);
 		resize();
 
-		sceneRef.current = { renderer, scene, camera, controls, block, outline, grid, sliceFrame, texture, detail: null, face: null, render };
+		sceneRef.current = { renderer, scene, camera, controls, block, outline, grid, sliceFrame, people, texture, detail: null, face: null, render, report };
+		report();
 		setMaxSide(renderer.capabilities.maxTextureSize);
 		// For looking into it from the console, like window.viewerMap. Dev server only.
 		if (import.meta.env.DEV) Object.assign(window, { viewerVolume: { volume, scene: sceneRef.current } });
@@ -245,13 +318,15 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 			(grid.material as THREE.Material).dispose();
 			sliceFrame.geometry.dispose();
 			(sliceFrame.material as THREE.Material).dispose();
+			clearGroup(people);
+			reportCamera(null);
 			renderer.dispose();
 			// Browsers allow about 16 GL contexts, and the 2D map still has its own.
 			renderer.forceContextLoss();
 			renderer.domElement.remove();
 			sceneRef.current = null;
 		};
-	}, [volume]);
+	}, [volume, reportCamera]);
 
 	// The block's size, the cut, the layers drawn, opacity, guides and the
 	// slice frame - all cheap, no rebuild.
@@ -280,7 +355,89 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 		sliceFrame.scale.set(size[0], size[1], 1);
 		sliceFrame.position.z = layerZ(currentLayer, volume.depth, size[2]);
 		scene.render();
+		// The same camera is somewhere else in block units once the block's
+		// another size.
+		scene.report();
 	}, [volume, size, settings, current]);
+
+	// Everyone else in the block: a camera for each person in 3D (with their
+	// cut, if they have one), their 2D view box on its slice otherwise. See
+	// cameras.ts for the shapes and who's left out when there are many.
+	useEffect(() => {
+		const scene = sceneRef.current;
+		if (!scene || !volume) return;
+		const now = Date.now();
+		const moved = movedRef.current;
+		for (const person of others) {
+			const camera = person.viewport?.camera;
+			const last = moved.get(person.connectionId);
+			if (!last || !sameCamera(last.camera, camera)) moved.set(person.connectionId, { camera, at: last ? now : 0 });
+		}
+		for (const id of [...moved.keys()]) if (!others.some((p) => p.connectionId === id)) moved.delete(id);
+		const movedAt = new Map([...moved].map(([id, { at }]) => [id, at]));
+
+		clearGroup(scene.people);
+		const drawn: Person[] = [];
+		const line = (points: Vec3[], colour: string, opacity: number, loop: boolean) => {
+			const geometry = new THREE.BufferGeometry().setFromPoints(points.map((p) => new THREE.Vector3(...p)));
+			const material = new THREE.LineBasicMaterial({ color: new THREE.Color(colour), transparent: opacity < 1, opacity });
+			scene.people.add(loop ? new THREE.LineLoop(geometry, material) : new THREE.LineSegments(geometry, material));
+		};
+
+		const inBlock = others.filter((p) => inThreeD(p) && p.viewport?.camera);
+		for (const person of camerasToDraw(inBlock, movedAt, now)) {
+			const { position, target } = cameraFromBlock(person.viewport!.camera!, size);
+			const faded = isStill(movedAt.get(person.connectionId), now);
+			line(frustumLines(position, target, person.viewport!.camera!.fov, FRUSTUM_SIZE), person.colour, faded ? FADED : 1, false);
+			const cut = person.screen?.depth?.settings;
+			// The outline comes back closed - a loop wants it open.
+			if (cut && cut.cut !== "none") line(cutOutline(cut.cut, cut.cutPosition, size).slice(0, -1), person.colour, FADED, true);
+			drawn.push({ connectionId: person.connectionId, name: person.displayName, colour: person.colour, kind: "camera", anchor: position, faded });
+		}
+		for (const person of others) {
+			const viewport = person.viewport;
+			if (inThreeD(person) || !viewport || typeof viewport.z !== "number") continue;
+			const layer = volume.layerSlice.indexOf(viewport.z);
+			if (layer < 0) continue;
+			const ring = viewBoxInBlock(viewport, { width: slideWidth, height: slideHeight }, size, layer, volume.depth);
+			line(ring.slice(0, 4), person.colour, 1, true);
+			drawn.push({ connectionId: person.connectionId, name: person.displayName, colour: person.colour, kind: "box", anchor: ring[0], faded: false });
+		}
+		peopleRef.current = drawn;
+		setPeople(drawn);
+		scene.render();
+	}, [others, volume, size, slideWidth, slideHeight, tick]);
+
+	// Re-checks fading every few seconds while there's anyone to fade.
+	const anyone = people.length > 0;
+	useEffect(() => {
+		if (!anyone) return;
+		const timer = window.setInterval(() => setTick((n) => n + 1), STILL_MS / 6);
+		return () => window.clearInterval(timer);
+	}, [anyone]);
+
+	// The names are new elements - put them where they go once they're in.
+	useLayoutEffect(() => {
+		sceneRef.current?.render();
+	}, [people]);
+
+	// Go there: someone in 3D - your camera to theirs; someone in 2D - their
+	// slice and place, in 2D.
+	const goTo = (person: Person) => {
+		const scene = sceneRef.current;
+		const them = others.find((p) => p.connectionId === person.connectionId);
+		if (!scene || !them?.viewport) return;
+		if (person.kind === "camera" && them.viewport.camera) {
+			const { position, target } = cameraFromBlock(them.viewport.camera, size);
+			scene.camera.position.set(...position);
+			scene.controls.target.set(...target);
+			scene.controls.update();
+			scene.render();
+			scene.report();
+			return;
+		}
+		if (typeof them.viewport.z === "number") openInTwoD(them.viewport.z, them.viewport.center[0], -them.viewport.center[1]);
+	};
 
 	// Which slice is drawn sharp - see detailSlice.
 	const wantedDetail = useMemo(() => {
@@ -472,6 +629,22 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 				</div>
 			)}
 			{error && <div className="volume-view-status">{error}</div>}
+			{people.map((person) => (
+				<button
+					key={person.connectionId}
+					type="button"
+					ref={(element) => {
+						if (element) labelRefs.current.set(person.connectionId, element);
+						else labelRefs.current.delete(person.connectionId);
+					}}
+					className={`volume-view-label${person.faded ? " volume-view-label--faded" : ""}`}
+					style={{ background: person.colour }}
+					title={person.kind === "camera" ? `Go to where ${person.name} is looking` : `Open ${person.name}'s view in 2D`}
+					onClick={() => goTo(person)}
+				>
+					{person.name}
+				</button>
+			))}
 			{volume && (sharpening !== null || faceProgress) && (
 				<div className="volume-view-sharpening">
 					{[
