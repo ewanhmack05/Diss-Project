@@ -16,6 +16,8 @@ import galleryIconSvg from "../../icons/gallery.svg?raw";
 import { useMessagingContext } from "../../context/MessagingContext";
 import { isTypingTarget } from "../../typing";
 import { useSliceContext } from "../../context/SliceContext";
+import { useMapTally } from "../collections/map/useMapTally";
+import { offTheMap } from "../collections/map/layers";
 import "./Toolbar.css";
 
 
@@ -59,6 +61,7 @@ function Toolbar({ tools: wanted = DEFAULT_TOOLS }: ToolbarProps) {
 	const { volume } = useSliceContext();
 	const { user } = useAuthContext();
 	const { unread } = useMessagingContext();
+	const offNote = offTheMap(useMapTally());
 	// A guest has no collections of their own - only the session they came in on,
 	// which is on one slide - and isn't a named person anyone can message.
 	const tools = user.guest ? wanted.filter((tool) => tool !== "collections" && tool !== "messages" && tool !== "gallery") : wanted;
@@ -185,11 +188,16 @@ function Toolbar({ tools: wanted = DEFAULT_TOOLS }: ToolbarProps) {
 			{tools.includes("collections") && (
 				<button
 					type="button"
-					className={`toolbar-button${activeTools.includes("collections") ? " toolbar-button--active" : ""}`}
+					className={`toolbar-button toolbar-button--badged${activeTools.includes("collections") ? " toolbar-button--active" : ""}`}
+					// The title stays "Collections" - it's how the button's found. How many
+					// are off the map goes on the dot, and to screen readers as a description.
 					title="Collections"
+					aria-description={offNote && !activeTools.includes("collections") ? offNote : undefined}
 					onClick={() => toggleTool("collections")}
 				>
 					<Icon svg={collectionsIconSvg} />
+					{/* Something's off the map and the tab that says why is closed. */}
+					{offNote && !activeTools.includes("collections") && <span className="toolbar-dot" title={offNote} aria-hidden="true" />}
 				</button>
 			)}
 			{tools.includes("messages") && (

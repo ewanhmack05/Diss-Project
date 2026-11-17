@@ -13,11 +13,7 @@ import { conflictMessage, oneAtATime, readConflict } from "../components/realtim
 interface AnnotationGroupContextValue {
 	// The active collection's groups, by name.
 	groups: AnnotationGroup[];
-	// Groups whose annotations are left off the map. Your own - not shared,
-	// and only while the Select tab's open, where they're shown and hidden.
-	hiddenGroupIds: Set<string>;
-	toggleHidden: (groupId: string) => void;
-	showAll: () => void;
+	// Which are on the map is LayersContext's, not here.
 	// These reject if annotation-store says no. createGroup puts annotationIds
 	// straight into it.
 	createGroup: (name: string, annotationIds: string[]) => Promise<AnnotationGroup>;
@@ -48,7 +44,6 @@ function AnnotationGroupContextProvider({ baseUrl, children }: { baseUrl: string
 	const { annotations, markGrouped, forgetGroup } = useAnnotationStoreContext();
 	const emit = useEmitEvent();
 	const [groups, setGroups] = useState<AnnotationGroup[]>([]);
-	const [hiddenGroupIds, setHiddenGroupIds] = useState<Set<string>>(new Set());
 	const { addToast } = useToastContext();
 	// Groups here only change once annotation-store has them, so they're what
 	// it has - what a save says it started from. Read when the save goes,
@@ -66,7 +61,6 @@ function AnnotationGroupContextProvider({ baseUrl, children }: { baseUrl: string
 	useEffect(() => {
 		let cancelled = false;
 		setGroups([]);
-		setHiddenGroupIds(new Set());
 		if (collectionId === null) return;
 		authFetch(`${baseUrl}/annotationgroups?collectionId=${encodeURIComponent(collectionId)}`)
 			.then((response) => {
@@ -217,22 +211,10 @@ function AnnotationGroupContextProvider({ baseUrl, children }: { baseUrl: string
 		setGroups((current) => [...current, ...tidy.filter((g) => !current.some((c) => c.id === g.id))].sort(byName));
 	};
 
-	const showAll = useCallback(() => setHiddenGroupIds((current) => (current.size === 0 ? current : new Set())), []);
-
-	const toggleHidden = (groupId: string) =>
-		setHiddenGroupIds((current) => {
-			const next = new Set(current);
-			if (!next.delete(groupId)) next.add(groupId);
-			return next;
-		});
-
 	return (
 		<AnnotationGroupContext.Provider
 			value={{
 				groups,
-				hiddenGroupIds,
-				toggleHidden,
-				showAll,
 				addImported,
 				addRestored,
 				reload,

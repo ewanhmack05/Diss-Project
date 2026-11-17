@@ -64,6 +64,10 @@ interface AnnotationStoreContextValue {
 	pendingRemoved: (at: number) => Annotation[];
 	mapFilter: MapFilter | null;
 	setMapFilter: (filter: MapFilter | null) => void;
+	// Asks the open Saved list to clear its search and filters - the On the
+	// map tab's Show all. Goes up by one each time; the list watches it.
+	savedClears: number;
+	clearSaved: () => void;
 	wasDeleted: (id: string) => boolean;
 	// annotation-store's address, for the Saved list's own paged reads.
 	baseUrl: string;
@@ -125,6 +129,8 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
 	const [viewedAnnotationId, setViewedAnnotationId] = useState<string | null>(null);
 	const [revision, setRevision] = useState(0);
 	const [mapFilter, setMapFilter] = useState<MapFilter | null>(null);
+	const [savedClears, setSavedClears] = useState(0);
+	const clearSaved = useCallback(() => setSavedClears((current) => current + 1), []);
 	// Read straight after a bump, to know which revision a delete settled at.
 	const revisionRef = useRef(0);
 	const bumpRevision = useCallback(() => {
@@ -531,6 +537,8 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
 				seenTotal: fetchedTotal.seen,
 				pendingRemoved,
 				mapFilter,
+				savedClears,
+				clearSaved,
 				setMapFilter,
 				selectedAnnotationId,
 				viewedAnnotationId,

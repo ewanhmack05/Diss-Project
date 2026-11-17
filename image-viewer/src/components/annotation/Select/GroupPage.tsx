@@ -3,6 +3,9 @@ import { useAnnotationGroupContext } from "../../../context/AnnotationGroupConte
 import { useAnnotationSelectContext } from "../../../context/AnnotationSelectContext";
 import { UNDO_DELETE_MS, useAnnotationStoreContext } from "../../../context/AnnotationStoreContext";
 import { useDialogContext } from "../../../context/DialogContext";
+import { useLayersContext } from "../../../context/LayersContext";
+import { useMessagingContext } from "../../../context/MessagingContext";
+import { useToolbarContext } from "../../../context/ToolbarContext";
 import { useToastContext } from "../../../context/ToastContext";
 import type { AnnotationGroup } from "../../../interfaces/AnnotationGroup";
 import ColourPicker from "../../colour-picker/ColourPicker";
@@ -12,6 +15,8 @@ import { newChangeSet } from "../bulk";
 import { DefaultColour } from "../Tools";
 import Icon from "../../../icons/Icon";
 import chevronLeftSvg from "../../../icons/chevron-left.svg?raw";
+import { shownInGroup } from "../../collections/map/layers";
+import "./Select.css";
 
 // Group notes save once you pause, like an annotation's.
 const NOTES_MAX = 10_000;
@@ -25,15 +30,28 @@ interface GroupPageProps {
 }
 
 // One group - its name and notes, and everything in it at once: recolour,
-// pick on the map, delete, or merge it into another group. Viewers just see
-// the name, notes and how many are in it.
+// pick on the map, send, delete, or merge it into another group. Viewers see
+// the name, notes and how many are in it, and can send it. Opened from the
+// group's chip on the Collections panel's On the map tab.
 function GroupPage({ group, editable, onBack }: GroupPageProps) {
 	const { groups, updateGroup, mergeGroup, deleteGroup } = useAnnotationGroupContext();
 	const { annotations, updateMany, deleteMany } = useAnnotationStoreContext();
 	const { select } = useAnnotationSelectContext();
+	const { hidden } = useLayersContext();
+	const { raiseTool, setPanelTab } = useToolbarContext();
+	const { status: messaging, sendToSomeone } = useMessagingContext();
 	const { showDialog } = useDialogContext();
 	const { addToast } = useToastContext();
 	const members = annotations.filter((a) => a.groupId === group.id).map((a) => a.id);
+	// The ones on the map - hidden ones can't be picked.
+	const shownMembers = shownInGroup(annotations, group.id, hidden);
+	// Picking happens on the Annotations panel's Select tab, so that's where
+	// this goes, with them picked.
+	const pickOnMap = () => {
+		select(shownMembers, false);
+		raiseTool("annotations");
+		setPanelTab("annotations", "select");
+	};
 	// The most used colour in it, to start the picker on.
 	const [colour, setColour] = useState(() => {
 		const counts = new Map<string, number>();
@@ -142,7 +160,7 @@ function GroupPage({ group, editable, onBack }: GroupPageProps) {
 		<div className="select-tab">
 			<button type="button" className="select-back" onClick={onBack}>
 				<Icon svg={chevronLeftSvg} size={12} />
-				Groups
+				On the map
 			</button>
 
 			<section className="select-section">
@@ -169,8 +187,25 @@ function GroupPage({ group, editable, onBack }: GroupPageProps) {
 				<div className="select-count-row">
 					<span className="select-count">{plural(members.length)}</span>
 					{editable && (
-						<button type="button" className="select-button" disabled={members.length === 0} onClick={() => select(members, false)}>
+						<button
+							type="button"
+							className="select-button"
+							disabled={shownMembers.length === 0}
+							title={members.length > 0 && shownMembers.length === 0 ? "They're all hidden on the map" : "Pick them on the Select tab"}
+							onClick={pickOnMap}
+						>
 							Select on map
+						</button>
+					)}
+					{messaging !== "off" && (
+						<button
+							type="button"
+							className="select-button"
+							disabled={members.length === 0}
+							title={members.length === 0 ? "There's nothing in it to send" : `Send ${group.name} to someone`}
+							onClick={() => sendToSomeone({ label: `Group: ${group.name}`, pick: { kind: "group", id: group.id } })}
+						>
+							Send
 						</button>
 					)}
 				</div>

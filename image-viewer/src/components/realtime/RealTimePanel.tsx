@@ -16,6 +16,8 @@ import { formatLongDate } from "../saved/savedDates";
 import type { NavigationMode } from "./realtime";
 import { LEAST_MAX_EDITORS, MOST_MAX_EDITORS, readMaxEditors, sessionSize } from "./sessionSize";
 import { EDIT_POLICY_CHOICES } from "./editPolicy";
+import { useEndSession } from "./useEndSession";
+import { defaultSessionName } from "../collections/shared-collection/sessions";
 import { activeUsers, splitActive, type ActiveKind, type ActiveUser } from "./activeUsers";
 import InfoNote from "../info/InfoNote";
 import "./RealTimePanel.css";
@@ -238,7 +240,7 @@ function WorkingAlone() {
 	const start = () => {
 		if (chosenMax === null) return;
 		setStarting(true);
-		startSession(undefined, chosenMax, policy)
+		startSession(defaultSessionName(user.name), chosenMax, policy)
 			.catch(() => emit("session:error"))
 			.finally(() => setStarting(false));
 	};
@@ -589,17 +591,29 @@ function NavigationNote() {
 // The host's quick controls - the link, navigation and ending it. Who the
 // link lets in and the session's rules are in Settings; people are in Active.
 function Hosting({ session, openSettings }: { session: Collection; openSettings: () => void }) {
-	const { endSession, refresh } = useCollectionContext();
+	const { endSession } = useCollectionContext();
 	const emit = useEmitEvent();
 	const tellEveryone = useTellEveryone();
+	const { wouldDrop, dropIfEmpty } = useEndSession();
 	const [confirmingEnd, setConfirmingEnd] = useState(false);
+	// Whether ending it deletes it, as nothing's in it - null while asking.
+	const [drops, setDrops] = useState<boolean | null>(null);
 
-	// Tell the room before refreshing - once it shows as ended, the room closes.
+	const askToEnd = () => {
+		setConfirmingEnd(true);
+		setDrops(null);
+		wouldDrop(session.collectionId)
+			.then(setDrops)
+			.catch(() => setDrops(false));
+	};
+
+	// Tell the room before the list loads again - once it shows as ended, the
+	// room closes.
 	const end = () =>
 		endSession()
 			.then(() => {
 				tellEveryone();
-				return refresh();
+				return dropIfEmpty(session.collectionId);
 			})
 			.catch(() => emit("session:error"));
 
@@ -614,7 +628,11 @@ function Hosting({ session, openSettings }: { session: Collection; openSettings:
 			<NavigationControls />
 			{confirmingEnd ? (
 				<div className="realtime-confirm">
-					<p className="realtime-note">End it for everyone? Its link stops working and it becomes read-only.</p>
+					<p className="realtime-note">
+						{drops
+							? "End it? Nothing's been drawn, counted or said in it and nobody else is in it, so it won't be kept."
+							: "End it for everyone? Its link stops working and it becomes read-only."}
+					</p>
 					<div className="realtime-button-row">
 						<button type="button" className="realtime-button" onClick={() => setConfirmingEnd(false)}>
 							Keep going
@@ -625,7 +643,7 @@ function Hosting({ session, openSettings }: { session: Collection; openSettings:
 					</div>
 				</div>
 			) : (
-				<button type="button" className="realtime-button realtime-button--danger realtime-button--wide" onClick={() => setConfirmingEnd(true)}>
+				<button type="button" className="realtime-button realtime-button--danger realtime-button--wide" onClick={askToEnd}>
 					End session
 				</button>
 			)}

@@ -402,6 +402,7 @@ export async function sessionAdmin({ sam, jo }) {
 	await both(sam, jo, "shares their own collection", "can look at it, read only");
 	await sam.tool("Collections");
 	const samCollections = sam.panel("Collections");
+	await sam.click(samCollections.getByRole("tab", { name: "Collections" }));
 	await sam.click(samCollections.locator(".collections-toggle"));
 	await expect(samCollections.getByLabel("Let others view it")).toBeChecked({ timeout: 8000 });
 	await jo.tool("Collections");
@@ -414,7 +415,7 @@ export async function sessionAdmin({ sam, jo }) {
 	await jo.zoomAt(TISSUE, 1);
 	await sam.zoomAt(TISSUE, 1);
 	await jo.tool("Collections");
-	await jo.click(joCollections.getByRole("tab", { name: /^Shared/ }));
+	await jo.click(joCollections.getByRole("tab", { name: "Collections" }));
 	const samsRow = joCollections.locator(".collections-list li").filter({ hasText: "Sam Reid" });
 	await jo.press("View", samsRow);
 	await expect(joCollections.getByText("read-only", { exact: false }).first()).toBeVisible({ timeout: 8000 });
@@ -497,8 +498,10 @@ export async function sessionAdmin({ sam, jo }) {
 
 	await jo.tool("Annotations");
 	const joAnnotations = jo.panel("Annotations");
+	// View only: no drawing or picking, just the Saved list.
 	await expect(joAnnotations.getByRole("button", { name: "Free Form" })).toHaveCount(0, { timeout: 10_000 });
-	await expect(joAnnotations.getByRole("button", { name: "Groups" })).toBeVisible();
+	await expect(joAnnotations.getByRole("button", { name: "Select", exact: true })).toHaveCount(0);
+	await expect(joAnnotations.getByRole("button", { name: /^Saved/ })).toBeVisible();
 	await jo.pause(1200);
 	sam.did("session-view-only");
 	await closePanel(jo, "Annotations");
@@ -556,8 +559,9 @@ export async function sessionAdmin({ sam, jo }) {
 	const collections = sam.panel("Collections");
 	// Beside the Collaboration panel, not over it.
 	await dragPanel(sam, "Collections", { x: 620, y: 60 });
+	// Back to mine is on the Collections tab - On the map has Switch instead.
+	await sam.click(collections.getByRole("tab", { name: "Collections" }));
 	await sam.press("Back to mine", collections);
-	await sam.click(collections.getByRole("tab", { name: /^Shared/ }));
 	await sam.pause(1200);
 	await sam.caption("Sam: only the host can reopen it", 300);
 	const session = collections.locator(".collections-list li").filter({ hasText: "Review" });
@@ -581,7 +585,7 @@ export async function sessionAdmin({ sam, jo }) {
 	await closePanel(jo, "Collaboration");
 	await jo.tool("Collections");
 	const joList = jo.panel("Collections");
-	await jo.click(joList.getByRole("tab", { name: /^Shared/ }));
+	await jo.click(joList.getByRole("tab", { name: "Collections" }));
 	await jo.press("Leave", joList.locator(".collections-list li").filter({ hasText: "Review" }));
 	await answerDialog(jo, "Leave");
 	await expect(joList.locator(".collections-list li").filter({ hasText: "Review" })).toHaveCount(0, { timeout: 10_000 });
@@ -600,7 +604,7 @@ export async function sessionAdmin({ sam, jo }) {
 
 	await sam.caption("Sam: an ended session can be deleted", 300);
 	await sam.press("Back to working on my own", samPanel);
-	await sam.click(collections.getByRole("tab", { name: /^Shared/ }));
+	await sam.click(collections.getByRole("tab", { name: "Collections" }));
 	const ended = collections.locator(".collections-list li").filter({ hasText: "Review" });
 	await sam.press("Delete", ended);
 	await answerDialog(sam, "Delete");

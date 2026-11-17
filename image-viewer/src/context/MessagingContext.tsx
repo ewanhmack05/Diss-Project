@@ -10,6 +10,7 @@ import {
 	type Staged,
 } from "../components/messages/messages";
 import type { ShownArea } from "../components/messages/sentArea";
+import type { ChatSaid } from "../components/collections/shared-collection/sessions";
 import { useAuthContext } from "./AuthContext";
 import { useCollectionContext } from "./CollectionContext";
 import { useEmitEvent } from "./EventContext";
@@ -66,6 +67,9 @@ interface MessagingContextValue {
 	deleteConversation: (conversationId: string) => Promise<void>;
 	loadAttachment: (messageId: string) => Promise<Attachment & { payload: unknown }>;
 	markAdded: (messageId: string) => Promise<Attachment>;
+	// Whether anything's been said in a session's chat - any session you're in,
+	// not just the open one. Asked before ending one, to know if it's empty.
+	chatSaid: (sessionId: string) => Promise<ChatSaid>;
 }
 
 const MessagingContext = createContext<MessagingContextValue | null>(null);
@@ -266,6 +270,20 @@ function MessagingContextProvider({ baseUrl, children }: { baseUrl?: string; chi
 		[call],
 	);
 
+	// Without messaging there's no chat to have said anything in.
+	const chatSaid = useCallback(
+		async (sessionId: string): Promise<ChatSaid> => {
+			if (!enabled) return "nothing";
+			try {
+				const chat = (await (await call(`/sessions/${sessionId}/conversation`)).json()) as Conversation | null;
+				return chat?.lastMessage ? "something" : "nothing";
+			} catch {
+				return "unknown";
+			}
+		},
+		[enabled, call],
+	);
+
 	const value = useMemo(
 		() => ({
 			status: enabled ? status : ("off" as const),
@@ -292,6 +310,7 @@ function MessagingContextProvider({ baseUrl, children }: { baseUrl?: string; chi
 			deleteConversation,
 			loadAttachment,
 			markAdded,
+			chatSaid,
 		}),
 		[
 			enabled,
@@ -316,6 +335,7 @@ function MessagingContextProvider({ baseUrl, children }: { baseUrl?: string; chi
 			deleteConversation,
 			loadAttachment,
 			markAdded,
+			chatSaid,
 		],
 	);
 

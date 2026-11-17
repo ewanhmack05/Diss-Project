@@ -1,0 +1,168 @@
+/* The On the map tab - where you're working, how much is showing, and a chip
+   per person and per group. */
+.map-tab {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: 1em;
+}
+
+.map-header {
+	display: flex;
+	flex-direction: column;
+	gap: 0.4em;
+}
+
+.map-header-top {
+	display: flex;
+	align-items: center;
+	gap: 0.5em;
+}
+
+.map-title {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 0.95em;
+	font-weight: 600;
+	color: var(--chrome-text);
+}
+
+.map-bar {
+	height: 0.4em;
+	background: var(--white-10);
+	border-radius: 0.2em;
+	overflow: hidden;
+}
+
+.map-bar-fill {
+	display: block;
+	height: 100%;
+	background: var(--accent);
+	transition: width 0.2s ease-out;
+}
+
+.map-count-row {
+	display: flex;
+	align-items: baseline;
+	gap: 0.5em;
+}
+
+.map-count {
+	flex: 1;
+	min-width: 0;
+	font-size: 0.82em;
+	color: var(--chrome-text-secondary);
+}
+
+.map-link {
+	padding: 0;
+	font-family: var(--sans);
+	font-size: 0.82em;
+	color: var(--accent);
+	background: none;
+	border: none;
+	cursor: pointer;
+}
+
+.map-link:hover {
+	text-decoration: underline;
+}
+
+.map-row {
+	display: flex;
+	flex-direction: column;
+	gap: 0.45em;
+}
+
+.map-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.35em;
+}
+
+/* Off: an outline. On: filled with the accent. */
+.map-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4em;
+	max-width: 100%;
+	padding: 0.25em 0.65em;
+	font-family: var(--sans);
+	font-size: 0.82em;
+	color: var(--chrome-text-secondary);
+	background: none;
+	border: 1px solid var(--white-22);
+	border-radius: 999px;
+	cursor: pointer;
+	user-select: none;
+}
+
+.map-chip:hover {
+	border-color: var(--white-30);
+	color: var(--chrome-text);
+}
+
+.map-chip:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 1px;
+}
+
+.map-chip--on {
+	color: var(--chrome-text);
+	background: rgba(var(--accent-rgb), 0.22);
+	border-color: var(--accent);
+}
+
+.map-chip--on:hover {
+	border-color: var(--accent);
+}
+
+.map-chip-name {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.map-chip-count {
+	flex-shrink: 0;
+	font-size: 0.9em;
+	color: var(--chrome-text-secondary);
+}
+
+.map-chip--more {
+	border-style: dashed;
+}
+
+/* On the page, at the chip - see OnTheMapTab. */
+.map-chip-menu {
+	position: fixed;
+	z-index: 50;
+	display: flex;
+	flex-direction: column;
+	min-width: 10em;
+	padding: 0.25em 0;
+	background: var(--chrome-bg-solid);
+	border: 1px solid var(--white-10);
+	border-radius: 0.4em;
+}
+
+.map-chip-menu button {
+	padding: 0.4em 0.8em;
+	font-family: var(--sans);
+	font-size: 0.85em;
+	text-align: left;
+	color: var(--chrome-text);
+	background: none;
+	border: none;
+	cursor: pointer;
+}
+
+.map-chip-menu button:hover,
+.map-chip-menu button:focus-visible {
+	background: var(--white-08);
+	outline: none;
+}

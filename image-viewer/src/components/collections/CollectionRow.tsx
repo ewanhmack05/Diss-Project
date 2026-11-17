@@ -15,13 +15,16 @@ interface CollectionRowProps {
 	collection: Collection;
 	// Who it's from, or what it is - under the name.
 	about: string;
+	// When it started or ended, for a session - so two of the same name can
+	// be told apart.
+	when?: string;
 	// The one the map is showing.
 	here: boolean;
 	title?: ReactNode;
 	children?: ReactNode;
 }
 
-function CollectionRow({ collection, about, here, title, children }: CollectionRowProps) {
+function CollectionRow({ collection, about, when, here, title, children }: CollectionRowProps) {
 	return (
 		<li className={`collections-row${here ? " collections-row--here" : ""}`}>
 			<div className="collections-row-top">
@@ -29,6 +32,7 @@ function CollectionRow({ collection, about, here, title, children }: CollectionR
 				{here && <span className="collections-badge">Showing</span>}
 			</div>
 			<span className="collections-row-meta">{about}</span>
+			{when && <span className="collections-row-meta">{when}</span>}
 			<span className="collections-row-meta">{contentsLine(collection)}</span>
 			{children && <div className="collections-row-actions">{children}</div>}
 		</li>

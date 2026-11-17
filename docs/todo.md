@@ -6,6 +6,11 @@ an afternoon, medium a few days, large a week or more.
 
 ## Done
 
+- **Telling sessions apart** - new sessions are named with when they
+  started ("Bob Hughes's session, 17 Nov 14:05"), each row in the
+  Collections tab says when it started or ended, and ended ones fold under
+  **Ended (n)**. Ending one nothing happened in deletes it, so empty ones
+  don't pile up. Reopen is filled so it doesn't look greyed out
 - **Pagination** - annotations and cell counts, with first/last and a
   page number you can type (51k annotations is 1,021 pages)
 - **Collab tab** - split into sub tabs, a lot less text
@@ -308,6 +313,9 @@ it close to the merge in
   variables, so it's mostly a second set of values
 - Top and bottom dock layout
 - Overhaul designs generally
+- **On the map tab** - a first tab in the Collections panel for where you're
+  working and what's on the map, as compact chips, replacing five controls in
+  three panels. See [layers.md](layers.md)
 
 ## 9. Maybe - probably cut
 
@@ -347,8 +355,10 @@ written up in [background.md](background.md#read-and-noted). None built yet.
 - **Hover an annotation for its details** (Cytomine) - area, perimeter, term,
   who drew it, in a small box over the map. The map has no hover on
   annotations today, only on people's names. Good to add, small
-- **A layer per person** (Cytomine) - toggle each person's annotations on and
-  off. See [thought-process.md](thought-process.md#shared-vs-personal)
+- ~~**A layer per person**~~ (Cytomine) - done, in a joint collection: People
+  chips on the Collections panel's On the map tab. See [layers.md](layers.md).
+  Other people's personal collections as layers on top of yours is still open
+  (phase 4 there)
 - **Annotation presets on each mouse button** (xOpat) - a preset is a shape
   plus a label and colour, and left and right click can each hold one, so two
   kinds of thing can be marked without going back to the panel. Right click

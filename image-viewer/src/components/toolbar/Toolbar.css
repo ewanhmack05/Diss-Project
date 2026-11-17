@@ -45,6 +45,17 @@
 	position: relative;
 }
 
+/* No number - just that something on the panel needs a look. */
+.toolbar-dot {
+	position: absolute;
+	top: 0.55em;
+	right: 0.55em;
+	width: 0.5em;
+	height: 0.5em;
+	background: var(--accent);
+	border-radius: 50%;
+}
+
 .toolbar-badge {
 	position: absolute;
 	top: 0.45em;
