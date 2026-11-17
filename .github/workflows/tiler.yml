@@ -30,3 +30,6 @@ jobs:
       directory: tiler
       project: Tiler.csproj
       tests: Tests/Tiler.Tests.csproj
+      # Same OpenSlide as the Docker image, so the volume tests - which make
+      # their own small TIFFs - run here instead of skipping.
+      apt-packages: libopenslide0

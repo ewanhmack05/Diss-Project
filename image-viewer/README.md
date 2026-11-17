@@ -105,12 +105,86 @@ any edge of the screen - two panels on the same edge split it evenly.
     found and what it can't use, then saves it all in one go
     (`src/components/collections/`)
 - **Fullscreen** - uses the Fullscreen API (`requestFullscreen`)
+- **Depth** - moving through a volume's slices: serial sections lined up on
+  one canvas (see [docs/zstack.md](../docs/zstack.md)). The button's only
+  there when the slide has more than one slice, and the panel closes itself
+  on a flat slide. A slider with a mark per slice (a gap - cuts that are
+  missing - is a break in the row), Previous and Next, and back to the
+  slice it opened on. A note says when the slice is next to a gap. Page Up
+  and Page Down, or Shift and the wheel on the slide, do the same from the
+  map - a trackpad swipe adds up to one slice rather than racing through.
+  The slice showing is in a chip at the top of the map. In Present it's
+  locked, like panning (`src/components/depth/`, `src/context/SliceContext.tsx`)
+  - **3D** - the switch at the top of the Depth tab shows the volume as a
+    block ([three.js](https://threejs.org/), loaded the first time it's
+    opened). Drag to turn it, scroll to zoom, right-drag to move it. Cut it on
+    X, Y, Z or a diagonal to see inside, draw fewer slices to make it
+    thinner, lower the opacity, stretch the depth, space the slices out, turn
+    the outline and grid off. A frame on the block shows the slice the 2D
+    view's on, and a gap is an empty layer. **Gap between slices** (none up to
+    8 times a slice's thickness) pulls the block apart into separate slices
+    so each one can be seen on its own: the block gets deeper to make room,
+    and each slice stays as thick as it was. Slices can be thinner than a
+    step of the ray, so the shader jumps across each gap to the next slice
+    rather than stepping through it, and a click in a gap lands on nothing
+    (`slabAt` in `src/components/depth/volume.ts`). Clicking the tissue opens that slice at that place in 2D.
+    The block is built in the browser from one thumbnail per slice
+    (`thumbnail.jpg?slice=`), each written into it as it arrives - 1024 px
+    wide, or narrower for a volume with many slices so the block stays under
+    64 million voxels (256 MB): 1024 for both livers (15 and 47 slices, about
+    15 um a pixel on Kartasalo's), 447 for the 260-slice prostate. The last
+    two blocks opened are kept, so 2D and 3D back and forth fetches nothing.
+    **The slice you're looking at is sharp**: one slice is drawn from the
+    slide's own tiles instead of the block, at the finest level that fits 4096
+    x 4096 pixels (64 MB) - 1/8 of Kartasalo's slides, about 3.7 um a pixel,
+    individual nuclei. Which slice (`detailSlice` in `volume.ts`): with no gap,
+    the face towards the camera - the first slice drawn from the front, the
+    last from behind, or the face a Z cut leaves; spaced out, the framed one,
+    so stepping through slices sharpens each in turn. It's stitched from
+    tiles (`loadDetail.ts`) - the 2D view's, so usually cached - rather than
+    one big thumbnail, so the tiler never holds a large picture for it, and
+    "Sharpening slice N" shows in the corner while it comes, about 3 s for
+    256 tiles. It has mipmaps, picked in the shader by how far the ray's gone,
+    so it doesn't shimmer zoomed out. **An X or Y cut's face is sharp too**:
+    the face is one line of each slice, so it's read from one column (X) or
+    row (Y) of every slice's tiles, at the finest tier that keeps it under
+    1200 tiles (`faceTier` in `volume.ts`, `loadFace.ts`) - 1/8 for
+    Kartasalo's liver, 752 tiles in 1.2-3.4 s, four times the block along the
+    face; 1/32 for the 260-slice prostate. It fills in slice by slice
+    ("Sharpening the cut, N of M slices"), waits until the cut slider's been
+    still for 250 ms, and only fetches again when the cut moves onto
+    another line of pixels. Through the slices it can't be finer than the
+    sections are, so each one's its own sharp-edged band, not blended into
+    the next: nothing was measured between sections, and neighbours only
+    line up to tens of microns, so a blend just smears cells. The block's
+    drawn about 11x deeper than it is by default (Kartasalo's liver), which
+    makes each band wide; **True depth** in the panel draws it as thick as
+    the sections really are (`depthStretch` in `volume.ts`) - a thin sheet,
+    but the cut face is then real tissue at real proportions, about a pixel
+    a section. Moving the Depth slider turns it off. Zoomed out it fades into the block,
+    which is as good there. A Z cut's face is a slice, so the sharp slice
+    covers it; a diagonal cut runs across tiles and isn't sharpened. It's ray marched in a fragment shader
+    (`src/components/depth/volumeShader.ts`), stored premultiplied so
+    filtering next to glass or a gap doesn't darken it. Sections are much
+    thinner than the slide is wide, so it's drawn thicker than it is. How
+    thick comes from the volume's `sectionMicrons` when it has one, and is
+    assumed to be 4 um when it doesn't
 
 ## Rendering
 
 Slide tiles, saved annotations, cell-count dots and ROI boxes are drawn with
 WebGL layers. Canvas is only used for arrowheads, the shape currently being
 drawn, and the ruler label. See `docs/rendering.md`.
+
+On a volume the slice showing has its neighbours loaded too, as tile layers
+at opacity 0 - a hidden layer wouldn't load anything - so a step to the next
+slice only swaps opacities and fetches nothing for the slice now showing,
+just the new neighbour. Each tile layer is a GL context and browsers allow
+about 16, so `SliceLayers` (`src/components/open-layers/sliceLayers.ts`)
+keeps at most three and gives a new slice the layer that dropped out,
+with a new source, rather than making another. Moving through every slice,
+or to another slide, makes no new GL contexts. A flat slide is one layer on
+the slide's own tile route, the same URLs as before volumes.
 
 ## Running
 
@@ -135,6 +209,15 @@ server - `/tiler`, `/store`, `/hub`, `/messaging` and `/auth`, proxied by
 same from `localhost`, the LAN or the VPN with only port 5173 reachable.
 
 Available slide IDs are listed in `tiler/README.md`.
+
+`TILER_URL` points `/tiler` at another tiler, e.g. one started with a volume
+on another port, without stopping the usual one:
+
+```bash
+TILER_URL=http://localhost:5096 npx vite --port 5175 --strictPort --mode http
+```
+
+`.claude/launch.json`'s `image-viewer-volume` does the same.
 
 ### Vendored colour picker
 

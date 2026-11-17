@@ -1,0 +1,40 @@
+/* Over the 2D map, which stays underneath so coming back to 2D is instant. */
+.volume-view {
+	position: absolute;
+	inset: 0;
+	background: var(--canvas-bg);
+	cursor: grab;
+}
+
+.volume-view:active {
+	cursor: grabbing;
+}
+
+.volume-view canvas {
+	display: block;
+	width: 100%;
+	height: 100%;
+}
+
+/* A note in the corner while the slice being looked at loads sharp. */
+.volume-view-sharpening {
+	position: absolute;
+	left: 12px;
+	bottom: 12px;
+	color: var(--chrome-text-secondary);
+	font-family: var(--sans);
+	font-size: 0.85em;
+	pointer-events: none;
+}
+
+.volume-view-status {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--chrome-text-secondary);
+	font-family: var(--sans);
+	font-size: 1em;
+	pointer-events: none;
+}

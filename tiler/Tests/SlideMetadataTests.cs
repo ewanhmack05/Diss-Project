@@ -141,4 +141,29 @@ public class SlideMetadataTests
     {
         Assert.Equal(expected, SlideMetadata.BackgroundColour(raw));
     }
+
+    [Theory]
+    // OpenSlide's own value wins when it has one.
+    [InlineData("0.2433", "36542.355", "centimeter", 0.2433)]
+    // The registered liver volume under OpenSlide 3.4.1: no openslide.mpp-x.
+    [InlineData(null, "36542.35546875", "centimeter", 0.27365505)]
+    [InlineData(null, "40000", "centimeter", 0.25)]
+    [InlineData(null, "101600", "inch", 0.25)]
+    [InlineData(null, "40000", "Centimeter ", 0.25)]
+    // A resolution with no unit is only a ratio.
+    [InlineData(null, "40000", "none", null)]
+    [InlineData(null, "40000", null, null)]
+    [InlineData(null, null, "centimeter", null)]
+    [InlineData(null, "0", "centimeter", null)]
+    [InlineData(null, "-5", "centimeter", null)]
+    [InlineData(null, "rubbish", "centimeter", null)]
+    // A broken OpenSlide value falls through to the TIFF's.
+    [InlineData("0", "40000", "centimeter", 0.25)]
+    public void MicronsPerPixel_uses_openslide_then_the_tiff_resolution(string? openSlide, string? resolution, string? unit, double? expected)
+    {
+        var mpp = SlideMetadata.MicronsPerPixel(openSlide, resolution, unit);
+
+        if (expected is null) Assert.Null(mpp);
+        else Assert.Equal(expected.Value, mpp!.Value, 6);
+    }
 }

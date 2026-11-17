@@ -9,8 +9,12 @@ function to(target: string, prefix: string, ws = false): ProxyOptions {
 	return { target, ws, changeOrigin: true, rewrite: (path) => path.slice(prefix.length) };
 }
 
+// TILER_URL points it at another tiler - e.g. one started with a volume, on
+// another port, without stopping the usual one.
+const tilerUrl = process.env.TILER_URL ?? "http://localhost:5095";
+
 const proxy: Record<string, ProxyOptions> = {
-	"/tiler": to("http://localhost:5095", "/tiler"),
+	"/tiler": to(tilerUrl, "/tiler"),
 	"/store": to("http://localhost:5252", "/store"),
 	"/messaging": to("http://localhost:5260", "/messaging"),
 	// xfwd - the hub limits guest passes per browser, so it needs to know

@@ -13,6 +13,7 @@ auth/               Keycloak (Docker) - sign-in, with a realm and test users. Se
 dashboard/          Grafana (Docker) - load, timing and error stats for the services. See dashboard/README.md
 scripts/            Dev scripts - stress-test data, SQL. See scripts/README.md
 playback/           Records the viewer being used and saves the videos as MP4s. See playback/README.md
+volume-prep/        Turns serial sections into one lined-up stack for the 3D view. See volume-prep/README.md
 docs/               Planning notes - auth, Azure, real-time libraries, sessions, rendering
 ```
 
@@ -25,12 +26,13 @@ the workflow itself). They can also be run by hand from the Actions tab.
 | Workflow                                                                                                                                                     | Runs                                                                                    |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
 | [annotation-store](.github/workflows/annotation-store.yml), [realtime-hub](.github/workflows/realtime-hub.yml), [messaging](.github/workflows/messaging.yml) | `dotnet format` check, build with warnings as errors, xUnit tests, Docker build         |
-| [tiler](.github/workflows/tiler.yml)                                                                                                                         | the same. No LFS, so tests needing a real slide skip and slide 003 is pointer files     |
+| [tiler](.github/workflows/tiler.yml)                                                                                                                         | the same, with OpenSlide. No LFS, so real-slide tests skip and slide 003 is pointers    |
 | [image-viewer](.github/workflows/image-viewer.yml)                                                                                                           | `npm ci`, oxlint, vitest, `tsc -b` + Vite build                                         |
 | [auth](.github/workflows/auth.yml)                                                                                                                           | shellcheck, compose check, realm has its clients, Keycloak starts and imports the realm |
 | [dashboard](.github/workflows/dashboard.yml)                                                                                                                 | compose check, provisioning YAML and dashboard JSON parse                               |
 | [scripts](.github/workflows/scripts.yml)                                                                                                                     | ruff, Python compiles                                                                   |
 | [playback](.github/workflows/playback.yml)                                                                                                                   | `npm ci`, the recorder's tests. Recording itself stays local                            |
+| [volume-prep](.github/workflows/volume-prep.yml)                                                                                                             | ruff, the tests. Converting and registering stay local                                  |
 | [stack](.github/workflows/stack.yml)                                                                                                                         | root `docker-compose.yml` is valid                                                      |
 
 The three .NET workflows share their steps through
@@ -52,6 +54,7 @@ what still needs filling in listed at the top.
 [![dashboard](https://github.com/ewanhmack05/Diss-Project/actions/workflows/dashboard.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/dashboard.yml)
 [![scripts](https://github.com/ewanhmack05/Diss-Project/actions/workflows/scripts.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/scripts.yml)
 [![playback](https://github.com/ewanhmack05/Diss-Project/actions/workflows/playback.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/playback.yml)
+[![volume-prep](https://github.com/ewanhmack05/Diss-Project/actions/workflows/volume-prep.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/volume-prep.yml)
 [![stack](https://github.com/ewanhmack05/Diss-Project/actions/workflows/stack.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/stack.yml)
 [![deploy-azure](https://github.com/ewanhmack05/Diss-Project/actions/workflows/deploy-azure.yml/badge.svg)](https://github.com/ewanhmack05/Diss-Project/actions/workflows/deploy-azure.yml)
 

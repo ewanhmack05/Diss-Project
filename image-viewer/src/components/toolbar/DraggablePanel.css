@@ -83,7 +83,7 @@
      than an ancestor of it, are never carried along with it - the panel's
      single child (AnnotationsPanel/CellCountPanel) just needs a real height
      to grow into, which display:flex here provides. */
-	max-height: 40em;
+	max-height: 45em;
 	overflow: hidden;
 	display: flex;
 	flex-direction: column;

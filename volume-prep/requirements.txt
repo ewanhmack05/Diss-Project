@@ -1,0 +1,5 @@
+# For register_sections.py and its tests. convert_sections.py needs none of it.
+numpy==2.4.6
+opencv-python-headless==5.0.0.93
+openslide-python==1.4.7
+openslide-bin==4.0.1.2

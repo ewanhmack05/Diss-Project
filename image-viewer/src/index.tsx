@@ -27,7 +27,7 @@ createRoot(document.getElementById("root")!).render(
 				fontSize: "11px",
 				maxEditors: 6,
 				editPolicy: "lastWriteWins",
-				tools: ["fullscreen", "gallery", "annotations", "cellcount", "rotate", "ruler", "adjustments", "realtime", "collections", "messages"],
+				tools: ["fullscreen", "gallery", "annotations", "cellcount", "rotate", "depth", "ruler", "adjustments", "realtime", "collections", "messages"],
 			}}
 			on={(event, payload) => {
 				console.log("on");

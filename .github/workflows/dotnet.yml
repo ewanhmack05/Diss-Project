@@ -21,6 +21,11 @@ on:
         required: false
         type: string
         default: ""
+      apt-packages:
+        description: Native libraries the tests need, installed with apt first. Empty for none.
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -36,6 +41,10 @@ jobs:
     steps:
       # No LFS - none of the .NET builds need the slides.
       - uses: actions/checkout@v7
+
+      - name: Native libraries
+        if: inputs.apt-packages != ''
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ${{ inputs.apt-packages }}
 
       - uses: actions/setup-dotnet@v6
         with:

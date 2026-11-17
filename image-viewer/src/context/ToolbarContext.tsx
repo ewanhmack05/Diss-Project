@@ -1,12 +1,13 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 
-type ToolId = "annotations" | "cellcount" | "rotate" | "ruler" | "adjustments" | "realtime" | "collections" | "messages" | "gallery";
+type ToolId = "annotations" | "cellcount" | "rotate" | "depth" | "ruler" | "adjustments" | "realtime" | "collections" | "messages" | "gallery";
 
 // What each panel is called, for anything that has to name one.
 const TOOL_NAMES: Record<ToolId, string> = {
 	annotations: "Annotations",
 	cellcount: "Cell Count",
 	rotate: "Rotate",
+	depth: "Depth",
 	ruler: "Ruler",
 	adjustments: "Adjustments",
 	realtime: "Collaboration",

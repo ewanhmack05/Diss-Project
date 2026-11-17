@@ -1,0 +1,1904 @@
+{
+  "method": {
+    "downsample": 32,
+    "min_inliers": 30,
+    "ratio": 0.8,
+    "ransac_px": 3.0,
+    "saturation": 25,
+    "features": 20000,
+    "clahe": true,
+    "guided": {
+      "radius_um": 300,
+      "ratio": 0.9,
+      "min_inliers": 5
+    },
+    "outline_step_degrees": 5,
+    "opencv": "5.0.0"
+  },
+  "reference": 23,
+  "sectionMicrons": 5.0,
+  "canvas": {
+    "width": 32384,
+    "height": 31872,
+    "mpp": 0.4600000000000002
+  },
+  "summary": {
+    "feature_links": 4,
+    "guided_links": 37,
+    "gap_links": 5,
+    "median_residual_um": 26.6,
+    "median_skip_one_um": null,
+    "mean_dice_before": 0.758,
+    "mean_dice_after": 0.92
+  },
+  "links": [
+    {
+      "a": 0,
+      "b": 1,
+      "kind": "guided",
+      "matches": 65,
+      "inliers": 12,
+      "residual_um": 37.1,
+      "rotation_deg": -10.34,
+      "scale": 1.0,
+      "dice_before": 0.536,
+      "dice_after": 0.864,
+      "skip_one_um": null
+    },
+    {
+      "a": 1,
+      "b": 2,
+      "kind": "guided",
+      "matches": 83,
+      "inliers": 14,
+      "residual_um": 21.3,
+      "rotation_deg": -11.64,
+      "scale": 1.0,
+      "dice_before": 0.822,
+      "dice_after": 0.859,
+      "skip_one_um": null
+    },
+    {
+      "a": 2,
+      "b": 3,
+      "kind": "guided",
+      "matches": 63,
+      "inliers": 5,
+      "residual_um": 32.5,
+      "rotation_deg": 17.33,
+      "scale": 1.0,
+      "dice_before": 0.621,
+      "dice_after": 0.938,
+      "skip_one_um": null
+    },
+    {
+      "a": 3,
+      "b": 4,
+      "kind": "gap",
+      "matches": 7,
+      "inliers": 4,
+      "residual_um": null,
+      "rotation_deg": 6.18,
+      "scale": 1.0,
+      "dice_before": 0.667,
+      "dice_after": 0.833,
+      "skip_one_um": null
+    },
+    {
+      "a": 4,
+      "b": 5,
+      "kind": "gap",
+      "matches": 7,
+      "inliers": 2,
+      "residual_um": null,
+      "rotation_deg": -125.0,
+      "scale": 1.0,
+      "dice_before": 0.723,
+      "dice_after": 0.742,
+      "skip_one_um": null
+    },
+    {
+      "a": 5,
+      "b": 6,
+      "kind": "guided",
+      "matches": 65,
+      "inliers": 5,
+      "residual_um": 100.9,
+      "rotation_deg": -4.06,
+      "scale": 1.0,
+      "dice_before": 0.786,
+      "dice_after": 0.889,
+      "skip_one_um": null
+    },
+    {
+      "a": 6,
+      "b": 7,
+      "kind": "guided",
+      "matches": 90,
+      "inliers": 20,
+      "residual_um": 23.4,
+      "rotation_deg": 9.65,
+      "scale": 1.0,
+      "dice_before": 0.897,
+      "dice_after": 0.949,
+      "skip_one_um": null
+    },
+    {
+      "a": 7,
+      "b": 8,
+      "kind": "guided",
+      "matches": 68,
+      "inliers": 17,
+      "residual_um": 21.5,
+      "rotation_deg": -16.84,
+      "scale": 1.0,
+      "dice_before": 0.682,
+      "dice_after": 0.931,
+      "skip_one_um": null
+    },
+    {
+      "a": 8,
+      "b": 9,
+      "kind": "guided",
+      "matches": 73,
+      "inliers": 6,
+      "residual_um": 16.2,
+      "rotation_deg": -0.1,
+      "scale": 1.0,
+      "dice_before": 0.837,
+      "dice_after": 0.9,
+      "skip_one_um": null
+    },
+    {
+      "a": 9,
+      "b": 10,
+      "kind": "guided",
+      "matches": 65,
+      "inliers": 10,
+      "residual_um": 89.2,
+      "rotation_deg": 27.34,
+      "scale": 1.0,
+      "dice_before": 0.499,
+      "dice_after": 0.882,
+      "skip_one_um": null
+    },
+    {
+      "a": 10,
+      "b": 11,
+      "kind": "gap",
+      "matches": 16,
+      "inliers": 8,
+      "residual_um": null,
+      "rotation_deg": 180.0,
+      "scale": 1.0,
+      "dice_before": 0.55,
+      "dice_after": 0.772,
+      "skip_one_um": null
+    },
+    {
+      "a": 11,
+      "b": 12,
+      "kind": "gap",
+      "matches": 12,
+      "inliers": 4,
+      "residual_um": null,
+      "rotation_deg": -18.1,
+      "scale": 1.0,
+      "dice_before": 0.751,
+      "dice_after": 0.855,
+      "skip_one_um": null
+    },
+    {
+      "a": 12,
+      "b": 13,
+      "kind": "gap",
+      "matches": 8,
+      "inliers": 3,
+      "residual_um": null,
+      "rotation_deg": -2.86,
+      "scale": 1.0,
+      "dice_before": 0.759,
+      "dice_after": 0.845,
+      "skip_one_um": null
+    },
+    {
+      "a": 13,
+      "b": 14,
+      "kind": "guided",
+      "matches": 75,
+      "inliers": 23,
+      "residual_um": 24.5,
+      "rotation_deg": -21.63,
+      "scale": 1.0,
+      "dice_before": 0.852,
+      "dice_after": 0.948,
+      "skip_one_um": null
+    },
+    {
+      "a": 14,
+      "b": 15,
+      "kind": "guided",
+      "matches": 89,
+      "inliers": 25,
+      "residual_um": 38.8,
+      "rotation_deg": 34.0,
+      "scale": 1.0,
+      "dice_before": 0.734,
+      "dice_after": 0.957,
+      "skip_one_um": null
+    },
+    {
+      "a": 15,
+      "b": 16,
+      "kind": "guided",
+      "matches": 63,
+      "inliers": 13,
+      "residual_um": 26.9,
+      "rotation_deg": -16.7,
+      "scale": 1.0,
+      "dice_before": 0.69,
+      "dice_after": 0.954,
+      "skip_one_um": null
+    },
+    {
+      "a": 16,
+      "b": 17,
+      "kind": "guided",
+      "matches": 75,
+      "inliers": 20,
+      "residual_um": 33.1,
+      "rotation_deg": 20.82,
+      "scale": 1.0,
+      "dice_before": 0.657,
+      "dice_after": 0.863,
+      "skip_one_um": null
+    },
+    {
+      "a": 17,
+      "b": 18,
+      "kind": "guided",
+      "matches": 78,
+      "inliers": 21,
+      "residual_um": 30.4,
+      "rotation_deg": 2.98,
+      "scale": 1.0,
+      "dice_before": 0.68,
+      "dice_after": 0.892,
+      "skip_one_um": null
+    },
+    {
+      "a": 18,
+      "b": 19,
+      "kind": "guided",
+      "matches": 86,
+      "inliers": 27,
+      "residual_um": 22.7,
+      "rotation_deg": -3.66,
+      "scale": 1.0,
+      "dice_before": 0.7,
+      "dice_after": 0.948,
+      "skip_one_um": null
+    },
+    {
+      "a": 19,
+      "b": 20,
+      "kind": "features",
+      "matches": 50,
+      "inliers": 32,
+      "residual_um": 26.6,
+      "rotation_deg": -21.42,
+      "scale": 1.0,
+      "dice_before": 0.751,
+      "dice_after": 0.975,
+      "skip_one_um": null
+    },
+    {
+      "a": 20,
+      "b": 21,
+      "kind": "guided",
+      "matches": 83,
+      "inliers": 24,
+      "residual_um": 19.3,
+      "rotation_deg": 26.37,
+      "scale": 1.0,
+      "dice_before": 0.788,
+      "dice_after": 0.949,
+      "skip_one_um": null
+    },
+    {
+      "a": 21,
+      "b": 22,
+      "kind": "guided",
+      "matches": 63,
+      "inliers": 20,
+      "residual_um": 31.2,
+      "rotation_deg": -20.0,
+      "scale": 1.0,
+      "dice_before": 0.681,
+      "dice_after": 0.969,
+      "skip_one_um": null
+    },
+    {
+      "a": 22,
+      "b": 23,
+      "kind": "guided",
+      "matches": 85,
+      "inliers": 26,
+      "residual_um": 32.9,
+      "rotation_deg": 3.18,
+      "scale": 1.0,
+      "dice_before": 0.864,
+      "dice_after": 0.97,
+      "skip_one_um": null
+    },
+    {
+      "a": 23,
+      "b": 24,
+      "kind": "guided",
+      "matches": 84,
+      "inliers": 24,
+      "residual_um": 51.5,
+      "rotation_deg": 6.55,
+      "scale": 1.0,
+      "dice_before": 0.911,
+      "dice_after": 0.946,
+      "skip_one_um": null
+    },
+    {
+      "a": 24,
+      "b": 25,
+      "kind": "guided",
+      "matches": 82,
+      "inliers": 13,
+      "residual_um": 31.0,
+      "rotation_deg": -0.45,
+      "scale": 1.0,
+      "dice_before": 0.834,
+      "dice_after": 0.909,
+      "skip_one_um": null
+    },
+    {
+      "a": 25,
+      "b": 26,
+      "kind": "guided",
+      "matches": 49,
+      "inliers": 10,
+      "residual_um": 20.4,
+      "rotation_deg": -5.09,
+      "scale": 1.0,
+      "dice_before": 0.879,
+      "dice_after": 0.901,
+      "skip_one_um": null
+    },
+    {
+      "a": 26,
+      "b": 27,
+      "kind": "guided",
+      "matches": 72,
+      "inliers": 14,
+      "residual_um": 29.8,
+      "rotation_deg": 9.82,
+      "scale": 1.0,
+      "dice_before": 0.872,
+      "dice_after": 0.958,
+      "skip_one_um": null
+    },
+    {
+      "a": 27,
+      "b": 28,
+      "kind": "guided",
+      "matches": 70,
+      "inliers": 12,
+      "residual_um": 21.4,
+      "rotation_deg": -0.85,
+      "scale": 1.0,
+      "dice_before": 0.846,
+      "dice_after": 0.893,
+      "skip_one_um": null
+    },
+    {
+      "a": 28,
+      "b": 29,
+      "kind": "guided",
+      "matches": 70,
+      "inliers": 17,
+      "residual_um": 22.0,
+      "rotation_deg": -7.86,
+      "scale": 1.0,
+      "dice_before": 0.835,
+      "dice_after": 0.911,
+      "skip_one_um": null
+    },
+    {
+      "a": 29,
+      "b": 30,
+      "kind": "guided",
+      "matches": 83,
+      "inliers": 24,
+      "residual_um": 22.6,
+      "rotation_deg": 2.32,
+      "scale": 1.0,
+      "dice_before": 0.939,
+      "dice_after": 0.954,
+      "skip_one_um": null
+    },
+    {
+      "a": 30,
+      "b": 31,
+      "kind": "guided",
+      "matches": 74,
+      "inliers": 19,
+      "residual_um": 29.6,
+      "rotation_deg": 17.18,
+      "scale": 1.0,
+      "dice_before": 0.71,
+      "dice_after": 0.937,
+      "skip_one_um": null
+    },
+    {
+      "a": 31,
+      "b": 32,
+      "kind": "guided",
+      "matches": 69,
+      "inliers": 16,
+      "residual_um": 43.8,
+      "rotation_deg": -37.05,
+      "scale": 1.0,
+      "dice_before": 0.641,
+      "dice_after": 0.892,
+      "skip_one_um": null
+    },
+    {
+      "a": 32,
+      "b": 33,
+      "kind": "guided",
+      "matches": 64,
+      "inliers": 9,
+      "residual_um": 29.0,
+      "rotation_deg": 9.57,
+      "scale": 1.0,
+      "dice_before": 0.828,
+      "dice_after": 0.917,
+      "skip_one_um": null
+    },
+    {
+      "a": 33,
+      "b": 34,
+      "kind": "features",
+      "matches": 54,
+      "inliers": 32,
+      "residual_um": 21.6,
+      "rotation_deg": 10.27,
+      "scale": 1.0,
+      "dice_before": 0.794,
+      "dice_after": 0.975,
+      "skip_one_um": null
+    },
+    {
+      "a": 34,
+      "b": 35,
+      "kind": "features",
+      "matches": 54,
+      "inliers": 33,
+      "residual_um": 17.1,
+      "rotation_deg": -17.04,
+      "scale": 1.0,
+      "dice_before": 0.706,
+      "dice_after": 0.916,
+      "skip_one_um": null
+    },
+    {
+      "a": 35,
+      "b": 36,
+      "kind": "guided",
+      "matches": 53,
+      "inliers": 10,
+      "residual_um": 23.8,
+      "rotation_deg": 22.55,
+      "scale": 1.0,
+      "dice_before": 0.608,
+      "dice_after": 0.898,
+      "skip_one_um": null
+    },
+    {
+      "a": 36,
+      "b": 37,
+      "kind": "guided",
+      "matches": 73,
+      "inliers": 15,
+      "residual_um": 22.1,
+      "rotation_deg": -8.97,
+      "scale": 1.0,
+      "dice_before": 0.877,
+      "dice_after": 0.96,
+      "skip_one_um": null
+    },
+    {
+      "a": 37,
+      "b": 38,
+      "kind": "guided",
+      "matches": 87,
+      "inliers": 18,
+      "residual_um": 25.7,
+      "rotation_deg": 8.06,
+      "scale": 1.0,
+      "dice_before": 0.839,
+      "dice_after": 0.965,
+      "skip_one_um": null
+    },
+    {
+      "a": 38,
+      "b": 39,
+      "kind": "guided",
+      "matches": 85,
+      "inliers": 26,
+      "residual_um": 19.4,
+      "rotation_deg": -6.92,
+      "scale": 1.0,
+      "dice_before": 0.736,
+      "dice_after": 0.972,
+      "skip_one_um": null
+    },
+    {
+      "a": 39,
+      "b": 40,
+      "kind": "guided",
+      "matches": 69,
+      "inliers": 27,
+      "residual_um": 34.4,
+      "rotation_deg": 6.02,
+      "scale": 1.0,
+      "dice_before": 0.719,
+      "dice_after": 0.969,
+      "skip_one_um": null
+    },
+    {
+      "a": 40,
+      "b": 41,
+      "kind": "guided",
+      "matches": 73,
+      "inliers": 16,
+      "residual_um": 36.3,
+      "rotation_deg": -17.62,
+      "scale": 1.0,
+      "dice_before": 0.519,
+      "dice_after": 0.946,
+      "skip_one_um": null
+    },
+    {
+      "a": 41,
+      "b": 42,
+      "kind": "guided",
+      "matches": 88,
+      "inliers": 29,
+      "residual_um": 21.7,
+      "rotation_deg": 0.62,
+      "scale": 1.0,
+      "dice_before": 0.836,
+      "dice_after": 0.981,
+      "skip_one_um": null
+    },
+    {
+      "a": 42,
+      "b": 43,
+      "kind": "features",
+      "matches": 45,
+      "inliers": 31,
+      "residual_um": 22.0,
+      "rotation_deg": 5.54,
+      "scale": 1.0,
+      "dice_before": 0.901,
+      "dice_after": 0.975,
+      "skip_one_um": null
+    },
+    {
+      "a": 43,
+      "b": 44,
+      "kind": "guided",
+      "matches": 80,
+      "inliers": 31,
+      "residual_um": 26.9,
+      "rotation_deg": -0.64,
+      "scale": 1.0,
+      "dice_before": 0.872,
+      "dice_after": 0.962,
+      "skip_one_um": null
+    },
+    {
+      "a": 44,
+      "b": 45,
+      "kind": "guided",
+      "matches": 70,
+      "inliers": 18,
+      "residual_um": 23.6,
+      "rotation_deg": -5.37,
+      "scale": 1.0,
+      "dice_before": 0.937,
+      "dice_after": 0.943,
+      "skip_one_um": null
+    },
+    {
+      "a": 45,
+      "b": 46,
+      "kind": "guided",
+      "matches": 59,
+      "inliers": 13,
+      "residual_um": 58.5,
+      "rotation_deg": 8.27,
+      "scale": 1.0,
+      "dice_before": 0.718,
+      "dice_after": 0.951,
+      "skip_one_um": null
+    }
+  ],
+  "sections": [
+    {
+      "order": 1,
+      "file": "001.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.566208749,
+          -0.824262034,
+          17527.198515061
+        ],
+        [
+          0.824262034,
+          0.566208749,
+          1555.720629981
+        ]
+      ]
+    },
+    {
+      "order": 2,
+      "file": "002.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.409031401,
+          -0.912520445,
+          21561.978678223
+        ],
+        [
+          0.912520445,
+          0.409031401,
+          4901.059451959
+        ]
+      ]
+    },
+    {
+      "order": 3,
+      "file": "003.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.216423815,
+          -0.976299637,
+          23534.494500042
+        ],
+        [
+          0.976299637,
+          0.216423815,
+          6082.785044154
+        ]
+      ]
+    },
+    {
+      "order": 4,
+      "file": "004.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.497399396,
+          -0.867521809,
+          18479.465127133
+        ],
+        [
+          0.867521809,
+          0.497399396,
+          2036.754414809
+        ]
+      ]
+    },
+    {
+      "order": 5,
+      "file": "005.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.587966565,
+          -0.808885244,
+          18727.16054757
+        ],
+        [
+          0.808885244,
+          0.587966565,
+          2697.117560717
+        ]
+      ]
+    },
+    {
+      "order": 6,
+      "file": "006.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          -0.999843768,
+          -0.017676498,
+          26410.789386984
+        ],
+        [
+          0.017676498,
+          -0.999843768,
+          23206.086748496
+        ]
+      ]
+    },
+    {
+      "order": 7,
+      "file": "007.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          -0.99858593,
+          0.053161635,
+          26982.696203817
+        ],
+        [
+          -0.053161635,
+          -0.99858593,
+          23658.74831213
+        ]
+      ]
+    },
+    {
+      "order": 8,
+      "file": "008.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          -0.993358166,
+          -0.115063346,
+          28515.667941418
+        ],
+        [
+          0.115063346,
+          -0.993358166,
+          21699.55748923
+        ]
+      ]
+    },
+    {
+      "order": 9,
+      "file": "009.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          -0.984108741,
+          0.177566907,
+          23832.946728063
+        ],
+        [
+          -0.177566907,
+          -0.984108741,
+          25062.184262819
+        ]
+      ]
+    },
+    {
+      "order": 10,
+      "file": "010.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          -0.983791519,
+          0.179316107,
+          23423.693183091
+        ],
+        [
+          -0.179316107,
+          -0.983791519,
+          24414.977555829
+        ]
+      ]
+    },
+    {
+      "order": 11,
+      "file": "011.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          -0.956237516,
+          -0.292591581,
+          30649.992390286
+        ],
+        [
+          0.292591581,
+          -0.956237516,
+          20352.159954552
+        ]
+      ]
+    },
+    {
+      "order": 12,
+      "file": "012.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.956237516,
+          0.292591581,
+          7549.849958316
+        ],
+        [
+          -0.292591581,
+          0.956237516,
+          10069.166576677
+        ]
+      ]
+    },
+    {
+      "order": 13,
+      "file": "013.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.999820131,
+          -0.01896636,
+          10972.664026699
+        ],
+        [
+          0.01896636,
+          0.999820131,
+          6850.468548946
+        ]
+      ]
+    },
+    {
+      "order": 14,
+      "file": "014.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.997632881,
+          -0.068765071,
+          10043.1355066
+        ],
+        [
+          0.068765071,
+          0.997632881,
+          6731.988201062
+        ]
+      ]
+    },
+    {
+      "order": 15,
+      "file": "015.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.902066014,
+          -0.431598084,
+          13737.654457069
+        ],
+        [
+          0.431598084,
+          0.902066014,
+          4278.437251664
+        ]
+      ]
+    },
+    {
+      "order": 16,
+      "file": "016.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.989188224,
+          0.146651486,
+          6257.070370375
+        ],
+        [
+          -0.146651486,
+          0.989188224,
+          8852.204184695
+        ]
+      ]
+    },
+    {
+      "order": 17,
+      "file": "017.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.989609143,
+          -0.143783673,
+          10963.919504504
+        ],
+        [
+          0.143783673,
+          0.989609143,
+          6494.120400746
+        ]
+      ]
+    },
+    {
+      "order": 18,
+      "file": "018.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.976092392,
+          0.217356027,
+          6123.446333502
+        ],
+        [
+          -0.217356027,
+          0.976092392,
+          9609.21618001
+        ]
+      ]
+    },
+    {
+      "order": 19,
+      "file": "019.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.963490384,
+          0.267742935,
+          7555.913340469
+        ],
+        [
+          -0.267742935,
+          0.963490384,
+          9695.091561414
+        ]
+      ]
+    },
+    {
+      "order": 20,
+      "file": "020.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.978603839,
+          0.205753556,
+          5857.955072156
+        ],
+        [
+          -0.205753556,
+          0.978603839,
+          9608.557258755
+        ]
+      ]
+    },
+    {
+      "order": 21,
+      "file": "021.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.986149947,
+          -0.165856208,
+          10491.460795179
+        ],
+        [
+          0.165856208,
+          0.986149947,
+          5827.97511523
+        ]
+      ]
+    },
+    {
+      "order": 22,
+      "file": "022.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.957225366,
+          0.289343393,
+          6651.363508874
+        ],
+        [
+          -0.289343393,
+          0.957225366,
+          10525.172006364
+        ]
+      ]
+    },
+    {
+      "order": 23,
+      "file": "023.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.998461939,
+          -0.055441474,
+          10337.895067588
+        ],
+        [
+          0.055441474,
+          0.998461939,
+          5152.230304342
+        ]
+      ]
+    },
+    {
+      "order": 24,
+      "file": "024.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          1.0,
+          0.0,
+          9024.0
+        ],
+        [
+          0.0,
+          1.0,
+          5856.0
+        ]
+      ]
+    },
+    {
+      "order": 25,
+      "file": "025.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.993472103,
+          0.114075325,
+          7899.195443273
+        ],
+        [
+          -0.114075325,
+          0.993472103,
+          6851.291279041
+        ]
+      ]
+    },
+    {
+      "order": 26,
+      "file": "026.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.994336866,
+          0.106274159,
+          8980.507371651
+        ],
+        [
+          -0.106274159,
+          0.994336866,
+          6644.946161452
+        ]
+      ]
+    },
+    {
+      "order": 27,
+      "file": "027.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.999845122,
+          0.017599222,
+          9498.525021474
+        ],
+        [
+          -0.017599222,
+          0.999845122,
+          5774.315182608
+        ]
+      ]
+    },
+    {
+      "order": 28,
+      "file": "028.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.982179851,
+          0.187943451,
+          7361.93252998
+        ],
+        [
+          -0.187943451,
+          0.982179851,
+          7529.984637194
+        ]
+      ]
+    },
+    {
+      "order": 29,
+      "file": "029.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.984857379,
+          0.1733665,
+          7185.226181474
+        ],
+        [
+          -0.1733665,
+          0.984857379,
+          6627.401661999
+        ]
+      ]
+    },
+    {
+      "order": 30,
+      "file": "030.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.999315038,
+          0.037006135,
+          8882.286121221
+        ],
+        [
+          -0.037006135,
+          0.999315038,
+          5805.690930875
+        ]
+      ]
+    },
+    {
+      "order": 31,
+      "file": "031.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.997002324,
+          0.077371612,
+          8556.567883043
+        ],
+        [
+          -0.077371612,
+          0.997002324,
+          5880.682849593
+        ]
+      ]
+    },
+    {
+      "order": 32,
+      "file": "032.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.929643431,
+          0.368460433,
+          4995.317562386
+        ],
+        [
+          -0.368460433,
+          0.929643431,
+          10210.269187904
+        ]
+      ]
+    },
+    {
+      "order": 33,
+      "file": "033.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.963943358,
+          -0.266107501,
+          12079.434863418
+        ],
+        [
+          0.266107501,
+          0.963943358,
+          4116.586097682
+        ]
+      ]
+    },
+    {
+      "order": 34,
+      "file": "034.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.994763842,
+          -0.102200286,
+          9604.945351198
+        ],
+        [
+          0.102200286,
+          0.994763842,
+          5620.774561762
+        ]
+      ]
+    },
+    {
+      "order": 35,
+      "file": "035.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.997045038,
+          0.076819213,
+          7210.576385871
+        ],
+        [
+          -0.076819213,
+          0.997045038,
+          6013.804380737
+        ]
+      ]
+    },
+    {
+      "order": 36,
+      "file": "036.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.975786772,
+          -0.218723969,
+          11600.095645547
+        ],
+        [
+          0.218723969,
+          0.975786772,
+          3671.77650557
+        ]
+      ]
+    },
+    {
+      "order": 37,
+      "file": "037.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.985057081,
+          0.172228184,
+          5412.056339975
+        ],
+        [
+          -0.172228184,
+          0.985057081,
+          7063.362124205
+        ]
+      ]
+    },
+    {
+      "order": 38,
+      "file": "038.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.999861891,
+          0.016619252,
+          7092.86822137
+        ],
+        [
+          -0.016619252,
+          0.999861891,
+          5239.960506796
+        ]
+      ]
+    },
+    {
+      "order": 39,
+      "file": "039.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.987645985,
+          0.156701655,
+          5004.584001158
+        ],
+        [
+          -0.156701655,
+          0.987645985,
+          7023.557153521
+        ]
+      ]
+    },
+    {
+      "order": 40,
+      "file": "040.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.9993334,
+          0.036506931,
+          7685.416945276
+        ],
+        [
+          -0.036506931,
+          0.9993334,
+          5079.497025803
+        ]
+      ]
+    },
+    {
+      "order": 41,
+      "file": "041.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.989981807,
+          0.141194979,
+          4996.400633982
+        ],
+        [
+          -0.141194979,
+          0.989981807,
+          6920.089692455
+        ]
+      ]
+    },
+    {
+      "order": 42,
+      "file": "042.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.986288705,
+          -0.16502906,
+          11070.036379103
+        ],
+        [
+          0.16502906,
+          0.986288705,
+          4080.977588409
+        ]
+      ]
+    },
+    {
+      "order": 43,
+      "file": "043.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.988017063,
+          -0.154344691,
+          10156.341268878
+        ],
+        [
+          0.154344691,
+          0.988017063,
+          3859.074307262
+        ]
+      ]
+    },
+    {
+      "order": 44,
+      "file": "044.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.998303122,
+          -0.058231231,
+          8703.12233604
+        ],
+        [
+          0.058231231,
+          0.998303122,
+          4570.888407388
+        ]
+      ]
+    },
+    {
+      "order": 45,
+      "file": "045.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.997589904,
+          -0.069385758,
+          9489.668861832
+        ],
+        [
+          0.069385758,
+          0.997589904,
+          4346.876229339
+        ]
+      ]
+    },
+    {
+      "order": 46,
+      "file": "046.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.98670568,
+          -0.162517388,
+          10398.282400067
+        ],
+        [
+          0.162517388,
+          0.98670568,
+          3778.07100402
+        ]
+      ]
+    },
+    {
+      "order": 47,
+      "file": "047.tif",
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "transform": [
+        [
+          0.999822307,
+          -0.018850852,
+          7255.800675558
+        ],
+        [
+          0.018850852,
+          0.999822307,
+          4706.269525037
+        ]
+      ]
+    }
+  ],
+  "written_check": {
+    "max_dice_difference": 0.001,
+    "links": [
+      {
+        "a": 0,
+        "b": 1,
+        "predicted": 0.864,
+        "measured": 0.865
+      },
+      {
+        "a": 1,
+        "b": 2,
+        "predicted": 0.859,
+        "measured": 0.86
+      },
+      {
+        "a": 2,
+        "b": 3,
+        "predicted": 0.938,
+        "measured": 0.938
+      },
+      {
+        "a": 3,
+        "b": 4,
+        "predicted": 0.833,
+        "measured": 0.834
+      },
+      {
+        "a": 4,
+        "b": 5,
+        "predicted": 0.742,
+        "measured": 0.741
+      },
+      {
+        "a": 5,
+        "b": 6,
+        "predicted": 0.889,
+        "measured": 0.888
+      },
+      {
+        "a": 6,
+        "b": 7,
+        "predicted": 0.949,
+        "measured": 0.949
+      },
+      {
+        "a": 7,
+        "b": 8,
+        "predicted": 0.931,
+        "measured": 0.931
+      },
+      {
+        "a": 8,
+        "b": 9,
+        "predicted": 0.9,
+        "measured": 0.901
+      },
+      {
+        "a": 9,
+        "b": 10,
+        "predicted": 0.882,
+        "measured": 0.883
+      },
+      {
+        "a": 10,
+        "b": 11,
+        "predicted": 0.772,
+        "measured": 0.773
+      },
+      {
+        "a": 11,
+        "b": 12,
+        "predicted": 0.855,
+        "measured": 0.854
+      },
+      {
+        "a": 12,
+        "b": 13,
+        "predicted": 0.845,
+        "measured": 0.846
+      },
+      {
+        "a": 13,
+        "b": 14,
+        "predicted": 0.948,
+        "measured": 0.948
+      },
+      {
+        "a": 14,
+        "b": 15,
+        "predicted": 0.957,
+        "measured": 0.958
+      },
+      {
+        "a": 15,
+        "b": 16,
+        "predicted": 0.954,
+        "measured": 0.954
+      },
+      {
+        "a": 16,
+        "b": 17,
+        "predicted": 0.863,
+        "measured": 0.863
+      },
+      {
+        "a": 17,
+        "b": 18,
+        "predicted": 0.892,
+        "measured": 0.892
+      },
+      {
+        "a": 18,
+        "b": 19,
+        "predicted": 0.948,
+        "measured": 0.948
+      },
+      {
+        "a": 19,
+        "b": 20,
+        "predicted": 0.975,
+        "measured": 0.976
+      },
+      {
+        "a": 20,
+        "b": 21,
+        "predicted": 0.949,
+        "measured": 0.95
+      },
+      {
+        "a": 21,
+        "b": 22,
+        "predicted": 0.969,
+        "measured": 0.969
+      },
+      {
+        "a": 22,
+        "b": 23,
+        "predicted": 0.97,
+        "measured": 0.971
+      },
+      {
+        "a": 23,
+        "b": 24,
+        "predicted": 0.946,
+        "measured": 0.947
+      },
+      {
+        "a": 24,
+        "b": 25,
+        "predicted": 0.909,
+        "measured": 0.91
+      },
+      {
+        "a": 25,
+        "b": 26,
+        "predicted": 0.901,
+        "measured": 0.902
+      },
+      {
+        "a": 26,
+        "b": 27,
+        "predicted": 0.958,
+        "measured": 0.958
+      },
+      {
+        "a": 27,
+        "b": 28,
+        "predicted": 0.893,
+        "measured": 0.893
+      },
+      {
+        "a": 28,
+        "b": 29,
+        "predicted": 0.911,
+        "measured": 0.911
+      },
+      {
+        "a": 29,
+        "b": 30,
+        "predicted": 0.954,
+        "measured": 0.954
+      },
+      {
+        "a": 30,
+        "b": 31,
+        "predicted": 0.937,
+        "measured": 0.938
+      },
+      {
+        "a": 31,
+        "b": 32,
+        "predicted": 0.892,
+        "measured": 0.891
+      },
+      {
+        "a": 32,
+        "b": 33,
+        "predicted": 0.917,
+        "measured": 0.917
+      },
+      {
+        "a": 33,
+        "b": 34,
+        "predicted": 0.975,
+        "measured": 0.976
+      },
+      {
+        "a": 34,
+        "b": 35,
+        "predicted": 0.916,
+        "measured": 0.917
+      },
+      {
+        "a": 35,
+        "b": 36,
+        "predicted": 0.898,
+        "measured": 0.898
+      },
+      {
+        "a": 36,
+        "b": 37,
+        "predicted": 0.96,
+        "measured": 0.961
+      },
+      {
+        "a": 37,
+        "b": 38,
+        "predicted": 0.965,
+        "measured": 0.965
+      },
+      {
+        "a": 38,
+        "b": 39,
+        "predicted": 0.972,
+        "measured": 0.973
+      },
+      {
+        "a": 39,
+        "b": 40,
+        "predicted": 0.969,
+        "measured": 0.97
+      },
+      {
+        "a": 40,
+        "b": 41,
+        "predicted": 0.946,
+        "measured": 0.946
+      },
+      {
+        "a": 41,
+        "b": 42,
+        "predicted": 0.981,
+        "measured": 0.982
+      },
+      {
+        "a": 42,
+        "b": 43,
+        "predicted": 0.975,
+        "measured": 0.976
+      },
+      {
+        "a": 43,
+        "b": 44,
+        "predicted": 0.962,
+        "measured": 0.962
+      },
+      {
+        "a": 44,
+        "b": 45,
+        "predicted": 0.943,
+        "measured": 0.944
+      },
+      {
+        "a": 45,
+        "b": 46,
+        "predicted": 0.951,
+        "measured": 0.951
+      }
+    ]
+  }
+}

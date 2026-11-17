@@ -7,22 +7,17 @@ import cellcountIconSvg from "../../icons/cellcount.svg?raw";
 import fullscreenEnterIconSvg from "../../icons/fullscreen-enter.svg?raw";
 import fullscreenExitIconSvg from "../../icons/fullscreen-exit.svg?raw";
 import rotateIconSvg from "../../icons/rotate.svg?raw";
+import depthIconSvg from "../../icons/depth.svg?raw";
 import rulerIconSvg from "../../icons/ruler.svg?raw";
 import realtimeIconSvg from "../../icons/realtime.svg?raw";
 import collectionsIconSvg from "../../icons/collections.svg?raw";
 import messagesIconSvg from "../../icons/messages.svg?raw";
 import galleryIconSvg from "../../icons/gallery.svg?raw";
 import { useMessagingContext } from "../../context/MessagingContext";
+import { isTypingTarget } from "../../typing";
+import { useSliceContext } from "../../context/SliceContext";
 import "./Toolbar.css";
 
-// Global shortcuts (like F for fullscreen) shouldn't fire while the user is
-// typing somewhere - e.g. "f" in an annotation's label or notes field.
-const TYPING_TAGS = new Set(["INPUT", "TEXTAREA", "SELECT"]);
-
-function isTypingTarget(target: EventTarget | null): boolean {
-	if (!(target instanceof HTMLElement)) return false;
-	return TYPING_TAGS.has(target.tagName) || target.isContentEditable;
-}
 
 function Icon({ svg }: { svg: string }) {
 	return <span className="toolbar-icon" dangerouslySetInnerHTML={{ __html: svg }} />;
@@ -33,6 +28,7 @@ type ToolName =
 	| "annotations"
 	| "cellcount"
 	| "rotate"
+	| "depth"
 	| "ruler"
 	| "adjustments"
 	| "realtime"
@@ -46,6 +42,7 @@ const DEFAULT_TOOLS: ToolName[] = [
 	"annotations",
 	"cellcount",
 	"rotate",
+	"depth",
 	"ruler",
 	"adjustments",
 	"realtime",
@@ -58,13 +55,20 @@ interface ToolbarProps {
 }
 
 function Toolbar({ tools: wanted = DEFAULT_TOOLS }: ToolbarProps) {
-	const { activeTools, toggleTool } = useToolbarContext();
+	const { activeTools, toggleTool, closeTool } = useToolbarContext();
+	const { volume } = useSliceContext();
 	const { user } = useAuthContext();
 	const { unread } = useMessagingContext();
 	// A guest has no collections of their own - only the session they came in on,
 	// which is on one slide - and isn't a named person anyone can message.
 	const tools = user.guest ? wanted.filter((tool) => tool !== "collections" && tool !== "messages" && tool !== "gallery") : wanted;
 	const [isFullscreen, setIsFullscreen] = useState(false);
+
+	// Depth is only for a volume. Moving to a flat slide closes it.
+	const depthOpen = activeTools.includes("depth");
+	useEffect(() => {
+		if (!volume && depthOpen) closeTool("depth");
+	}, [volume, depthOpen, closeTool]);
 
 	const toggleFullscreen = () => {
 		if (document.fullscreenElement) {
@@ -136,6 +140,16 @@ function Toolbar({ tools: wanted = DEFAULT_TOOLS }: ToolbarProps) {
 					onClick={() => toggleTool("rotate")}
 				>
 					<Icon svg={rotateIconSvg} />
+				</button>
+			)}
+			{tools.includes("depth") && volume && (
+				<button
+					type="button"
+					className={`toolbar-button${depthOpen ? " toolbar-button--active" : ""}`}
+					title="Depth - move through the slices"
+					onClick={() => toggleTool("depth")}
+				>
+					<Icon svg={depthIconSvg} />
 				</button>
 			)}
 			{tools.includes("ruler") && (

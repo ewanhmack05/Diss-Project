@@ -94,6 +94,8 @@ describe("previewTiles", () => {
 describe("tileUrl", () => {
 	it("is the shape the tiler serves", () => {
 		expect(tileUrl("/tiler", "003", { z: 4, x: 1, y: 2 })).toBe("/tiler/slides/003/TileGroup0/4-1-2.jpg");
+		expect(tileUrl("/tiler", "kliver", { z: 4, x: 1, y: 2 }, 13)).toBe("/tiler/slides/kliver/slice/13/TileGroup0/4-1-2.jpg");
+		expect(tileUrl("/tiler", "kliver", { z: 0, x: 0, y: 0 }, 0)).toBe("/tiler/slides/kliver/slice/0/TileGroup0/0-0-0.jpg");
 	});
 
 	it("can't be sent elsewhere by a slide id from a message", () => {

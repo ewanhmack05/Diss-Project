@@ -10,6 +10,8 @@ import type BaseLayer from "ol/layer/Base";
 import type { EventsKey } from "ol/events";
 import { unByKey } from "ol/Observable";
 import { DEFAULT_ADJUSTMENTS, type ImageAdjustmentValues } from "../adjustments/adjustments";
+import { sliceUrlFrom } from "../depth/slices";
+import { SliceLayers } from "./sliceLayers";
 
 interface ImageSize {
 	width: number;
@@ -160,8 +162,14 @@ function zoomifySource(baseUrl: string, tileSize: number, size: ImageSize, proje
 }
 
 function zoomifyLayer(baseUrl: string, tileSize: number, size: ImageSize, projection: Projection, extent: number[]): WebGLTileLayer {
+	const layer = tileLayer();
+	layer.setSource(zoomifySource(baseUrl, tileSize, size, projection, extent));
+	return layer;
+}
+
+// A tile layer with nothing in it yet - SliceLayers gives it its source.
+function tileLayer(): WebGLTileLayer {
 	return new WebGLTileLayer({
-		source: zoomifySource(baseUrl, tileSize, size, projection, extent),
 		style: adjustmentsStyle(DEFAULT_ADJUSTMENTS),
 		// Loads every lower-res level under the view too, so a tile that isn't in
 		// yet shows a blurry preview instead of a white gap. Each level down is a
@@ -225,6 +233,12 @@ interface BaseLayerSpec {
 // two line up exactly.
 function buildBaseLayer(spec: BaseLayerSpec, projection: Projection, extent: number[], size: ImageSize): WebGLTileLayer {
 	return zoomifyLayer(spec.baseUrl, spec.tileSize, size, projection, extent);
+}
+
+// Each slice's tiles, for one slide. Null is the slide's own route - its
+// default slice, and all a flat slide has.
+function sliceSources(spec: BaseLayerSpec, geometry: SlideGeometry, size: ImageSize): (slice: number | null) => TileLayerSource {
+	return (slice) => zoomifySource(sliceUrlFrom(spec.baseUrl, slice), spec.tileSize, size, geometry.projection, geometry.extent);
 }
 
 type WatchZoom = (view: View, resolutions: number[], objectivePower: number | null) => EventsKey;
@@ -409,16 +423,15 @@ export function OpenLayerMap(
 	objectivePower: number | null = null,
 	mppX: number | null = null,
 	extraLayers: BaseLayer[] = [],
-): { map: Map; baseLayer: WebGLTileLayer; overviewMap: Map; showSlide: ShowSlide } {
+): { map: Map; tiles: SliceLayers<TileLayerSource>; overviewMap: Map; showSlide: ShowSlide } {
 	const first = slideGeometry(size, spec.tileSize, objectivePower);
-	const baseLayer = buildBaseLayer(spec, first.projection, first.extent, size);
 	// Layers can't be shared between two Map instances, so the overview has
-	// its own copy.
+	// its own copy - always the default slice.
 	const overviewLayer = buildBaseLayer(spec, first.projection, first.extent, size);
 
 	const map = new Map({
 		target,
-		layers: [baseLayer, ...extraLayers],
+		layers: [...extraLayers],
 		view: olView(first.projection, first.viewResolutions),
 		interactions: mapInteractions(),
 	});
@@ -439,6 +452,8 @@ export function OpenLayerMap(
 		collapsible: true,
 	});
 	map.addControl(overview);
+	// The main map's tiles - nothing until the caller says which slice to show.
+	const tiles = new SliceLayers<TileLayerSource>(map.getLayers(), tileLayer, sliceSources(spec, first, size));
 	const scaleBar = buildScaleBarControl();
 	map.addControl(scaleBar.control);
 
@@ -495,10 +510,12 @@ export function OpenLayerMap(
 
 	// The map, its layers and its controls all stay - only the tiles and the
 	// two views are the slide's. Nothing's rebuilt, so no GL context is made
-	// or thrown away and whatever's on the other layers is left alone.
+	// or thrown away and whatever's on the other layers is left alone. The
+	// tile layers go back in the pool until the caller shows a slice of the
+	// new slide.
 	const showSlide: ShowSlide = (nextSize, nextSpec, nextObjectivePower = null, nextMppX = null) => {
 		const next = slideGeometry(nextSize, nextSpec.tileSize, nextObjectivePower);
-		baseLayer.setSource(zoomifySource(nextSpec.baseUrl, nextSpec.tileSize, nextSize, next.projection, next.extent));
+		tiles.reset(sliceSources(nextSpec, next, nextSize));
 		overviewLayer.setSource(zoomifySource(nextSpec.baseUrl, nextSpec.tileSize, nextSize, next.projection, next.extent));
 		// The overview's first, so it's already the new slide's when the main
 		// map tells the control its view changed.
@@ -507,7 +524,7 @@ export function OpenLayerMap(
 		watchView(next, nextObjectivePower, nextMppX);
 	};
 
-	return { map, baseLayer, overviewMap, showSlide };
+	return { map, tiles, overviewMap, showSlide };
 }
 
 export {
