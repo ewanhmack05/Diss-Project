@@ -53,6 +53,27 @@ that have a history like everything else in a collection.
 | Good for | Focusing through thick cells, cytology | 3D structure - vessels, glands, tumour shape |
 | Gives the DPLab view? | No, too shallow | Yes |
 
+CytoBrowser (Rydell and Lindblad 2021, see
+[background.md](background.md#read-and-noted)) is the first kind, and the one
+of the four viewers read that's built around depth. It's built for cytology,
+where a specimen can be far thicker than one focal plane, so a cytopathologist
+focuses up and down through each cell and uses that to tell overlapping cells
+apart. It calls z-stacks "a
+central requirement" and leans on two results worth citing here too:
+
+- Hanna et al. 2017 - z-stacks beat single-plane scans for getting past focus
+  problems on digital cytology slides.
+- Lu et al. 2020 - being only 0.8 µm off the in-focus plane can clearly hurt a
+  deep learning classifier.
+
+Each z-layer is its own DZI file, `imagename_zNNN.dzi`, where `NNN` is an
+offset, usually in nanometres. So the depth is in the file name, and the
+viewer just loads the next file. The tiler's volumes do the same job with a
+folder and a `registration.json` saying the order and depth of each section
+(`SlideCatalog.cs`), which also holds the registration a file name can't. See
+[tiler.md](breakdown/tiler.md#11-more-formats-and-more-than-one-tiler) for the
+format side.
+
 Both look the same to the viewer once the data's ready: an ordered list of
 2D images of the same place, with a depth for each. So the viewer, store and
 hub work below is the same for either. The difference is all in getting the

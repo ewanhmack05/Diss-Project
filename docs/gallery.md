@@ -59,6 +59,32 @@ Max zoom is the objective the scanner reports, so slide 000 says x20 even
 though it's a 1/16 copy. The µm per pixel next to it (3.72, against 0.23 to
 0.32 for the others) is the honest figure.
 
+## In other viewers
+
+CytoBrowser (Rydell and Lindblad 2021, see
+[background.md](background.md#read-and-noted)) opens on a gallery of thumbnails:
+a low-resolution picture of each image, and hovering one shows a zoomed-in
+version of the middle. Picking one asks whether to start a new annotation
+session or carry on with an earlier one.
+
+What a card should say, from notes on reading it, against what it says now:
+
+| Wanted                  | Here now                                                         |
+| ----------------------- | ---------------------------------------------------------------- |
+| Size                    | Yes - pixels, real size, file size                               |
+| Resolution              | Yes - µm per pixel                                               |
+| Zoom level              | Yes - max zoom, as the scanner reports it                        |
+| Collections             | Yes - ones you can open with something in them                   |
+| Users on the image      | Yes - live sessions and who's on it now                          |
+| Annotations             | No - collections are counted, not what's in them                 |
+| Zoomed preview on hover | No - the picture is a square from the middle, the one size       |
+
+Annotations would come from the same `GET /slides/summary` call
+([SlideSummaryEndpoints.cs](../annotation-store/Collections/SlideSummaryEndpoints.cs)) -
+a third query next to `CollectionsWithWork` and `LiveSessions`, counting
+annotations in the collections `VisibleTo` already lets in. One more number per
+slide, not a new request.
+
 ## Moving to another slide
 
 The map is built once, for the first slide. Moving swaps what's

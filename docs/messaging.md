@@ -22,6 +22,18 @@ anyone could send someone was an invite code, and only while they were online.
 Measured by: how long a message takes to arrive, from a counter of sends by kind,
 and from how many sent items get added.
 
+## In other viewers
+
+The idea came from the first Cytomine paper (Marée et al. 2013, see
+[background.md](background.md#read-and-noted)). Next to following another user
+live, it had "an e-mailing mechanism" for sharing and discussing annotations -
+the same need, sending someone a region when you aren't both looking at it, met
+outside the app. Here it stays inside: the message holds the annotations
+themselves, and adding them records where they came from. None of the other
+viewers read (xOpat, PIMIP, CytoBrowser) has messaging; xOpat's sharing is a
+URL or file of the viewer's state, and CytoBrowser's is being in the same
+session and leaving comments on each other's annotations.
+
 ## What's there, and what gets in the way
 
 | What                                       | Where                           | What it means here                                       |

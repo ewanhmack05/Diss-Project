@@ -339,6 +339,41 @@ Not being done for this project - left for the write up as what comes next. See
   once the box closes. Saving one to the history log when the last editor closes it is
   the simple way, and enough for a history view
 
+## 12. Ideas from the reading
+
+From the four viewers read so far - Cytomine 2013, xOpat, PIMIP and CytoBrowser,
+written up in [background.md](background.md#read-and-noted). None built yet.
+
+- **Hover an annotation for its details** (Cytomine) - area, perimeter, term,
+  who drew it, in a small box over the map. The map has no hover on
+  annotations today, only on people's names. Good to add, small
+- **A layer per person** (Cytomine) - toggle each person's annotations on and
+  off. See [thought-process.md](thought-process.md#shared-vs-personal)
+- **Annotation presets on each mouse button** (xOpat) - a preset is a shape
+  plus a label and colour, and left and right click can each hold one, so two
+  kinds of thing can be marked without going back to the panel. Right click
+  isn't used on the map now (only `singleclick`, in `useMapSelection.ts`), so
+  it's free, though the browser's own menu would need stopping
+- **Automatic outline** (xOpat) - double click and it outlines the joined-up
+  area of a chosen layer from where you clicked, like a flood fill; Alt for
+  placing points by hand; Shift to paint an area with a brush that becomes a
+  polygon. It needs a layer to fill on (a model's output, or a threshold of
+  the image), so it's later than the rest
+- **Two views side by side** (xOpat) - see
+  [rendering.md](rendering.md#ideas-from-xopat)
+- **Plugins** (xOpat, CytoBrowser) - both make it easy to add a new tool
+  without touching the core. The toolbar's panels are close already; worth a
+  paragraph on whether the tools could be loaded as plugins
+- **Stories** (xOpat's Presenter) - record views with notes and play them
+  back. Present mode does it live; a recorded one would suit teaching
+- **More slide formats** - see
+  [tiler.md](breakdown/tiler.md#11-more-formats-and-more-than-one-tiler)
+- **Annotation count on gallery cards** - see
+  [gallery.md](gallery.md#in-other-viewers)
+- **Annotations as GeoJSON** (CytoBrowser saves JSON) - already done here:
+  collections import and export GeoJSON in slide pixels
+  ([collectionGeoJson.ts](../image-viewer/src/components/collections/collectionGeoJson.ts))
+
 ## Suggested order
 
 1. **Reading list** for [background.md](background.md), alongside the others

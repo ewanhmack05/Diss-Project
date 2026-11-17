@@ -41,6 +41,12 @@ other?
 All three run on the same data: each user's viewport broadcast over the
 real-time channel, throttled to ~10 updates/sec.
 
+Following isn't new. The first Cytomine paper (Marée et al. 2013) let one user
+follow another's observation path live, and CytoBrowser (Rydell and Lindblad
+2021) has follow plus everyone's mouse cursors. What's added here is the choice
+between the three modes, and Present, where the host decides. See
+[background.md](background.md#read-and-noted).
+
 ### Collaboration
 
 2 options for Cell Count:
@@ -55,6 +61,25 @@ Both are built - see [comparison count](breakdown/realtime-hub.md#8-comparison-c
 Collections hold annotations, cell counts and image adjustments - decide
 which are shared in a session. Likely: annotations shared, image
 adjustments personal, cell counts either way.
+
+**Idea from Cytomine: a layer per person.** In the first Cytomine paper each
+user draws on their own layer of annotations, and other people's are shown on
+top. Rather than (or as well as) picking a collection, each person's
+annotations could be a layer you toggle: turn one person off, look at only
+your own, or see everyone's in one go.
+
+- In a joint collection it's a filter, not a data change - every annotation
+  already has `CreatedById` and `CreatedByName`
+  ([Annotation.cs](../annotation-store/Annotations/Annotation.cs)), so it's a
+  per-person show/hide in the viewer.
+- Across collections it's more: showing other people's personal collections
+  on top of yours, read only, without joining a session. The Collections tab
+  already lists the shared ones, so it's drawing them as extra layers.
+- It fits the comparison count - two people's dots as two layers you flick
+  between is the same idea.
+- Open question: whose edit is it if you can see someone else's layer? Read
+  only keeps it simple, and copying across is what
+  [messaging](messaging.md#where-it-came-from) already records.
 
 ### Collections
 

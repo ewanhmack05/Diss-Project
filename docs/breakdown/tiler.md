@@ -23,6 +23,7 @@ page explains how it all fits together.
 8. [Viewer side](#8-viewer-side)
 9. [Known gaps](#9-known-gaps)
 10. [Glossary](#10-glossary)
+11. [More formats, and more than one tiler](#11-more-formats-and-more-than-one-tiler)
 
 ## 1. Where it sits
 
@@ -294,7 +295,8 @@ came from.
   [section 3](#3-what-a-slide-is).
 - **Slides found at startup only.** Adding a slide needs a restart.
 - **Only `.mrxs`.** OpenSlide reads SVS, NDPI, TIFF and others too, but the
-  catalog only looks for `*.mrxs`.
+  catalog only looks for `*.mrxs`. Ideas for more in
+  [section 11](#11-more-formats-and-more-than-one-tiler).
 
 ## 10. Glossary
 
@@ -311,3 +313,55 @@ came from.
 | Tile                    | A 256x256 (or smaller, at the edges) JPEG for one tier, column and row         |
 | Microns per pixel (mpp) | Real size of one level-0 pixel. Lets the viewer measure in µm                  |
 | Premultiplied           | Colour values already multiplied by alpha - how OpenSlide hands them back      |
+
+## 11. More formats, and more than one tiler
+
+Ideas from reading xOpat, CytoBrowser and PIMIP (see
+[background.md](../background.md#read-and-noted)), not built.
+
+The note from reading xOpat was "multiple tilers": one tiler per file type
+(`.mrxs`, `.tiff`, `.svs`, DICOM and so on) all feeding the one viewer. That
+raises three questions:
+
+- **How does each tiler know what to send?** It doesn't need to - the viewer
+  asks for a slide id and a `(z, x, y)` tile, and whichever tiler holds that
+  slide answers. The tile URL is the contract, so it stays the same.
+- **Who knows which tiler has which slide?** A tiler controller - a small
+  catalog in front that lists every slide from every tiler and routes each
+  request. The gallery and the viewer then only ever talk to it.
+- **A custom tiler per file type?** Only where OpenSlide can't read it.
+
+The three papers each answer it differently:
+
+| Approach | Who | How | Cost |
+| --- | --- | --- | --- |
+| Read every format natively | This tiler, PIMIP | OpenSlide reads the file as it is and tiles on request | Only what OpenSlide reads |
+| Convert first | CytoBrowser | Scripts turn each format (Zeiss `.zvi`, Hamamatsu `.ndpi`) into Deep Zoom Image files once, with libvips, Bio-Formats or NDPITools, and only DZI is served | A copy of every slide, and a step before it can be opened |
+| Pluggable data providers | xOpat | The viewer speaks each image server's own protocol through a handler, and any server can sit behind it | The viewer carries a handler per protocol |
+
+For this project the first is the cheapest step, since it's what's here:
+
+1. **More OpenSlide formats in the one tiler.** The catalog globs `*.mrxs`
+   ([SlideCatalog.cs](../../tiler/Slides/SlideCatalog.cs)). OpenSlide also
+   reads Aperio `.svs`, Hamamatsu `.ndpi`/`.vms`, Leica `.scn`, generic tiled
+   `.tif` and others. The gallery metadata comes from `mirax.*` properties, so
+   each format would need its own mapping for name, kind and channels, falling
+   back to the id as it does now.
+2. **DICOM and Zeiss `.czi`.** Newer than what's here: OpenSlide added DICOM
+   in 4.0.0 (October 2023) and Zeiss `.czi` in 4.0.1 (June 2026), per its
+   [changelog](https://github.com/openslide/openslide/blob/main/CHANGELOG.md).
+   Linux here is on 3.4 (see [section 7](#7-windows-and-linux)), so either
+   needs the library upgraded on both platforms or a separate reader. Which
+   OpenSlide the Windows OpenSlideSharp package bundles isn't checked.
+3. **A second tiler only if something can't be read in-process** - then a
+   controller in front, as above.
+
+xOpat goes further for AI overlays: its extended DeepZoom protocol can fetch
+the same tile from several sources in one request (concatenated into one
+image, or a zip), so a slide and its model outputs arrive together and are
+drawn in one pass - see [rendering.md](../rendering.md#ideas-from-xopat).
+
+PIMIP's line on why any of this works is worth keeping for the write-up: a
+slide is stored as a pyramid, which gives "efficient and random access" to
+any part at any resolution. The tiler reads one box from one level per tile
+and never the whole slide.

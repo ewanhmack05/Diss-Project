@@ -163,3 +163,37 @@ Not rendering. Measured causes, in order of impact:
 
 Stats for all of this are on the Grafana dashboard (see
 [dashboard/README.md](../dashboard/README.md)).
+
+## Ideas from xOpat
+
+xOpat (Horák et al. 2023, see [background.md](background.md#read-and-noted))
+is a WebGL slide viewer built for AI output layered over tissue. Not built
+here, but close to what's here, since the slide tiles already go through
+`WebGLTileLayer` with brightness, contrast and gamma in its shader.
+
+- **Combine tiles before drawing.** When a slide has several layers (tissue,
+  a model's heat map, an explainability map), xOpat fetches the tile for all
+  of them in one request and caches the combined tile. Then WebGL is set up
+  once and reused for every tile, without switching between layers. Their
+  reasons: less memory, fewer HTTP requests, faster drawing, and custom
+  blending and clipping between layers become possible. Here, the slide is
+  one layer today, so it only matters once there's a second image layer -
+  a model output, or a neighbouring slice in a [volume](zstack.md).
+- **Data layers as shaders.** Each overlay is drawn by a small GLSL shader:
+  identity, heat map (a value becomes the opacity of one colour), bi-polar
+  heat map, colour map, edges. A layer can also be a clipping mask for the
+  ones under it, so only areas above a threshold show. Here the same would be
+  a `WebGLTileLayer` style per overlay.
+- **A live GLSL editor.** GLSL is the language WebGL's shaders are written
+  in. xOpat lets a user write one in the viewer and see it straight away.
+  Powerful for researchers, too much for this project's users.
+- **Two windows that move together.** Overlapping layers hide each other, so
+  xOpat can split into two synchronised views, each showing different
+  layers. Here it's two OpenLayers maps sharing one `View` - or, live, it's
+  what Follow already does between two people
+  ([thought-process.md](thought-process.md#navigation-as-a-mode-not-a-rule)),
+  done between two panes on one screen.
+
+Their requirements list also has the line for this page: with data this size,
+"emphasis should therefore be put on rendering performance and low latency of
+the interactions" - what the measurements above are for.
