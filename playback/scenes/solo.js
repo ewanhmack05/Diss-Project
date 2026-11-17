@@ -455,7 +455,8 @@ export async function annotationGroups({ sam }) {
 	await sam.caption("Make a group from them", 500);
 	await sam.type(panel.getByLabel("New group name"), "Top row");
 	await sam.press("Group 3", panel);
-	await expect(panel.locator(".select-group").filter({ hasText: "Top row" })).toBeVisible({ timeout: 8000 });
+	const pickGroup = panel.getByLabel("Pick a group");
+	await expect(pickGroup.locator("option", { hasText: "Top row" })).toHaveText("Top row (3)", { timeout: 8000 });
 	sam.did("group-new");
 
 	await sam.press("Clear", panel);
@@ -468,7 +469,7 @@ export async function annotationGroups({ sam }) {
 	);
 	await sam.type(panel.getByLabel("New group name"), "Bottom row");
 	await sam.press("Group 2", panel);
-	await expect(panel.locator(".select-group").filter({ hasText: "Bottom row" })).toBeVisible({ timeout: 8000 });
+	await expect(pickGroup.locator("option", { hasText: "Bottom row" })).toHaveText("Bottom row (2)", { timeout: 8000 });
 	await sam.press("Clear", panel);
 
 	await sam.caption("Add more to a group", 500);
@@ -479,53 +480,66 @@ export async function annotationGroups({ sam }) {
 		],
 		{ stepsEach: 20 },
 	);
-	const bottom = panel.locator(".select-group").filter({ hasText: "Bottom row" });
-	await sam.press("Add 1", bottom);
-	await expect(bottom.locator(".select-group-count")).toHaveText("3", { timeout: 8000 });
+	await sam.choose(panel.getByLabel("Add to a group"), { label: "Bottom row" });
+	await sam.press("Add 1", panel);
+	await expect(pickGroup.locator("option", { hasText: "Bottom row" })).toHaveText("Bottom row (3)", { timeout: 8000 });
 	sam.did("group-add");
 
 	await sam.caption("Or take them back out", 500);
 	await sam.click(panel.getByRole("button", { name: /out of their groups/ }));
-	await expect(bottom.locator(".select-group-count")).toHaveText("2", { timeout: 8000 });
+	await expect(pickGroup.locator("option", { hasText: "Bottom row" })).toHaveText("Bottom row (2)", { timeout: 8000 });
 	sam.did("group-take-out");
 	await sam.press("Clear", panel);
 
-	await sam.caption("Hide a group, and show it again", 500);
-	await sam.click(panel.getByLabel("Hide Top row"));
-	await sam.pause(1100);
-	await sam.click(panel.getByLabel("Show Top row"));
-	await sam.pause(700);
-	sam.did("group-hide");
-
 	await sam.caption("Pick everything in one", 500);
-	await sam.press("Select", panel.locator(".select-group").filter({ hasText: "Top row" }));
+	await sam.choose(pickGroup, { label: "Top row (3)" });
 	await expect(count).toHaveText("3 annotations picked");
 	sam.did("group-select");
 	await sam.press("Clear", panel);
 
+	// Showing, hiding and each group's page are on the Collections panel.
+	await sam.caption("Groups are shown and hidden on the Collections panel", 500);
+	await sam.tool("Collections");
+	const collections = sam.panel("Collections");
+	await dragPanel(sam, "Collections", { x: 1400, y: 170 });
+	const chip = (name) => collections.getByRole("button", { name: new RegExp(`^${name}, `) });
+	await sam.click(chip("Top row"));
+	await sam.pause(1100);
+	await sam.click(chip("Top row"));
+	await sam.pause(700);
+	sam.did("group-hide");
+
+	// Right-click a group's chip for its page.
+	const openGroup = async (name) => {
+		const at = await sam.center(chip(name));
+		await sam.moveTo(at);
+		await page.mouse.click(at.x, at.y, { button: "right" });
+		await sam.pause(500);
+		await sam.click(page.getByRole("menuitem", { name: "Open group" }));
+	};
+
 	await sam.caption("Each group has its own page", 500);
-	await sam.click(panel.locator(".select-group-name").filter({ hasText: "Top row" }));
-	const nameBox = panel.getByLabel("Group name");
+	await openGroup("Top row");
+	const nameBox = collections.getByLabel("Group name");
 	await sam.click(nameBox, 150);
 	await page.keyboard.press("End");
 	await page.keyboard.type(" of marks", { delay: 45 });
 	await page.keyboard.press("Enter");
 	await sam.pause(500);
 	sam.did("group-rename");
-	await sam.type(panel.getByLabel("Group notes"), "What this group is for", 30);
+	await sam.type(collections.getByLabel("Group notes"), "What this group is for", 30);
 	await sam.pause(900);
 	sam.did("group-notes");
-	await sam.click(panel.locator(".select-section").filter({ hasText: "Colour" }).locator("button").nth(2));
-	await sam.press("Recolour 3 annotations", panel);
+	await sam.click(collections.locator(".select-section").filter({ hasText: "Colour" }).locator("button").nth(2));
+	await sam.press("Recolour 3 annotations", collections);
 	await sam.pause(800);
 	sam.did("group-recolour");
 
 	await sam.caption("Merge it into another", 500);
-	await sam.choose(panel.getByLabel("Merge into"), { label: "Bottom row" });
-	await sam.press("Merge", panel.locator(".select-section").filter({ hasText: "Merge" }));
+	await sam.choose(collections.getByLabel("Merge into"), { label: "Bottom row" });
+	await sam.press("Merge", collections.locator(".select-section").filter({ hasText: "Merge" }));
 	await answerDialog(sam, "Merge");
-	const merged = panel.locator(".select-group").filter({ hasText: "Bottom row" });
-	await expect(merged.locator(".select-group-count")).toHaveText("5", { timeout: 8000 });
+	await expect(chip("Bottom row")).toHaveAccessibleName("Bottom row, 5 annotations", { timeout: 8000 });
 	sam.did("group-merge");
 
 	await sam.caption("Saved can filter by group", 500);
@@ -539,18 +553,19 @@ export async function annotationGroups({ sam }) {
 	await sam.click(panel.getByRole("button", { name: "Select", exact: true }));
 
 	await sam.caption("Delete everything in a group - with a chance to undo", 500);
-	await sam.click(panel.locator(".select-group-name").filter({ hasText: "Bottom row" }));
-	await sam.click(panel.getByRole("button", { name: /^Delete its 5/ }));
+	await openGroup("Bottom row");
+	await sam.click(collections.getByRole("button", { name: /^Delete its 5/ }));
 	await answerDialog(sam, "Delete");
 	await answerToast(sam, "Deleted 5 annotations", "Undo");
-	await expect(panel.locator(".select-count").first()).toHaveText("5 annotations", { timeout: 8000 });
+	await expect(collections.locator(".select-count").first()).toHaveText("5 annotations", { timeout: 8000 });
 	sam.did("group-delete-members");
 
 	await sam.caption("Or delete the group and keep what's in it", 500);
-	await sam.press("Delete the group, keep its annotations", panel);
+	await sam.press("Delete the group, keep its annotations", collections);
 	await answerDialog(sam, "Delete group");
-	await expect(panel.locator(".select-group")).toHaveCount(0, { timeout: 8000 });
+	await expect(chip("Bottom row")).toHaveCount(0, { timeout: 8000 });
 	sam.did("group-delete");
+	await closePanel(sam, "Collections");
 
 	await sam.caption("Deleting what's picked can be undone too", 500);
 	await sam.press("All", panel);
@@ -978,6 +993,8 @@ export async function collections({ sam }) {
 	await sam.caption("Collections: everything of yours on this slide");
 	await sam.tool("Collections");
 	const panel = sam.panel("Collections");
+	// It opens on On the map; your own is on the Collections tab.
+	await sam.click(panel.getByRole("tab", { name: "Collections" }));
 
 	await sam.caption("Rename it", 500);
 	await sam.click(panel.getByLabel("Rename your collection"));
