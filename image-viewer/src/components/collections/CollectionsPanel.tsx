@@ -12,6 +12,7 @@ import UserCollection from "./user-collection/UserCollection";
 import SharedCollectionList from "./shared-collection/SharedCollectionList";
 import HistoryList from "./history/HistoryList";
 import OnTheMapTab from "./map/OnTheMapTab";
+import { splitSessions } from "./shared-collection/sessions";
 import "./CollectionsPanel.css";
 
 type CollectionsTab = "map" | "collections" | "history";
@@ -67,6 +68,8 @@ function CollectionsPanel() {
 	// Kept here rather than in the toolbar's context, like RealTime's - it's
 	// your own, so Present doesn't follow the host's.
 	const [tab, setTab] = useState<CollectionsTab>("map");
+	// Ended sessions are folded away unless asked for.
+	const [endedOpen, setEndedOpen] = useState(false);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const importTargetRef = useRef<Collection | null>(null);
 
@@ -99,9 +102,11 @@ function CollectionsPanel() {
 	if (pending) return <ImportPreview {...pending} onDone={() => setPending(null)} />;
 
 	const mine = collections.find((c) => c.collectionId === personalCollectionId);
-	const sessions = collections.filter((c) => c.kind === "session");
+	const { live, ended } = splitSessions(collections.filter((c) => c.kind === "session"));
 	const others = collections.filter((c) => c.kind === "personal" && c.collectionId !== personalCollectionId);
 	const activeId = active?.collectionId ?? null;
+	// Open while you're looking at one, so its row's there to see.
+	const showEnded = endedOpen || ended.some((c) => c.collectionId === activeId);
 
 	let body;
 	if (status !== "ready") {
@@ -127,11 +132,24 @@ function CollectionsPanel() {
 				</section>
 
 				<section className="collections-section">
-					<h3 className="collections-heading">Sessions ({sessions.length})</h3>
-					{sessions.length > 0 ? (
-						<SharedCollectionList collections={sessions} activeId={activeId} onExport={startExport} onImport={startImport} />
+					<h3 className="collections-heading">Sessions ({live.length})</h3>
+					{live.length > 0 ? (
+						<SharedCollectionList collections={live} activeId={activeId} onExport={startExport} onImport={startImport} />
 					) : (
-						<p className="collections-note">Sessions you start or join from RealTime show up here.</p>
+						<p className="collections-note">
+							{ended.length > 0 ? "None going at the moment." : "Sessions you start or join from RealTime show up here."}
+						</p>
+					)}
+					{ended.length > 0 && (
+						<>
+							<button type="button" className="collections-fold" aria-expanded={showEnded} onClick={() => setEndedOpen((open) => !open)}>
+								<span className="collections-fold-arrow" aria-hidden>
+									{showEnded ? "▾" : "▸"}
+								</span>
+								Ended ({ended.length})
+							</button>
+							{showEnded && <SharedCollectionList collections={ended} activeId={activeId} onExport={startExport} onImport={startImport} />}
+						</>
 					)}
 				</section>
 

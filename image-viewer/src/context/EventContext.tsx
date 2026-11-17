@@ -51,6 +51,7 @@ const TOAST_MESSAGES: Record<string, { message: string; variant: "success" | "er
 	"collection:import-error": { message: "Couldn't import that file - nothing was added", variant: "error" },
 	"collection:error": { message: "Couldn't do that - try again", variant: "error" },
 	"session:error": { message: "Couldn't do that - try again", variant: "error" },
+	"session:dropped": { message: "Ended - nothing was added to it, so it wasn't kept", variant: "success" },
 	"session:link-copied": { message: "Invite link copied", variant: "success" },
 	"session:code-copied": { message: "Invite code copied", variant: "success" },
 	"user:invited": { message: "Invite sent - it's up to them now", variant: "success" },

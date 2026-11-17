@@ -5,6 +5,8 @@ import { useEmitEvent } from "../../../context/EventContext";
 import { useMessagingContext } from "../../../context/MessagingContext";
 import { usePresenceContext } from "../../../context/PresenceContext";
 import CollectionRow from "../CollectionRow";
+import { useEndSession } from "../../realtime/useEndSession";
+import { sessionWhen } from "./sessions";
 
 interface SharedCollectionListProps {
 	collections: Collection[];
@@ -17,11 +19,11 @@ function ownerName(collection: Collection): string {
 	return collection.members.find((m) => m.role === "owner")?.displayName || "someone";
 }
 
+// How many and when are on the line under - see sessionWhen.
 function sessionAbout(session: Collection, me: string, empty: boolean): string {
 	const who = session.ownerId === me ? "You're hosting" : `Hosted by ${ownerName(session)}`;
-	const people = `${session.members.length} ${session.members.length === 1 ? "person" : "people"}`;
 	const state = session.ended ? "ended" : empty ? "nobody in it" : session.myRole === "viewer" ? "you can view" : "you can edit";
-	return `${who} · ${people} · ${state}`;
+	return `${who} · ${state}`;
 }
 
 // Sessions you're in, and other people's collections they've shared - both
@@ -34,6 +36,7 @@ function SharedCollectionList({ collections, activeId, onExport, onImport }: Sha
 	const { showDialog } = useDialogContext();
 	const emit = useEmitEvent();
 	const { status: messaging, sendToSomeone } = useMessagingContext();
+	const { wouldDrop, dropIfEmpty } = useEndSession();
 
 	const confirmLeave = (session: Collection) =>
 		showDialog({
@@ -50,15 +53,27 @@ function SharedCollectionList({ collections, activeId, onExport, onImport }: Sha
 	const hosting = collections.filter((c) => c.kind === "session" && !c.ended && c.ownerId === user.id);
 	const current = hosting.find((c) => c.collectionId === activeId) ?? hosting[0];
 
-	const confirmEnd = (session: Collection) =>
+	// Asked first whether anything's in it, so the dialog can say if it's kept.
+	const confirmEnd = async (session: Collection) => {
+		const drops = await wouldDrop(session.collectionId).catch(() => false);
 		showDialog({
 			title: `End ${session.collectionName}?`,
-			message: "You can only host one session on a slide at a time. It'll be read-only, and its links stop - it's kept to look back at.",
+			message: drops
+				? "You can only host one session on a slide at a time. Nothing's been drawn, counted or said in this one, so it won't be kept."
+				: "You can only host one session on a slide at a time. It'll be read-only, and its links stop - it's kept to look back at.",
 			actions: [
-				{ label: "End session", variant: "danger", onClick: () => endOther(session.collectionId).catch(() => emit("collection:error")) },
+				{
+					label: "End session",
+					variant: "danger",
+					onClick: () =>
+						endOther(session.collectionId)
+							.then(() => dropIfEmpty(session.collectionId))
+							.catch(() => emit("collection:error")),
+				},
 				{ label: "Cancel" },
 			],
 		});
+	};
 
 	const confirmDelete = (session: Collection) =>
 		showDialog({
@@ -87,6 +102,7 @@ function SharedCollectionList({ collections, activeId, onExport, onImport }: Sha
 						key={collection.collectionId}
 						collection={collection}
 						about={isSession ? sessionAbout(collection, user.id, empty) : `${ownerName(collection)} · read-only`}
+						when={isSession ? sessionWhen(collection) : undefined}
 						here={here}
 					>
 						{!here &&

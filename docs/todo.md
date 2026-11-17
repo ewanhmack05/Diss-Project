@@ -6,6 +6,11 @@ an afternoon, medium a few days, large a week or more.
 
 ## Done
 
+- **Telling sessions apart** - new sessions are named with when they
+  started ("Bob Hughes's session, 17 Nov 14:05"), each row in the
+  Collections tab says when it started or ended, and ended ones fold under
+  **Ended (n)**. Ending one nothing happened in deletes it, so empty ones
+  don't pile up. Reopen is filled so it doesn't look greyed out
 - **Pagination** - annotations and cell counts, with first/last and a
   page number you can type (51k annotations is 1,021 pages)
 - **Collab tab** - split into sub tabs, a lot less text

@@ -244,7 +244,11 @@ three tabs, kept in the panel itself so Present doesn't follow the host's:
   - **Your own** - rename it, turn sharing on or off, export, import.
   - **Sessions** - the ones you host or joined, moved here from RealTime.
     Rejoin or view, export, import (if you can edit and it hasn't ended),
-    leave for good, or delete one you host once it's ended.
+    leave for good, or delete one you host once it's ended. Each row says
+    when it started (or ended) and how many are in it. Live ones are listed;
+    ended ones fold under **Ended (n)**, latest first, open while you're
+    looking at one
+    ([sessions.ts](../../image-viewer/src/components/collections/shared-collection/sessions.ts)).
   - **Shared with you** - other people's shared collections. View and
     export only.
 - **History** - every change made in the collection you're in, newest first.
@@ -761,10 +765,20 @@ during a session:
   editors a link lets in and "when two people change the same thing" - last
   change wins or first change wins - starting from the viewer's
   `maxEditors` and `editPolicy` options in `index.tsx`. Neither can change
-  once it's started; Settings says which it is.
+  once it's started; Settings says which it is. It's named for the host and
+  when it started on their clock ("Bob Hughes's session, 17 Nov 14:05"), so
+  two are never the same - annotation-store's own default has no date, as it
+  doesn't know the host's time zone.
 - **Hosting** - the quick controls: the invite link and code to copy, making
   a (new) link, a line saying what it lets people do with **Change** (which
-  opens Settings), navigation, and ending the session.
+  opens Settings), navigation, and ending the session. Ending one that
+  nothing happened in - nothing drawn or counted, nobody else in it, nothing
+  said in its chat - deletes it rather than keep an empty row forever; the
+  confirm says so first ([useEndSession.ts](../../image-viewer/src/components/realtime/useEndSession.ts)).
+  It's checked against a fresh list before and after ending, so anything
+  added in between keeps it, and a chat messaging couldn't answer for counts
+  as something said. Ending an older one from the Collections tab does the
+  same.
 - **Joined** - what the host has everyone doing, and leaving.
 - **Ended** - read-only, to look back at.
 
