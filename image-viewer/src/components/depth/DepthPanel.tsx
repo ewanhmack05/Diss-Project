@@ -35,10 +35,22 @@ function DepthPanel() {
 	return (
 		<div className="depth-panel">
 			<div className="depth-panel-views" role="group" aria-label="View">
-				<button type="button" className={view === "2d" ? "depth-panel-view--on" : ""} aria-pressed={view === "2d"} onClick={() => setView("2d")}>
+				<button
+					type="button"
+					className={view === "2d" ? "depth-panel-view--on" : ""}
+					aria-pressed={view === "2d"}
+					disabled={locked}
+					onClick={() => setView("2d")}
+				>
 					2D
 				</button>
-				<button type="button" className={view === "3d" ? "depth-panel-view--on" : ""} aria-pressed={view === "3d"} onClick={() => setView("3d")}>
+				<button
+					type="button"
+					className={view === "3d" ? "depth-panel-view--on" : ""}
+					aria-pressed={view === "3d"}
+					disabled={locked}
+					onClick={() => setView("3d")}
+				>
 					3D
 				</button>
 			</div>
@@ -104,135 +116,138 @@ function DepthPanel() {
 
 			{view === "3d" && (
 				<div className="depth-panel-block">
-					<div className="depth-panel-slider">
-						<div className="depth-panel-slider-header">
-							<span>Slices drawn</span>
-							<span className="depth-panel-value">
-								{settings.firstSlice + 1} to {settings.lastSlice + 1}
-							</span>
-						</div>
-						<input
-							type="range"
-							min={0}
-							max={count - 1}
-							value={settings.firstSlice}
-							aria-label="First slice drawn"
-							onChange={(event) => {
-								const value = numberFrom(event);
-								if (value !== null) changeSettings({ firstSlice: Math.min(value, settings.lastSlice) });
-							}}
-						/>
-						<input
-							type="range"
-							min={0}
-							max={count - 1}
-							value={settings.lastSlice}
-							aria-label="Last slice drawn"
-							onChange={(event) => {
-								const value = numberFrom(event);
-								if (value !== null) changeSettings({ lastSlice: Math.max(value, settings.firstSlice) });
-							}}
-						/>
-					</div>
-
-					<div className="depth-panel-slider">
-						<div className="depth-panel-slider-header">
-							<span>Cut</span>
-						</div>
-						<div className="depth-panel-cuts" role="group" aria-label="Cut">
-							{CUTS.map(({ axis, label }) => (
-								<button
-									key={axis}
-									type="button"
-									className={settings.cut === axis ? "depth-panel-view--on" : ""}
-									aria-pressed={settings.cut === axis}
-									onClick={() => changeSettings({ cut: axis })}
-								>
-									{label}
-								</button>
-							))}
-						</div>
-						{settings.cut !== "none" && (
+					{/* The presenter's block while they present - see NavigationContext. Turning it is still yours. */}
+					<fieldset className="depth-panel-settings" disabled={locked}>
+						<div className="depth-panel-slider">
+							<div className="depth-panel-slider-header">
+								<span>Slices drawn</span>
+								<span className="depth-panel-value">
+									{settings.firstSlice + 1} to {settings.lastSlice + 1}
+								</span>
+							</div>
 							<input
 								type="range"
 								min={0}
-								max={1}
-								step={0.01}
-								value={settings.cutPosition}
-								aria-label="Where the cut is"
+								max={count - 1}
+								value={settings.firstSlice}
+								aria-label="First slice drawn"
 								onChange={(event) => {
 									const value = numberFrom(event);
-									if (value !== null) changeSettings({ cutPosition: value });
+									if (value !== null) changeSettings({ firstSlice: Math.min(value, settings.lastSlice) });
 								}}
 							/>
-						)}
-					</div>
-
-					<div className="depth-panel-slider">
-						<div className="depth-panel-slider-header">
-							<span>Opacity</span>
-							<span className="depth-panel-value">{Math.round(settings.opacity * 100)}%</span>
+							<input
+								type="range"
+								min={0}
+								max={count - 1}
+								value={settings.lastSlice}
+								aria-label="Last slice drawn"
+								onChange={(event) => {
+									const value = numberFrom(event);
+									if (value !== null) changeSettings({ lastSlice: Math.max(value, settings.firstSlice) });
+								}}
+							/>
 						</div>
-						<input
-							type="range"
-							min={0.05}
-							max={1}
-							step={0.05}
-							value={settings.opacity}
-							aria-label="Opacity"
-							onChange={(event) => {
-								const value = numberFrom(event);
-								if (value !== null) changeSettings({ opacity: value });
-							}}
-						/>
-					</div>
 
-					<div className="depth-panel-slider">
-						<div className="depth-panel-slider-header">
-							<span>Depth</span>
-							<span className="depth-panel-value">{settings.trueDepth ? "True" : `x${settings.stretch.toFixed(2).replace(/\.?0+$/, "")}`}</span>
+						<div className="depth-panel-slider">
+							<div className="depth-panel-slider-header">
+								<span>Cut</span>
+							</div>
+							<div className="depth-panel-cuts" role="group" aria-label="Cut">
+								{CUTS.map(({ axis, label }) => (
+									<button
+										key={axis}
+										type="button"
+										className={settings.cut === axis ? "depth-panel-view--on" : ""}
+										aria-pressed={settings.cut === axis}
+										onClick={() => changeSettings({ cut: axis })}
+									>
+										{label}
+									</button>
+								))}
+							</div>
+							{settings.cut !== "none" && (
+								<input
+									type="range"
+									min={0}
+									max={1}
+									step={0.01}
+									value={settings.cutPosition}
+									aria-label="Where the cut is"
+									onChange={(event) => {
+										const value = numberFrom(event);
+										if (value !== null) changeSettings({ cutPosition: value });
+									}}
+								/>
+							)}
 						</div>
-						<input
-							type="range"
-							min={0.25}
-							max={4}
-							step={0.25}
-							value={settings.stretch}
-							aria-label="Depth"
-							onChange={(event) => {
-								const value = numberFrom(event);
-								if (value !== null) changeSettings({ stretch: value, trueDepth: false });
-							}}
-						/>
+
+						<div className="depth-panel-slider">
+							<div className="depth-panel-slider-header">
+								<span>Opacity</span>
+								<span className="depth-panel-value">{Math.round(settings.opacity * 100)}%</span>
+							</div>
+							<input
+								type="range"
+								min={0.05}
+								max={1}
+								step={0.05}
+								value={settings.opacity}
+								aria-label="Opacity"
+								onChange={(event) => {
+									const value = numberFrom(event);
+									if (value !== null) changeSettings({ opacity: value });
+								}}
+							/>
+						</div>
+
+						<div className="depth-panel-slider">
+							<div className="depth-panel-slider-header">
+								<span>Depth</span>
+								<span className="depth-panel-value">{settings.trueDepth ? "True" : `x${settings.stretch.toFixed(2).replace(/\.?0+$/, "")}`}</span>
+							</div>
+							<input
+								type="range"
+								min={0.25}
+								max={4}
+								step={0.25}
+								value={settings.stretch}
+								aria-label="Depth"
+								onChange={(event) => {
+									const value = numberFrom(event);
+									if (value !== null) changeSettings({ stretch: value, trueDepth: false });
+								}}
+							/>
+							<label className="depth-panel-check">
+								<input type="checkbox" checked={settings.trueDepth} onChange={(event) => changeSettings({ trueDepth: event.target.checked })} />
+								True depth - as thick as the sections are
+							</label>
+						</div>
+
+						<div className="depth-panel-slider">
+							<div className="depth-panel-slider-header">
+								<span>Gap between slices</span>
+								<span className="depth-panel-value">{spacingText(settings.spacing)}</span>
+							</div>
+							<input
+								type="range"
+								min={0}
+								max={8}
+								step={0.5}
+								value={settings.spacing}
+								aria-label="Gap between slices"
+								onChange={(event) => {
+									const value = numberFrom(event);
+									if (value !== null) changeSettings({ spacing: value });
+								}}
+							/>
+						</div>
+
 						<label className="depth-panel-check">
-							<input type="checkbox" checked={settings.trueDepth} onChange={(event) => changeSettings({ trueDepth: event.target.checked })} />
-							True depth - as thick as the sections are
+							<input type="checkbox" checked={settings.guides} onChange={(event) => changeSettings({ guides: event.target.checked })} />
+							Outline and grid
 						</label>
-					</div>
-
-					<div className="depth-panel-slider">
-						<div className="depth-panel-slider-header">
-							<span>Gap between slices</span>
-							<span className="depth-panel-value">{spacingText(settings.spacing)}</span>
-						</div>
-						<input
-							type="range"
-							min={0}
-							max={8}
-							step={0.5}
-							value={settings.spacing}
-							aria-label="Gap between slices"
-							onChange={(event) => {
-								const value = numberFrom(event);
-								if (value !== null) changeSettings({ spacing: value });
-							}}
-						/>
-					</div>
-
-					<label className="depth-panel-check">
-						<input type="checkbox" checked={settings.guides} onChange={(event) => changeSettings({ guides: event.target.checked })} />
-						Outline and grid
-					</label>
+					</fieldset>
 
 					<div className="depth-panel-buttons">
 						<button type="button" onClick={resetCamera}>
@@ -241,7 +256,9 @@ function DepthPanel() {
 					</div>
 
 					<p className="depth-panel-hint">
-						Drag to turn it, scroll to zoom, right-drag to move it. Click the tissue to open that slice there in 2D.
+						{locked
+							? "The presenter is choosing how the block looks. You can still turn and zoom it."
+							: "Drag to turn it, scroll to zoom, right-drag to move it. Click the tissue to open that slice there in 2D."}
 					</p>
 				</div>
 			)}

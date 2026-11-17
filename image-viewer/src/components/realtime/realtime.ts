@@ -5,6 +5,7 @@ import type OlMap from "ol/Map";
 import type View from "ol/View";
 import type { LineStyleName, ShapeTool } from "../annotation/Tools";
 import type { ImageAdjustmentValues } from "../adjustments/adjustments";
+import type { DepthView, VolumeSettings } from "../../context/SliceContext";
 
 type Coord = [number, number];
 
@@ -54,6 +55,14 @@ interface Screen {
 	viewedAnnotationId: string | null;
 	editingAnnotationId: string | null;
 	editingCellCountId: string | null;
+	// On a volume: 2D or 3D, and how the block's drawn. Null on a flat slide,
+	// missing from a viewer from before this.
+	depth?: DepthScreen | null;
+}
+
+interface DepthScreen {
+	view: DepthView;
+	settings: VolumeSettings;
 }
 
 // How everyone moves round the slide - see the hub's NavigationMode.
@@ -405,6 +414,18 @@ function followSlice(host: number | null | undefined, mine: number, hostBefore: 
 	return locked ? "go" : "break";
 }
 
+// Whether someone's looking at the block in 3D, from what their screen says.
+function inThreeD(participant: Pick<Participant, "screen">): boolean {
+	return participant.screen?.depth?.view === "3d";
+}
+
+// The host's 2D or 3D and block settings, when they're yours to take: only
+// while they present, only on a volume, and only from a viewer that sends them.
+function hostDepth(hostScreen: Screen | null, presenting: boolean, volume: boolean): DepthScreen | null {
+	if (!presenting || !volume) return null;
+	return hostScreen?.depth ?? null;
+}
+
 // What someone's box says about their slice: nothing when you're on the same
 // one, or either of you isn't on a volume. Slices are shown from 1.
 function sliceNote(theirs: number | null | undefined, mine: number, volume: boolean): string | null {
@@ -518,6 +539,8 @@ export {
 	followView,
 	followSlice,
 	sliceNote,
+	inThreeD,
+	hostDepth,
 	sameView,
 	panelChanges,
 	tabChanges,
@@ -543,6 +566,7 @@ export type {
 	Participant,
 	NavigationMode,
 	Screen,
+	DepthScreen,
 	ScreenUpdate,
 	HostRequest,
 	Sketch,

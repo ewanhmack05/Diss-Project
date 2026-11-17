@@ -101,4 +101,28 @@ describe("splitActive", () => {
 		const users = activeUsers(null, others);
 		expect(Object.fromEntries(users.map((u) => [u.userId, u.slice]))).toEqual({ ann: 4, bob: 0, cy: null });
 	});
+
+	it("says who's in 3D, in any of their tabs", () => {
+		const screen = (view: "2d" | "3d") => ({
+			panels: [],
+			tabs: {},
+			adjustments: null,
+			viewedCellCountId: null,
+			viewedAnnotationId: null,
+			editingAnnotationId: null,
+			editingCellCountId: null,
+			depth: {
+				view,
+				settings: { cut: "none" as const, cutPosition: 0.5, opacity: 1, stretch: 1, trueDepth: false, spacing: 0, firstSlice: 0, lastSlice: 4, guides: true },
+			},
+		});
+		const others = [
+			person("ann", { connectionId: "a1", screen: screen("2d") }),
+			person("ann", { connectionId: "a2", screen: screen("3d") }),
+			person("bob", { screen: screen("2d") }),
+			person("cy"),
+		];
+		const users = activeUsers(null, others);
+		expect(Object.fromEntries(users.map((u) => [u.userId, u.threeD]))).toEqual({ ann: true, bob: false, cy: false });
+	});
 });

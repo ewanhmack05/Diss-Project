@@ -144,6 +144,8 @@ type Screen = {
 	viewedCellCountId: string | null;
 	editingAnnotationId: string | null;
 	editingCellCountId: string | null;
+	// On a volume: 2D or 3D and how the block's drawn (see SliceContext). Null on a flat slide.
+	depth?: { view: "2d" | "3d"; settings: Record<string, unknown> } | null;
 };
 type ScreenUpdate = { connectionId: string; screen: Screen };
 // extent is the view box before rotation (centre ± half the screen size, in

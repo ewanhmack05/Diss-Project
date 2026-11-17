@@ -2,8 +2,9 @@
 
 A draft of what a live session does when someone's in the Depth tab's 3D
 view. Phases 4 and 7 of [zstack.md](zstack.md#9-phases), worked out in
-detail. **Phase 1 (the slice, live) is built** - see
-[what was built](#51-phase-1-built). The rest is design.
+detail. **Phases 1 and 2 are built** (the slice live, and who's in 3D) - see
+[phase 1](#51-phase-1-built) and [phase 2](#52-phase-2-built). The rest is
+design.
 
 ## Contents
 
@@ -258,6 +259,34 @@ Viewer: `followSlice` and `sliceNote`, including a run of the map's effect
 through several steps to show it settles without looping, and the Active
 list's slice; 1062 in all.
 
+### 5.2 Phase 2, built
+
+`Screen.depth` carries 2D or 3D and the block's settings. `Screen` is opaque
+to the hub, so the hub didn't change. `hostDepth` in `realtime.ts` says when
+the host's are yours to take (Present, a volume, a viewer that sends them);
+`NavigationContext` applies them, the view as changes only (like panels), the
+settings like image adjustments, with yours put back after.
+
+| Draft said | Built | Why |
+| --- | --- | --- |
+| 2D or 3D next to each name in Active, and on their chip | As designed: "in 3D" in the Active list, a 3D tag on the chip | |
+| Present switches you into 3D and out with the host | As designed | |
+| The block's settings follow under Present | As designed, and the Depth tab's switch and block settings are off while it lasts | The host's next change would only undo yours. Reset view stays on - the camera's still yours until phase 4 |
+| Follow doesn't switch you | As designed | |
+| - | Present ending leaves you in the view it left you in, with your own block settings back | Same as panels (left open) and adjustments (yours back) |
+
+**Checked by hand**, Alice hosting and Bob in the session on the liver volume:
+in Free, Alice going into 3D tagged her chip "3D" and her Active row "in 3D"
+for Bob, who stayed in 2D; Follow left Bob in 2D; Present took Bob into 3D
+with Alice's X cut and 60% opacity, his switch and settings off and Reset
+view still on; Alice changing to a diagonal cut, then to 2D, took Bob with
+her; Alice ending Present in 3D left Bob in 3D with his own 40% opacity and
+no cut back, and his controls on again. No failed requests on either page.
+
+**Tests.** `inThreeD`, `hostDepth` (only under Present, only on a volume,
+nothing from a viewer that doesn't send it) and the Active list's 3D flag
+across two tabs. Viewer: 1069 in all.
+
 ## 6. How it's measured
 
 - **Follower lag on the slice** (phase 1): from the host stepping a slice to
@@ -308,4 +337,5 @@ list's slice; 1062 in all.
 | About 150 bytes per viewport with a camera | Estimated from the field count, not measured | **To measure** in phase 3 |
 | Phase 1: a step reaches a follower in a median 14 ms on localhost | Two tabs, real hub, 30 steps timed with a `MutationObserver` (5.1) | Checked - localhost only, no real network |
 | Phase 1: Follow, breaking away, Present and look here all take the slice | Two tabs on the liver volume, by hand (5.1) | Checked |
+| Phase 2: Present takes followers into 3D with the host's block, and gives theirs back after | Two tabs on the liver volume, by hand (5.2) | Checked |
 | Multi-user game editors show other users' cameras | Not checked against any one engine's documentation | **Unverified** - read the docs of one engine's multi-user editing before citing it in the dissertation |

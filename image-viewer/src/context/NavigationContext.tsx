@@ -7,7 +7,9 @@ import { useDrawContext } from "./DrawContext";
 import { useCellCountDrawContext } from "./CellCountDrawContext";
 import { useAnnotationStoreContext } from "./AnnotationStoreContext";
 import { useCellCountStoreContext } from "./CellCountStoreContext";
+import { useSliceContext, type VolumeSettings } from "./SliceContext";
 import {
+	hostDepth,
 	leaderOf,
 	panelChanges,
 	tabChanges,
@@ -50,6 +52,7 @@ function NavigationContextProvider({ children }: { children: ReactNode }) {
 	const { pending: counting } = useCellCountDrawContext();
 	const { selectedAnnotationId, setSelectedAnnotationId, viewedAnnotationId, setViewedAnnotationId } = useAnnotationStoreContext();
 	const { selectedCellCountId, viewedCellCountId, setSelectedCellCountId, setViewedCellCountId } = useCellCountStoreContext();
+	const { volume, view, setView, settings, changeSettings } = useSliceContext();
 	const [brokeAway, setBrokeAway] = useState(false);
 	// A new mode starts everyone on the host again.
 	const [modeBefore, setModeBefore] = useState(mode);
@@ -71,8 +74,21 @@ function NavigationContextProvider({ children }: { children: ReactNode }) {
 			viewedAnnotationId,
 			editingAnnotationId: selectedAnnotationId,
 			editingCellCountId: selectedCellCountId,
+			depth: volume ? { view, settings } : null,
 		});
-	}, [activeTools, panelTabs, adjustments, viewedCellCountId, viewedAnnotationId, selectedAnnotationId, selectedCellCountId, sendScreen]);
+	}, [
+		activeTools,
+		panelTabs,
+		adjustments,
+		viewedCellCountId,
+		viewedAnnotationId,
+		selectedAnnotationId,
+		selectedCellCountId,
+		volume,
+		view,
+		settings,
+		sendScreen,
+	]);
 
 	// In Present, open and close what the host does. Only changes are copied,
 	// so you can still open something else yourself in between.
@@ -187,6 +203,40 @@ function NavigationContextProvider({ children }: { children: ReactNode }) {
 		setAdjustments(ownAdjustmentsRef.current);
 		ownAdjustmentsRef.current = null;
 	}, [presenting, setAdjustments]);
+
+	// On a volume, 2D or 3D goes with the host - only changes, like panels, so
+	// Present starting puts you where they are. Present ending leaves you there.
+	const presentedDepth = hostDepth(hostScreen, presenting, volume);
+	const hostView = presentedDepth?.view ?? null;
+	const lastHostViewRef = useRef<string | null>(null);
+	useEffect(() => {
+		if (!hostView) {
+			lastHostViewRef.current = null;
+			return;
+		}
+		if (hostView === lastHostViewRef.current) return;
+		lastHostViewRef.current = hostView;
+		setView(hostView);
+	}, [hostView, setView]);
+
+	// And how the block's drawn - cut, opacity, slices, depth, gap, guides -
+	// like the adjustments: the host's while they present, yours back after.
+	const hostSettingsKey = presentedDepth ? JSON.stringify(presentedDepth.settings) : "";
+	const ownSettingsRef = useRef<VolumeSettings | null>(null);
+	const settingsRef = useRef(settings);
+	useEffect(() => {
+		settingsRef.current = settings;
+	});
+	useEffect(() => {
+		if (!hostSettingsKey) return;
+		if (!ownSettingsRef.current) ownSettingsRef.current = settingsRef.current;
+		changeSettings(JSON.parse(hostSettingsKey) as VolumeSettings);
+	}, [hostSettingsKey, changeSettings]);
+	useEffect(() => {
+		if (hostSettingsKey || !ownSettingsRef.current) return;
+		changeSettings(ownSettingsRef.current);
+		ownSettingsRef.current = null;
+	}, [hostSettingsKey, changeSettings]);
 
 	// The host asking you to look somewhere or open a panel - a toast you can
 	// say yes or no to. Nobody's asked to look while they're following, since

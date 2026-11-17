@@ -159,6 +159,7 @@ function ActiveUsers({ controls }: { controls: boolean }) {
 				{user.name}
 				{user.me && " (you)"}
 				{volume && user.slice !== null && <span className="realtime-person-away"> · slice {user.slice + 1}</span>}
+				{volume && user.threeD && <span className="realtime-person-away"> · in 3D</span>}
 			</span>
 			{user.kind !== "guest" ? (
 				<span className="realtime-person-role">{ACTIVE_TEXT[user.kind]}</span>

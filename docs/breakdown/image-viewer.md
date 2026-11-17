@@ -781,6 +781,16 @@ depth too:
 - The Active list says which slice each person's on. Not your own row, and
   not the Users tab, which only has app-wide presence.
 - Go on a "look here" takes you to the host's slice too.
+- Everyone's screen says whether they're in 2D or 3D and how their block's
+  drawn (`Screen.depth`). Someone in 3D has a **3D** tag on their chip and
+  "in 3D" in the Active list.
+- Present takes you into 3D and back out with the host, and gives you their
+  block - cut, opacity, slices drawn, depth, gap, guides. The Depth tab's
+  switch and block settings are off while it lasts; turning and zooming the
+  block stay yours. Your own settings come back when it ends, like image
+  adjustments; you stay in whichever view it left you in. Follow doesn't
+  switch you. `SliceContextProvider` sits above `NavigationContextProvider`
+  in `App.tsx` for this.
 
 See [volume-live.md](../volume-live.md) for the rest of working together in 3D.
 

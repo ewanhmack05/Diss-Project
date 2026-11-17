@@ -214,3 +214,13 @@
 	margin-left: 0;
 	box-shadow: inset 2px 0 0 var(--chrome-bg);
 }
+
+/* Groups the block's settings so Present can turn them all off at once. Lays
+   out as if it weren't there. */
+.depth-panel-settings {
+	display: contents;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	min-width: 0;
+}

@@ -6,6 +6,8 @@ import {
 	applyOp,
 	followSlice,
 	followView,
+	hostDepth,
+	inThreeD,
 	sliceNote,
 	leaderOf,
 	panelChanges,
@@ -463,5 +465,65 @@ describe("sliceNote", () => {
 
 	it("tells slice 1 from no slice", () => {
 		expect(sliceNote(0, 3, true)).toBe("slice 1");
+	});
+});
+
+const depthScreen = (view: "2d" | "3d") => ({
+	view,
+	settings: {
+		cut: "x" as const,
+		cutPosition: 0.3,
+		opacity: 0.6,
+		stretch: 2,
+		trueDepth: false,
+		spacing: 1,
+		firstSlice: 2,
+		lastSlice: 9,
+		guides: false,
+	},
+});
+
+const screenWith = (depth: ReturnType<typeof depthScreen> | null | undefined) => ({
+	panels: [],
+	tabs: {},
+	adjustments: null,
+	viewedCellCountId: null,
+	viewedAnnotationId: null,
+	editingAnnotationId: null,
+	editingCellCountId: null,
+	...(depth === undefined ? {} : { depth }),
+});
+
+describe("inThreeD", () => {
+	it("is whether their screen says 3D", () => {
+		expect(inThreeD({ screen: screenWith(depthScreen("3d")) })).toBe(true);
+		expect(inThreeD({ screen: screenWith(depthScreen("2d")) })).toBe(false);
+	});
+
+	it("is no for a flat slide, an older viewer, or no screen yet", () => {
+		expect(inThreeD({ screen: screenWith(null) })).toBe(false);
+		expect(inThreeD({ screen: screenWith(undefined) })).toBe(false);
+		expect(inThreeD({ screen: null })).toBe(false);
+	});
+});
+
+describe("hostDepth", () => {
+	it("is the host's view and block while they present a volume", () => {
+		const host = screenWith(depthScreen("3d"));
+		expect(hostDepth(host, true, true)).toEqual(depthScreen("3d"));
+	});
+
+	it("is nothing outside Present, so Follow doesn't switch you", () => {
+		expect(hostDepth(screenWith(depthScreen("3d")), false, true)).toBeNull();
+	});
+
+	it("is nothing on a flat slide, even if the host says 3D", () => {
+		expect(hostDepth(screenWith(depthScreen("3d")), true, false)).toBeNull();
+	});
+
+	it("is nothing from a host whose viewer doesn't send it, or with no screen yet", () => {
+		expect(hostDepth(screenWith(undefined), true, true)).toBeNull();
+		expect(hostDepth(screenWith(null), true, true)).toBeNull();
+		expect(hostDepth(null, true, true)).toBeNull();
 	});
 });
