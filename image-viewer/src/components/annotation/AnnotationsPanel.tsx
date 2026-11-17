@@ -24,8 +24,9 @@ function AnnotationsPanel() {
 	// filters, and takes deletes off straight away.
 	const [listTotal, setListTotal] = useState<ListTotal | null>(null);
 
-	// Viewers can't draw, but can still show and hide groups.
-	const shownTab = canEdit || tab !== "free-form" ? tab : "saved";
+	// Viewers can't draw or pick, so they get the Saved list. Groups are on
+	// the Collections panel's On the map tab for everyone.
+	const shownTab = canEdit ? tab : "saved";
 
 	return (
 		<div className="annotations-panel">
@@ -47,18 +48,20 @@ function AnnotationsPanel() {
 						Free Form
 					</button>
 				)}
-				<button
-					type="button"
-					className={`annotations-panel-tab${shownTab === "select" ? " annotations-panel-tab--active" : ""}`}
-					disabled={!!pending}
-					onClick={() => {
-						setSelectedAnnotationId(null);
-						setViewedAnnotationId(null);
-						setTab("select");
-					}}
-				>
-					{canEdit ? "Select" : "Groups"}
-				</button>
+				{canEdit && (
+					<button
+						type="button"
+						className={`annotations-panel-tab${shownTab === "select" ? " annotations-panel-tab--active" : ""}`}
+						disabled={!!pending}
+						onClick={() => {
+							setSelectedAnnotationId(null);
+							setViewedAnnotationId(null);
+							setTab("select");
+						}}
+					>
+						Select
+					</button>
+				)}
 				<button
 					type="button"
 					className={`annotations-panel-tab${shownTab === "saved" ? " annotations-panel-tab--active" : ""}`}

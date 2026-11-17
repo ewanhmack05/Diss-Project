@@ -5,12 +5,13 @@ import { UNDO_DELETE_MS, useAnnotationStoreContext } from "../../../context/Anno
 import { useCellCountDrawContext } from "../../../context/CellCountDrawContext";
 import { useCollectionContext } from "../../../context/CollectionContext";
 import { useDialogContext } from "../../../context/DialogContext";
+import { useLayersContext } from "../../../context/LayersContext";
 import { useMessagingContext } from "../../../context/MessagingContext";
 import { useToastContext } from "../../../context/ToastContext";
+import { useToolbarContext } from "../../../context/ToolbarContext";
 import ColourPicker from "../../colour-picker/ColourPicker";
+import { isShown, shownInGroup } from "../../collections/map/layers";
 import { DefaultColour } from "../Tools";
-import GroupList from "./GroupList";
-import GroupPage from "./GroupPage";
 import "./Select.css";
 
 const MODES: { mode: SelectMode; label: string; hint: string }[] = [
@@ -20,24 +21,25 @@ const MODES: { mode: SelectMode; label: string; hint: string }[] = [
 
 const plural = (n: number) => `${n} ${n === 1 ? "annotation" : "annotations"}`;
 
-// Picking many annotations on the map at once - by box, lasso or clicking
-// them - to recolour, group or delete together. Viewers just get the groups,
-// to show and hide.
+// Picking many annotations on the map at once - by box, lasso, clicking them
+// or a whole group - to recolour, group, send or delete together. Editors
+// only. Groups themselves - showing, hiding and their pages - are on the
+// Collections panel's On the map tab.
 function SelectTab() {
 	const { setSelecting, mode, setMode, selectedIds, select, clear } = useAnnotationSelectContext();
 	const { annotations, updateMany, deleteMany } = useAnnotationStoreContext();
-	const { groups, hiddenGroupIds, createGroup, showAll } = useAnnotationGroupContext();
+	const { groups, createGroup } = useAnnotationGroupContext();
+	const { hidden } = useLayersContext();
 	const { canEdit } = useCollectionContext();
 	const { counting } = useCellCountDrawContext();
 	const { showDialog } = useDialogContext();
 	const { status: messaging, sendToSomeone } = useMessagingContext();
 	const { addToast } = useToastContext();
+	const { openTool } = useToolbarContext();
 	const [colour, setColour] = useState(DefaultColour);
 	const [newName, setNewName] = useState("");
+	const [addTo, setAddTo] = useState("");
 	const [busy, setBusy] = useState(false);
-	// A group's own page, instead of the tab, while it's open.
-	const [openGroupId, setOpenGroupId] = useState<string | null>(null);
-	const openGroup = groups.find((g) => g.id === openGroupId);
 
 	// Clicks on the map are counting's while a count's going.
 	const active = canEdit && !counting;
@@ -46,35 +48,33 @@ function SelectTab() {
 		return () => setSelecting(false);
 	}, [active, setSelecting]);
 
-	// Nothing stays picked once you leave the tab, and every group's back on
-	// the map - hiding them is only done, and undone, from here.
-	useEffect(
-		() => () => {
-			clear();
-			showAll();
-		},
-		[clear, showAll],
-	);
+	// Leaving the tab clears what's picked - see useClearPickedOnLeave. What's
+	// hidden stays hidden: that's the On the map tab's, until you move collection.
 
-	// Gone if someone else deletes or merges it - back to the list then.
-	if (openGroup) return <GroupPage key={openGroup.id} group={openGroup} editable={canEdit} onBack={() => setOpenGroupId(null)} />;
+	// Hidden things can't be picked, so anything hidden on the On the map tab
+	// comes out of what's picked.
+	useEffect(() => {
+		const stillShown = [...selectedIds].filter((id) => {
+			const annotation = annotations.find((a) => a.id === id);
+			return !annotation || isShown(annotation, hidden);
+		});
+		if (stillShown.length !== selectedIds.size) select(stillShown, false);
+		// Only when what's hidden changes - picking more is picking what's shown.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [hidden]);
 
-	if (!canEdit) {
-		return (
-			<div className="select-tab">
-				<section className="select-section">
-					<h3 className="select-heading">Groups</h3>
-					<GroupList editable={false} onOpen={setOpenGroupId} />
-				</section>
-			</div>
-		);
-	}
+	// The Annotations panel only offers this tab to editors, but you can lose
+	// edit while on it - the session ending, or the host making you a viewer.
+	if (!canEdit) return <p className="select-hint">You can only look at this collection now, not change it.</p>;
 
 	const ids = [...selectedIds];
-	const visible = annotations.filter((a) => !a.groupId || !hiddenGroupIds.has(a.groupId));
+	const visible = annotations.filter((a) => isShown(a, hidden));
 	const hint = MODES.find((m) => m.mode === mode)!.hint;
-
 	const inAGroup = annotations.filter((a) => a.groupId && selectedIds.has(a.id)).length;
+	const shownIn = (groupId: string) => shownInGroup(annotations, groupId, hidden);
+	// The group picked to add to, if it's still there.
+	const target = groups.find((g) => g.id === addTo);
+	const adding = target ? ids.filter((id) => annotations.find((a) => a.id === id)?.groupId !== target.id).length : 0;
 
 	const newGroup = () => {
 		if (!newName.trim() || busy) return;
@@ -149,6 +149,28 @@ function SelectTab() {
 				</button>
 			</div>
 
+			{groups.length > 0 && (
+				<div className="select-row">
+					<select
+						aria-label="Pick a group"
+						value=""
+						onChange={(e) => {
+							if (e.target.value) select(shownIn(e.target.value), false);
+						}}
+					>
+						<option value="">Pick a group…</option>
+						{groups.map((group) => {
+							const count = shownIn(group.id).length;
+							return (
+								<option key={group.id} value={group.id} disabled={count === 0}>
+									{group.name} ({count})
+								</option>
+							);
+						})}
+					</select>
+				</div>
+			)}
+
 			{ids.length > 0 && (
 				<>
 					{messaging !== "off" && (
@@ -168,9 +190,8 @@ function SelectTab() {
 						</button>
 					</section>
 
-					{/* Into an existing group is Add on its row, below. */}
 					<section className="select-section">
-						<h3 className="select-heading">New group</h3>
+						<h3 className="select-heading">Group</h3>
 						<form
 							className="select-row"
 							onSubmit={(e) => {
@@ -178,11 +199,32 @@ function SelectTab() {
 								newGroup();
 							}}
 						>
-							<input aria-label="New group name" placeholder="Name" value={newName} maxLength={64} onChange={(e) => setNewName(e.target.value)} />
+							<input aria-label="New group name" placeholder="New group" value={newName} maxLength={64} onChange={(e) => setNewName(e.target.value)} />
 							<button type="submit" className="select-button select-button--accent" disabled={busy || !newName.trim()}>
 								Group {ids.length}
 							</button>
 						</form>
+						{groups.length > 0 && (
+							<form
+								className="select-row"
+								onSubmit={(e) => {
+									e.preventDefault();
+									if (target && adding > 0) updateMany(ids, { groupId: target.id });
+								}}
+							>
+								<select aria-label="Add to a group" value={target ? addTo : ""} onChange={(e) => setAddTo(e.target.value)}>
+									<option value="">Add to a group…</option>
+									{groups.map((group) => (
+										<option key={group.id} value={group.id}>
+											{group.name}
+										</option>
+									))}
+								</select>
+								<button type="submit" className="select-button" disabled={!target || adding === 0}>
+									{target && adding > 0 ? `Add ${adding}` : "Add"}
+								</button>
+							</form>
+						)}
 						{inAGroup > 0 && (
 							<button type="button" className="select-button" onClick={() => updateMany(ids, { groupId: null })}>
 								Take {inAGroup === ids.length ? "them" : inAGroup} out of their groups
@@ -196,10 +238,13 @@ function SelectTab() {
 				</>
 			)}
 
-			<section className="select-section">
-				<h3 className="select-heading">Groups ({groups.length})</h3>
-				<GroupList editable onAdd={(groupId) => updateMany(ids, { groupId })} onOpen={setOpenGroupId} />
-			</section>
+			<p className="select-hint">
+				Groups are shown, hidden and opened on the{" "}
+				<button type="button" className="select-link" onClick={() => openTool("collections")}>
+					Collections panel
+				</button>
+				.
+			</p>
 		</div>
 	);
 }
