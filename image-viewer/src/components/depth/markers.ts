@@ -88,6 +88,19 @@ function boxOf(annotation: Ranged): MarkerBox | null {
 	};
 }
 
+// The saved markers the block draws: only the ones on the map, so a person
+// or group turned off on the On the map tab is off in 3D too.
+function shownMarkers<T extends Ranged & Pick<Annotation, "colour">>(
+	annotations: readonly T[],
+	isOnTheMap: (annotation: T) => boolean,
+): { box: MarkerBox; colour: string }[] {
+	return annotations.flatMap((annotation) => {
+		if (!isOnTheMap(annotation)) return [];
+		const box = boxOf(annotation);
+		return box ? [{ box, colour: annotation.colour }] : [];
+	});
+}
+
 // Whether it belongs on the 2D map at this slice. Anything without a range
 // is on every slice; so is everything on a flat slide.
 function onSlice(annotation: Pick<Annotation, "sliceFrom" | "sliceTo">, slice: number, volume: boolean): boolean {
@@ -125,5 +138,5 @@ function boxEdges(box: MarkerBox, slide: { width: number; height: number }, size
 	return edges;
 }
 
-export { SMALLEST_SIDE_PX, boxFromHits, isUsable, markerGeoJson, isMarker, boxOf, onSlice, sliceRangeText, boxEdges };
+export { SMALLEST_SIDE_PX, boxFromHits, isUsable, markerGeoJson, isMarker, boxOf, shownMarkers, onSlice, sliceRangeText, boxEdges };
 export type { Hit, MarkerBox };

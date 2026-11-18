@@ -28,7 +28,8 @@ import { useRealtimeContext } from "../../context/RealtimeContext";
 import { useNavigationContext } from "../../context/NavigationContext";
 import { useAnnotationStoreContext } from "../../context/AnnotationStoreContext";
 import { useDrawContext } from "../../context/DrawContext";
-import { boxEdges, boxFromHits, boxOf, type Hit, type MarkerBox } from "./markers";
+import { boxEdges, boxFromHits, shownMarkers, type Hit, type MarkerBox } from "./markers";
+import { useOnTheMap } from "../collections/map/useOnTheMap";
 import { inThreeD, sketchFor, type Camera } from "../realtime/realtime";
 import {
 	fromBlock,
@@ -151,6 +152,7 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 	} = useSliceContext();
 	const { me, others, askToLook, sendSketch, clearSketch } = useRealtimeContext();
 	const { annotations } = useAnnotationStoreContext();
+	const isOnTheMap = useOnTheMap();
 	const { colour: drawColour } = useDrawContext();
 	// The last pulse that's run its course - one that already had when this
 	// view opened counts, so it doesn't flash up. The pulse shows until then.
@@ -878,8 +880,9 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 		[clearSketch],
 	);
 
-	// Markers in the block: every saved one, solid in its colour; anyone's part
-	// placed, dashed in theirs; yours as you place it, dashed in your colour.
+	// Markers in the block: every saved one that's on the map, solid in its
+	// colour; anyone's part placed, dashed in theirs; yours as you place it,
+	// dashed in your colour.
 	useEffect(() => {
 		const scene = sceneRef.current;
 		if (!scene || !volume) return;
@@ -896,17 +899,14 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 			if (dashed) lines.computeLineDistances();
 			scene.markers.add(lines);
 		};
-		for (const annotation of annotations) {
-			const box = boxOf(annotation);
-			if (box) draw(box, annotation.colour, false);
-		}
+		for (const { box, colour } of shownMarkers(annotations, isOnTheMap)) draw(box, colour, false);
 		for (const person of others) {
 			const sketch = sketchFor(person, "marker3d");
 			if (sketch) draw(sketch.data.box, sketch.data.colour, true);
 		}
 		if (myBox) draw(myBox, drawColour, true);
 		scene.render();
-	}, [annotations, others, myBox, drawColour, volume, size, slideWidth, slideHeight]);
+	}, [annotations, isOnTheMap, others, myBox, drawColour, volume, size, slideWidth, slideHeight]);
 
 	return (
 		<div className={`volume-view${locked ? " volume-view--locked" : ""}${placing ? " volume-view--marking" : ""}`} ref={hostRef}>

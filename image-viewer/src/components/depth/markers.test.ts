@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { boxEdges, boxFromHits, boxOf, isMarker, isUsable, markerGeoJson, onSlice, sliceRangeText } from "./markers";
+import { isShown, type Hidden } from "../collections/map/layers";
+import { boxEdges, boxFromHits, boxOf, isMarker, isUsable, markerGeoJson, onSlice, shownMarkers, sliceRangeText } from "./markers";
 import type { Vec3 } from "./volume";
 
 describe("boxFromHits", () => {
@@ -115,5 +116,42 @@ describe("boxEdges", () => {
 		const edges = boxEdges({ minX: 0, minY: 0, maxX: 10, maxY: 10, sliceFrom: 1, sliceTo: 2 }, slide, size, withGap);
 		expect(edges).toHaveLength(24);
 		expect(boxEdges({ minX: 0, minY: 0, maxX: 10, maxY: 10, sliceFrom: 8, sliceTo: 9 }, slide, size, layers)).toEqual([]);
+	});
+});
+
+describe("shownMarkers", () => {
+	const box = { minX: 100, minY: 200, maxX: 300, maxY: 400, sliceFrom: 2, sliceTo: 5 };
+	const marker = (createdById: string, groupId: string | null, colour: string) => ({
+		created: "2026-11-01T10:00:00Z",
+		createdById,
+		groupId,
+		colour,
+		geoJson: markerGeoJson(box),
+		sliceFrom: box.sliceFrom,
+		sliceTo: box.sliceTo,
+	});
+	const flat = { ...marker("ann", "g1", "#00ff00"), sliceFrom: null, sliceTo: null };
+	const annotations = [marker("ann", "g1", "#ff0000"), marker("bob", "g2", "#0000ff"), flat];
+	const hiding = (people: string[], groups: string[]): Hidden => ({ people: new Set(people), groups: new Set(groups) });
+
+	it("draws every marker with its own colour when nothing's hidden, and nothing flat", () => {
+		expect(shownMarkers(annotations, () => true)).toEqual([
+			{ box, colour: "#ff0000" },
+			{ box, colour: "#0000ff" },
+		]);
+	});
+
+	it("leaves out a group turned off on the On the map tab", () => {
+		const hidden = hiding([], ["g2"]);
+		expect(shownMarkers(annotations, (a) => isShown(a, hidden)).map((m) => m.colour)).toEqual(["#ff0000"]);
+	});
+
+	it("leaves out a person turned off on the On the map tab", () => {
+		const hidden = hiding(["ann"], []);
+		expect(shownMarkers(annotations, (a) => isShown(a, hidden)).map((m) => m.colour)).toEqual(["#0000ff"]);
+	});
+
+	it("leaves out what the Saved list's filters leave out", () => {
+		expect(shownMarkers(annotations, (a) => a.createdById === "bob").map((m) => m.colour)).toEqual(["#0000ff"]);
 	});
 });

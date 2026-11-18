@@ -45,9 +45,7 @@ import { LessDetail } from "./open-layers/LessDetail";
 import { translatePending } from "./open-layers/TranslatePending";
 import { annotationRenderer } from "./open-layers/renderer";
 import { useMapSelection } from "./annotation/Select/useMapSelection";
-import { matchesSearch, passes } from "./saved/filters";
-import { isShown } from "./collections/map/layers";
-import { useLayersContext } from "../context/LayersContext";
+import { useOnTheMap } from "./collections/map/useOnTheMap";
 import { degreesToRadians, radiansToDegrees } from "./rotation/rotation";
 import { pixelDistance, physicalDistanceMicrons, formatDistanceMicrons, formatDistancePixels } from "./ruler/ruler";
 import { parseCellCountDots, dotsFromHistory } from "./cell-count/CellCountDots";
@@ -167,7 +165,7 @@ function sharedDotOf(feature: Feature<Point>): Omit<SharedDot, "connectionId"> {
 
 function MapNode() {
 	const { source } = useImageViewerContext();
-	const { annotations, selectedAnnotationId, viewedAnnotationId, setViewedAnnotationId, annotationsSource, addAnnotation, mapFilter } =
+	const { annotations, selectedAnnotationId, viewedAnnotationId, setViewedAnnotationId, annotationsSource, addAnnotation } =
 		useAnnotationStoreContext();
 	const { activeTool, colour, lineThickness, lineStyle, pending, setPending, quickDraw } = useDrawContext();
 	const { rotationDegrees, setRotationDegrees, resetRotation } = useRotationContext();
@@ -208,7 +206,7 @@ function MapNode() {
 	} = useCellCountDrawContext();
 	const { cellCounts, viewedCellCountId, setViewedCellCountId } = useCellCountStoreContext();
 	const { activeTools } = useToolbarContext();
-	const { hidden } = useLayersContext();
+	const isOnTheMap = useOnTheMap();
 	const { me, others, sendViewport, sendSketch, clearSketch, addSharedDot, removeSharedDot } = useRealtimeContext();
 	const { pointedAt, shown: viewportsShown } = useViewportsContext();
 	const { session } = useCollectionContext();
@@ -599,13 +597,8 @@ function MapNode() {
 	// are left off, and so is anything the Saved list's search and filters
 	// leave out while it's open.
 	useEffect(() => {
-		const shown = annotations.filter(
-			(annotation) =>
-				// A 3D marker is only on the slices it spans.
-				onSlice(annotation, currentSlice, volume) &&
-				isShown(annotation, hidden) &&
-				(!mapFilter || (passes(annotation, mapFilter.filters) && matchesSearch(annotation, mapFilter.search))),
-		);
+		// A 3D marker is only on the slices it spans.
+		const shown = annotations.filter((annotation) => onSlice(annotation, currentSlice, volume) && isOnTheMap(annotation));
 		annotationsSource.clear();
 		annotationsSource.addFeatures(
 			shown.map((annotation) => {
@@ -619,7 +612,7 @@ function MapNode() {
 				return feature;
 			}),
 		);
-	}, [annotations, annotationsSource, hidden, mapFilter, currentSlice, volume]);
+	}, [annotations, annotationsSource, isOnTheMap, currentSlice, volume]);
 
 	useMapSelection(mapRef, mapVersion, annotationsSource, annotations, annotationsVisible);
 
