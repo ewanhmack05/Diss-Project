@@ -26,7 +26,13 @@ function DepthPanel() {
 	const { slices, current, defaultSlice, showSlice, step, view, setView, settings, changeSettings, resetCamera } = useSliceContext();
 	// Past this, a mark per slice with space between doesn't fit, so they close up.
 	const dense = slices.length > MARKS_WITH_GAPS;
-	const { following, mode } = useNavigationContext();
+	const { following, mode, breakAway } = useNavigationContext();
+	// Under Follow the cut's the host's - changing it yourself breaks away,
+	// like turning the block does.
+	const cutYourself = (change: { cut?: CutAxis; cutPosition?: number }) => {
+		if (following && mode === "follow") breakAway();
+		changeSettings(change);
+	};
 	// In Present the host moves everyone - the same lock as panning.
 	const locked = following && mode === "present";
 	const count = slices.length;
@@ -160,7 +166,7 @@ function DepthPanel() {
 										type="button"
 										className={settings.cut === axis ? "depth-panel-view--on" : ""}
 										aria-pressed={settings.cut === axis}
-										onClick={() => changeSettings({ cut: axis })}
+										onClick={() => cutYourself({ cut: axis })}
 									>
 										{label}
 									</button>
@@ -176,7 +182,7 @@ function DepthPanel() {
 									aria-label="Where the cut is"
 									onChange={(event) => {
 										const value = numberFrom(event);
-										if (value !== null) changeSettings({ cutPosition: value });
+										if (value !== null) cutYourself({ cutPosition: value });
 									}}
 								/>
 							)}
@@ -250,14 +256,22 @@ function DepthPanel() {
 					</fieldset>
 
 					<div className="depth-panel-buttons">
-						<button type="button" onClick={resetCamera}>
+						<button
+							type="button"
+							disabled={locked}
+							onClick={() => {
+								// Your own move, so it's breaking away under Follow.
+								if (following && mode === "follow") breakAway();
+								resetCamera();
+							}}
+						>
 							Reset view
 						</button>
 					</div>
 
 					<p className="depth-panel-hint">
 						{locked
-							? "The presenter is choosing how the block looks. You can still turn and zoom it."
+							? "The presenter is turning the block and choosing how it looks."
 							: "Drag to turn it, scroll to zoom, right-drag to move it. Click the tissue to open that slice there in 2D."}
 					</p>
 				</div>

@@ -25,8 +25,21 @@ import {
 } from "./volume";
 import { fragmentShader, vertexShader } from "./volumeShader";
 import { useRealtimeContext } from "../../context/RealtimeContext";
+import { useNavigationContext } from "../../context/NavigationContext";
 import { inThreeD, type Camera } from "../realtime/realtime";
-import { cameraFromBlock, cameraToBlock, camerasToDraw, cutOutline, frustumLines, isStill, sameCamera, viewBoxInBlock, STILL_MS } from "./cameras";
+import {
+	cameraFromBlock,
+	cameraToBlock,
+	camerasToDraw,
+	cutOutline,
+	easeCamera,
+	frustumLines,
+	isStill,
+	sameCamera,
+	viewBoxInBlock,
+	STILL_MS,
+	type Pose,
+} from "./cameras";
 import "./VolumeView.css";
 
 interface VolumeViewProps {
@@ -94,6 +107,8 @@ interface Scene {
 	render: () => void;
 	// Tells the map where your camera is, in block units.
 	report: () => void;
+	// Eases the camera to goalRef's, a frame at a time, while there is one.
+	ease: () => void;
 }
 
 // Throws away what's in a group, GPU buffers and all.
@@ -113,6 +128,16 @@ function clearGroup(group: THREE.Group): void {
 function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixel, tileSize }: VolumeViewProps) {
 	const { slices, current, settings, cameraReset, openInTwoD, sectionMicrons, reportCamera } = useSliceContext();
 	const { others } = useRealtimeContext();
+	const { mode, leader, following, breakAway } = useNavigationContext();
+	// In Present the host turns the block for everyone - your controls are off.
+	const locked = following && mode === "present";
+	// Read by the controls' listeners, set up once with the scene.
+	const followRef = useRef({ following, mode, breakAway });
+	useEffect(() => {
+		followRef.current = { following, mode, breakAway };
+	});
+	// Where following is taking the camera, in this block's space.
+	const goalRef = useRef<Pose | null>(null);
 	// Other people, and where their names go - positioned by render().
 	const [people, setPeople] = useState<Person[]>([]);
 	const peopleRef = useRef<Person[]>([]);
@@ -283,6 +308,45 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 		controls.addEventListener("change", () => setCameraInFront(camera.position.z >= 0));
 		controls.addEventListener("change", render);
 		controls.addEventListener("change", report);
+		// Turning or zooming it yourself - only a person does that, never the
+		// easing below - breaks Follow, like panning does in 2D.
+		controls.addEventListener("start", () => {
+			const { following: on, mode: now, breakAway: leave } = followRef.current;
+			if (on && now === "follow") {
+				goalRef.current = null;
+				leave();
+			}
+		});
+
+		let frame = 0;
+		let last = 0;
+		const step = (time: number) => {
+			const goal = goalRef.current;
+			if (!goal) {
+				frame = 0;
+				return;
+			}
+			const next = easeCamera(
+				{
+					position: [camera.position.x, camera.position.y, camera.position.z],
+					target: [controls.target.x, controls.target.y, controls.target.z],
+				},
+				goal,
+				last ? time - last : 16,
+			);
+			last = time;
+			camera.position.set(...next.position);
+			controls.target.set(...next.target);
+			// Fires change, which draws it and reports it.
+			controls.update();
+			frame = next.done ? 0 : requestAnimationFrame(step);
+			if (next.done) last = 0;
+		};
+		const ease = () => {
+			if (frame) return;
+			last = 0;
+			frame = requestAnimationFrame(step);
+		};
 
 		const resize = () => {
 			const { clientWidth, clientHeight } = host;
@@ -297,12 +361,13 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 		observer.observe(host);
 		resize();
 
-		sceneRef.current = { renderer, scene, camera, controls, block, outline, grid, sliceFrame, people, texture, detail: null, face: null, render, report };
+		sceneRef.current = { renderer, scene, camera, controls, block, outline, grid, sliceFrame, people, texture, detail: null, face: null, render, report, ease };
 		report();
 		setMaxSide(renderer.capabilities.maxTextureSize);
 		// For looking into it from the console, like window.viewerMap. Dev server only.
 		if (import.meta.env.DEV) Object.assign(window, { viewerVolume: { volume, scene: sceneRef.current } });
 		return () => {
+			cancelAnimationFrame(frame);
 			observer.disconnect();
 			controls.dispose();
 			block.geometry.dispose();
@@ -408,6 +473,25 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 		scene.render();
 	}, [others, volume, size, slideWidth, slideHeight, tick]);
 
+	// Following: your camera eases to the host's, while they're in 3D. In
+	// block units, so it's the same place against the tissue at your depth.
+	const leaderCamera = following && leader && inThreeD(leader) ? (leader.viewport?.camera ?? null) : null;
+	useEffect(() => {
+		const scene = sceneRef.current;
+		if (!scene || !leaderCamera) {
+			goalRef.current = null;
+			return;
+		}
+		goalRef.current = cameraFromBlock(leaderCamera, size);
+		scene.ease();
+	}, [leaderCamera, size, volume]);
+
+	// No turning it yourself while someone presents.
+	useEffect(() => {
+		const scene = sceneRef.current;
+		if (scene) scene.controls.enabled = !locked;
+	}, [locked, volume]);
+
 	// Re-checks fading every few seconds while there's anyone to fade.
 	const anyone = people.length > 0;
 	useEffect(() => {
@@ -426,7 +510,12 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 	const goTo = (person: Person) => {
 		const scene = sceneRef.current;
 		const them = others.find((p) => p.connectionId === person.connectionId);
-		if (!scene || !them?.viewport) return;
+		if (!scene || !them?.viewport || locked) return;
+		// Going somewhere else yourself is breaking away.
+		if (following && mode === "follow") {
+			goalRef.current = null;
+			breakAway();
+		}
 		if (person.kind === "camera" && them.viewport.camera) {
 			const { position, target } = cameraFromBlock(them.viewport.camera, size);
 			scene.camera.position.set(...position);
@@ -622,7 +711,7 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 	}, [volume, size, settings.cut, settings.cutPosition, settings.spacing, slideWidth, slideHeight, openInTwoD]);
 
 	return (
-		<div className="volume-view" ref={hostRef}>
+		<div className={`volume-view${locked ? " volume-view--locked" : ""}`} ref={hostRef}>
 			{!volume && !error && (
 				<div className="volume-view-status">
 					Loading slices {progress.done} of {progress.total}
@@ -639,7 +728,14 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 					}}
 					className={`volume-view-label${person.faded ? " volume-view-label--faded" : ""}`}
 					style={{ background: person.colour }}
-					title={person.kind === "camera" ? `Go to where ${person.name} is looking` : `Open ${person.name}'s view in 2D`}
+					disabled={locked}
+					title={
+						locked
+							? `${person.name} - the presenter is moving the block`
+							: person.kind === "camera"
+								? `Go to where ${person.name} is looking`
+								: `Open ${person.name}'s view in 2D`
+					}
 					onClick={() => goTo(person)}
 				>
 					{person.name}

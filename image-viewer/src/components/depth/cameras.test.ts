@@ -4,6 +4,9 @@ import {
 	cameraToBlock,
 	camerasToDraw,
 	cutOutline,
+	easeCamera,
+	easeTime,
+	EASE_HALF_LIFE_MS,
 	frustumLines,
 	fromBlock,
 	isStill,
@@ -167,5 +170,58 @@ describe("isStill", () => {
 		expect(isStill(0, 30_001)).toBe(true);
 		expect(isStill(0, 29_000)).toBe(false);
 		expect(isStill(undefined, 5)).toBe(true);
+	});
+});
+
+describe("easeCamera", () => {
+	const from = { position: [2, 0, 0] as Vec3, target: [0, 0, 0] as Vec3 };
+	const goal = { position: [0, 0, 2] as Vec3, target: [0, 0.5, 0] as Vec3 };
+
+	it("closes half the gap each half-life", () => {
+		const step = easeCamera(from, goal, EASE_HALF_LIFE_MS);
+		close(step.position, [1, 0, 1]);
+		close(step.target, [0, 0.25, 0]);
+		expect(step.done).toBe(false);
+	});
+
+	it("is the same however the frames fall", () => {
+		// One 120 ms frame or ten 12 ms ones end up in the same place.
+		const once = easeCamera(from, goal, 120);
+		let many = { ...from };
+		for (let i = 0; i < 10; i++) many = easeCamera(many, goal, 12);
+		close(once.position, many.position);
+		close(once.target, many.target);
+	});
+
+	it("lands exactly on the goal once it's close, and says it's done", () => {
+		let now = { ...from };
+		let frames = 0;
+		let step;
+		do {
+			step = easeCamera(now, goal, 16);
+			now = step;
+			frames++;
+		} while (!step.done && frames < 1000);
+		expect(step.done).toBe(true);
+		expect(now.position).toEqual(goal.position);
+		expect(now.target).toEqual(goal.target);
+		// About as long as easeTime says, give or take a frame.
+		expect(Math.abs(frames * 16 - easeTime(Math.hypot(2, 2)))).toBeLessThanOrEqual(32);
+	});
+
+	it("doesn't move with no time passed, or go backwards with time that's gone wrong", () => {
+		close(easeCamera(from, goal, 0).position, from.position);
+		close(easeCamera(from, goal, -50).position, from.position);
+	});
+});
+
+describe("easeTime", () => {
+	it("is nothing when it's already there", () => {
+		expect(easeTime(0)).toBe(0);
+	});
+
+	it("is a half-life for every halving down to landing", () => {
+		// From 1 world unit: log2(1 / 1e-4), about 13.3 half-lives.
+		expect(easeTime(1)).toBeCloseTo(EASE_HALF_LIFE_MS * Math.log2(1e4));
 	});
 });

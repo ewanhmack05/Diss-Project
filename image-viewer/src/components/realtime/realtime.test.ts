@@ -6,6 +6,7 @@ import {
 	applyOp,
 	followSlice,
 	followView,
+	followedCut,
 	hostDepth,
 	inThreeD,
 	sliceNote,
@@ -525,5 +526,25 @@ describe("hostDepth", () => {
 		expect(hostDepth(screenWith(undefined), true, true)).toBeNull();
 		expect(hostDepth(screenWith(null), true, true)).toBeNull();
 		expect(hostDepth(null, true, true)).toBeNull();
+	});
+});
+
+describe("followedCut", () => {
+	const leader = screenWith(depthScreen("3d"));
+
+	it("is the host's cut while you follow them on a volume", () => {
+		expect(followedCut(leader, "follow", true, true)).toEqual({ cut: "x", cutPosition: 0.3 });
+	});
+
+	it("is nothing once you've broken away, in Free, or in Present (which takes everything)", () => {
+		expect(followedCut(leader, "follow", false, true)).toBeNull();
+		expect(followedCut(leader, "free", true, true)).toBeNull();
+		expect(followedCut(leader, "present", true, true)).toBeNull();
+	});
+
+	it("is nothing on a flat slide, or from a host whose viewer doesn't say", () => {
+		expect(followedCut(leader, "follow", true, false)).toBeNull();
+		expect(followedCut(screenWith(undefined), "follow", true, true)).toBeNull();
+		expect(followedCut(null, "follow", true, true)).toBeNull();
 	});
 });

@@ -803,6 +803,12 @@ depth too:
   in `depth/cameras.ts`; `SliceContext` holds your camera outside React
   state so turning the block doesn't re-render the viewer.
 
+- Follow in 3D eases your camera to the host's (half the gap every 60 ms,
+  `easeCamera`) and takes their cut; opacity, the gap and the rest stay
+  yours. Turning or zooming, cutting it yourself, Reset view or Go there
+  breaks away. Present takes the camera too and turns your controls, Reset
+  view and Go there off. Following someone in 2D leaves your camera alone.
+
 See [volume-live.md](../volume-live.md) for the rest of working together in 3D.
 
 Everyone sends a small **screen** message (open panels, tabs, adjustments,

@@ -436,6 +436,20 @@ function hostDepth(hostScreen: Screen | null, presenting: boolean, volume: boole
 	return hostScreen?.depth ?? null;
 }
 
+// Under Follow, the host's cut and where it is - what changes where you look
+// into the block, unlike opacity or the gap, which stay yours. Null unless
+// you're following someone who's on a volume and says.
+function followedCut(
+	leaderScreen: Screen | null | undefined,
+	mode: NavigationMode,
+	following: boolean,
+	volume: boolean,
+): Pick<DepthScreen["settings"], "cut" | "cutPosition"> | null {
+	if (mode !== "follow" || !following || !volume) return null;
+	const settings = leaderScreen?.depth?.settings;
+	return settings ? { cut: settings.cut, cutPosition: settings.cutPosition } : null;
+}
+
 // What someone's box says about their slice: nothing when you're on the same
 // one, or either of you isn't on a volume. Slices are shown from 1.
 function sliceNote(theirs: number | null | undefined, mine: number, volume: boolean): string | null {
@@ -551,6 +565,7 @@ export {
 	sliceNote,
 	inThreeD,
 	hostDepth,
+	followedCut,
 	sameView,
 	panelChanges,
 	tabChanges,

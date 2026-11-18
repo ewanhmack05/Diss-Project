@@ -2,10 +2,11 @@
 
 A draft of what a live session does when someone's in the Depth tab's 3D
 view. Phases 4 and 7 of [zstack.md](zstack.md#9-phases), worked out in
-detail. **Phases 1 to 3 are built** (the slice live, who's in 3D, and
-other people's cameras) - see [phase 1](#51-phase-1-built),
-[phase 2](#52-phase-2-built) and [phase 3](#53-phase-3-built). The rest is
-design.
+detail. **Phases 1 to 4 are built** (the slice live, who's in 3D, other
+people's cameras, and Follow and Present in 3D) - see
+[phase 1](#51-phase-1-built), [phase 2](#52-phase-2-built),
+[phase 3](#53-phase-3-built) and [phase 4](#54-phase-4-built). Phases 5 and
+6 are still design.
 
 ## Contents
 
@@ -342,6 +343,64 @@ outlines for every axis going round in order, who's drawn past six, fading
 (18 tests; 1087 in all). Scripts: the orbiting camera and the 3D screen (179
 in all).
 
+### 5.4 Phase 4, built
+
+Viewer only - the host's camera already went out in phase 3. While you
+follow someone who's in 3D, `VolumeView` eases your camera to theirs a frame
+at a time (`easeCamera` in `cameras.ts`: half the gap every 60 ms, then lands
+exactly). Under Follow you also take their cut (`followedCut` in
+`realtime.ts`); under Present you already took their whole block (phase 2),
+and now your camera's controls are off as well.
+
+| Draft said | Built | Why |
+| --- | --- | --- |
+| Follow: the host's camera, eased; their cut; the rest yours | As designed | |
+| Present: the host's camera, and you can't turn your own | As designed. Reset view and Go there are off too, and the block doesn't look grabbable | Each would only be undone by the next update |
+| Breaking away from Follow by turning or zooming | And by changing the cut yourself, Reset view, or Go there | Anything you do to where you're looking is your own move, like panning in 2D |
+| - | Following someone who's in 2D leaves your 3D camera alone | They have no camera; the slice still follows (phase 1) |
+
+**Checked by hand**, with `drive_host_3d.py` playing the host (Alice) from a
+script, and Bob following in the browser - a second browser tab would have
+been the same person, as phase 3 found:
+
+- Follow: Bob's camera eased to each of 12 host moves and landed exactly on
+  the last, scaled to his block.
+- Turning the block (a real pointer drag) broke Follow - the chip went to
+  "Alice Moore is leading · Follow" - and Bob's camera then stayed put for
+  the next five seconds of host moves.
+- Present: Bob's controls off, Reset view off, the block's cursor plain, the
+  hint saying the presenter's turning it; Present ending turned them all back
+  on.
+- Follow with the host cut on X at 0.3: Bob's cut went to X at 0.3; changing
+  it to Y himself broke Follow and stayed Y while the host kept sending X;
+  Follow again put him back on X.
+
+**Measured**, the same way, from the script's send time to Bob's camera
+(both on this machine's clock; Bob's camera read every frame, the pane on
+screen at 62 frames a second), 12 moves about 1.5 block-widths each:
+
+| | Median | Range |
+| --- | --- | --- |
+| Starts moving | 35 ms | 22 to 56 ms |
+| Lands exactly | 902 ms | 888 to 923 ms |
+| Of which easing | 867 ms | 866 to 883 ms |
+
+Landing is almost all easing, as designed: 60 ms x log2(1.5 / 0.0001) is
+about 830 ms, and frames add a little. It's most of the way long before
+that - 90% of a move is covered in 200 ms, 99% in 400 ms - so the number to
+quote for "how long until a follower sees what the host sees" is the start
+plus a few hundred ms, not the landing. The start includes the script's
+long-polling send, which the viewer's WebSocket doesn't have.
+
+With the browser pane hidden, animation frames stop entirely, so easing
+(and this measurement) needs the pane on screen.
+
+**Tests.** `easeCamera` (half the gap a half-life, the same wherever the
+frames fall, landing exactly, no movement for no time) and `easeTime`;
+`followedCut` (only under Follow while following, on a volume, from a host
+that sends it). Viewer: 1096 in all. Scripts: `drive_host_3d.py`'s camera
+path, view and screen.
+
 ## 6. How it's measured
 
 - **Follower lag on the slice** (phase 1): from the host stepping a slice to
@@ -395,4 +454,6 @@ in all).
 | Phase 1: a step reaches a follower in a median 14 ms on localhost | Two tabs, real hub, 30 steps timed with a `MutationObserver` (5.1) | Checked - localhost only, no real network |
 | Phase 1: Follow, breaking away, Present and look here all take the slice | Two tabs on the liver volume, by hand (5.1) | Checked |
 | Phase 2: Present takes followers into 3D with the host's block, and gives theirs back after | Two tabs on the liver volume, by hand (5.2) | Checked |
+| Phase 4: a follower's camera starts moving a median 35 ms after the host's, lands in a median 902 ms | 12 moves from `drive_host_3d.py`, the follower's camera read every frame (5.4) | Checked - localhost, pane on screen |
+| Phase 4: turning, cutting, Reset view or Go there breaks Follow; Present locks the camera | By hand, a real pointer drag and the Depth tab (5.4) | Checked |
 | Multi-user game editors show other users' cameras | Not checked against any one engine's documentation | **Unverified** - read the docs of one engine's multi-user editing before citing it in the dissertation |

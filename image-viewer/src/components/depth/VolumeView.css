@@ -60,3 +60,13 @@
 .volume-view-label--faded {
 	opacity: 0.6;
 }
+
+.volume-view-label:disabled {
+	cursor: default;
+}
+
+/* Present: the host turns it, so it doesn't look grabbable. */
+.volume-view--locked,
+.volume-view--locked:active {
+	cursor: default;
+}

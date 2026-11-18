@@ -144,6 +144,34 @@ function camerasToDraw<T extends Pick<Participant, "connectionId" | "host">>(
 	return people.filter((p) => p.host || now - (movedAt.get(p.connectionId) ?? 0) <= recent);
 }
 
+// Following someone's camera, yours closes half the gap to theirs every
+// EASE_HALF_LIFE_MS - updates come ten a second at most, and jumping to each
+// looks jerky in 3D, where a small turn moves everything on screen.
+const EASE_HALF_LIFE_MS = 60;
+// Close enough to stop easing and land on it, in world units (the block is 1 wide).
+const EASE_DONE = 1e-4;
+
+interface Pose {
+	position: Vec3;
+	target: Vec3;
+}
+
+// One frame of easing: dt since the last. done once both points are within
+// EASE_DONE, when it lands exactly on the goal.
+function easeCamera(now: Pose, goal: Pose, dt: number, halfLife = EASE_HALF_LIFE_MS): Pose & { done: boolean } {
+	const gap = Math.max(length(sub(goal.position, now.position)), length(sub(goal.target, now.target)));
+	if (gap <= EASE_DONE) return { ...goal, done: true };
+	const keep = Math.pow(0.5, Math.max(0, dt) / halfLife);
+	const toward = (from: Vec3, to: Vec3) => add(to, scale(sub(from, to), keep));
+	return { position: toward(now.position, goal.position), target: toward(now.target, goal.target), done: false };
+}
+
+// How long easing takes to land from a gap this big, in ms - for the docs'
+// sums and the tests. Frames make it a little longer in practice.
+function easeTime(gap: number, halfLife = EASE_HALF_LIFE_MS): number {
+	return gap <= EASE_DONE ? 0 : halfLife * Math.log2(gap / EASE_DONE);
+}
+
 // A camera that's been still this long is drawn faded.
 const STILL_MS = 30_000;
 
@@ -152,6 +180,9 @@ function isStill(movedAt: number | undefined, now: number, still = STILL_MS): bo
 }
 
 export {
+	EASE_HALF_LIFE_MS,
+	easeCamera,
+	easeTime,
 	MOST_CAMERAS,
 	STILL_MS,
 	toBlock,
@@ -166,4 +197,4 @@ export {
 	camerasToDraw,
 	isStill,
 };
-export type { SlideShape };
+export type { SlideShape, Pose };

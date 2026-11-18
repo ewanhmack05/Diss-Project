@@ -9,6 +9,7 @@ import { useAnnotationStoreContext } from "./AnnotationStoreContext";
 import { useCellCountStoreContext } from "./CellCountStoreContext";
 import { useSliceContext, type VolumeSettings } from "./SliceContext";
 import {
+	followedCut,
 	hostDepth,
 	leaderOf,
 	panelChanges,
@@ -237,6 +238,17 @@ function NavigationContextProvider({ children }: { children: ReactNode }) {
 		changeSettings(ownSettingsRef.current);
 		ownSettingsRef.current = null;
 	}, [hostSettingsKey, changeSettings]);
+
+	// Under Follow, the host's cut too - it's part of where you're looking
+	// into the block. Only changes, so cutting it yourself (which breaks Follow,
+	// see DepthPanel) isn't fought.
+	const cut = followedCut(leader?.screen, mode, following, volume);
+	const cutKey = cut ? `${cut.cut} ${cut.cutPosition}` : "";
+	useEffect(() => {
+		if (!cutKey) return;
+		const [axis, position] = cutKey.split(" ");
+		changeSettings({ cut: axis as VolumeSettings["cut"], cutPosition: Number(position) });
+	}, [cutKey, changeSettings]);
 
 	// The host asking you to look somewhere or open a panel - a toast you can
 	// say yes or no to. Nobody's asked to look while they're following, since
