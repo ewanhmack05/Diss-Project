@@ -186,4 +186,26 @@ export async function depthAlone({ sam }) {
 	await sam.press("2D", depth(sam));
 	await expect(page.locator(".volume-view")).toHaveCount(0);
 	sam.did("depth-marker-flat");
+
+	await sam.caption("A marker can be made deeper after it's saved", 500);
+	await open(sam, "Annotations", "Annotations");
+	await sam.click(row(annotations, "Duct"));
+	await sam.press("Edit", annotations);
+	const last = annotations.getByRole("spinbutton", { name: "Last slice" });
+	await sam.click(last, 150);
+	await page.keyboard.press("Control+A");
+	await page.keyboard.type("12", { delay: 80 });
+	await sam.pause(1200);
+	await sam.press("Done", annotations);
+	await expect(row(annotations, "Duct")).toContainText("3D · slices 4 to 12", { timeout: 8000 });
+	sam.did("depth-marker-edit");
+
+	await sam.caption("and a 2D shape put on every slice", 500);
+	await sam.click(row(annotations, "On slice 3"));
+	await sam.press("Edit", annotations);
+	await sam.click(annotations.locator(".annotation-form-check input"));
+	await sam.pause(800);
+	await sam.press("Done", annotations);
+	await expect(row(annotations, "On slice 3")).not.toContainText("Slice 3", { timeout: 8000 });
+	sam.did("depth-every-slice");
 }

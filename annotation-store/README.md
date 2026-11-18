@@ -316,10 +316,18 @@ back, changed, gone }`, how many of each kind come back, go back how they
   both are assigned server-side if omitted). `sliceFrom` / `sliceTo` are the
   slices of a volume it's on, inclusive, for a 3D marker: both left out (or
   null) means every slice, otherwise both set with `0 <= sliceFrom <= sliceTo`,
-  or it's a 400. Fixed once saved - `PUT` doesn't touch them. The import
+  or it's a 400. `PUT` doesn't touch them - `PUT /annotations/{id}/slices` moves them. The import
   checks each annotation the same way
 - `PUT /annotations/{id}` - update `label`/`notes`/`colour`, with
   `wasColour` to check it (see above)
+- `PUT /annotations/{id}/slices` - move it to other slices of a volume:
+  `{ sliceFrom, sliceTo, was }`, both null for every slice, `was` the range
+  the change started from (`{ sliceFrom, sliceTo }`). Under first come wins
+  a `was` that's no longer there is a 409 naming who moved it and which end;
+  under last write wins it goes through with an `Overwrote` header. A range that's
+  half set, below 0 or backwards is a 400. Moving it to where it is records
+  nothing. Its own endpoint so it isn't caught up in the label and notes
+  saving as they're typed
 - `DELETE /annotations/{id}` - delete (the row goes to the history - see above)
 - `PUT /annotations/bulk` - many at once, from the viewer's Select tab:
   `{ collectionId, ids, colour?, setGroup, groupId?, wasColours?, wasGroups? }`.
@@ -713,8 +721,8 @@ One shape someone drew on a slide. The shape itself is fixed once saved - only t
 | `Shape` | text |  | client | `line`, `freehand`, `polygon`, `arrow`, `rectangle` or `circle`. The viewer can't show anything else, and the store doesn't check |
 | `SlideId` | text |  | server | Copied from the collection, never taken from the client |
 | `Created` | timestamp with time zone |  | server |  |
-| `SliceFrom` | integer, null |  | client | The first slice of a volume it's on, from 0. Null with `SliceTo` means every slice, as every 2D one is. Fixed once saved |
-| `SliceTo` | integer, null |  | client | The last slice it's on, so a marker on one slice has both the same. Not checked against how many slices the slide has. Fixed once saved |
+| `SliceFrom` | integer, null |  | client | The first slice of a volume it's on, from 0. Null with `SliceTo` means every slice, as every 2D one is. Changed through `PUT /annotations/{id}/slices` |
+| `SliceTo` | integer, null |  | client | The last slice it's on, so a marker on one slice has both the same. Not checked against how many slices the slide has. Changed with `SliceFrom` |
 
 - Index on `CollectionId`
 - Index on `GroupId`

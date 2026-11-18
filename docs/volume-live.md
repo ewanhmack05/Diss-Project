@@ -527,9 +527,12 @@ all. Scripts: the marker sketch.
   opacity (how it looks) than to the camera (where you look)?
 - **How many cameras before it's noise.** Six is a guess; it wants trying
   with real people in the evaluation.
-- **Markers and editing at once.** Two people resizing the same 3D box: last
-  change wins or first change wins, as for 2D shapes. `EditConflicts` checks
-  named fields, so a box needs its own.
+- **Markers and editing at once.** Settled for depth: a marker's slices
+  change in the Saved edit form, saved through `PUT /annotations/{id}/slices`
+  with the range it started from. Under first change wins a second person
+  moving it from an old copy is turned down and told who moved which end;
+  under last change wins it goes through. Its footprint on the slide still
+  can't be changed after saving, as for every 2D shape.
 - **Guests.** They can view, so they'd see cameras and follow. Their own
   camera, sent to everyone, is new information about them. Fine, as their
   2D viewport already goes out, but it's worth saying in

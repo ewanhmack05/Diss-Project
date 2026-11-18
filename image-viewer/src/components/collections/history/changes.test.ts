@@ -25,6 +25,16 @@ describe("changeLines", () => {
 		});
 	});
 
+	it("shows a moved slice from 1, and none as every slice", () => {
+		const [deeper, everywhere] = changeLines({
+			...none,
+			changes: [change({ column: "SliceTo", before: 8, after: 11 }), change({ column: "SliceFrom", before: 3, after: null })],
+		});
+		expect(deeper.field).toBe("Last slice");
+		expect([deeper.from, deeper.to]).toEqual([[{ text: "9", empty: false }], { text: "12", empty: false }]);
+		expect(everywhere.to).toEqual({ text: "Every slice", empty: false });
+	});
+
 	it("shows nothing as (empty), so notes added to a blank show where they came from", () => {
 		const [line] = changeLines({ ...none, changes: [change({ column: "Notes", before: "", after: "Looked at again" })] });
 		expect(line.field).toBe("Notes");

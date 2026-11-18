@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import VectorSource from "ol/source/Vector";
-import type { Annotation } from "../interfaces/Annotation";
+import type { Annotation, SliceRange } from "../interfaces/Annotation";
 import { useImageViewerContext } from "./ImageViewerContext";
 import { useEmitEvent } from "./EventContext";
 import { useCollectionContext } from "./CollectionContext";
@@ -102,6 +102,9 @@ interface AnnotationStoreContextValue {
 	forgetGroup: (groupId: string) => void;
 	// changeSet keeps every save of one edit as one change - see SavedAnnotationEdit.
 	updateAnnotation: (id: string, patch: Pick<Annotation, "label" | "notes" | "colour">, changeSet?: string) => void;
+	// Onto other slices of a volume, or every slice (both null). Its own save -
+	// see annotation-store's PUT /annotations/{id}/slices.
+	moveToSlices: (id: string, range: SliceRange, changeSet?: string) => void;
 	deleteAnnotation: (id: string) => void;
 	setSelectedAnnotationId: (id: string | null) => void;
 	setViewedAnnotationId: (id: string | null) => void;
@@ -157,7 +160,7 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
 	// from the load, other people's changes, and our own saves once they're
 	// in. What a save says it started from (its "was"), so the store can tell
 	// when it would replace someone else's change. See editPolicy.ts.
-	const storedRef = useRef(new Map<string, Pick<Annotation, "colour" | "groupId">>());
+	const storedRef = useRef(new Map<string, Pick<Annotation, "colour" | "groupId" | "sliceFrom" | "sliceTo">>());
 	const remember = useCallback((rows: Partial<Annotation>[]) => {
 		for (const row of rows) {
 			if (!row.id) continue;
@@ -165,6 +168,8 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
 			storedRef.current.set(row.id, {
 				colour: row.colour ?? was?.colour ?? "",
 				groupId: row.groupId !== undefined ? row.groupId : (was?.groupId ?? null),
+				sliceFrom: row.sliceFrom !== undefined ? row.sliceFrom : (was?.sliceFrom ?? null),
+				sliceTo: row.sliceTo !== undefined ? row.sliceTo : (was?.sliceTo ?? null),
 			});
 		}
 	}, []);
@@ -484,6 +489,53 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
 			});
 	};
 
+	// Like updateAnnotation, with the range it started from as its "was". Under
+	// first come wins someone else's move first means theirs stays and the
+	// toast offers to put it where you had it.
+	const moveToSlices = (id: string, range: SliceRange, changeSet?: string) => {
+		if (deletedIdsRef.current.has(id)) return;
+		const afterSave = sendsAfterSave(editPolicy);
+		setAnnotations((current) => current.map((a) => (a.id === id ? { ...a, ...range } : a)));
+		if (!afterSave) sendOp({ kind: "update", entity: "annotation", id, data: range });
+		queueRef
+			.current(id, async () => {
+				if (deletedIdsRef.current.has(id)) return;
+				const stored = storedRef.current.get(id);
+				const was = stored ? { sliceFrom: stored.sliceFrom ?? null, sliceTo: stored.sliceTo ?? null } : undefined;
+				const response = await authFetch(`${baseUrl}/annotations/${id}/slices`, {
+					method: "PUT",
+					headers: jsonHeaders(changeSet),
+					body: JSON.stringify({ ...range, was }),
+				});
+				if (response.status === 409) {
+					const conflict = readConflict(await response.json());
+					if (conflict) showSlicesConflict(conflict, range, changeSet);
+					return;
+				}
+				if (!response.ok) throw new Error(String(response.status));
+				const saved = (await response.json()) as Annotation;
+				remember([saved]);
+				if (afterSave) sendOp({ kind: "update", entity: "annotation", id, data: { sliceFrom: saved.sliceFrom ?? null, sliceTo: saved.sliceTo ?? null } });
+			})
+			.catch(() => setStatus("error"));
+	};
+
+	// Someone else moved it first: theirs is shown, and "Use mine" moves it again.
+	const showSlicesConflict = (conflict: Conflict, range: SliceRange, changeSet?: string) => {
+		const current = conflict.current as Partial<Annotation>;
+		remember([{ ...current, id: conflict.id }]);
+		const theirs = { sliceFrom: current.sliceFrom ?? null, sliceTo: current.sliceTo ?? null };
+		setAnnotations((list) => list.map((a) => (a.id === conflict.id ? { ...a, ...theirs } : a)));
+		const name = annotationsRef.current.find((a) => a.id === conflict.id)?.label || "this annotation";
+		addToast(conflictMessage(conflict, name), "error", {
+			duration: null,
+			actions: [
+				{ label: "Use mine", primary: true, onClick: () => moveToSlices(conflict.id, range, changeSet) },
+				{ label: "Keep theirs", onClick: () => {} },
+			],
+		});
+	};
+
 	// Someone else changed the colour first. Theirs is what's there, so that's
 	// what's shown; "Use mine" saves ours again over it, with whatever the
 	// label and notes are by then.
@@ -552,6 +604,7 @@ function AnnotationStoreContextProvider({ baseUrl, children }: AnnotationStoreCo
 				markGrouped,
 				forgetGroup,
 				updateAnnotation,
+				moveToSlices,
 				deleteAnnotation,
 				setSelectedAnnotationId,
 				setViewedAnnotationId,

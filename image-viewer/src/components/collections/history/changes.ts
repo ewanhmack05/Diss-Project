@@ -78,6 +78,8 @@ const FIELDS: Record<string, string> = {
 	WithRoi: "With ROI",
 	Count: "Count",
 	DotSize: "Dot size",
+	SliceFrom: "First slice",
+	SliceTo: "Last slice",
 };
 
 // An image adjustment's settings are one JSON column - each one in it that
@@ -107,6 +109,9 @@ function show(column: string, value: unknown, groups: Record<string, string>): S
 	if (column === "GroupId")
 		return typeof value === "string" ? { text: groups[value] ?? "a deleted group", empty: false } : { text: "No group", empty: true };
 	if (column === "Colour" && typeof value === "string") return { text: value.toUpperCase(), empty: false, colour: value };
+	// Stored from 0, shown from 1 like the Depth tab. None is every slice.
+	if (column === "SliceFrom" || column === "SliceTo")
+		return typeof value === "number" ? { text: number(value + 1), empty: false } : { text: "Every slice", empty: false };
 	if (typeof value === "boolean") return { text: value ? "Yes" : "No", empty: false };
 	if (typeof value === "number") return { text: number(value), empty: false };
 	if (value === null || value === undefined || value === "") return { text: "(empty)", empty: true };

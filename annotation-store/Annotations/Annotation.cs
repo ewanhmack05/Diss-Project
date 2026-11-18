@@ -40,6 +40,14 @@ public class Annotation
     };
 }
 
+// The slices of a volume an annotation's on, both null for every slice.
+public record SliceRange(int? SliceFrom, int? SliceTo);
+
+// What PUT /annotations/{id}/slices takes: the range to put it on, and the
+// range the change started from, for a first change wins session to turn
+// down one that would replace someone else's. Was left out isn't checked.
+public record SliceRangeUpdate(int? SliceFrom, int? SliceTo, SliceRange? Was = null);
+
 // What PUT /annotations/{id} takes. Label, notes and colour are all
 // replaced. WasColour is the colour the save started from, for a session
 // that turns down a save made over someone else's change - see

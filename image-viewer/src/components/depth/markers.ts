@@ -147,6 +147,14 @@ function countSliceText(count: { slice?: number | null }): string | null {
 	return typeof count.slice === "number" ? `Slice ${count.slice + 1}` : null;
 }
 
+// A range from the edit form's two boxes, typed from 1: whole numbers within
+// the volume, either way round. Null until they make sense.
+function rangeFromInputs(from: string, to: string, count: number): { sliceFrom: number; sliceTo: number } | null {
+	const [a, b] = [from, to].map((text) => (/^\s*\d+\s*$/.test(text) ? Number(text) : NaN));
+	if (!(a >= 1 && b >= 1 && a <= count && b <= count)) return null;
+	return { sliceFrom: Math.min(a, b) - 1, sliceTo: Math.max(a, b) - 1 };
+}
+
 // The box as twelve edges in the scene, for line segments - the block
 // centred on the origin, size big, layer 0 at the front. Its depth runs from
 // the front of its first slice's layer to the back of its last. Empty when
@@ -169,5 +177,5 @@ function boxEdges(box: MarkerBox, slide: { width: number; height: number }, size
 	return edges;
 }
 
-export { SMALLEST_SIDE_PX, boxFromHits, isUsable, markerGeoJson, isMarker, boxOf, shownMarkers, onSlice, sliceOf, sliceRangeText, sliceTagText, countOnSlice, countSliceText, boxEdges };
+export { SMALLEST_SIDE_PX, boxFromHits, isUsable, markerGeoJson, isMarker, boxOf, shownMarkers, onSlice, sliceOf, sliceRangeText, sliceTagText, countOnSlice, countSliceText, rangeFromInputs, boxEdges };
 export type { Hit, MarkerBox };

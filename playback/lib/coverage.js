@@ -33,6 +33,8 @@ export const FEATURES = {
 	"depth-reset": "Reset view",
 	"depth-marker": "Marking a box through the slices in 3D",
 	"depth-marker-flat": "A 3D marker on the 2D map only on its slices",
+	"depth-marker-edit": "Changing a marker's slices after it's saved",
+	"depth-every-slice": "Putting a 2D shape on every slice from its edit form",
 
 	// Annotations
 	"draw-line": "Line",

@@ -10,6 +10,7 @@ import {
 	isUsable,
 	markerGeoJson,
 	onSlice,
+	rangeFromInputs,
 	shownMarkers,
 	sliceOf,
 	sliceRangeText,
@@ -222,5 +223,25 @@ describe("countOnSlice and countSliceText", () => {
 	it("says the slice from 1", () => {
 		expect(countSliceText({ slice: 0 })).toBe("Slice 1");
 		expect(countSliceText({})).toBeNull();
+	});
+});
+
+describe("rangeFromInputs", () => {
+	it("turns the boxes, from 1, into a range from 0, either way round", () => {
+		expect(rangeFromInputs("4", "9", 15)).toEqual({ sliceFrom: 3, sliceTo: 8 });
+		expect(rangeFromInputs("9", "4", 15)).toEqual({ sliceFrom: 3, sliceTo: 8 });
+		expect(rangeFromInputs(" 15 ", "15", 15)).toEqual({ sliceFrom: 14, sliceTo: 14 });
+	});
+
+	it("is null until both are whole slices in the volume", () => {
+		for (const [from, to] of [
+			["", "4"],
+			["0", "4"],
+			["4", "16"],
+			["2.5", "4"],
+			["-1", "4"],
+			["four", "4"],
+		])
+			expect(rangeFromInputs(from, to, 15)).toBeNull();
 	});
 });

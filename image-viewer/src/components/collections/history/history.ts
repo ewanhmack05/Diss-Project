@@ -69,6 +69,7 @@ function plural(n: number, one: string, many: string): string {
 const LABELS: Record<string, (deleted: number) => string> = {
 	"add annotation": () => "Added an annotation",
 	"change annotation": () => "Changed an annotation",
+	"change annotation slices": () => "Moved an annotation between slices",
 	"delete annotation": () => "Deleted an annotation",
 	"change annotations": () => "Changed annotations",
 	"delete annotations": (deleted) => (deleted > 0 ? `Deleted ${plural(deleted, "annotation", "annotations")}` : "Deleted annotations"),

@@ -23,4 +23,10 @@ interface Annotation {
 	sliceTo?: number | null;
 }
 
-export type { Annotation };
+// Where on a volume it is: both null for every slice.
+interface SliceRange {
+	sliceFrom: number | null;
+	sliceTo: number | null;
+}
+
+export type { Annotation, SliceRange };
