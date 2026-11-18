@@ -80,7 +80,9 @@ type NavigationMode = "free" | "follow" | "present";
 
 // The host asking you to do something - you can always say no.
 type HostRequest = { fromConnectionId: string; fromName: string } & (
-	| { kind: "look"; data: Viewport }
+	// Their viewport - with their camera when they're in 3D, and point, a spot
+	// in the block they picked out (block units). See lookIn3d.
+	| { kind: "look"; data: Viewport & { point?: [number, number, number] } }
 	| { kind: "openPanel"; data: { panel: string } }
 	// To a guest - make an account to be able to edit.
 	| { kind: "edit"; data: null }
@@ -450,6 +452,32 @@ function followedCut(
 	return settings ? { cut: settings.cut, cutPosition: settings.cutPosition } : null;
 }
 
+// A "look here" that's for the 3D view: where to put your camera, what to
+// pulse, and which slice. The point is the spot they picked, or the middle of
+// what they're looking at. Null for a look from 2D, on a flat slide, or with
+// anything that isn't numbers where numbers should be.
+interface LookIn3d {
+	camera: Camera;
+	point: [number, number, number];
+	slice: number | null;
+}
+
+const isPoint = (p: unknown): p is [number, number, number] =>
+	Array.isArray(p) && p.length === 3 && p.every((v) => typeof v === "number" && Number.isFinite(v));
+
+function lookIn3d(data: unknown, volume: boolean): LookIn3d | null {
+	if (!volume || typeof data !== "object" || data === null) return null;
+	const { camera, point, z } = data as { camera?: unknown; point?: unknown; z?: unknown };
+	if (typeof camera !== "object" || camera === null) return null;
+	const { position, target, fov } = camera as Partial<Camera>;
+	if (!isPoint(position) || !isPoint(target) || typeof fov !== "number" || !(fov > 0 && fov < 180)) return null;
+	return {
+		camera: { position, target, fov },
+		point: isPoint(point) ? point : target,
+		slice: typeof z === "number" && Number.isInteger(z) && z >= 0 ? z : null,
+	};
+}
+
 // What someone's box says about their slice: nothing when you're on the same
 // one, or either of you isn't on a volume. Slices are shown from 1.
 function sliceNote(theirs: number | null | undefined, mine: number, volume: boolean): string | null {
@@ -566,6 +594,7 @@ export {
 	inThreeD,
 	hostDepth,
 	followedCut,
+	lookIn3d,
 	sameView,
 	panelChanges,
 	tabChanges,
@@ -593,6 +622,7 @@ export type {
 	NavigationMode,
 	Screen,
 	DepthScreen,
+	LookIn3d,
 	ScreenUpdate,
 	HostRequest,
 	Sketch,

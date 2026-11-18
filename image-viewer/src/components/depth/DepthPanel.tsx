@@ -1,6 +1,7 @@
 import type { ChangeEvent } from "react";
 import { useSliceContext } from "../../context/SliceContext";
 import { useNavigationContext } from "../../context/NavigationContext";
+import { useRealtimeContext } from "../../context/RealtimeContext";
 import { gapsAround, sliceLabel } from "./slices";
 import { spacingText, type CutAxis } from "./volume";
 import "./DepthPanel.css";
@@ -35,6 +36,9 @@ function DepthPanel() {
 	};
 	// In Present the host moves everyone - the same lock as panning.
 	const locked = following && mode === "present";
+	// The host, with others in the session, can point everyone at a spot in 3D.
+	const { me, others } = useRealtimeContext();
+	const pointing = !!me?.host && others.length > 0;
 	const count = slices.length;
 	const gaps = gapsAround(slices, current);
 
@@ -272,7 +276,9 @@ function DepthPanel() {
 					<p className="depth-panel-hint">
 						{locked
 							? "The presenter is turning the block and choosing how it looks."
-							: "Drag to turn it, scroll to zoom, right-drag to move it. Click the tissue to open that slice there in 2D."}
+							: `Drag to turn it, scroll to zoom, right-drag to move it. Click the tissue to open that slice there in 2D.${
+									pointing ? " Shift and click to point everyone at it." : ""
+								}`}
 					</p>
 				</div>
 			)}

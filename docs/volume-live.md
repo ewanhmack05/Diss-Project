@@ -2,11 +2,11 @@
 
 A draft of what a live session does when someone's in the Depth tab's 3D
 view. Phases 4 and 7 of [zstack.md](zstack.md#9-phases), worked out in
-detail. **Phases 1 to 4 are built** (the slice live, who's in 3D, other
-people's cameras, and Follow and Present in 3D) - see
+detail. **Phases 1 to 5 are built** (the slice live, who's in 3D, other
+people's cameras, Follow and Present in 3D, and look here in 3D) - see
 [phase 1](#51-phase-1-built), [phase 2](#52-phase-2-built),
-[phase 3](#53-phase-3-built) and [phase 4](#54-phase-4-built). Phases 5 and
-6 are still design.
+[phase 3](#53-phase-3-built), [phase 4](#54-phase-4-built) and
+[phase 5](#55-phase-5-built). Phase 6, markers, is still design.
 
 ## Contents
 
@@ -401,6 +401,45 @@ frames fall, landing exactly, no movement for no time) and `easeTime`;
 that sends it). Viewer: 1096 in all. Scripts: `drive_host_3d.py`'s camera
 path, view and screen.
 
+### 5.5 Phase 5, built
+
+Viewer only. A "look here" already sent the host's viewport, which since
+phase 3 has their camera in it when they're in 3D - so rather than a new
+`look3d` kind, the same `look` request carries an optional `point` too.
+Viewers that don't know about it still get a 2D look from the same message.
+`lookIn3d` in `realtime.ts` reads it (camera, point - the middle of their
+view if they didn't pick one - and slice), and turns anything that isn't
+numbers into an ordinary look.
+
+| Draft said | Built | Why |
+| --- | --- | --- |
+| The host clicks a point on the block | Shift and click the tissue - a plain click still opens it in 2D. The Look here buttons, in 3D, point at the middle of the host's view | A plain click already had a job |
+| A `look3d` request kind | The existing `look`, with `point` added | Older viewers still get a 2D look; one handler, not two |
+| A pulse there for a few seconds | Two rings going out from the spot in the host's colour, for 4 s, for everyone in 3D - following or not | |
+| Go there for anyone not following | Go takes you into 3D if you're in 2D, onto their slice, and eases your camera to theirs, pulsing again | A pulse that's gone by the time the block's loaded says nothing |
+| Open in 2D for everyone presented to | Already there from phases 1 and 2: the host's view, slice and 2D viewport all go to whoever's presented to | |
+
+**Checked by hand**, `drive_host_3d.py` as the host and Bob in the browser:
+in 3D, a look brought "Alice Moore wants you to look at something in 3D"
+with Go, and the pulse, within a couple of ms of being sent; Go landed Bob's
+camera exactly on Alice's. From 2D, Go took Bob into 3D, onto Alice's slice
+(3) and her camera, once the block had loaded. Following, the pulse came and
+no toast. Presented to, Alice going to 2D on slice 5 took Bob to 2D, slice 5,
+centred exactly where she was. Then as Alice in the browser with a simulated
+person in the room: the hint said Shift and click points everyone; a real
+Shift+click on the liver drew the pulse in Alice's colour on the spot clicked,
+stayed in 3D, and a listener joined as Bob received the look with her camera,
+slice 8 and the point.
+
+The pulse is too short for the pane's screenshots, which take longer than
+4 s to come back - a copy of it, kept on screen, shows the rings; its styles
+were read while it was live.
+
+**Tests.** `lookIn3d`: camera, point and slice; the middle of their view
+without a point; nothing for 2D or a flat slide; nothing for a camera that
+isn't numbers; a bad point or slice dropped and the rest kept. Viewer: 1101
+in all. Scripts: `drive_host_3d.py`'s look and 2D view.
+
 ## 6. How it's measured
 
 - **Follower lag on the slice** (phase 1): from the host stepping a slice to
@@ -456,4 +495,6 @@ path, view and screen.
 | Phase 2: Present takes followers into 3D with the host's block, and gives theirs back after | Two tabs on the liver volume, by hand (5.2) | Checked |
 | Phase 4: a follower's camera starts moving a median 35 ms after the host's, lands in a median 902 ms | 12 moves from `drive_host_3d.py`, the follower's camera read every frame (5.4) | Checked - localhost, pane on screen |
 | Phase 4: turning, cutting, Reset view or Go there breaks Follow; Present locks the camera | By hand, a real pointer drag and the Depth tab (5.4) | Checked |
+| Phase 5: a look from 3D pulses for everyone in 3D and Go lands on the host's camera and slice, from 3D or 2D | `drive_host_3d.py --look` against Bob in the browser (5.5) | Checked |
+| Phase 5: the host's Shift+click sends a look with the spot clicked | A listener joined as Bob received it (5.5) | Checked |
 | Multi-user game editors show other users' cameras | Not checked against any one engine's documentation | **Unverified** - read the docs of one engine's multi-user editing before citing it in the dissertation |

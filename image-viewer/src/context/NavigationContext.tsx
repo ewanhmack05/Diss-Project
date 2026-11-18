@@ -11,6 +11,7 @@ import { useSliceContext, type VolumeSettings } from "./SliceContext";
 import {
 	followedCut,
 	hostDepth,
+	lookIn3d,
 	leaderOf,
 	panelChanges,
 	tabChanges,
@@ -53,7 +54,7 @@ function NavigationContextProvider({ children }: { children: ReactNode }) {
 	const { pending: counting } = useCellCountDrawContext();
 	const { selectedAnnotationId, setSelectedAnnotationId, viewedAnnotationId, setViewedAnnotationId } = useAnnotationStoreContext();
 	const { selectedCellCountId, viewedCellCountId, setSelectedCellCountId, setViewedCellCountId } = useCellCountStoreContext();
-	const { volume, view, setView, settings, changeSettings } = useSliceContext();
+	const { volume, view, setView, settings, changeSettings, showSlice, showPulse, goToCamera } = useSliceContext();
 	const [brokeAway, setBrokeAway] = useState(false);
 	// A new mode starts everyone on the host again.
 	const [modeBefore, setModeBefore] = useState(mode);
@@ -254,19 +255,34 @@ function NavigationContextProvider({ children }: { children: ReactNode }) {
 	// say yes or no to. Nobody's asked to look while they're following, since
 	// they're already there.
 	const followingRef = useRef(following);
+	// Read by the request handler, which isn't set up again for these.
+	const volumeRef = useRef(volume);
+	const othersRef = useRef(others);
 	useEffect(() => {
 		followingRef.current = following;
+		volumeRef.current = volume;
+		othersRef.current = others;
 	});
 	useEffect(
 		() =>
 			onRequest((request) => {
 				if (request.kind === "look") {
+					// From the 3D view: a pulse at the spot for anyone in 3D -
+					// following or not - and Go takes you into 3D to their camera.
+					const inBlock = lookIn3d(request.data, volumeRef.current);
+					const colour = othersRef.current.find((p) => p.connectionId === request.fromConnectionId)?.colour ?? "#fff";
+					if (inBlock) showPulse(inBlock.point, colour);
 					if (followingRef.current) return;
-					addToast(`${request.fromName} wants you to look at something`, "info", {
-						actions: [
-							{ label: "Go", primary: true, onClick: () => setLookAt((current) => ({ viewport: request.data, id: (current?.id ?? 0) + 1 })) },
-							{ label: "Not now" },
-						],
+					const go = inBlock
+						? () => {
+								setView("3d");
+								if (inBlock.slice !== null) showSlice(inBlock.slice);
+								goToCamera(inBlock.camera);
+								showPulse(inBlock.point, colour);
+							}
+						: () => setLookAt((current) => ({ viewport: request.data, id: (current?.id ?? 0) + 1 }));
+					addToast(`${request.fromName} wants you to look at something${inBlock ? " in 3D" : ""}`, "info", {
+						actions: [{ label: "Go", primary: true, onClick: go }, { label: "Not now" }],
 					});
 				} else if (request.kind === "openPanel") {
 					const panel = request.data.panel as ToolId;
@@ -277,7 +293,7 @@ function NavigationContextProvider({ children }: { children: ReactNode }) {
 					});
 				}
 			}),
-		[onRequest, addToast, openTool],
+		[onRequest, addToast, openTool, showPulse, setView, showSlice, goToCamera],
 	);
 
 	const breakAway = useCallback(() => {

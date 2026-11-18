@@ -1,6 +1,6 @@
 import unittest
 
-from drive_host_3d import camera_path, host_screen, host_view
+from drive_host_3d import camera_path, host_screen, host_view, look_request, two_d_view
 
 
 class CameraPath(unittest.TestCase):
@@ -39,6 +39,24 @@ class HostScreen(unittest.TestCase):
 
     def test_no_cut_by_default(self):
         self.assertEqual(host_screen()["depth"]["settings"]["cut"], "none")
+
+
+class Look(unittest.TestCase):
+    def test_a_look_is_the_view_and_the_spot(self):
+        view = host_view((0.0, 2000.0, -1000.0, 0.0), 3, camera_path(1)[0])
+        look = look_request(view, (0.1, -0.2, 0.3))
+        self.assertEqual(look["point"], [0.1, -0.2, 0.3])
+        self.assertEqual(look["camera"], view["camera"])
+        self.assertEqual(look["z"], 3)
+        self.assertNotIn("point", view)
+
+
+class TwoD(unittest.TestCase):
+    def test_in_2d_on_the_slice_with_no_camera(self):
+        seen = two_d_view((0.0, 2000.0, -1000.0, 0.0), 5)
+        self.assertEqual(seen["z"], 5)
+        self.assertIsNone(seen["camera"])
+        self.assertEqual(seen["center"], [500.0, -750.0])
 
 
 if __name__ == "__main__":

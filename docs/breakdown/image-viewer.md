@@ -809,6 +809,12 @@ depth too:
   breaks away. Present takes the camera too and turns your controls, Reset
   view and Go there off. Following someone in 2D leaves your camera alone.
 
+- Look here in 3D: the host Shift+clicks the tissue (or uses Look here,
+  which points at the middle of their view). The same `look` request as in
+  2D, with their camera and the spot (`lookIn3d`). Everyone in 3D sees rings
+  pulse there for 4 s in the host's colour; anyone not following gets a
+  toast whose Go takes them into 3D, onto the host's slice and camera.
+
 See [volume-live.md](../volume-live.md) for the rest of working together in 3D.
 
 Everyone sends a small **screen** message (open panels, tabs, adjustments,

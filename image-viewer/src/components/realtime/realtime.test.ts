@@ -8,6 +8,7 @@ import {
 	followView,
 	followedCut,
 	hostDepth,
+	lookIn3d,
 	inThreeD,
 	sliceNote,
 	leaderOf,
@@ -546,5 +547,38 @@ describe("followedCut", () => {
 		expect(followedCut(leader, "follow", true, false)).toBeNull();
 		expect(followedCut(screenWith(undefined), "follow", true, true)).toBeNull();
 		expect(followedCut(null, "follow", true, true)).toBeNull();
+	});
+});
+
+describe("lookIn3d", () => {
+	const camera = { position: [1.6, 0.5, 8] as [number, number, number], target: [0, 0.1, 0] as [number, number, number], fov: 40 };
+	const flat = { center: [10, -20] as [number, number], resolution: 2, rotation: 0, extent: [0, -40, 20, 0] as [number, number, number, number] };
+
+	it("takes the camera, the point picked and the slice", () => {
+		expect(lookIn3d({ ...flat, z: 4, camera, point: [0.2, -0.1, 0.3] }, true)).toEqual({ camera, point: [0.2, -0.1, 0.3], slice: 4 });
+	});
+
+	it("points at the middle of their view when they didn't pick a spot", () => {
+		expect(lookIn3d({ ...flat, camera }, true)?.point).toEqual([0, 0.1, 0]);
+	});
+
+	it("is nothing for a look from 2D, or on a flat slide", () => {
+		expect(lookIn3d({ ...flat, z: 4, camera: null }, true)).toBeNull();
+		expect(lookIn3d(flat, true)).toBeNull();
+		expect(lookIn3d({ ...flat, camera }, false)).toBeNull();
+	});
+
+	it("is nothing when the camera isn't numbers", () => {
+		expect(lookIn3d({ camera: { ...camera, position: [1, 2] } }, true)).toBeNull();
+		expect(lookIn3d({ camera: { ...camera, target: ["a", 0, 0] } }, true)).toBeNull();
+		expect(lookIn3d({ camera: { ...camera, fov: 0 } }, true)).toBeNull();
+		expect(lookIn3d(null, true)).toBeNull();
+		expect(lookIn3d("look", true)).toBeNull();
+	});
+
+	it("ignores a point or slice that doesn't make sense, keeping the rest", () => {
+		const look = lookIn3d({ camera, point: [1, Infinity, 0], z: -2 }, true);
+		expect(look?.point).toEqual(camera.target);
+		expect(look?.slice).toBeNull();
 	});
 });

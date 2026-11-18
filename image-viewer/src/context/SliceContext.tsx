@@ -71,6 +71,22 @@ interface SliceContextValue {
 	reportCamera: (camera: Camera | null) => void;
 	cameraNow: () => Camera | null;
 	onCamera: (listener: () => void) => () => void;
+	// A spot in the block someone asked everyone to look at, in block units,
+	// pulsing for a few seconds from at (see VolumeView).
+	pulse: Pulse | null;
+	showPulse: (point: [number, number, number], colour: string) => void;
+	// Somewhere for the 3D camera to go - Go on a look. The 3D view eases to
+	// it once it's open, then calls doneCamera so it isn't done again.
+	cameraGoal: { camera: Camera; id: number } | null;
+	goToCamera: (camera: Camera) => void;
+	doneCamera: (id: number) => void;
+}
+
+interface Pulse {
+	point: [number, number, number];
+	colour: string;
+	id: number;
+	at: number;
 }
 
 const SliceContext = createContext<SliceContextValue | null>(null);
@@ -107,6 +123,8 @@ function SliceContextProvider({ children }: { children: ReactNode }) {
 		setViewState("2d");
 		setSettings({ ...DEFAULT_SETTINGS, ...allSlices(next.length) });
 		setLookAt(null);
+		setPulse(null);
+		setCameraGoal(null);
 	}, []);
 
 	const showSlice = useCallback(
@@ -133,6 +151,15 @@ function SliceContextProvider({ children }: { children: ReactNode }) {
 
 	const changeSettings = useCallback((change: Partial<VolumeSettings>) => setSettings((now) => ({ ...now, ...change })), []);
 	const resetCamera = useCallback(() => setCameraReset((count) => count + 1), []);
+
+	const [pulse, setPulse] = useState<Pulse | null>(null);
+	const showPulse = useCallback(
+		(point: [number, number, number], colour: string) => setPulse((now) => ({ point, colour, id: (now?.id ?? 0) + 1, at: Date.now() })),
+		[],
+	);
+	const [cameraGoal, setCameraGoal] = useState<{ camera: Camera; id: number } | null>(null);
+	const goToCamera = useCallback((camera: Camera) => setCameraGoal((now) => ({ camera, id: (now?.id ?? 0) + 1 })), []);
+	const doneCamera = useCallback((id: number) => setCameraGoal((now) => (now?.id === id ? null : now)), []);
 
 	const cameraRef = useRef<Camera | null>(null);
 	const cameraListeners = useRef(new Set<() => void>());
@@ -178,6 +205,11 @@ function SliceContextProvider({ children }: { children: ReactNode }) {
 			reportCamera,
 			cameraNow,
 			onCamera,
+			pulse,
+			showPulse,
+			cameraGoal,
+			goToCamera,
+			doneCamera,
 		}),
 		[
 			slices,
@@ -198,6 +230,11 @@ function SliceContextProvider({ children }: { children: ReactNode }) {
 			reportCamera,
 			cameraNow,
 			onCamera,
+			pulse,
+			showPulse,
+			cameraGoal,
+			goToCamera,
+			doneCamera,
 		],
 	);
 	return <SliceContext.Provider value={value}>{children}</SliceContext.Provider>;
@@ -212,4 +249,4 @@ function useSliceContext(): SliceContextValue {
 }
 
 export { SliceContextProvider, useSliceContext };
-export type { DepthView, VolumeSettings };
+export type { DepthView, VolumeSettings, Pulse };

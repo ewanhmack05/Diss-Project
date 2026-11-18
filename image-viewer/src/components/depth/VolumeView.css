@@ -70,3 +70,53 @@
 .volume-view--locked:active {
 	cursor: default;
 }
+
+/* Someone's "look here" - rings going out from the spot, in their colour.
+   Moved into place by the view as it draws. */
+.volume-view-pulse {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 0;
+	height: 0;
+	pointer-events: none;
+	visibility: hidden;
+}
+
+.volume-view-pulse::before,
+.volume-view-pulse::after {
+	content: "";
+	position: absolute;
+	left: -18px;
+	top: -18px;
+	width: 36px;
+	height: 36px;
+	border: 3px solid var(--pulse-colour, #fff);
+	border-radius: 50%;
+	animation: volume-view-pulse 1.3s ease-out infinite;
+}
+
+.volume-view-pulse::after {
+	animation-delay: 0.65s;
+}
+
+@keyframes volume-view-pulse {
+	from {
+		transform: scale(0.3);
+		opacity: 1;
+	}
+	to {
+		transform: scale(1.6);
+		opacity: 0;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.volume-view-pulse::before,
+	.volume-view-pulse::after {
+		animation: none;
+	}
+	.volume-view-pulse::after {
+		display: none;
+	}
+}

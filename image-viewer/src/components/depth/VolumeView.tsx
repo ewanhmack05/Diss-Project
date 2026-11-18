@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { useSliceContext } from "../../context/SliceContext";
@@ -28,6 +28,7 @@ import { useRealtimeContext } from "../../context/RealtimeContext";
 import { useNavigationContext } from "../../context/NavigationContext";
 import { inThreeD, type Camera } from "../realtime/realtime";
 import {
+	fromBlock,
 	cameraFromBlock,
 	cameraToBlock,
 	camerasToDraw,
@@ -71,6 +72,8 @@ function cssColour(name: string, fallback: string): THREE.Color {
 	}
 }
 
+// How long a "look here" pulses for.
+const PULSE_MS = 4000;
 // How big other people's cameras are drawn, against a block 1 wide.
 const FRUSTUM_SIZE = 0.12;
 // A still camera, and someone else's cut, are drawn this see-through.
@@ -126,8 +129,15 @@ function clearGroup(group: THREE.Group): void {
 // the tissue to go to that slice and place in 2D. Drawn only when something
 // changes, not every frame.
 function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixel, tileSize }: VolumeViewProps) {
-	const { slices, current, settings, cameraReset, openInTwoD, sectionMicrons, reportCamera } = useSliceContext();
-	const { others } = useRealtimeContext();
+	const { slices, current, settings, cameraReset, openInTwoD, sectionMicrons, reportCamera, pulse, showPulse, cameraGoal, doneCamera } =
+		useSliceContext();
+	const { me, others, askToLook } = useRealtimeContext();
+	// The last pulse that's run its course - one that already had when this
+	// view opened counts, so it doesn't flash up. The pulse shows until then.
+	const [endedPulse, setEndedPulse] = useState(() => (pulse && Date.now() - pulse.at >= PULSE_MS ? pulse.id : 0));
+	const livePulse = pulse && pulse.id !== endedPulse ? pulse : null;
+	const pulseRef = useRef<HTMLDivElement | null>(null);
+	const pulseWorldRef = useRef<Vec3 | null>(null);
 	const { mode, leader, following, breakAway } = useNavigationContext();
 	// In Present the host turns the block for everyone - your controls are off.
 	const locked = following && mode === "present";
@@ -284,6 +294,13 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 		const placeLabels = () => {
 			const { clientWidth, clientHeight } = host;
 			const point = new THREE.Vector3();
+			const pulseAt = pulseWorldRef.current;
+			if (pulseRef.current && pulseAt) {
+				point.set(...pulseAt).project(camera);
+				const off = point.z > 1 || point.z < -1;
+				pulseRef.current.style.visibility = off ? "hidden" : "visible";
+				pulseRef.current.style.transform = `translate(${((point.x + 1) / 2) * clientWidth}px, ${((1 - point.y) / 2) * clientHeight}px)`;
+			}
 			for (const person of peopleRef.current) {
 				const label = labelRefs.current.get(person.connectionId);
 				if (!label) continue;
@@ -486,6 +503,26 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 		scene.ease();
 	}, [leaderCamera, size, volume]);
 
+	// Someone's "look here": a pulse at the spot for PULSE_MS from when it came.
+	useEffect(() => {
+		if (!pulse) return;
+		const timer = window.setTimeout(() => setEndedPulse(pulse.id), Math.max(0, PULSE_MS - (Date.now() - pulse.at)));
+		return () => window.clearTimeout(timer);
+	}, [pulse]);
+	useLayoutEffect(() => {
+		pulseWorldRef.current = livePulse ? fromBlock(livePulse.point, size) : null;
+		sceneRef.current?.render();
+	}, [livePulse, size]);
+
+	// Go on a look: ease to their camera once the block's here, once.
+	useEffect(() => {
+		const scene = sceneRef.current;
+		if (!scene || !cameraGoal) return;
+		goalRef.current = cameraFromBlock(cameraGoal.camera, size);
+		scene.ease();
+		doneCamera(cameraGoal.id);
+	}, [cameraGoal, size, volume, doneCamera]);
+
 	// No turning it yourself while someone presents.
 	useEffect(() => {
 		const scene = sceneRef.current;
@@ -670,6 +707,9 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 		scene.render();
 	}, [cameraReset]);
 
+	// The host in a session with others in it can point everyone at a spot.
+	const pointing = !!me?.host && others.length > 0;
+
 	// A click (not a drag) on the tissue opens that slice and place in 2D.
 	useEffect(() => {
 		const scene = sceneRef.current;
@@ -700,6 +740,13 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 			if (!hit) return;
 			const slice = volume.layerSlice[hit.layer];
 			if (slice === null) return;
+			// The host, with Shift: point everyone at it, rather than going there.
+			if (event.shiftKey && pointing) {
+				const spot: Vec3 = [hit.x - 0.5, 0.5 - hit.y, layerZ(hit.layer, volume.depth, 1)];
+				askToLook(null, spot).catch(() => {});
+				showPulse(spot, me?.colour ?? "#fff");
+				return;
+			}
 			openInTwoD(slice, hit.x * slideWidth, hit.y * slideHeight);
 		};
 		canvas.addEventListener("pointerdown", onDown);
@@ -708,7 +755,7 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 			canvas.removeEventListener("pointerdown", onDown);
 			canvas.removeEventListener("pointerup", onUp);
 		};
-	}, [volume, size, settings.cut, settings.cutPosition, settings.spacing, slideWidth, slideHeight, openInTwoD]);
+	}, [volume, size, settings.cut, settings.cutPosition, settings.spacing, slideWidth, slideHeight, openInTwoD, pointing, askToLook, showPulse, me?.colour]);
 
 	return (
 		<div className={`volume-view${locked ? " volume-view--locked" : ""}`} ref={hostRef}>
@@ -718,6 +765,15 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 				</div>
 			)}
 			{error && <div className="volume-view-status">{error}</div>}
+			{livePulse && (
+				<div
+					key={livePulse.id}
+					ref={pulseRef}
+					className="volume-view-pulse"
+					style={{ "--pulse-colour": livePulse.colour } as CSSProperties}
+					aria-hidden="true"
+				/>
+			)}
 			{people.map((person) => (
 				<button
 					key={person.connectionId}

@@ -14,6 +14,8 @@ tiler running. Standard library only.
     python scripts/drive_host_3d.py juyhsUFHC4gB --mode follow --moves 20 --every 1.5
     python scripts/drive_host_3d.py juyhsUFHC4gB --mode present --moves 5
     python scripts/drive_host_3d.py juyhsUFHC4gB --cut x --cut-position 0.3
+    python scripts/drive_host_3d.py juyhsUFHC4gB --mode free --moves 1 --look 0.1 -0.2 0.3
+    python scripts/drive_host_3d.py juyhsUFHC4gB --mode present --end-in-2d
 """
 import argparse
 import json
@@ -36,6 +38,22 @@ def host_screen(cut="none", cut_position=0.5):
     return screen
 
 
+def look_request(view, point):
+    """A "look here" from 3D: the host's viewport, camera and all, and the
+    spot in the block they picked (block units) - what Shift+click sends."""
+    return {**view, "point": list(point)}
+
+
+def two_d_view(bounds, slice_):
+    """The host after clicking through to 2D: a quarter of the way into the
+    slide, close in, on their slice, no camera."""
+    x0, x1, y0, y1 = bounds
+    seen = viewport((x0 + (x1 - x0) / 4, y0 + (y1 - y0) / 4), 4.0)
+    seen["z"] = slice_
+    seen["camera"] = None
+    return seen
+
+
 def host_view(bounds, slice_, camera):
     """The host's viewport: the middle of the slide, on its slice, with the
     camera - what the viewer would send from the 3D view."""
@@ -49,7 +67,11 @@ def host_view(bounds, slice_, camera):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("link", help="the session's invite link, or just its code")
-    parser.add_argument("--mode", choices=("follow", "present"), default="follow", help="navigation mode (default: %(default)s)")
+    parser.add_argument("--mode", choices=("free", "follow", "present"), default="follow", help="navigation mode (default: %(default)s)")
+    parser.add_argument("--look", type=float, nargs=3, metavar=("X", "Y", "Z"),
+                        help="after the moves, ask everyone to look at this spot in the block (block units)")
+    parser.add_argument("--end-in-2d", action="store_true",
+                        help="after the moves, go to 2D on --slice, as clicking the tissue does")
     parser.add_argument("--moves", type=int, default=20, help="how many times to move the camera (default: %(default)s)")
     parser.add_argument("--every", type=float, default=1.5, help="seconds between moves (default: %(default)s)")
     parser.add_argument("--cut", choices=("none", "x", "y", "z", "diagonal"), default="none", help="the host's cut (default: %(default)s)")
@@ -83,6 +105,18 @@ def main():
             hub.send("UpdateViewport", host_view(bounds, args.slice, camera))
             print(json.dumps({"move": move, "sentAt": round(sent, 1), "camera": camera}), flush=True)
             time.sleep(args.every)
+        if args.look:
+            view = host_view(bounds, args.slice, camera)
+            hub.invoke("SendRequest", None, "look", look_request(view, args.look))
+            print(json.dumps({"look": args.look, "sentAt": round(time.time() * 1000, 1)}), flush=True)
+            time.sleep(args.every)
+        if args.end_in_2d:
+            screen = host_screen(args.cut, args.cut_position)
+            screen["depth"]["view"] = "2d"
+            hub.send("UpdateScreen", screen)
+            hub.send("UpdateViewport", two_d_view(bounds, args.slice))
+            print(json.dumps({"in2d": args.slice, "sentAt": round(time.time() * 1000, 1)}), flush=True)
+            time.sleep(args.every * 2)
     finally:
         try:
             hub.invoke("SetNavigation", "free")
