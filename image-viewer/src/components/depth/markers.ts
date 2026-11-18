@@ -127,12 +127,13 @@ function sliceRangeText(annotation: Pick<Annotation, "sliceFrom" | "sliceTo">): 
 	return from === to ? `slice ${from}` : `slices ${from} to ${to}`;
 }
 
-// The Saved list's tag: "3D · slices 4 to 9" for a box made in 3D, "Slice 4"
-// for a shape drawn in 2D on one slice. Null for every slice.
+// The Saved list's tag: "3D · slices 4 to 9" for a box through the slices,
+// "Slice 4" for anything on one - a rectangle drawn in 2D is a one-slice box
+// too, and reads as what it was.
 function sliceTagText(annotation: Ranged): string | null {
 	const range = sliceRangeText(annotation);
 	if (range === null) return null;
-	return boxOf(annotation) ? `3D · ${range}` : range[0].toUpperCase() + range.slice(1);
+	return boxOf(annotation) && annotation.sliceFrom !== annotation.sliceTo ? `3D · ${range}` : range[0].toUpperCase() + range.slice(1);
 }
 
 // Whether a count belongs on the 2D map at this slice. A count is on the one

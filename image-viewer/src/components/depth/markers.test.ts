@@ -201,6 +201,10 @@ describe("sliceTagText", () => {
 		expect(sliceTagText({ geoJson: footprint, sliceFrom: 3, sliceTo: 3, shape: "polygon" })).toBe("Slice 4");
 		expect(sliceTagText({ geoJson: footprint, sliceFrom: null, sliceTo: null, shape: "polygon" })).toBeNull();
 	});
+
+	it("says just the slice for a rectangle drawn in 2D on one", () => {
+		expect(sliceTagText({ geoJson: footprint, sliceFrom: 2, sliceTo: 2, shape: "rectangle" })).toBe("Slice 3");
+	});
 });
 
 describe("countOnSlice and countSliceText", () => {
