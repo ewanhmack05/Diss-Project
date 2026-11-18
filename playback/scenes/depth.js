@@ -208,4 +208,13 @@ export async function depthAlone({ sam }) {
 	await sam.press("Done", annotations);
 	await expect(row(annotations, "On slice 3")).not.toContainText("Slice 3", { timeout: 8000 });
 	sam.did("depth-every-slice");
+
+	// Both came from the store, not just this page: still there after a reload.
+	await page.reload();
+	await sam.tiles();
+	await open(sam, "Annotations", "Annotations");
+	await sam.click(annotations.getByRole("button", { name: /^Saved/ }));
+	await expect(row(annotations, "Duct")).toContainText("3D · slices 4 to 12", { timeout: 10_000 });
+	await expect(row(annotations, "On slice 3")).not.toContainText("Slice 3");
+	await sam.pause(800);
 }
