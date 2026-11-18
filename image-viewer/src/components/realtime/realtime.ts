@@ -6,6 +6,7 @@ import type View from "ol/View";
 import type { LineStyleName, ShapeTool } from "../annotation/Tools";
 import type { ImageAdjustmentValues } from "../adjustments/adjustments";
 import type { DepthView, VolumeSettings } from "../../context/SliceContext";
+import type { MarkerBox } from "../depth/markers";
 
 type Coord = [number, number];
 
@@ -95,7 +96,18 @@ interface ScreenUpdate {
 
 // Something someone is part way through drawing. The hub never looks
 // inside data, it just passes it on and keeps the latest for late joiners.
-type Sketch = { tool: "annotation"; data: AnnotationSketch } | { tool: "ruler"; data: RulerSketch } | { tool: "cellCount"; data: CellCountSketch };
+type Sketch =
+	| { tool: "annotation"; data: AnnotationSketch }
+	| { tool: "ruler"; data: RulerSketch }
+	| { tool: "cellCount"; data: CellCountSketch }
+	| { tool: "marker3d"; data: MarkerSketch };
+
+// A 3D marker part way through being placed - its box so far (slide pixels
+// and slices, see depth/markers.ts) and its colour. Drawn in others' 3D views.
+interface MarkerSketch {
+	box: MarkerBox;
+	colour: string;
+}
 
 // The host's count as it goes, for everyone watching them present. count
 // is the tally - it can be more than the dots, since a count can be taken
@@ -626,6 +638,7 @@ export type {
 	ScreenUpdate,
 	HostRequest,
 	Sketch,
+	MarkerSketch,
 	AnnotationSketch,
 	RulerSketch,
 	CellCountSketch,

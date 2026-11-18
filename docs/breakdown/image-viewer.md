@@ -815,6 +815,12 @@ depth too:
   pulse there for 4 s in the host's colour; anyone not following gets a
   toast whose Go takes them into 3D, onto the host's slice and camera.
 
+- 3D markers: Mark a box in the Depth tab's 3D section, click two corners on
+  the tissue, name it and set its slices. It saves as a rectangle annotation
+  with `sliceFrom`/`sliceTo` (`depth/markers.ts`), drawn as a box in the
+  block for everyone, and on the 2D map only on its slices. While it's being
+  placed it goes out as a `marker3d` sketch, dashed in others' 3D views.
+
 See [volume-live.md](../volume-live.md) for the rest of working together in 3D.
 
 Everyone sends a small **screen** message (open panels, tabs, adjustments,

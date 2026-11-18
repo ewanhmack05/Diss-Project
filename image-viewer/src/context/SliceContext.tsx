@@ -3,6 +3,11 @@ import { clampSlice, FLAT, isVolume, type Slice } from "../components/depth/slic
 import type { CutAxis } from "../components/depth/volume";
 import { useEmitEvent } from "./EventContext";
 import type { Camera } from "../components/realtime/realtime";
+import type { Hit, MarkerBox } from "../components/depth/markers";
+
+// Placing a 3D marker: waiting for the first corner, then the second (with
+// the box so far while the pointer moves), then naming it before it's saved.
+type Marking = { stage: "first" } | { stage: "second"; first: Hit; box: MarkerBox | null } | { stage: "form"; box: MarkerBox } | null;
 
 type DepthView = "2d" | "3d";
 
@@ -80,6 +85,10 @@ interface SliceContextValue {
 	cameraGoal: { camera: Camera; id: number } | null;
 	goToCamera: (camera: Camera) => void;
 	doneCamera: (id: number) => void;
+	// Placing a 3D marker - the Depth tab starts it and saves it, the 3D view
+	// takes the corners. Null when nothing's being placed.
+	marking: Marking;
+	setMarking: (marking: Marking) => void;
 }
 
 interface Pulse {
@@ -125,6 +134,7 @@ function SliceContextProvider({ children }: { children: ReactNode }) {
 		setLookAt(null);
 		setPulse(null);
 		setCameraGoal(null);
+		setMarking(null);
 	}, []);
 
 	const showSlice = useCallback(
@@ -144,6 +154,7 @@ function SliceContextProvider({ children }: { children: ReactNode }) {
 	const setView = useCallback(
 		(next: DepthView) => {
 			setViewState(next);
+			if (next === "2d") setMarking(null);
 			emit("depth:view", { slideId: stateRef.current.slideId, view: next });
 		},
 		[emit],
@@ -160,6 +171,8 @@ function SliceContextProvider({ children }: { children: ReactNode }) {
 	const [cameraGoal, setCameraGoal] = useState<{ camera: Camera; id: number } | null>(null);
 	const goToCamera = useCallback((camera: Camera) => setCameraGoal((now) => ({ camera, id: (now?.id ?? 0) + 1 })), []);
 	const doneCamera = useCallback((id: number) => setCameraGoal((now) => (now?.id === id ? null : now)), []);
+
+	const [marking, setMarking] = useState<Marking>(null);
 
 	const cameraRef = useRef<Camera | null>(null);
 	const cameraListeners = useRef(new Set<() => void>());
@@ -210,6 +223,8 @@ function SliceContextProvider({ children }: { children: ReactNode }) {
 			cameraGoal,
 			goToCamera,
 			doneCamera,
+			marking,
+			setMarking,
 		}),
 		[
 			slices,
@@ -235,6 +250,7 @@ function SliceContextProvider({ children }: { children: ReactNode }) {
 			cameraGoal,
 			goToCamera,
 			doneCamera,
+			marking,
 		],
 	);
 	return <SliceContext.Provider value={value}>{children}</SliceContext.Provider>;
@@ -249,4 +265,4 @@ function useSliceContext(): SliceContextValue {
 }
 
 export { SliceContextProvider, useSliceContext };
-export type { DepthView, VolumeSettings, Pulse };
+export type { DepthView, VolumeSettings, Pulse, Marking };

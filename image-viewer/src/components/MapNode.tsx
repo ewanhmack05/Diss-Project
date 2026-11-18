@@ -95,6 +95,7 @@ import { ShapeTools } from "./annotation/Tools";
 import "./MapNode.css";
 import { newId } from "../newId";
 import { useSliceContext } from "../context/SliceContext";
+import { onSlice } from "./depth/markers";
 import { isVolume, keyStep, readSlices, sliceLabel, sliceWindow, wheelStepper, type Slice } from "./depth/slices";
 import { isTypingTarget } from "../typing";
 
@@ -596,6 +597,8 @@ function MapNode() {
 	useEffect(() => {
 		const shown = annotations.filter(
 			(annotation) =>
+				// A 3D marker is only on the slices it spans.
+				onSlice(annotation, currentSlice, volume) &&
 				(!annotation.groupId || !hiddenGroupIds.has(annotation.groupId)) &&
 				(!mapFilter || (passes(annotation, mapFilter.filters) && matchesSearch(annotation, mapFilter.search))),
 		);
@@ -612,7 +615,7 @@ function MapNode() {
 				return feature;
 			}),
 		);
-	}, [annotations, annotationsSource, hiddenGroupIds, mapFilter]);
+	}, [annotations, annotationsSource, hiddenGroupIds, mapFilter, currentSlice, volume]);
 
 	useMapSelection(mapRef, mapVersion, annotationsSource, annotations, annotationsVisible);
 
@@ -693,6 +696,14 @@ function MapNode() {
 			map.un("change:size", apply);
 		};
 	}, [leaderViewport, locked, breakAway, mapVersion]);
+
+	// Read by the viewed-marker effect, which only runs when the pick changes.
+	const annotationsRef = useRef(annotations);
+	const currentSliceRef = useRef(currentSlice);
+	useEffect(() => {
+		annotationsRef.current = annotations;
+		currentSliceRef.current = currentSlice;
+	});
 
 	// And the host's slice, on a volume (see followSlice). hostSliceRef is the
 	// host's slice last time round, to tell their step from yours.
@@ -1077,6 +1088,13 @@ function MapNode() {
 	useEffect(() => {
 		if (viewedAnnotationId) flyToAnnotation(viewedAnnotationId);
 	}, [viewedAnnotationId, flyToAnnotation, mapVersion]);
+
+	// Viewing a 3D marker from a slice it isn't on goes to its first slice -
+	// it isn't drawn anywhere else. Only when the pick changes, like above.
+	useEffect(() => {
+		const viewed = viewedAnnotationId ? annotationsRef.current.find((a) => a.id === viewedAnnotationId) : null;
+		if (viewed && !onSlice(viewed, currentSliceRef.current, volume)) showSlice(viewed.sliceFrom!);
+	}, [viewedAnnotationId, volume, showSlice]);
 
 	// The halo follows the annotation's current shape and line thickness.
 	useEffect(() => {

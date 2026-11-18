@@ -130,6 +130,80 @@ public class HistoryTests : IClassFixture<CellCountApiFactory>
         Assert.Null(entry.After);
     }
 
+    private static async Task<Annotation> AddOnSlicesAsync(HttpClient client, Guid collectionId, string label, int? from, int? to)
+    {
+        var response = await client.PostAsJsonAsync("/annotations",
+            new Annotation { CollectionId = collectionId, Label = label, Colour = "#FF0000", Shape = "Box", SliceFrom = from, SliceTo = to });
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<Annotation>(Json))!;
+    }
+
+    [Fact]
+    public async Task PuttingBackADelete_BringsBackTheSliceRange()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var marker = await AddOnSlicesAsync(alice, id, "marker", 3, 7);
+        var flat = await AddOnSlicesAsync(alice, id, "flat", null, null);
+        var first = await alice.DeleteAsync($"/annotations/{marker.Id}");
+        var second = await alice.DeleteAsync($"/annotations/{flat.Id}");
+
+        var deleted = Columns(Assert.Single(await EntriesAsync(ChangeSetOf(first))).Before);
+        Assert.Equal(("3", "7"), (deleted["SliceFrom"], deleted["SliceTo"]));
+        (await RestoreAsync(alice, ChangeSetOf(first))).EnsureSuccessStatusCode();
+        (await RestoreAsync(alice, ChangeSetOf(second))).EnsureSuccessStatusCode();
+
+        var back = (await AnnotationsAsync(alice, id)).ToDictionary(a => a.Id);
+        Assert.Equal((3, 7), (back[marker.Id].SliceFrom, back[marker.Id].SliceTo));
+        Assert.Equal((null, null), (back[flat.Id].SliceFrom, back[flat.Id].SliceTo));
+    }
+
+    [Fact]
+    public async Task PuttingBackABulkDelete_BringsBackEachSliceRange()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var low = await AddOnSlicesAsync(alice, id, "low", 0, 2);
+        var high = await AddOnSlicesAsync(alice, id, "high", 40, 41);
+        var flat = await AddOnSlicesAsync(alice, id, "flat", null, null);
+        var delete = await alice.PostAsJsonAsync("/annotations/bulk-delete", new BulkDeleteRequest(id, [low.Id, high.Id, flat.Id]), Json);
+        delete.EnsureSuccessStatusCode();
+        Assert.Empty(await AnnotationsAsync(alice, id));
+
+        (await RestoreAsync(alice, ChangeSetOf(delete))).EnsureSuccessStatusCode();
+
+        var back = (await AnnotationsAsync(alice, id)).ToDictionary(a => a.Id);
+        Assert.Equal((0, 2), (back[low.Id].SliceFrom, back[low.Id].SliceTo));
+        Assert.Equal((40, 41), (back[high.Id].SliceFrom, back[high.Id].SliceTo));
+        Assert.Equal((null, null), (back[flat.Id].SliceFrom, back[flat.Id].SliceTo));
+    }
+
+    // Deletes saved before the columns were there have no SliceFrom or
+    // SliceTo in them, and come back on every slice.
+    [Fact]
+    public async Task PuttingBackADeleteFromBeforeSliceRanges_IsEverySlice()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var old = await AddOnSlicesAsync(alice, id, "old", null, null);
+        var delete = await alice.DeleteAsync($"/annotations/{old.Id}");
+        var changeSet = ChangeSetOf(delete);
+        await WithDbAsync(async db =>
+        {
+            var entry = await db.HistoryEntries.SingleAsync(e => e.ChangeSetId == changeSet);
+            var before = System.Text.Json.Nodes.JsonNode.Parse(entry.Before!)!.AsObject();
+            before.Remove("SliceFrom");
+            before.Remove("SliceTo");
+            entry.Before = before.ToJsonString();
+            return await db.SaveChangesAsync();
+        });
+
+        (await RestoreAsync(alice, changeSet)).EnsureSuccessStatusCode();
+
+        var back = Assert.Single(await AnnotationsAsync(alice, id));
+        Assert.Equal(("old", null, null), (back.Label, back.SliceFrom, back.SliceTo));
+    }
+
     [Fact]
     public async Task ADeletedRow_CantBeChangedOrDeletedAgain()
     {

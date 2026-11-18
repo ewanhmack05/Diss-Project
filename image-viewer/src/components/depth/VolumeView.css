@@ -120,3 +120,9 @@
 		display: none;
 	}
 }
+
+/* Placing a 3D marker - the clicks are corners. */
+.volume-view--marking,
+.volume-view--marking:active {
+	cursor: crosshair;
+}

@@ -16,6 +16,11 @@ interface Annotation {
 	// anything saved before sign-in.
 	createdById?: string;
 	createdByName?: string;
+	// The slices of a volume it's on, inclusive, from 0 - a 3D marker (see
+	// components/depth/markers.ts). Missing or null is every slice, which is
+	// every 2D annotation.
+	sliceFrom?: number | null;
+	sliceTo?: number | null;
 }
 
 export type { Annotation };

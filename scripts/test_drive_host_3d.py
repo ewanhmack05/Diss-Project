@@ -1,6 +1,6 @@
 import unittest
 
-from drive_host_3d import camera_path, host_screen, host_view, look_request, two_d_view
+from drive_host_3d import camera_path, host_screen, host_view, look_request, marker_sketches, two_d_view
 
 
 class CameraPath(unittest.TestCase):
@@ -57,6 +57,23 @@ class TwoD(unittest.TestCase):
         self.assertEqual(seen["z"], 5)
         self.assertIsNone(seen["camera"])
         self.assertEqual(seen["center"], [500.0, -750.0])
+
+
+class MarkerSketches(unittest.TestCase):
+    def test_a_box_growing_a_slice_deeper_each_step(self):
+        sketches = marker_sketches((0.0, 2000.0, -1000.0, 0.0), 4, steps=3)
+        self.assertEqual([s["tool"] for s in sketches], ["marker3d"] * 3)
+        boxes = [s["data"]["box"] for s in sketches]
+        self.assertEqual([b["sliceTo"] for b in boxes], [4, 5, 6])
+        for box in boxes:
+            self.assertEqual(box["sliceFrom"], 4)
+            self.assertLess(box["minX"], box["maxX"])
+            self.assertLess(box["minY"], box["maxY"])
+        self.assertLess(boxes[0]["maxX"], boxes[-1]["maxX"])
+        # Slide pixels count down from the top, so they're never negative.
+        for box in boxes:
+            self.assertGreaterEqual(box["minY"], 0)
+            self.assertLessEqual(box["maxY"], 1000)
 
 
 if __name__ == "__main__":

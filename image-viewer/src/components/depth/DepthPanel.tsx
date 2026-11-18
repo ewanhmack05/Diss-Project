@@ -4,6 +4,7 @@ import { useNavigationContext } from "../../context/NavigationContext";
 import { useRealtimeContext } from "../../context/RealtimeContext";
 import { gapsAround, sliceLabel } from "./slices";
 import { spacingText, type CutAxis } from "./volume";
+import MarkerSection from "./MarkerSection";
 import "./DepthPanel.css";
 
 const MARKS_WITH_GAPS = 60;
@@ -272,6 +273,8 @@ function DepthPanel() {
 							Reset view
 						</button>
 					</div>
+
+					<MarkerSection count={count} locked={locked} />
 
 					<p className="depth-panel-hint">
 						{locked

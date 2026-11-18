@@ -59,7 +59,7 @@
 	},
 	"Annotations": {
 		"summary": "One shape someone drew on a slide. The shape itself is fixed once saved - only the label, notes, colour and group can change. Going back through history only ever touches those four.",
-		"make": "`POST /annotations` with `collectionId`, `label`, `colour`, `shape`, `lineStyle`, `lineThickness` and `geoJson`. Editors only. `notes` and `groupId` are optional, and the group has to be in the same collection. `id` is optional too - the viewer sends its own, so it can draw the shape before the save comes back.",
+		"make": "`POST /annotations` with `collectionId`, `label`, `colour`, `shape`, `lineStyle`, `lineThickness` and `geoJson`. Editors only. `notes` and `groupId` are optional, and the group has to be in the same collection. `sliceFrom` and `sliceTo` are optional, but go together. `id` is optional too - the viewer sends its own, so it can draw the shape before the save comes back.",
 		"columns": {
 			"CollectionId": ["client", "Which collection it's in"],
 			"Colour": ["client", "Hex. Can change"],
@@ -77,6 +77,8 @@
 				"client",
 				"`line`, `freehand`, `polygon`, `arrow`, `rectangle` or `circle`. The viewer can't show anything else, and the store doesn't check"
 			],
+			"SliceFrom": ["client", "The first slice of a volume it's on, from 0. Null with `SliceTo` means every slice, as every 2D one is. Fixed once saved"],
+			"SliceTo": ["client", "The last slice it's on, so a marker on one slice has both the same. Not checked against how many slices the slide has. Fixed once saved"],
 			"SlideId": ["server", "Copied from the collection, never taken from the client"]
 		}
 	},

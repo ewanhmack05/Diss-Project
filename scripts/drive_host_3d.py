@@ -16,6 +16,7 @@ tiler running. Standard library only.
     python scripts/drive_host_3d.py juyhsUFHC4gB --cut x --cut-position 0.3
     python scripts/drive_host_3d.py juyhsUFHC4gB --mode free --moves 1 --look 0.1 -0.2 0.3
     python scripts/drive_host_3d.py juyhsUFHC4gB --mode present --end-in-2d
+    python scripts/drive_host_3d.py juyhsUFHC4gB --mode free --moves 1 --sketch-marker
 """
 import argparse
 import json
@@ -54,6 +55,20 @@ def two_d_view(bounds, slice_):
     return seen
 
 
+def marker_sketches(bounds, slice_, steps=4, colour="#3CB44B"):
+    """A 3D marker being placed, step by step: a box from a quarter of the way
+    across the slide growing out, a slice deeper each step - what the viewer
+    sends while the second corner moves."""
+    x0, x1, y0, y1 = bounds
+    width, height = x1 - x0, y1 - y0
+    # Slide pixels, y down from 0 at the top - not the map's, which go up.
+    left, top = x0 + width / 4, height / 4
+    return [{"tool": "marker3d", "data": {"colour": colour, "box": {
+        "minX": left, "minY": top,
+        "maxX": left + width * 0.1 * (i + 1), "maxY": top + height * 0.1 * (i + 1),
+        "sliceFrom": slice_, "sliceTo": slice_ + i}}} for i in range(steps)]
+
+
 def host_view(bounds, slice_, camera):
     """The host's viewport: the middle of the slide, on its slice, with the
     camera - what the viewer would send from the 3D view."""
@@ -70,6 +85,8 @@ def main():
     parser.add_argument("--mode", choices=("free", "follow", "present"), default="follow", help="navigation mode (default: %(default)s)")
     parser.add_argument("--look", type=float, nargs=3, metavar=("X", "Y", "Z"),
                         help="after the moves, ask everyone to look at this spot in the block (block units)")
+    parser.add_argument("--sketch-marker", action="store_true",
+                        help="after the moves, place a 3D marker live without saving it, then give up on it")
     parser.add_argument("--end-in-2d", action="store_true",
                         help="after the moves, go to 2D on --slice, as clicking the tissue does")
     parser.add_argument("--moves", type=int, default=20, help="how many times to move the camera (default: %(default)s)")
@@ -109,6 +126,13 @@ def main():
             view = host_view(bounds, args.slice, camera)
             hub.invoke("SendRequest", None, "look", look_request(view, args.look))
             print(json.dumps({"look": args.look, "sentAt": round(time.time() * 1000, 1)}), flush=True)
+            time.sleep(args.every)
+        if args.sketch_marker:
+            for sketch in marker_sketches(bounds, args.slice):
+                hub.send("UpdateSketch", sketch)
+                print(json.dumps({"sketch": sketch["data"]["box"], "sentAt": round(time.time() * 1000, 1)}), flush=True)
+                time.sleep(args.every)
+            hub.send("ClearSketch", "marker3d")
             time.sleep(args.every)
         if args.end_in_2d:
             screen = host_screen(args.cut, args.cut_position)

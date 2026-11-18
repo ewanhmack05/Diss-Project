@@ -463,7 +463,10 @@ to look.
    slice, boxes and the Active list saying the slice. See
    [volume-live.md](volume-live.md#51-phase-1-built).
 5. **Annotate at a depth.** `Z` on annotations and dots, conflicts, history
-   lines that say which slice moved where.
+   lines that say which slice moved where. Started: annotations have a slice
+   range (`sliceFrom`/`sliceTo`) for 3D markers - see
+   [volume-live.md](volume-live.md#56-phase-6-built). 2D annotations still
+   go on every slice, and dots have no depth yet.
 6. **3D view.** Done - the Depth tab's 2D / 3D switch, a ray-marched block
    with cut (X, Y, Z, diagonal), slices drawn, opacity, depth stretch (or true depth), a
    gap between slices, guides and reset, and a click on the tissue opening that place in 2D.
@@ -471,8 +474,8 @@ to look.
    make, with the slice being looked at drawn sharp from the slide's own
    tiles (about 3.7 um a pixel on Kartasalo's sets). See the
    [viewer README](../image-viewer/README.md#tools).
-7. **More 3D.** Markers, camera and cut shared live, Follow in 3D. Drafted
-   with phase 4 in [volume-live.md](volume-live.md).
+7. **More 3D.** Done - markers, camera and cut shared live, Follow in 3D.
+   See [volume-live.md](volume-live.md).
 8. **Bigger data.** PCa_Bx_3Dpathology for true 3D, HyReCo for mixed stains
    and measured registration.
 

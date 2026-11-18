@@ -2,11 +2,11 @@
 
 A draft of what a live session does when someone's in the Depth tab's 3D
 view. Phases 4 and 7 of [zstack.md](zstack.md#9-phases), worked out in
-detail. **Phases 1 to 5 are built** (the slice live, who's in 3D, other
-people's cameras, Follow and Present in 3D, and look here in 3D) - see
-[phase 1](#51-phase-1-built), [phase 2](#52-phase-2-built),
-[phase 3](#53-phase-3-built), [phase 4](#54-phase-4-built) and
-[phase 5](#55-phase-5-built). Phase 6, markers, is still design.
+detail. **All six phases are built** (the slice live, who's in 3D, other
+people's cameras, Follow and Present in 3D, look here in 3D, and markers) -
+see [phase 1](#51-phase-1-built), [phase 2](#52-phase-2-built),
+[phase 3](#53-phase-3-built), [phase 4](#54-phase-4-built),
+[phase 5](#55-phase-5-built) and [phase 6](#56-phase-6-built).
 
 ## Contents
 
@@ -136,7 +136,7 @@ the way the 2D map animates when it's sent somewhere (`view.animate` in
 - **Open in 2D for everyone.** The host's click-through to 2D (`openInTwoD`)
   takes the people presented to with it, onto that slice and place.
 
-### 3.6 Marking in 3D (later)
+### 3.6 Marking in 3D
 
 The box round a feature from DPLab's figure, now shared:
 
@@ -224,8 +224,9 @@ Each one is usable on its own and ends with something measured.
 5. **Look here in 3D.** The `look3d` request and its pulse, and open in 2D
    for everyone presented to.
 6. **Markers.** The `marker3d` sketch, then the saved shape in
-   annotation-store with history. The largest phase; it needs zstack.md
-   phase 5 (`Z` on annotations) first.
+   annotation-store with history. The largest phase. Built as a slice range
+   on annotations (5.6), which is the start of zstack.md's phase 5 rather
+   than waiting for all of it.
 
 ### 5.1 Phase 1, built
 
@@ -440,6 +441,55 @@ without a point; nothing for 2D or a flat slide; nothing for a camera that
 isn't numbers; a bad point or slice dropped and the rest kept. Viewer: 1101
 in all. Scripts: `drive_host_3d.py`'s look and 2D view.
 
+### 5.6 Phase 6, built
+
+A marker is an ordinary annotation: a rectangle (its footprint on the
+slide) with the slices it spans, `sliceFrom` and `sliceTo` (from 0,
+inclusive). Both null is every slice - every annotation from before, and
+every 2D one. The choice was between that and a separate Marker entity with
+its own endpoints, ops and history; this one gets history, live ops, groups,
+the Saved list, export and rollback for nothing, and is the first part of
+zstack.md's "annotate at a depth".
+
+**annotation-store.** Two nullable columns and a migration
+(`AnnotationSliceRange`), no backfill. POST /annotations and the import
+refuse a range that's half set, below 0, or backwards, with a 400 saying
+which. PUT doesn't touch it - it's set when the annotation's made. Every
+restore path (change set, item history, collection rollback) brings it back,
+as they rebuild from the deleted row. Schema docs regenerated.
+
+**The viewer.** `depth/markers.ts` holds the shapes.
+
+| Draft said | Built | Why |
+| --- | --- | --- |
+| While it's drawn, a `marker3d` sketch others see grow | As designed - dashed, in its colour, in others' 3D views | |
+| Once saved, an annotation with a slice range and a box | A rectangle annotation with `sliceFrom`/`sliceTo` | The box's footprint really is a rectangle, so 2D tools, filters and glyphs all just work |
+| On the 2D map, its box on every slice it spans | As designed, and nowhere else. View on map from a slice it isn't on goes to its first | It's not drawn anywhere else, so viewing it from there showed nothing |
+| - | Placing it: Mark a box in the Depth tab's 3D section, click two corners on the tissue, then name it and set its slices | Two clicks can reach different depths once the block's turned or cut, so the corners give a real range; the form lets it go deeper than clicks can reach |
+| - | The Saved list says "3D · slices 4 to 9", and Slices in its details | |
+| - | Export writes `sliceFrom`/`sliceTo` into each feature's properties, import reads them back - a range that doesn't make sense is dropped, the shape kept | So a marker survives a round trip through a file |
+
+Escape or Cancel drops one half placed, and so does leaving 3D.
+
+**Checked by hand**, as Alice in the browser on the liver volume: Mark a
+box; the first click took, the box followed the pointer dashed; the second
+click on the tissue at another depth gave slices 1 to 7 from the two
+corners alone; named "Duct" and set to 4 to 9, it saved (`sliceFrom` 3,
+`sliceTo` 8 read back from annotation-store) and drew solid in the block.
+In 2D it was on slices 8 and 9 and not on 2 or 10; the Saved list read "3D ·
+slices 4 to 9"; View on map from slice 10 went to slice 4. Then in the
+session, `drive_host_3d.py --sketch-marker` placed one live: Alice's block
+drew it dashed, one layer deeper and wider each step, and it went when the
+script gave up on it. The test marker was deleted afterwards.
+
+**Tests.** annotation-store: 20 new (the range round trip, one slice, none,
+every bad POST and import, PUT leaving it alone, restore after delete,
+item history, rollback, bulk delete then restore) - 359 in all, 11 skipped
+as before, and the same 359 on Postgres. Viewer: `markers.ts` (corners to a
+box, too small, GeoJSON and back, on which slices, the text, the box's
+edges including across a gap) and export and import of the range - 1118 in
+all. Scripts: the marker sketch.
+
 ## 6. How it's measured
 
 - **Follower lag on the slice** (phase 1): from the host stepping a slice to
@@ -497,4 +547,6 @@ in all. Scripts: `drive_host_3d.py`'s look and 2D view.
 | Phase 4: turning, cutting, Reset view or Go there breaks Follow; Present locks the camera | By hand, a real pointer drag and the Depth tab (5.4) | Checked |
 | Phase 5: a look from 3D pulses for everyone in 3D and Go lands on the host's camera and slice, from 3D or 2D | `drive_host_3d.py --look` against Bob in the browser (5.5) | Checked |
 | Phase 5: the host's Shift+click sends a look with the spot clicked | A listener joined as Bob received it (5.5) | Checked |
+| Phase 6: a marker saves with its slices, draws in 3D and only on its slices in 2D | By hand in the browser, and read back from annotation-store (5.6) | Checked |
+| Phase 6: someone placing a marker is seen live | `drive_host_3d.py --sketch-marker` against the browser (5.6) | Checked |
 | Multi-user game editors show other users' cameras | Not checked against any one engine's documentation | **Unverified** - read the docs of one engine's multi-user editing before citing it in the dissertation |

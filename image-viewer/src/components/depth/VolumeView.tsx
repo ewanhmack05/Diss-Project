@@ -26,7 +26,10 @@ import {
 import { fragmentShader, vertexShader } from "./volumeShader";
 import { useRealtimeContext } from "../../context/RealtimeContext";
 import { useNavigationContext } from "../../context/NavigationContext";
-import { inThreeD, type Camera } from "../realtime/realtime";
+import { useAnnotationStoreContext } from "../../context/AnnotationStoreContext";
+import { useDrawContext } from "../../context/DrawContext";
+import { boxEdges, boxFromHits, boxOf, type Hit, type MarkerBox } from "./markers";
+import { inThreeD, sketchFor, type Camera } from "../realtime/realtime";
 import {
 	fromBlock,
 	cameraFromBlock,
@@ -102,6 +105,8 @@ interface Scene {
 	sliceFrame: THREE.LineLoop;
 	// Other people's cameras, view boxes and cuts - rebuilt as they move.
 	people: THREE.Group;
+	// 3D markers: saved ones, others' part placed, and yours as you place it.
+	markers: THREE.Group;
 	texture: THREE.Data3DTexture;
 	// The sharp slice's picture, once there is one.
 	detail: THREE.DataTexture | null;
@@ -129,9 +134,24 @@ function clearGroup(group: THREE.Group): void {
 // the tissue to go to that slice and place in 2D. Drawn only when something
 // changes, not every frame.
 function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixel, tileSize }: VolumeViewProps) {
-	const { slices, current, settings, cameraReset, openInTwoD, sectionMicrons, reportCamera, pulse, showPulse, cameraGoal, doneCamera } =
-		useSliceContext();
-	const { me, others, askToLook } = useRealtimeContext();
+	const {
+		slices,
+		current,
+		settings,
+		cameraReset,
+		openInTwoD,
+		sectionMicrons,
+		reportCamera,
+		pulse,
+		showPulse,
+		cameraGoal,
+		doneCamera,
+		marking,
+		setMarking,
+	} = useSliceContext();
+	const { me, others, askToLook, sendSketch, clearSketch } = useRealtimeContext();
+	const { annotations } = useAnnotationStoreContext();
+	const { colour: drawColour } = useDrawContext();
 	// The last pulse that's run its course - one that already had when this
 	// view opened counts, so it doesn't flash up. The pulse shows until then.
 	const [endedPulse, setEndedPulse] = useState(() => (pulse && Date.now() - pulse.at >= PULSE_MS ? pulse.id : 0));
@@ -290,6 +310,8 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 		scene.add(sliceFrame);
 		const people = new THREE.Group();
 		scene.add(people);
+		const markers = new THREE.Group();
+		scene.add(markers);
 
 		const placeLabels = () => {
 			const { clientWidth, clientHeight } = host;
@@ -378,7 +400,24 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 		observer.observe(host);
 		resize();
 
-		sceneRef.current = { renderer, scene, camera, controls, block, outline, grid, sliceFrame, people, texture, detail: null, face: null, render, report, ease };
+		sceneRef.current = {
+			renderer,
+			scene,
+			camera,
+			controls,
+			block,
+			outline,
+			grid,
+			sliceFrame,
+			people,
+			markers,
+			texture,
+			detail: null,
+			face: null,
+			render,
+			report,
+			ease,
+		};
 		report();
 		setMaxSide(renderer.capabilities.maxTextureSize);
 		// For looking into it from the console, like window.viewerMap. Dev server only.
@@ -401,6 +440,7 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 			sliceFrame.geometry.dispose();
 			(sliceFrame.material as THREE.Material).dispose();
 			clearGroup(people);
+			clearGroup(markers);
 			reportCamera(null);
 			renderer.dispose();
 			// Browsers allow about 16 GL contexts, and the 2D map still has its own.
@@ -719,12 +759,10 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 		const onDown = (event: PointerEvent) => {
 			down = { x: event.clientX, y: event.clientY };
 		};
-		const onUp = (event: PointerEvent) => {
-			const start = down;
-			down = null;
-			if (!start || Math.hypot(event.clientX - start.x, event.clientY - start.y) > CLICK_SLOP_PX) return;
+		// The tissue under a point on the screen, or null.
+		const tissueAt = (clientX: number, clientY: number) => {
 			const rect = canvas.getBoundingClientRect();
-			const pointer = new THREE.Vector2(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
+			const pointer = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
 			const raycaster = new THREE.Raycaster();
 			raycaster.setFromCamera(pointer, scene.camera);
 			const { origin, direction } = raycaster.ray;
@@ -737,9 +775,44 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 				lastLayer: uniforms.uLastLayer.value as number,
 				spacing: settings.spacing,
 			});
-			if (!hit) return;
+			if (!hit) return null;
 			const slice = volume.layerSlice[hit.layer];
-			if (slice === null) return;
+			return slice === null ? null : { hit, slice, corner: { x: hit.x * slideWidth, y: hit.y * slideHeight, slice } as Hit };
+		};
+
+		// While the second corner's being placed, the box follows the pointer -
+		// once a frame at most, as finding the tissue isn't free.
+		let frame = 0;
+		let lastMove: PointerEvent | null = null;
+		const onMove = (event: PointerEvent) => {
+			if (marking?.stage !== "second" || down) return;
+			lastMove = event;
+			if (frame) return;
+			frame = requestAnimationFrame(() => {
+				frame = 0;
+				const at = lastMove && tissueAt(lastMove.clientX, lastMove.clientY);
+				if (at) setMarking({ ...marking, box: boxFromHits(marking.first, at.corner) });
+			});
+		};
+
+		const onUp = (event: PointerEvent) => {
+			const start = down;
+			down = null;
+			if (!start || Math.hypot(event.clientX - start.x, event.clientY - start.y) > CLICK_SLOP_PX) return;
+			// Naming one - clicks don't go anywhere until it's saved or not.
+			if (marking?.stage === "form") return;
+			const at = tissueAt(event.clientX, event.clientY);
+			if (!at) return;
+			const { hit, slice } = at;
+			// Placing a marker: the click is a corner.
+			if (marking?.stage === "first") {
+				setMarking({ stage: "second", first: at.corner, box: null });
+				return;
+			}
+			if (marking?.stage === "second") {
+				setMarking({ stage: "form", box: boxFromHits(marking.first, at.corner) });
+				return;
+			}
 			// The host, with Shift: point everyone at it, rather than going there.
 			if (event.shiftKey && pointing) {
 				const spot: Vec3 = [hit.x - 0.5, 0.5 - hit.y, layerZ(hit.layer, volume.depth, 1)];
@@ -751,14 +824,92 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 		};
 		canvas.addEventListener("pointerdown", onDown);
 		canvas.addEventListener("pointerup", onUp);
+		canvas.addEventListener("pointermove", onMove);
 		return () => {
+			cancelAnimationFrame(frame);
 			canvas.removeEventListener("pointerdown", onDown);
 			canvas.removeEventListener("pointerup", onUp);
+			canvas.removeEventListener("pointermove", onMove);
 		};
-	}, [volume, size, settings.cut, settings.cutPosition, settings.spacing, slideWidth, slideHeight, openInTwoD, pointing, askToLook, showPulse, me?.colour]);
+	}, [
+		volume,
+		size,
+		settings.cut,
+		settings.cutPosition,
+		settings.spacing,
+		slideWidth,
+		slideHeight,
+		openInTwoD,
+		pointing,
+		askToLook,
+		showPulse,
+		me?.colour,
+		marking,
+		setMarking,
+	]);
+
+	// Escape stops placing a marker.
+	const placing = marking !== null;
+	useEffect(() => {
+		if (!placing) return;
+		const onKey = (event: KeyboardEvent) => {
+			if (event.key === "Escape") setMarking(null);
+		};
+		window.addEventListener("keydown", onKey);
+		return () => window.removeEventListener("keydown", onKey);
+	}, [placing, setMarking]);
+
+	// Yours as you place it goes out as a sketch, so others see it take shape.
+	const myBox = marking?.stage === "second" ? marking.box : marking?.stage === "form" ? marking.box : null;
+	const sentBoxRef = useRef(false);
+	useEffect(() => {
+		if (myBox) {
+			sendSketch({ tool: "marker3d", data: { box: myBox, colour: drawColour } });
+			sentBoxRef.current = true;
+		} else if (sentBoxRef.current) {
+			clearSketch("marker3d");
+			sentBoxRef.current = false;
+		}
+	}, [myBox, drawColour, sendSketch, clearSketch]);
+	useEffect(
+		() => () => {
+			if (sentBoxRef.current) clearSketch("marker3d");
+		},
+		[clearSketch],
+	);
+
+	// Markers in the block: every saved one, solid in its colour; anyone's part
+	// placed, dashed in theirs; yours as you place it, dashed in your colour.
+	useEffect(() => {
+		const scene = sceneRef.current;
+		if (!scene || !volume) return;
+		clearGroup(scene.markers);
+		const slide = { width: slideWidth, height: slideHeight };
+		const draw = (box: MarkerBox, colour: string, dashed: boolean) => {
+			const edges = boxEdges(box, slide, size, volume.layerSlice);
+			if (edges.length === 0) return;
+			const geometry = new THREE.BufferGeometry().setFromPoints(edges.map((p) => new THREE.Vector3(...p)));
+			const material = dashed
+				? new THREE.LineDashedMaterial({ color: new THREE.Color(colour), dashSize: 0.015, gapSize: 0.01 })
+				: new THREE.LineBasicMaterial({ color: new THREE.Color(colour) });
+			const lines = new THREE.LineSegments(geometry, material);
+			if (dashed) lines.computeLineDistances();
+			scene.markers.add(lines);
+		};
+		for (const annotation of annotations) {
+			const box = boxOf(annotation);
+			if (box) draw(box, annotation.colour, false);
+		}
+		for (const person of others) {
+			const sketch = sketchFor(person, "marker3d");
+			if (sketch) draw(sketch.data.box, sketch.data.colour, true);
+		}
+		if (myBox) draw(myBox, drawColour, true);
+		scene.render();
+	}, [annotations, others, myBox, drawColour, volume, size, slideWidth, slideHeight]);
 
 	return (
-		<div className={`volume-view${locked ? " volume-view--locked" : ""}`} ref={hostRef}>
+		<div className={`volume-view${locked ? " volume-view--locked" : ""}${placing ? " volume-view--marking" : ""}`} ref={hostRef}>
 			{!volume && !error && (
 				<div className="volume-view-status">
 					Loading slices {progress.done} of {progress.total}

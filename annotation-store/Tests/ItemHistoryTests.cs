@@ -331,6 +331,24 @@ public class ItemHistoryTests : IClassFixture<CellCountApiFactory>
         Assert.Equal("create", (await TimelineAsync(alice, id, annotation.Id)).Versions[0].Op);
     }
 
+    [Fact]
+    public async Task GoingBackToBeforeADelete_BringsBackTheSliceRange()
+    {
+        var alice = As("alice");
+        var id = await OwnAsync(alice);
+        var response = await alice.PostAsJsonAsync("/annotations",
+            new Annotation { CollectionId = id, Label = "v1", Colour = "#FF0000", Shape = "Box", SliceFrom = 4, SliceTo = 9 });
+        var marker = (await response.Content.ReadFromJsonAsync<Annotation>(Json))!;
+        await EditAsync(alice, marker.Id, "v2");
+        var v2 = (await TimelineAsync(alice, id, marker.Id)).Versions[0].Id;
+        await alice.DeleteAsync($"/annotations/{marker.Id}");
+
+        (await GoBackAsync(alice, marker.Id, v2)).EnsureSuccessStatusCode();
+
+        var now = await ReadAsync(alice, id, marker.Id);
+        Assert.Equal(("v2", 4, 9), (now.Label, now.SliceFrom, now.SliceTo));
+    }
+
     // Back past a delete and its put back, with the row here now.
     [Fact]
     public async Task GoingBack_PastADeleteThatWasPutBack_StillLandsRight()

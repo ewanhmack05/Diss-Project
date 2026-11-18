@@ -164,6 +164,7 @@ app.MapGet("/annotations/facets", async (Guid collectionId, ClaimsPrincipal user
 app.MapPost("/annotations", async (Annotation annotation, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
 {
     if (await db.RequireAsync(annotation.CollectionId, user, CollectionRole.Editor) is { } denied) return denied;
+    if (Annotation.SliceRangeProblem(annotation) is { } badRange) return Results.BadRequest(badRange);
     if (!await db.GroupIsInAsync(annotation.GroupId, annotation.CollectionId)) return Results.BadRequest("That group isn't in this collection");
     if ((await db.ChangeSetAsync(http, annotation.CollectionId, user, "add annotation")).Problem is { } problem) return problem;
     var collection = await db.Collections.FirstAsync(c => c.CollectionId == annotation.CollectionId);

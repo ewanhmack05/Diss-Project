@@ -225,3 +225,36 @@ describe("exportFileName", () => {
 		expect(exportFileName({ collectionName: 'A/B: "x"', slideId: "003" })).toBe("AB x - 003.geojson");
 	});
 });
+
+describe("3D markers in a file", () => {
+	const marker: Annotation = { ...annotation, id: "m1", label: "Duct", sliceFrom: 2, sliceTo: 6 };
+	const withMarker: FullCollection = { ...collection, annotations: [annotation, marker], cellCounts: [] };
+
+	it("writes a marker's slices, and null for a plain annotation", () => {
+		const [plain, box] = collectionToGeoJson(withMarker).features;
+		expect([plain.properties?.sliceFrom, plain.properties?.sliceTo]).toEqual([null, null]);
+		expect([box.properties?.sliceFrom, box.properties?.sliceTo]).toEqual([2, 6]);
+	});
+
+	it("reads them back, so a marker stays a marker", () => {
+		const [plain, box] = parseImport(JSON.stringify(collectionToGeoJson(withMarker))).annotations;
+		expect(plain.sliceFrom).toBeUndefined();
+		expect([box.sliceFrom, box.sliceTo]).toEqual([2, 6]);
+	});
+
+	it("leaves out a range that doesn't make sense, keeping the shape", () => {
+		const file = collectionToGeoJson({ ...withMarker, annotations: [marker] });
+		for (const [from, to] of [
+			[6, 2],
+			[-1, 3],
+			[1.5, 3],
+			["2", 6],
+			[2, null],
+		]) {
+			file.features[0].properties = { ...file.features[0].properties, sliceFrom: from, sliceTo: to };
+			const [read] = parseImport(JSON.stringify(file)).annotations;
+			expect(read.sliceFrom).toBeUndefined();
+			expect(read.label).toBe("Duct");
+		}
+	});
+});
