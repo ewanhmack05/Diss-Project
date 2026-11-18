@@ -470,7 +470,9 @@ to look.
    slice. Cell counts have a `Slice`, the one they were counted on. Both are
    fixed once saved, so nothing ever moves between slices and there's no
    conflict to have over one; every restore path brings them back, and files
-   carry them. Left: history lines saying which slice a row was on.
+   carry them. A change's History detail names the slices of each row it
+   deleted, "Duct (slices 4 to 9)", read out of the delete entries in the
+   database (`DeletedRow` in annotation-store's `ChangeSetChanges.cs`).
 6. **3D view.** Done - the Depth tab's 2D / 3D switch, a ray-marched block
    with cut (X, Y, Z, diagonal), slices drawn, opacity, depth stretch (or true depth), a
    gap between slices, guides and reset, and a click on the tissue opening that place in 2D.

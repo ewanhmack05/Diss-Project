@@ -17,7 +17,8 @@ public record FieldChange(string Entity, string Column, JsonElement Before, Json
 // every column it changed, grouped; Deleted how many rows it took out, with
 // the first few by name; Created how many it made. Groups names every group
 // a GroupId in Changes points at, gone ones included. DeletedRows is the same
-// first few as DeletedNames with what they are, so one can be opened.
+// first few as DeletedNames with what they are, so one can be opened, and
+// the slices of a volume each was on - a count's one slice is both.
 // CopiedFrom is which row each new one came from, when it's something sent in
 // a message.
 public record ChangeSetChanges(
@@ -29,7 +30,7 @@ public record ChangeSetChanges(
     List<DeletedRow> DeletedRows,
     List<SourceRow>? CopiedFrom = null);
 
-public record DeletedRow(string Entity, Guid Id, string? Name);
+public record DeletedRow(string Entity, Guid Id, string? Name, int? SliceFrom = null, int? SliceTo = null);
 
 public static class ChangeSetChangesEndpoint
 {
@@ -87,7 +88,7 @@ public static class ChangeSetChangesEndpoint
                         groups[group] = await GroupNameAsync(db, group);
 
             return Results.Ok(new ChangeSetChanges(changes, created, deleted, deletedNames, groups,
-                deletedRows.Select(n => new DeletedRow(n.Entity, n.EntityId, n.Name)).ToList(),
+                deletedRows.Select(n => new DeletedRow(n.Entity, n.EntityId, n.Name, n.SliceFrom, n.SliceTo)).ToList(),
                 changeSet.SourceRows is null ? null : JsonSerializer.Deserialize<List<SourceRow>>(changeSet.SourceRows)));
         }).AllowGuests();
     }
@@ -125,7 +126,7 @@ public static class ChangeSetChangesEndpoint
         return deleted.FirstOrDefault()?.Name ?? "a deleted group";
     }
 
-    private record Named(string Entity, Guid EntityId, string? Name);
+    private record Named(string Entity, Guid EntityId, string? Name, int? SliceFrom, int? SliceTo);
 
     // Names out of delete entries, read in the database so the whole row
     // never comes back - by change set, or one row's latest delete. Only
@@ -136,10 +137,13 @@ public static class ChangeSetChangesEndpoint
         var postgres = HistoryLog.IsPostgres(db);
         string Field(string column) => postgres ? $"\"Before\" ->> '{column}'" : $"json_extract(\"Before\", '$.{column}')";
         var name = $"COALESCE({Field("Label")}, {Field("Name")}, {Field("AdjustmentName")})";
+        string Whole(string column) => $"CAST({Field(column)} AS integer)";
+        // An annotation's range, or a count's one slice as both ends.
+        var slices = $"COALESCE({Whole("SliceFrom")}, {Whole("Slice")}) AS \"SliceFrom\", COALESCE({Whole("SliceTo")}, {Whole("Slice")}) AS \"SliceTo\"";
         var entries = postgres ? "history.\"Entries\"" : "\"Entries\"";
         var byChangeSet = changeSetId is not null;
         var sql = string.Join(" ",
-            $"SELECT \"Entity\", \"EntityId\", {name} AS \"Name\" FROM {entries}",
+            $"SELECT \"Entity\", \"EntityId\", {name} AS \"Name\", {slices} FROM {entries}",
             $"WHERE {(byChangeSet ? "\"ChangeSetId\"" : "\"EntityId\"")} = {{0}}",
             "AND \"Op\" = 'Delete' AND \"Entity\" <> 'regionOfInterest' AND \"Entity\" <> 'collection'",
             $"ORDER BY \"Id\" {(byChangeSet ? "" : "DESC")}",
