@@ -143,6 +143,32 @@ make it available - no config needed.
 `Slides:DataPath` (or the `Slides__DataPath` environment variable) points it
 at a different folder - relative to the app's folder unless it's absolute.
 
+### Slide info between starts
+
+Listing the slides needs each one's size and metadata, and getting those
+means opening the slide. OpenSlide reads a MIRAX slide's whole `Index.dat` to
+open it - 15 MB each for the TCIA set - so with 200 slides the first
+`GET /slides` after a start took about 50s, and the gallery said "Loading
+slides..." until it answered. Two things stop that:
+
+- **Kept on disk.** Once a MIRAX slide's info has been read it's written to
+  `.slide-info.json` in the data folder (`SlideInfoCache`), with a stamp of
+  every one of its files' sizes and last-write times. The next start uses it
+  without opening the slide while the stamp still matches; a slide whose files
+  changed is read again. Volumes are always read - a few TIFFs, quick to open.
+  `Slides:InfoCachePath` puts the file somewhere else, and an empty value keeps
+  nothing. A data folder that can't be written to just means reading every
+  start, with one warning. Change what `ReadInfo` works out and bump
+  `SlideInfoCache.Version`, or slides keep the old answer until their files change.
+- **Read in the background at start.** `SlideInfoWarmup` asks for every
+  slide's info as soon as the tiler's up, and logs how long it took and how
+  many came from the file. Each slide's read once even if `GET /slides` asks
+  at the same time. `Slides:WarmOnStart=false` turns it off; the tests do.
+
+`python scripts/time_slide_list.py --data <folder>` times the list on a first
+start and a restart, and fails if the restart takes over 2s. On the 200 TCIA
+slides: 51.15s first, 0.06s after a restart.
+
 ### Volumes
 
 A volume is a stack of serial sections - slices cut one after another from

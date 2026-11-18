@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import react from "@vitejs/plugin-react";
 import basicSsl from "@vitejs/plugin-basic-ssl";
 import { defineConfig, type ProxyOptions } from "vite";
@@ -37,4 +38,7 @@ export default defineConfig(({ mode }) => ({
 	plugins: mode === "http" ? [react()] : [react(), basicSsl()],
 	server: { proxy },
 	preview: { proxy },
+	// Vitest hands back an empty string for CSS it isn't told to process, ?raw
+	// too. Only the ?raw imports are, so a test can read a stylesheet's rules.
+	test: { css: { include: [/\.css\?raw$/] } },
 }));

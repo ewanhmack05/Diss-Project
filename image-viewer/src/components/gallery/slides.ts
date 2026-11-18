@@ -25,6 +25,8 @@ interface GallerySlide {
 	// What's outside the scanned area, as #rrggbb.
 	backgroundColour?: string | null;
 	fileBytes?: number;
+	// One for a flat slide, one per section for a z-stack (a volume).
+	slices?: { index: number; gapBefore: boolean }[];
 }
 
 // What annotation-store knows about a slide (GET /slides/summary). Slides
@@ -151,8 +153,24 @@ const THUMBNAIL_WIDTH = 192;
 // slide twice as tall as it's wide shows its middle half. The tiler cuts it,
 // so it's read at the size it's shown rather than cropped from a smaller
 // picture of the whole slide.
-function thumbnailUrl(tilerUrl: string, slideId: string): string {
-	return `${tilerUrl}/slides/${encodeURIComponent(slideId)}/thumbnail.jpg?width=${THUMBNAIL_WIDTH}&square=true`;
+// attempt counts tries after the first, so the browser asks again rather
+// than showing the failure it already has.
+function thumbnailUrl(tilerUrl: string, slideId: string, attempt = 0): string {
+	const url = `${tilerUrl}/slides/${encodeURIComponent(slideId)}/thumbnail.jpg?width=${THUMBNAIL_WIDTH}&square=true`;
+	return attempt > 0 ? `${url}&try=${attempt}` : url;
+}
+
+// A thumbnail that doesn't load is tried again, this long after each
+// failure, before falling back to the whole-slide tile. A tiler that's busy
+// or restarting fails some, and a MIRAX slide's fallback is mostly black -
+// nothing's scanned round the tissue - so giving up after one failure left
+// black squares in the strip until the page was reloaded.
+const THUMBNAIL_RETRY_MS = [1000, 4000];
+
+// How long to wait before trying again after this many failures, or null to
+// fall back.
+function thumbnailRetryDelay(failures: number): number | null {
+	return failures >= 1 ? (THUMBNAIL_RETRY_MS[failures - 1] ?? null) : null;
 }
 
 // The one tile that's the whole slide - smaller, but every tiler has it.
@@ -176,6 +194,7 @@ export {
 	scannerText,
 	slideName,
 	sortSlides,
+	thumbnailRetryDelay,
 	thumbnailUrl,
 	wholeSlideTileUrl,
 	zoomText,

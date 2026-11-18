@@ -111,6 +111,23 @@ export async function galleryAlone({ sam }) {
 	await dragPanel(sam, "Gallery", { x: width / 2, y: height - 60 });
 	await expect(panel.locator(".gallery-strip--horizontal")).toBeVisible();
 	await expect(page.locator(".draggable-panel--docked-bottom")).toHaveCount(1);
+	// The row is inside the panel with room under the pictures for the
+	// scrollbar, and the toolbar doesn't come up over it. The scrollbar used to
+	// be cut off by the bottom of the panel, and half covered by the toolbar.
+	const fit = await panel.evaluate((root) => {
+		const box = (element) => element.getBoundingClientRect();
+		const list = root.querySelector(".gallery-strip-list");
+		const tiles = [...list.querySelectorAll(".gallery-tile")];
+		return {
+			listBottom: box(list).bottom,
+			bodyBottom: box(root.querySelector(".draggable-panel-body")).bottom,
+			roomUnderPictures: box(list).bottom - Math.max(...tiles.map((tile) => box(tile).bottom)),
+			toolbarTop: Math.min(...[...document.querySelectorAll(".toolbar-button")].map((button) => box(button).top)),
+		};
+	});
+	expect(fit.listBottom).toBeLessThanOrEqual(fit.bodyBottom);
+	expect(fit.roomUnderPictures).toBeGreaterThanOrEqual(12);
+	expect(fit.toolbarTop).toBeGreaterThanOrEqual(fit.bodyBottom);
 	await sam.click(tile(sam, "003"));
 	await onSlide(sam, "003");
 	await sam.pause(900);

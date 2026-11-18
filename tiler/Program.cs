@@ -12,6 +12,7 @@ OpenSlideNative.Register();
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton<SlideCatalog>();
+builder.Services.AddHostedService<SlideInfoWarmup>();
 // Any origin, so the viewer works from other devices on the network too.
 // Needs a real origin list once deployed.
 builder.Services.AddCors(options =>

@@ -11,7 +11,7 @@ const toggle = box(380, 120, 60, 24);
 describe("placeSheet", () => {
 	it("sits against the panel's right edge, as wide and at least as tall as it", () => {
 		const placed = placeSheet(box(220, 60, 220, 240), toggle, viewport);
-		expect(placed).toEqual({ side: "right", left: 440, top: 60, width: 220, minHeight: 240, maxHeight: 832 });
+		expect(placed).toEqual({ side: "right", left: 440, top: 60, bottom: null, width: 220, minHeight: 240, maxHeight: 832 });
 	});
 
 	it("goes on the left when the panel is against the right of the screen", () => {
@@ -22,7 +22,13 @@ describe("placeSheet", () => {
 
 	it("drops down from the button under a panel docked across the top", () => {
 		const placed = placeSheet(box(0, 0, 1400, 90), box(1300, 40, 60, 24), viewport);
-		expect(placed).toEqual({ side: "below", left: 1060, top: 72, width: 300, minHeight: null, maxHeight: 820 });
+		expect(placed).toEqual({ side: "below", left: 1060, top: 72, bottom: null, width: 300, minHeight: null, maxHeight: 820 });
+	});
+
+	// It went under the button there too, off the bottom of the screen.
+	it("comes up from the button over a panel docked along the bottom", () => {
+		const placed = placeSheet(box(0, 700, 1400, 160), box(1300, 720, 60, 24), viewport);
+		expect(placed).toEqual({ side: "above", left: 1060, top: null, bottom: 188, width: 300, minHeight: null, maxHeight: 704 });
 	});
 
 	it("stays on screen when the panel starts above the top", () => {

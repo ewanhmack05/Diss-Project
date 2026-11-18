@@ -12,6 +12,16 @@ public class TilerApiFactory : WebApplicationFactory<Program>
         builder.UseEnvironment("Testing");
         // No collector here, and the exporter waits about 10s for one on shutdown.
         builder.UseSetting("OTEL_SDK_DISABLED", "true");
+        NoKeptSlideInfo(builder);
+    }
+
+    // Every test reads the slides itself: nothing kept from an earlier run
+    // answers for them, and nothing opens slides in the background while
+    // they count handles. SlideInfoCacheTests cover both.
+    public static void NoKeptSlideInfo(IWebHostBuilder builder)
+    {
+        builder.UseSetting("Slides:InfoCachePath", "");
+        builder.UseSetting("Slides:WarmOnStart", "false");
     }
 }
 
