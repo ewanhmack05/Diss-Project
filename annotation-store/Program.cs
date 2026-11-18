@@ -277,6 +277,7 @@ app.MapGet("/cellcounts/{id:guid}", async (Guid id, ClaimsPrincipal user, Annota
 app.MapPost("/cellcounts", [RequestSizeLimit(CellCountLimits.MaxRequestBytes)] async (CellCount cellCount, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
 {
     if (await db.RequireAsync(cellCount.CollectionId, user, CollectionRole.Editor) is { } denied) return denied;
+    if (CellCountSlices.Problem(cellCount) is { } badSlice) return Results.BadRequest(badSlice);
     if ((await db.ChangeSetAsync(http, cellCount.CollectionId, user, "add cell count")).Problem is { } problem) return problem;
     var collection = await db.Collections.FirstAsync(c => c.CollectionId == cellCount.CollectionId);
 

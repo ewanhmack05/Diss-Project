@@ -41,6 +41,10 @@ public class CellCount
     // same convention as Annotation's GeoJson not being updatable via PUT.
     public double? LocationX { get; set; }
     public double? LocationY { get; set; }
+    // The slice of a volume it was counted on, from 0. Null on a flat slide,
+    // and on every count from before volumes. Fixed at creation, like Dots -
+    // a count belongs to the one slice its dots were placed on.
+    public int? Slice { get; set; }
     public DateTimeOffset Created { get; set; }
     // Who saved it (the host, for a shared count - each dot says who placed
     // it) - their Keycloak id and name, set server-side on POST from
@@ -56,6 +60,13 @@ public class CellCount
     // Not sent as they are; the list sends them parsed.
     [JsonIgnore] public string? ColourCountsJson { get; set; }
     [JsonIgnore] public string? PlacedByCountsJson { get; set; }
+}
+
+public static class CellCountSlices
+{
+    // Why a slice can't be saved, or null if it can. No upper bound, as for
+    // Annotation.SliceRangeProblem - the store doesn't know the slide's slices.
+    public static string? Problem(CellCount count) => count.Slice is < 0 ? "slice can't be below 0" : null;
 }
 
 public static class CellCountLimits

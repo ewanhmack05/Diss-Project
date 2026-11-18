@@ -6,12 +6,17 @@ import ColourPicker from "../../colour-picker/ColourPicker";
 import DockedCard from "../../toolbar/DockedCard";
 import "./AnnotationForm.css";
 import { newId } from "../../../newId";
+import { useSliceContext } from "../../../context/SliceContext";
+import { sliceOf } from "../../depth/markers";
 
 function AddAnnotationForm() {
 	const { pending, colour, lineThickness, lineStyle, setColour, setPending } = useDrawContext();
 	const { addAnnotation } = useAnnotationStoreContext();
 	const [label, setLabel] = useState("");
 	const [notes, setNotes] = useState("");
+	// On a volume a shape goes on the slice it's drawn on, unless it's for all of them.
+	const { volume, current } = useSliceContext();
+	const [everySlice, setEverySlice] = useState(false);
 
 	if (!pending) return null;
 
@@ -27,6 +32,7 @@ function AddAnnotationForm() {
 			lineThickness,
 			geoJson: featureToGeoJson(pending.feature),
 			created: new Date().toISOString(),
+			...sliceOf(volume, current, everySlice),
 		});
 		setPending(null);
 		setLabel("");
@@ -68,6 +74,15 @@ function AddAnnotationForm() {
 					/>
 				</label>
 			</DockedCard>
+
+			{volume && (
+				<DockedCard title="Slices" className="annotation-form-field-card">
+					<label className="annotation-form-check">
+						<input type="checkbox" checked={everySlice} onChange={(e) => setEverySlice(e.target.checked)} />
+						On every slice, not just slice {current + 1}
+					</label>
+				</DockedCard>
+			)}
 
 			<DockedCard title="Colour" className="annotation-form-colour-card">
 				<ColourPicker value={colour} onChange={handleColourChange} />

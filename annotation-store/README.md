@@ -486,6 +486,7 @@ erDiagram
         Created timestamp_with_time_zone "not null"
         LocationX double_precision "null"
         LocationY double_precision "null"
+        Slice integer "null"
         ColourCountsJson text "null"
         PlacedByCountsJson text "null"
     }
@@ -762,6 +763,7 @@ A manual count of cells, such as mitotic figures: every dot placed, and the tall
 | `Created` | timestamp with time zone |  | server |  |
 | `LocationX` | double precision, null |  | client | Where it was counted, for going back there. Null for a count with no location |
 | `LocationY` | double precision, null |  | client | See `LocationX` |
+| `Slice` | integer, null |  | client | The slice of a volume it was counted on, from 0. Null on a flat slide and on counts from before volumes. Fixed once saved |
 | `ColourCountsJson` | text, null |  | server | How many dots of each colour, worked out from `Dots`. Null on rows older than this column until they're first listed. Not a change anyone made, so not in the history |
 | `PlacedByCountsJson` | text, null |  | server | How many dots each person placed, the same way as `ColourCountsJson` |
 

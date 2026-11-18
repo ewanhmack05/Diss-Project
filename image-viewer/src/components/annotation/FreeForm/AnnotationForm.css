@@ -171,3 +171,13 @@
 	font-size: 0.8em;
 	color: var(--chrome-text-secondary);
 }
+
+/* "On every slice" on a volume - see sliceOf in depth/markers.ts. */
+.annotation-form-check {
+	display: flex;
+	align-items: center;
+	gap: 0.5em;
+	font-size: 0.9em;
+	color: var(--chrome-text-secondary);
+	cursor: pointer;
+}

@@ -7,6 +7,7 @@ import CellCountColourSwatch from "../CellCountColourSwatch";
 import SavedCountEdit from "./SavedCountEdit";
 import ItemHistory from "../../collections/history/ItemHistory";
 import SavedRow, { SavedDetails } from "../../saved/SavedRow";
+import { countSliceText } from "../../depth/markers";
 import { formatLongDate, formatShortDate } from "../../saved/savedDates";
 import { SAVED_PAGE_SIZE, clampPage, isFiltered, mergePage } from "../../saved/paging";
 import { NO_FILTERS, NO_GROUP, type SavedFilters } from "../../saved/filters";
@@ -97,6 +98,7 @@ function SavedCountRow({ cellCount, open, onToggle, onHistory }: SavedCountRowPr
 			</span>,
 		]);
 	}
+	if (countSliceText(cellCount)) details.push(["Counted on", countSliceText(cellCount)]);
 	if (groupName) details.push(["Group", groupName]);
 	if (cellCount.notes) details.push(["Notes", cellCount.notes]);
 	if (by) details.push(["Saved by", by]);
@@ -124,6 +126,7 @@ function SavedCountRow({ cellCount, open, onToggle, onHistory }: SavedCountRowPr
 							{people.length}
 						</span>
 					)}
+					{countSliceText(cellCount) && <span className="saved-row-tag">{countSliceText(cellCount)}</span>}
 					{groupName && <span className="saved-row-tag">{groupName}</span>}
 					{isViewing && <span className="saved-row-tag saved-row-tag--active">On map</span>}
 					<span className="saved-row-spacer" />

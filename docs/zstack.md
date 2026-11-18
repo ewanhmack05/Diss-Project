@@ -463,10 +463,14 @@ to look.
    slice, boxes and the Active list saying the slice. See
    [volume-live.md](volume-live.md#51-phase-1-built).
 5. **Annotate at a depth.** `Z` on annotations and dots, conflicts, history
-   lines that say which slice moved where. Started: annotations have a slice
-   range (`sliceFrom`/`sliceTo`) for 3D markers - see
-   [volume-live.md](volume-live.md#56-phase-6-built). 2D annotations still
-   go on every slice, and dots have no depth yet.
+   lines that say which slice moved where. Mostly done: annotations have a
+   slice range (`sliceFrom`/`sliceTo`) - a 3D marker spans its slices (see
+   [volume-live.md](volume-live.md#56-phase-6-built)), and a shape drawn in
+   2D on a volume goes on the slice it was drawn on unless it's put on every
+   slice. Cell counts have a `Slice`, the one they were counted on. Both are
+   fixed once saved, so nothing ever moves between slices and there's no
+   conflict to have over one; every restore path brings them back, and files
+   carry them. Left: history lines saying which slice a row was on.
 6. **3D view.** Done - the Depth tab's 2D / 3D switch, a ray-marched block
    with cut (X, Y, Z, diagonal), slices drawn, opacity, depth stretch (or true depth), a
    gap between slices, guides and reset, and a click on the tissue opening that place in 2D.
@@ -496,6 +500,8 @@ view while cutting (6).
 - Plane index or microns for `Z`? Storing the index and showing microns from
   `slices` covers both.
 - Should annotations default to "every slice" or "the slice you drew on"?
+  Settled: the slice you drew on, with **On every slice** in the add form for
+  the other. A shape that marks the slide as a whole is the exception.
 - Where does volume data get hosted for the Azure deploy
   ([azure.md](azure.md))? The tiler image is already 3.1 GB with one slide.
 

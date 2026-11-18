@@ -113,6 +113,7 @@
 			"Label": ["client", "Can change"],
 			"LocationX": ["client", "Where it was counted, for going back there. Null for a count with no location"],
 			"LocationY": ["client", "See `LocationX`"],
+			"Slice": ["client", "The slice of a volume it was counted on, from 0. Null on a flat slide and on counts from before volumes. Fixed once saved"],
 			"Notes": ["client", "Can change"],
 			"PlacedByCountsJson": ["server", "How many dots each person placed, the same way as `ColourCountsJson`"],
 			"SlideId": ["server", "Copied from the collection"],

@@ -94,7 +94,7 @@ import { ShapeTools } from "./annotation/Tools";
 import "./MapNode.css";
 import { newId } from "../newId";
 import { useSliceContext } from "../context/SliceContext";
-import { onSlice } from "./depth/markers";
+import { countOnSlice, onSlice } from "./depth/markers";
 import { isVolume, keyStep, readSlices, sliceLabel, sliceWindow, wheelStepper, type Slice } from "./depth/slices";
 import { isTypingTarget } from "../typing";
 
@@ -1092,6 +1092,25 @@ function MapNode() {
 		const viewed = viewedAnnotationId ? annotationsRef.current.find((a) => a.id === viewedAnnotationId) : null;
 		if (viewed && !onSlice(viewed, currentSliceRef.current, volume)) showSlice(viewed.sliceFrom!);
 	}, [viewedAnnotationId, volume, showSlice]);
+
+	// A count's dots were all placed on one slice: viewing it goes there, and
+	// moving off that slice stops viewing it, as its dots don't belong anywhere else.
+	const cellCountsRef = useRef(cellCounts);
+	const viewedCellCountIdRef = useRef(viewedCellCountId);
+	useEffect(() => {
+		cellCountsRef.current = cellCounts;
+		viewedCellCountIdRef.current = viewedCellCountId;
+	}, [cellCounts, viewedCellCountId]);
+	useEffect(() => {
+		const viewed = viewedCellCountId ? cellCountsRef.current.find((c) => c.id === viewedCellCountId) : null;
+		if (viewed && !countOnSlice(viewed, currentSliceRef.current, volume)) showSlice(viewed.slice!);
+	}, [viewedCellCountId, volume, showSlice]);
+	// Only on a slice change - the jump above settles a new pick itself.
+	useEffect(() => {
+		const id = viewedCellCountIdRef.current;
+		const viewed = id ? cellCountsRef.current.find((c) => c.id === id) : null;
+		if (viewed && !countOnSlice(viewed, currentSlice, volume)) setViewedCellCountId(null);
+	}, [currentSlice, volume, setViewedCellCountId]);
 
 	// The halo follows the annotation's current shape and line thickness.
 	useEffect(() => {

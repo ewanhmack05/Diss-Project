@@ -56,7 +56,17 @@ It's also the part closest to a game engine's editor:
 - The 3D view is three.js, which is games tooling.
 - Several people in one 3D scene, each with their own camera, seeing where
   the others are looking and jumping to them, is what a multi-user level
-  editor has to solve.
+  editor has to solve. Unreal Engine's Multi-User Editing does it: each
+  other user in your level shows as an avatar at their position and
+  viewpoint, and the Connected Clients list has "Teleport to user's point
+  of view". It has no continuous follow, only that one-off jump, so Follow
+  and Present here go further. Its session also keeps every transaction,
+  hands them to late joiners and lists them as change history, the same
+  split as here: presence is live and dropped, edits are kept. Sources:
+  [Multi-User Editing Overview](https://dev.epicgames.com/documentation/en-us/unreal-engine/multi-user-editing-overview-for-unreal-engine)
+  (Presence, Session Change History) and
+  [Getting Started](https://dev.epicgames.com/documentation/en-us/unreal-engine/getting-started-with-multi-user-editing-in-unreal-engine)
+  (late joiners), both Unreal Engine 5.9, marked Beta.
 - Cameras and cut planes are continuous, high-rate state, not documents.
   They need a different treatment from annotations (send the latest, drop
   the rest), and showing that split working is a finding in its own right.
@@ -549,4 +559,4 @@ all. Scripts: the marker sketch.
 | Phase 5: the host's Shift+click sends a look with the spot clicked | A listener joined as Bob received it (5.5) | Checked |
 | Phase 6: a marker saves with its slices, draws in 3D and only on its slices in 2D | By hand in the browser, and read back from annotation-store (5.6) | Checked |
 | Phase 6: someone placing a marker is seen live | `drive_host_3d.py --sketch-marker` against the browser (5.6) | Checked |
-| Multi-user game editors show other users' cameras | Not checked against any one engine's documentation | **Unverified** - read the docs of one engine's multi-user editing before citing it in the dissertation |
+| Multi-user game editors show other users' cameras | Unreal Engine 5.9's Multi-User Editing Overview, Presence section, read in full: an avatar per user at their position and viewpoint, "Teleport to user's point of view", no follow mode (section 2) | Checked - one engine; the avatar may need `Concert.EnablePresence`, per the Reference page |
