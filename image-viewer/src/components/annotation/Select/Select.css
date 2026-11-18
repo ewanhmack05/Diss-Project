@@ -10,6 +10,20 @@
 	gap: 1em;
 }
 
+/* A button that reads as part of a sentence. */
+.select-link {
+	padding: 0;
+	font: inherit;
+	color: var(--accent);
+	background: none;
+	border: none;
+	cursor: pointer;
+}
+
+.select-link:hover {
+	text-decoration: underline;
+}
+
 .select-hint {
 	margin: 0;
 	font-size: 0.82em;

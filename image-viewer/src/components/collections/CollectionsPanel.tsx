@@ -11,9 +11,13 @@ import ImportPreview from "./ImportPreview";
 import UserCollection from "./user-collection/UserCollection";
 import SharedCollectionList from "./shared-collection/SharedCollectionList";
 import HistoryList from "./history/HistoryList";
+import OnTheMapTab from "./map/OnTheMapTab";
+import { splitSessions } from "./shared-collection/sessions";
 import "./CollectionsPanel.css";
 
-type CollectionsTab = "mine" | "shared" | "history";
+type CollectionsTab = "map" | "collections" | "history";
+
+const TAB_NAMES: Record<CollectionsTab, string> = { map: "On the map", collections: "Collections", history: "History" };
 
 interface PendingImport {
 	target: Collection;
@@ -46,10 +50,11 @@ function ShowingNote({ active }: { active: Collection }) {
 	);
 }
 
-// Mine: your own collection on this slide. Shared: the sessions you're in,
-// and anyone else's they've shared - how much is in each, and moving between them.
-// History: every change made in the one you're in, and putting back what
-// a change deleted.
+// On the map: the one you're in, how much of it is showing, and a chip per
+// person and group to show or hide (see docs/layers.md). Collections: your
+// own, the sessions you're in, and anyone else's they've shared - how much is
+// in each, and moving between them. History: every change made in the one
+// you're in, and putting back what a change deleted.
 // Any of them can be exported as GeoJSON, and a file imported into any you
 // can edit.
 function CollectionsPanel() {
@@ -62,7 +67,9 @@ function CollectionsPanel() {
 	const [pending, setPending] = useState<PendingImport | null>(null);
 	// Kept here rather than in the toolbar's context, like RealTime's - it's
 	// your own, so Present doesn't follow the host's.
-	const [tab, setTab] = useState<CollectionsTab>("mine");
+	const [tab, setTab] = useState<CollectionsTab>("map");
+	// Ended sessions are folded away unless asked for.
+	const [endedOpen, setEndedOpen] = useState(false);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const importTargetRef = useRef<Collection | null>(null);
 
@@ -95,26 +102,17 @@ function CollectionsPanel() {
 	if (pending) return <ImportPreview {...pending} onDone={() => setPending(null)} />;
 
 	const mine = collections.find((c) => c.collectionId === personalCollectionId);
-	const sessions = collections.filter((c) => c.kind === "session");
+	const { live, ended } = splitSessions(collections.filter((c) => c.kind === "session"));
 	const others = collections.filter((c) => c.kind === "personal" && c.collectionId !== personalCollectionId);
 	const activeId = active?.collectionId ?? null;
+	// Open while you're looking at one, so its row's there to see.
+	const showEnded = endedOpen || ended.some((c) => c.collectionId === activeId);
 
 	let body;
 	if (status !== "ready") {
 		body = <p className="collections-note">{status === "error" ? "Couldn't load collections." : "Loading…"}</p>;
-	} else if (tab === "mine") {
-		body = (
-			<section className="collections-section">
-				{mine && (
-					<UserCollection
-						collection={mine}
-						here={activeId === mine.collectionId}
-						onExport={() => startExport(mine)}
-						onImport={() => startImport(mine)}
-					/>
-				)}
-			</section>
-		);
+	} else if (tab === "map") {
+		body = <OnTheMapTab onSwitch={() => setTab("collections")} />;
 	} else if (tab === "history") {
 		// Keyed so moving collection starts back on the first page.
 		body = active ? <HistoryList key={active.collectionId} collection={active} /> : null;
@@ -122,16 +120,41 @@ function CollectionsPanel() {
 		body = (
 			<>
 				<section className="collections-section">
-					<h3 className="collections-heading">Sessions ({sessions.length})</h3>
-					{sessions.length > 0 ? (
-						<SharedCollectionList collections={sessions} activeId={activeId} onExport={startExport} onImport={startImport} />
-					) : (
-						<p className="collections-note">Sessions you start or join from RealTime show up here.</p>
+					<h3 className="collections-heading">Your own</h3>
+					{mine && (
+						<UserCollection
+							collection={mine}
+							here={activeId === mine.collectionId}
+							onExport={() => startExport(mine)}
+							onImport={() => startImport(mine)}
+						/>
 					)}
 				</section>
 
 				<section className="collections-section">
-					<h3 className="collections-heading">Shared with everyone ({others.length})</h3>
+					<h3 className="collections-heading">Sessions ({live.length})</h3>
+					{live.length > 0 ? (
+						<SharedCollectionList collections={live} activeId={activeId} onExport={startExport} onImport={startImport} />
+					) : (
+						<p className="collections-note">
+							{ended.length > 0 ? "None going at the moment." : "Sessions you start or join from RealTime show up here."}
+						</p>
+					)}
+					{ended.length > 0 && (
+						<>
+							<button type="button" className="collections-fold" aria-expanded={showEnded} onClick={() => setEndedOpen((open) => !open)}>
+								<span className="collections-fold-arrow" aria-hidden>
+									{showEnded ? "▾" : "▸"}
+								</span>
+								Ended ({ended.length})
+							</button>
+							{showEnded && <SharedCollectionList collections={ended} activeId={activeId} onExport={startExport} onImport={startImport} />}
+						</>
+					)}
+				</section>
+
+				<section className="collections-section">
+					<h3 className="collections-heading">Shared with you ({others.length})</h3>
 					{others.length > 0 ? (
 						<SharedCollectionList collections={others} activeId={activeId} onExport={startExport} onImport={startImport} />
 					) : (
@@ -157,7 +180,7 @@ function CollectionsPanel() {
 				}}
 			/>
 			<div className="collections-tabs" role="tablist" aria-label="Collections">
-				{(["mine", "shared", "history"] as const).map((option) => (
+				{(["map", "collections", "history"] as const).map((option) => (
 					<button
 						key={option}
 						type="button"
@@ -166,12 +189,13 @@ function CollectionsPanel() {
 						className={`collections-tab${tab === option ? " collections-tab--active" : ""}`}
 						onClick={() => setTab(option)}
 					>
-						{option === "mine" ? "Mine" : option === "shared" ? `Shared (${sessions.length + others.length})` : "History"}
+						{TAB_NAMES[option]}
 					</button>
 				))}
 			</div>
 			<div className="collections-panel" role="tabpanel">
-				{status === "ready" && active && active.collectionId !== personalCollectionId && <ShowingNote active={active} />}
+				{/* On the map says where you are itself, with Switch for the way back. */}
+				{status === "ready" && tab !== "map" && active && active.collectionId !== personalCollectionId && <ShowingNote active={active} />}
 				{body}
 			</div>
 		</div>

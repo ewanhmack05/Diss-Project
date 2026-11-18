@@ -39,6 +39,8 @@ import MoveGuard from "./components/gallery/MoveGuard";
 import { MessagingContextProvider } from "./context/MessagingContext";
 import { AnnotationGroupContextProvider } from "./context/AnnotationGroupContext";
 import { AnnotationSelectContextProvider } from "./context/AnnotationSelectContext";
+import { LayersContextProvider } from "./context/LayersContext";
+import { useClearPickedOnLeave } from "./components/annotation/Select/useClearPickedOnLeave";
 import InviteGate from "./components/realtime/InviteGate";
 import Toolbar, { type ToolName } from "./components/toolbar/Toolbar";
 import DraggablePanel from "./components/toolbar/DraggablePanel";
@@ -157,7 +159,9 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, mess
 																									<ComparisonContextProvider>
 																										<SharedCountContextProvider>
 																											<MessagingContextProvider baseUrl={messagingUrl}>
-																												<ViewerShell fontSize={options?.fontSize} tools={options?.tools} storeUrl={annotationStoreUrl} />
+																												<LayersContextProvider>
+																													<ViewerShell fontSize={options?.fontSize} tools={options?.tools} storeUrl={annotationStoreUrl} />
+																												</LayersContextProvider>
 																											</MessagingContextProvider>
 																										</SharedCountContextProvider>
 																									</ComparisonContextProvider>
@@ -219,6 +223,7 @@ interface ViewerShellProps {
 
 function ViewerShell({ fontSize, tools, storeUrl }: ViewerShellProps) {
 	const { activeTools, toggleTool, raised } = useToolbarContext();
+	useClearPickedOnLeave();
 	const [positions, setPositions] = useState<Record<string, Position>>({});
 	const [dockAssignments, setDockAssignments] = useState<DockAssignments>(emptyDockAssignments);
 	const [previewRect, setPreviewRect] = useState<DockRect | null>(null);

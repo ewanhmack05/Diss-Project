@@ -144,6 +144,39 @@
 	margin-top: 0.35em;
 }
 
+/* Spread to fill each line, so one that wraps onto its own isn't left
+   stranded at the start. */
+.collections-row-actions .collections-button {
+	flex: 1 0 auto;
+}
+
+/* Ended sessions, folded under the live ones. Looks like the headings. */
+.collections-fold {
+	display: flex;
+	align-items: center;
+	gap: 0.35em;
+	width: 100%;
+	margin-top: 0.6em;
+	padding: 0.3em 0;
+	font-family: var(--sans);
+	font-size: 0.72em;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--chrome-text-secondary);
+	background: none;
+	border: none;
+	cursor: pointer;
+}
+
+.collections-fold:hover {
+	color: var(--accent);
+}
+
+.collections-fold-arrow {
+	width: 0.8em;
+}
+
 .collections-name-row {
 	display: inline-flex;
 	align-items: center;
@@ -192,8 +225,10 @@
 	cursor: not-allowed;
 }
 
+/* Filled, so it doesn't read as greyed out next to the plain ones. */
 .collections-button--accent {
 	color: var(--accent);
+	background: rgba(var(--accent-rgb), 0.18);
 }
 
 .collections-button--danger,

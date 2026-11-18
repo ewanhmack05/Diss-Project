@@ -46,6 +46,7 @@ function SavedAnnotationList({ onTotal }: { onTotal?: (total: ListTotal | null) 
 		setViewedAnnotationId,
 		pendingRemoved,
 		setMapFilter,
+		savedClears,
 		seenTotal,
 	} = useAnnotationStoreContext();
 	const { canEdit, collectionId } = useCollectionContext();
@@ -63,6 +64,15 @@ function SavedAnnotationList({ onTotal }: { onTotal?: (total: ListTotal | null) 
 	const [historyOf, setHistoryOf] = useState<{ id: string; name: string } | null>(null);
 	// Kept through an edit too, and reset to the first page by a new search.
 	const [page, setPage] = useState(0);
+	// The On the map tab's Show all clears them. Reset while rendering, so the
+	// list and the map never show the old filters for a render.
+	const [clearsSeen, setClearsSeen] = useState(savedClears);
+	if (clearsSeen !== savedClears) {
+		setClearsSeen(savedClears);
+		setSearch("");
+		setFilters(NO_FILTERS);
+		setPage(0);
+	}
 	// A page at a time from annotation-store, searched there too. The map
 	// still has every annotation (the store's `annotations`); this list only
 	// shows SAVED_PAGE_SIZE of them.

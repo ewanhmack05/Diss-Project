@@ -93,7 +93,8 @@ interface CollectionContextValue {
 	// The active session was opened just to look at, because nobody was in
 	// it - read-only, and no room. reopen() takes it live again.
 	dormant: boolean;
-	refresh: () => Promise<void>;
+	// The list as it came back, or null if it couldn't be had.
+	refresh: () => Promise<Collection[] | null>;
 	// Moves into a collection you're in - rejoining a session, or opening an
 	// ended one to look back at it.
 	open: (collectionId: string, options?: { viewOnly?: boolean }) => void;
@@ -276,7 +277,7 @@ function CollectionContextProvider({ baseUrl, maxEditors, editPolicy, children }
 					message: `${hostName(before)} stopped sharing it, so you're back in your own collection.`,
 					actions: [{ label: "OK" }],
 				});
-				return;
+				return list;
 			}
 			emit("session:removed", { collectionId: current });
 			showDialog({
@@ -285,6 +286,7 @@ function CollectionContextProvider({ baseUrl, maxEditors, editPolicy, children }
 				actions: [{ label: "OK" }],
 			});
 		}
+		return list;
 	}, [request, slideId, emit, setActive, showDialog, addToast, guestSessionId]);
 
 	useEffect(() => {
@@ -487,7 +489,7 @@ function CollectionContextProvider({ baseUrl, maxEditors, editPolicy, children }
 		[send, setActive, loadCollections],
 	);
 
-	const refresh = useCallback(() => loadCollections().catch(() => {}), [loadCollections]);
+	const refresh = useCallback(() => loadCollections().catch(() => null), [loadCollections]);
 
 	return (
 		<CollectionContext.Provider

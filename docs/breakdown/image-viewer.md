@@ -141,7 +141,7 @@ flowchart TD
 | `Presence`                         | Everyone with an account, who's online and what they're doing                                                                                                                                           |
 | `Realtime`                         | The SignalR connection to the session's room - see [realtime-hub.md](realtime-hub.md#10-viewer-side)                                                                                                    |
 | `AnnotationStore`                  | Every annotation in the collection, plus the OpenLayers source they're drawn from. Bulk updates and deletes (each one change set, undone by restoring it), and the Saved list's filter the map draws by |
-| `AnnotationGroup`                  | The collection's groups, and which are hidden on the map while the Select tab's open                                                                                                                    |
+| `AnnotationGroup`                  | The collection's groups, and which groups and people are hidden on the map while the Select tab's open                                                                                                  |
 | `AnnotationSelect`                 | What's picked on the Select tab, and box or lasso. Your own, not shared                                                                                                                                 |
 | `CellCountStore`                   | Counts loaded so far (not all - see [section 11](#11-the-saved-lists))                                                                                                                                  |
 | `Draw`                             | Selected shape tool, colour, thickness, line style, the shape waiting to be named, quick draw                                                                                                           |
@@ -230,15 +230,33 @@ lists every collection you can see on the slide, each with how many
 annotations and cell counts it has and when something was last added. It has
 three tabs, kept in the panel itself so Present doesn't follow the host's:
 
-- **Mine** - your own. Rename it, turn sharing on or off, export, import.
-- **Shared** - two lists:
+- **On the map** - opens first. The collection you're in, whether new
+  annotations save there, a bar and "N of M shown" with the biggest reason
+  for the rest, and a chip per person and per group (plus **None** for
+  ungrouped) to show or hide. Click toggles, double-click or Shift+Enter shows
+  only that one, right-click has the same and "Show all" for the row.
+  **Show all** also clears the open Saved list's search and filters. With the
+  panel closed and something off the map, the Collections button has a dot.
+  **Switch** goes to the Collections tab. Off chips are yours alone and last
+  until you move collection. While this panel's open, annotations are drawn
+  even with the Annotations panel closed. See [layers.md](../layers.md).
+- **Collections** - three lists:
+  - **Your own** - rename it, turn sharing on or off, export, import.
   - **Sessions** - the ones you host or joined, moved here from RealTime.
     Rejoin or view, export, import (if you can edit and it hasn't ended),
-    leave for good, or delete one you host once it's ended.
-  - **Shared with everyone** - other people's shared collections. View and
+    leave for good, or delete one you host once it's ended. Each row says
+    when it started (or ended) and how many are in it. Live ones are listed;
+    ended ones fold under **Ended (n)**, latest first, open while you're
+    looking at one
+    ([sessions.ts](../../image-viewer/src/components/collections/shared-collection/sessions.ts)).
+  - **Shared with you** - other people's shared collections. View and
     export only.
 - **History** - every change made in the collection you're in, newest first.
   See below.
+
+When you're not in your own, the Collections and History tabs show which
+one you are in, with the way back (**Back to mine**, **Rejoin** or
+**Reopen**). On the map shows it in its own header instead.
 
 The counts reload whenever an annotation or cell count is added or deleted.
 
@@ -439,7 +457,7 @@ line's end, style functions) stay on canvas.
 | Layer                             | Renderer | Shows                                                                                                                                                                                                                                                                                                                |
 | --------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Slide tiles                       | WebGL    | The image. Brightness, contrast, gamma and colour gains run in its shader                                                                                                                                                                                                                                            |
-| Saved annotations                 | WebGL    | Every annotation in the collection - minus hidden groups, and anything the open Saved list's search and filters leave out. Drawn with less detail zoomed out ([LessDetail.ts](../../image-viewer/src/components/open-layers/LessDetail.ts), see [rendering.md](../rendering.md#less-detail-zoomed-out---2026-10-25)) |
+| Saved annotations                 | WebGL    | Every annotation in the collection - minus hidden groups and people, and anything the open Saved list's search and filters leave out. Drawn with less detail zoomed out ([LessDetail.ts](../../image-viewer/src/components/open-layers/LessDetail.ts), see [rendering.md](../rendering.md#less-detail-zoomed-out---2026-10-25)) |
 | Selected annotations              | Canvas   | A teal halo round what's picked on the Select tab                                                                                                                                                                                                                                                                    |
 | Arrowheads                        | Canvas   | The heads of arrow annotations                                                                                                                                                                                                                                                                                       |
 | Viewed annotation                 | Canvas   | A halo round the one picked with View on map                                                                                                                                                                                                                                                                         |
@@ -452,7 +470,8 @@ line's end, style functions) stay on canvas.
 | Remote sketches, rulers, counts   | Canvas   | What other people are part way through                                                                                                                                                                                                                                                                               |
 | Remote viewports                  | Canvas   | Coloured boxes where other people are looking, on both maps                                                                                                                                                                                                                                                          |
 
-Layers for a tool are hidden while its panel is closed. Closing a panel
+Layers for a tool are hidden while its panel is closed - saved annotations
+show while either Annotations or Collections is open. Closing a panel
 also drops anything picked with View on map, so it doesn't come back on
 reopening.
 
@@ -543,17 +562,35 @@ and not shared.
   [History](#history---putting-deletes-back) tab. See
   [annotation-store.md](annotation-store.md#11-history-and-change-sets).
 - **Groups** (`AnnotationGroupContext`) - named sets of annotations in the
-  collection, one level. Make one from what's picked, move things between
-  them or out, rename (double-click), delete (the annotations stay), pick
-  everything in one, or hide one from the map - hiding is just for you, and
-  only lasts while the tab's open. Clicking a group's name opens its page
-  ([GroupPage.tsx](../../image-viewer/src/components/annotation/Select/GroupPage.tsx)):
-  rename it, notes (saved as you type), recolour everything in it, pick it
-  on the map, merge it into another group, delete its annotations (with
-  Undo), or delete the group and keep them. Viewers see the name and notes.
-  Viewers get the tab as **Groups**, to show and hide only. Group changes
-  go out as `annotationGroup` ops. The Saved list's filter has a **Group**
-  section too - any of the groups, and **No group** - sent as `group`.
+  collection, one level. On this tab, about what's picked: **Pick a group…**
+  (by All and Clear) picks a group's annotations that are on the map, and the
+  **Group** section makes a new one from what's picked, adds what's picked to
+  one (**Add to a group…**, counting only those not already in it), or takes
+  them out of their groups. Everything else about a group is its page
+  ([GroupPage.tsx](../../image-viewer/src/components/annotation/Select/GroupPage.tsx)),
+  opened by right-clicking its chip on the Collections panel's On the map tab
+  ("Open group"): rename it, notes (saved as you type), **Select on map**
+  (opens this tab, brought to the front, with its shown annotations picked),
+  **Send**, recolour everything in it, merge it into another group, delete
+  its annotations (with Undo), or delete the group and keep them. Viewers see
+  the name and notes and can send it. Group changes go out as
+  `annotationGroup` ops. The Saved list's filter has a **Group** section too -
+  any of the groups, and **No group** - sent as `group`.
+- **Editors only.** Viewers don't get this tab - the Annotations panel shows
+  them Saved, and groups are on the On the map tab for everyone.
+- **Leaving clears what's picked** - closing the panel, another tab, or losing
+  edit. `useClearPickedOnLeave` in the viewer shell watches for it, rather
+  than the tab clearing as it unmounts: React mounts twice in development,
+  and Select on map picks just before the tab opens, so an unmount clear threw
+  that pick away.
+- **Showing and hiding** people and groups is on the Collections panel's
+  [On the map](#the-collections-panel) tab, kept in `LayersContext`. One
+  check, `isShown` in
+  [layers.ts](../../image-viewer/src/components/collections/map/layers.ts),
+  decides what's on the map for MapNode and what **All** picks here, so the
+  two can't disagree. Hiding something on that tab takes it out of what's
+  picked here. Leaving this tab no longer shows everything again - that's on
+  moving collection now.
 
 ## 8. Counting cells
 
@@ -728,10 +765,20 @@ during a session:
   editors a link lets in and "when two people change the same thing" - last
   change wins or first change wins - starting from the viewer's
   `maxEditors` and `editPolicy` options in `index.tsx`. Neither can change
-  once it's started; Settings says which it is.
+  once it's started; Settings says which it is. It's named for the host and
+  when it started on their clock ("Bob Hughes's session, 17 Nov 14:05"), so
+  two are never the same - annotation-store's own default has no date, as it
+  doesn't know the host's time zone.
 - **Hosting** - the quick controls: the invite link and code to copy, making
   a (new) link, a line saying what it lets people do with **Change** (which
-  opens Settings), navigation, and ending the session.
+  opens Settings), navigation, and ending the session. Ending one that
+  nothing happened in - nothing drawn or counted, nobody else in it, nothing
+  said in its chat - deletes it rather than keep an empty row forever; the
+  confirm says so first ([useEndSession.ts](../../image-viewer/src/components/realtime/useEndSession.ts)).
+  It's checked against a fresh list before and after ending, so anything
+  added in between keeps it, and a chat messaging couldn't answer for counts
+  as something said. Ending an older one from the Collections tab does the
+  same.
 - **Joined** - what the host has everyone doing, and leaving.
 - **Ended** - read-only, to look back at.
 
@@ -907,6 +954,11 @@ build on every push that touches the viewer.
   made into features in one go. Chunks or a worker would fix it.
 - **Saves aren't rolled back** if they fail - you get a toast, but the item
   stays on screen (and on everyone else's).
+- **Reopening a session doesn't reload it.** Looking at a quiet session
+  read-only has no live room, so changes made meanwhile (by a script, say)
+  don't arrive, and Reopen keeps the same collection id, so nothing loads it
+  again - the map shows the old annotations until a reload. Found while
+  testing the On the map tab; not from it.
 - **`MapNode.tsx` is ~1500 lines.** It's the one place with the map, so
   everything that touches it ends up there.
 - **Dev server only.** It's run with `vite`, whose proxy is what joins the

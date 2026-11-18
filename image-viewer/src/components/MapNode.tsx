@@ -44,9 +44,10 @@ import { featureToGeoJson, geoJsonToFeature } from "./open-layers/GeoJSON";
 import { LessDetail } from "./open-layers/LessDetail";
 import { translatePending } from "./open-layers/TranslatePending";
 import { annotationRenderer } from "./open-layers/renderer";
-import { useAnnotationGroupContext } from "../context/AnnotationGroupContext";
 import { useMapSelection } from "./annotation/Select/useMapSelection";
 import { matchesSearch, passes } from "./saved/filters";
+import { isShown } from "./collections/map/layers";
+import { useLayersContext } from "../context/LayersContext";
 import { degreesToRadians, radiansToDegrees } from "./rotation/rotation";
 import { pixelDistance, physicalDistanceMicrons, formatDistanceMicrons, formatDistancePixels } from "./ruler/ruler";
 import { parseCellCountDots, dotsFromHistory } from "./cell-count/CellCountDots";
@@ -207,7 +208,7 @@ function MapNode() {
 	} = useCellCountDrawContext();
 	const { cellCounts, viewedCellCountId, setViewedCellCountId } = useCellCountStoreContext();
 	const { activeTools } = useToolbarContext();
-	const { hiddenGroupIds } = useAnnotationGroupContext();
+	const { hidden } = useLayersContext();
 	const { me, others, sendViewport, sendSketch, clearSketch, addSharedDot, removeSharedDot } = useRealtimeContext();
 	const { pointedAt, shown: viewportsShown } = useViewportsContext();
 	const { session } = useCollectionContext();
@@ -235,7 +236,9 @@ function MapNode() {
 	useEffect(() => {
 		sharedRef.current = { stage: sharedStage, addSharedDot, removeSharedDot };
 	});
-	const annotationsVisible = activeTools.includes("annotations");
+	// Also while Collections is open - its On the map tab is about them, so
+	// hiding them then would be odd.
+	const annotationsVisible = activeTools.includes("annotations") || activeTools.includes("collections");
 	const cellCountVisible = activeTools.includes("cellcount");
 	const rulerVisible = activeTools.includes("ruler");
 	const emit = useEmitEvent();
@@ -592,14 +595,15 @@ function MapNode() {
 	);
 
 	// Keep the map's annotations layer in sync with the saved-annotations store.
-	// Groups hidden on the Select tab are left off, and so is anything the
-	// Saved list's search and filters leave out while it's open.
+	// People and groups turned off on the Collections panel's On the map tab
+	// are left off, and so is anything the Saved list's search and filters
+	// leave out while it's open.
 	useEffect(() => {
 		const shown = annotations.filter(
 			(annotation) =>
 				// A 3D marker is only on the slices it spans.
 				onSlice(annotation, currentSlice, volume) &&
-				(!annotation.groupId || !hiddenGroupIds.has(annotation.groupId)) &&
+				isShown(annotation, hidden) &&
 				(!mapFilter || (passes(annotation, mapFilter.filters) && matchesSearch(annotation, mapFilter.search))),
 		);
 		annotationsSource.clear();
@@ -615,7 +619,7 @@ function MapNode() {
 				return feature;
 			}),
 		);
-	}, [annotations, annotationsSource, hiddenGroupIds, mapFilter, currentSlice, volume]);
+	}, [annotations, annotationsSource, hidden, mapFilter, currentSlice, volume]);
 
 	useMapSelection(mapRef, mapVersion, annotationsSource, annotations, annotationsVisible);
 
