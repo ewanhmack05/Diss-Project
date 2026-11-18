@@ -47,6 +47,7 @@ One person:
 | `tab-docking.mp4`       | Floating, bringing to the front, docking to all four edges, sharing an edge, undocking, a closed panel giving its space back and reopening where it was, then 5 seconds of every tab across the top           |
 | `collections.mp4`       | Renaming, sharing, importing GeoJSON with its preview, exporting, paging a long list                                                                                                                          |
 | `history.mp4`           | The list, its order and filter, one change, putting back, one annotation's timeline and going back on it, putting the whole collection back                                                                   |
+| `depth.mp4`             | The liver volume: Next and Previous, Page Up and Down, the slider, a rectangle and a cell count each saved on the slice they were made on, View on map going back to that slice, the 3D block turned, cut, faded and stretched, Reset view, a marker placed through slices 4 to 9 and only on those in 2D. Needs the `liver` slide (see [zstack.md](../docs/zstack.md)) |
 | `gallery.mp4`           | Every slide as a card, moving to one on the same map with panels open, its collections going up as work is saved, the filmstrip and its arrows, docked down the side and along the bottom, being asked before losing a drawing and Escape staying, back and forward |
 
 Side by side, each person's screen:
@@ -59,6 +60,18 @@ Side by side, each person's screen:
 | `messaging.mp4`         | Sending an annotation, a group of cell counts and the area you're looking at - it arriving live, previews in their own colours, viewing without keeping, adding a copy, folding the list                                                                                                                                                                          |
 | `guests.mp4`            | Joining with just a name, what a guest can't do, being listed for the host, being asked to edit, leaving                                                                                                                                                                                                                                                          |
 | `gallery-together.mp4`  | Who's on each slide live, an invite from the Users tab to a session on another slide, moving out of a live session and still being in it, going after someone from the Users tab |
+
+## Measuring volumes
+
+```bash
+node measure-depth.js            # headless Chrome, still on the GPU
+node measure-depth.js --headed   # in a window
+```
+
+Opens the `liver` volume as Sam and prints the tiles requested and time until
+sharp for 10 slice steps, then the 3D view's frame rate still and with the cut
+moving. The arithmetic is in `lib/measure.js`, tested. Results are in
+[zstack.md](../docs/zstack.md#9-phases).
 
 ## What "everything" means
 

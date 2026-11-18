@@ -490,6 +490,24 @@ sharp on a slice change (3), how long until a follower's on the host's slice
 (4, the same way [timing.md](timing.md) times viewports), frame rate of the 3D
 view while cutting (6).
 
+Measured with `node playback/measure-depth.js` against the liver volume, a
+1600 x 900 window, localhost, twice (18 November 2026):
+
+| What | Run 1 | Run 2 |
+| --- | --- | --- |
+| Tiles requested per slice step (median, of 10) | 15 | 15 |
+| Sharp after a step: last tile in (median / max) | 175 / 192 ms | 168 / 179 ms |
+| 3D view still | 59.7 fps, 95th frame 16.8 ms | 59.3 fps, 16.8 ms |
+| 3D view with the cut moving every key press | 60 fps, 95th frame 16.8 ms | 60 fps, 16.8 ms |
+
+Moving the cut costs nothing measurable: the view stays at the display's 60
+Hz while the cut changes about 780 times a second. Both on an AMD Radeon RX
+7800 XT through Chrome's ANGLE; a laptop's integrated graphics would want
+its own run. A tile request counts whether or not the browser's disk cache
+answers it, so 15 is what the map asks for, not what crosses the network.
+Localhost only: over a real network the time to sharp grows with the
+round trip.
+
 ## 10. Open questions
 
 - Is the 3D view in scope for the dissertation, or the stretch goal after
@@ -511,6 +529,7 @@ view while cutting (6).
 
 | Claim | Checked against | Status |
 | --- | --- | --- |
+| Frame rate while cutting, and time to sharp on a slice change (section 9) | `playback/measure-depth.js`, two runs, numbers in section 9 | Checked - one desktop GPU, localhost |
 | Goal figure is DPLab, Shen et al., Phys. Med. Biol. 2022, built from registered serial sections | ResearchGate figure page, PubMed and bioRxiv listings | Checked |
 | Liver set: 15 H&E serial sections, VS200, CC BY 4.0, 3.0 GB, direct download | Zenodo record page | Checked |
 | Liver set is VSI + ETS, 15 `.vsi` files | Zenodo zip preview listing | Checked |
