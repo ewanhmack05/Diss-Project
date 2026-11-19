@@ -77,8 +77,8 @@
 				"client",
 				"`line`, `freehand`, `polygon`, `arrow`, `rectangle` or `circle`. The viewer can't show anything else, and the store doesn't check"
 			],
-			"SliceFrom": ["client", "The first slice of a volume it's on, from 0. Null with `SliceTo` means every slice, as every 2D one is. Fixed once saved"],
-			"SliceTo": ["client", "The last slice it's on, so a marker on one slice has both the same. Not checked against how many slices the slide has. Fixed once saved"],
+			"SliceFrom": ["client", "The first slice of a volume it's on, from 0. Null with `SliceTo` means every slice, as every 2D one is. Changed through `PUT /annotations/{id}/slices`"],
+			"SliceTo": ["client", "The last slice it's on, so a marker on one slice has both the same. Not checked against how many slices the slide has. Changed with `SliceFrom`"],
 			"SlideId": ["server", "Copied from the collection, never taken from the client"]
 		}
 	},
@@ -113,6 +113,7 @@
 			"Label": ["client", "Can change"],
 			"LocationX": ["client", "Where it was counted, for going back there. Null for a count with no location"],
 			"LocationY": ["client", "See `LocationX`"],
+			"Slice": ["client", "The slice of a volume it was counted on, from 0. Null on a flat slide and on counts from before volumes. Fixed once saved"],
 			"Notes": ["client", "Can change"],
 			"PlacedByCountsJson": ["server", "How many dots each person placed, the same way as `ColourCountsJson`"],
 			"SlideId": ["server", "Copied from the collection"],

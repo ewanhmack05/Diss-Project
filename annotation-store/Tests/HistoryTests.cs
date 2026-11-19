@@ -159,6 +159,22 @@ public class HistoryTests : IClassFixture<CellCountApiFactory>
     }
 
     [Fact]
+    public async Task PuttingBackADeletedCount_BringsBackItsSlice()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var response = await alice.PostAsJsonAsync("/cellcounts",
+            new CellCount { CollectionId = id, Label = "c", Dots = "[{\"x\":1,\"y\":2,\"colour\":\"#ff0000\"}]", Count = 1, Slice = 6 });
+        var count = (await response.Content.ReadFromJsonAsync<CellCount>(Json))!;
+        var delete = await alice.DeleteAsync($"/cellcounts/{count.Id}");
+
+        Assert.Equal("6", Columns(Assert.Single(await EntriesAsync(ChangeSetOf(delete))).Before)["Slice"]);
+        (await RestoreAsync(alice, ChangeSetOf(delete))).EnsureSuccessStatusCode();
+
+        Assert.Equal(6, (await alice.GetFromJsonAsync<CellCount>($"/cellcounts/{count.Id}", Json))!.Slice);
+    }
+
+    [Fact]
     public async Task PuttingBackABulkDelete_BringsBackEachSliceRange()
     {
         var alice = As("alice");

@@ -19,6 +19,23 @@ export const FEATURES = {
 	"map-fullscreen": "Fullscreen, by button and the F key",
 	"map-drag-rotate": "Alt+Shift drag to rotate",
 
+	// A volume's slices, flat and in 3D
+	"depth-step": "Next and Previous slice",
+	"depth-keys": "Page Up and Page Down through the slices",
+	"depth-slider": "The slice slider",
+	"depth-shape-on-slice": "A shape drawn in 2D going on the slice it was drawn on",
+	"depth-view-on-slice": "Viewing a shape from another slice going to its slice",
+	"depth-count-on-slice": "A cell count going on the slice it was counted on",
+	"depth-block": "The 3D block",
+	"depth-turn": "Dragging to turn the block",
+	"depth-cut": "Cutting the block open, and moving the cut",
+	"depth-block-settings": "The block's opacity and depth",
+	"depth-reset": "Reset view",
+	"depth-marker": "Marking a box through the slices in 3D",
+	"depth-marker-flat": "A 3D marker on the 2D map only on its slices",
+	"depth-marker-edit": "Changing a marker's slices after it's saved",
+	"depth-every-slice": "Putting a 2D shape on every slice from its edit form",
+
 	// Annotations
 	"draw-line": "Line",
 	"draw-freehand": "Freehand",

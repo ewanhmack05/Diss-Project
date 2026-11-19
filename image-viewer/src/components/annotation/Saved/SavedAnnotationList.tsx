@@ -7,7 +7,7 @@ import SavedAnnotationEdit from "./SavedAnnotationEdit";
 import ItemHistory from "../../collections/history/ItemHistory";
 import SavedRow, { SavedDetails } from "../../saved/SavedRow";
 import { formatLongDate, formatShortDate } from "../../saved/savedDates";
-import { sliceRangeText } from "../../depth/markers";
+import { sliceRangeText, sliceTagText } from "../../depth/markers";
 import { SAVED_PAGE_SIZE, clampPage, isFiltered, mergePage } from "../../saved/paging";
 import { NO_FILTERS, NO_GROUP, type SavedFilters } from "../../saved/filters";
 import { useAnnotationGroupContext } from "../../../context/AnnotationGroupContext";
@@ -206,7 +206,9 @@ function SavedAnnotationList({ onTotal }: { onTotal?: (total: ListTotal | null) 
 											<LinePreview colour={annotation.colour} thickness={annotation.lineThickness} lineStyle={annotation.lineStyle} />
 											{line}
 										</span>
-										{sliceRangeText(annotation) && <span className="saved-row-tag">3D · {sliceRangeText(annotation)}</span>}
+										{sliceTagText(annotation) && (
+											<span className="saved-row-tag">{sliceTagText(annotation)}</span>
+										)}
 										{isViewing && <span className="saved-row-tag saved-row-tag--active">On map</span>}
 										<span className="saved-row-spacer" />
 										{by && <span className="saved-row-by">{by}</span>}

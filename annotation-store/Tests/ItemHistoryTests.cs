@@ -507,6 +507,29 @@ public class ItemHistoryTests : IClassFixture<CellCountApiFactory>
         Assert.Equal((HistoryLog.Annotation, annotation.Id, "gone"), (row.Entity, row.Id, row.Name));
     }
 
+    [Fact]
+    public async Task AChange_SaysWhichSlicesItsDeletedRowsWereOn()
+    {
+        var alice = As("alice");
+        var id = await OwnAsync(alice);
+        var marker = (await (await alice.PostAsJsonAsync("/annotations",
+            new Annotation { CollectionId = id, Label = "marker", Colour = "#FF0000", Shape = "rectangle", SliceFrom = 3, SliceTo = 8 })).Content.ReadFromJsonAsync<Annotation>(Json))!;
+        var flat = await AddAsync(alice, id, "flat");
+        var count = (await (await alice.PostAsJsonAsync("/cellcounts",
+            new CellCount { CollectionId = id, Label = "count", Dots = "[]", Slice = 5 })).Content.ReadFromJsonAsync<CellCount>(Json))!;
+        var delete = await alice.PostAsJsonAsync("/annotations/bulk-delete", new BulkDeleteRequest(id, [marker.Id, flat.Id]), Json);
+        var countDelete = await alice.DeleteAsync($"/cellcounts/{count.Id}");
+
+        var rows = (await alice.GetFromJsonAsync<ChangeSetChanges>($"/changesets/{delete.Headers.GetValues(ChangeSetEndpoints.Header).Single()}/changes", Json))!
+            .DeletedRows.ToDictionary(r => r.Name!);
+        var countRow = Assert.Single((await alice.GetFromJsonAsync<ChangeSetChanges>(
+            $"/changesets/{countDelete.Headers.GetValues(ChangeSetEndpoints.Header).Single()}/changes", Json))!.DeletedRows);
+
+        Assert.Equal((3, 8), (rows["marker"].SliceFrom, rows["marker"].SliceTo));
+        Assert.Equal((null, null), (rows["flat"].SliceFrom, rows["flat"].SliceTo));
+        Assert.Equal((5, 5), (countRow.SliceFrom, countRow.SliceTo));
+    }
+
     // Two people bringing the same row back: there's no row to lock, so the
     // primary key decides, and only one of them does it. The rest are told it's
     // changed, or if they looked just after it came back, that it's already so.

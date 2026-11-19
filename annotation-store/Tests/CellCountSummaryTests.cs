@@ -71,6 +71,77 @@ public class CellCountSummaryTests : IClassFixture<CellCountApiFactory>
         Assert.Equal([new PlacedByCount("u9", "u9", 1)], placedBy);
     }
 
+    // A count on a volume belongs to the slice its dots were placed on.
+    [Fact]
+    public async Task Post_OnASlice_KeepsIt_AndTheListSendsIt()
+    {
+        var client = _factory.CreateClient();
+        var collectionId = await TestJson.EnsureCollectionAsync(client, Guid.NewGuid().ToString());
+        var onSlice = NewCellCount(collectionId, SharedDots, "on 5");
+        onSlice.Slice = 4;
+        var created = (await (await client.PostAsJsonAsync("/cellcounts", onSlice)).Content.ReadFromJsonAsync<CellCount>())!;
+        (await client.PostAsJsonAsync("/cellcounts", NewCellCount(collectionId, SharedDots, "flat"))).EnsureSuccessStatusCode();
+
+        Assert.Equal(4, created.Slice);
+        Assert.Equal(4, (await client.GetFromJsonAsync<CellCount>($"/cellcounts/{created.Id}"))!.Slice);
+        var list = await client.GetFromJsonAsync<JsonElement>($"/cellcounts?collectionId={collectionId}&take=10");
+        var byLabel = list.EnumerateArray().ToDictionary(item => item.GetProperty("label").GetString()!);
+        Assert.Equal(4, byLabel["on 5"].GetProperty("slice").GetInt32());
+        Assert.Equal(JsonValueKind.Null, byLabel["flat"].GetProperty("slice").ValueKind);
+    }
+
+    [Fact]
+    public async Task Post_BelowSliceZero_IsRefused()
+    {
+        var client = _factory.CreateClient();
+        var collectionId = await TestJson.EnsureCollectionAsync(client, Guid.NewGuid().ToString());
+        var bad = NewCellCount(collectionId, SharedDots);
+        bad.Slice = -1;
+
+        var response = await client.PostAsJsonAsync("/cellcounts", bad);
+
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("slice can't be below 0", await response.Content.ReadFromJsonAsync<string>());
+    }
+
+    [Fact]
+    public async Task Put_LeavesTheSliceAlone()
+    {
+        var client = _factory.CreateClient();
+        var collectionId = await TestJson.EnsureCollectionAsync(client, Guid.NewGuid().ToString());
+        var onSlice = NewCellCount(collectionId, SharedDots);
+        onSlice.Slice = 2;
+        var created = (await (await client.PostAsJsonAsync("/cellcounts", onSlice)).Content.ReadFromJsonAsync<CellCount>())!;
+
+        var update = NewCellCount(collectionId, SharedDots, "renamed");
+        update.Slice = 9;
+        (await client.PutAsJsonAsync($"/cellcounts/{created.Id}", update)).EnsureSuccessStatusCode();
+
+        var after = (await client.GetFromJsonAsync<CellCount>($"/cellcounts/{created.Id}"))!;
+        Assert.Equal(("renamed", 2), (after.Label, after.Slice));
+    }
+
+    [Fact]
+    public async Task Import_KeepsEachSlice_AndRefusesOneBelowZero()
+    {
+        var client = _factory.CreateClient();
+        var collectionId = await TestJson.EnsureCollectionAsync(client, Guid.NewGuid().ToString());
+        var onSlice = NewCellCount(collectionId, SharedDots, "on 8");
+        onSlice.Slice = 7;
+        (await client.PostAsJsonAsync($"/collections/{collectionId}/import",
+            new Collections.ImportRequest([], [onSlice, NewCellCount(collectionId, SharedDots, "flat")]), TestJson.Options)).EnsureSuccessStatusCode();
+
+        var saved = (await client.GetFromJsonAsync<List<CellCount>>($"/cellcounts?collectionId={collectionId}", TestJson.Options))!.ToDictionary(c => c.Label);
+        Assert.Equal(7, saved["on 8"].Slice);
+        Assert.Null(saved["flat"].Slice);
+
+        var bad = NewCellCount(collectionId, SharedDots, "bad");
+        bad.Slice = -3;
+        var refused = await client.PostAsJsonAsync($"/collections/{collectionId}/import", new Collections.ImportRequest([], [bad]), TestJson.Options);
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.Equal("slice can't be below 0", await refused.Content.ReadFromJsonAsync<string>());
+    }
+
     [Fact]
     public async Task List_HasNoDots_ButHasTheirSummary()
     {

@@ -1,6 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { isShown, type Hidden } from "../collections/map/layers";
-import { boxEdges, boxFromHits, boxOf, isMarker, isUsable, markerGeoJson, onSlice, shownMarkers, sliceRangeText } from "./markers";
+import {
+	boxEdges,
+	boxFromHits,
+	boxOf,
+	countOnSlice,
+	countSliceText,
+	isMarker,
+	isUsable,
+	markerGeoJson,
+	onSlice,
+	rangeFromInputs,
+	shownMarkers,
+	sliceOf,
+	sliceRangeText,
+	sliceTagText,
+} from "./markers";
 import type { Vec3 } from "./volume";
 
 describe("boxFromHits", () => {
@@ -153,5 +168,80 @@ describe("shownMarkers", () => {
 
 	it("leaves out what the Saved list's filters leave out", () => {
 		expect(shownMarkers(annotations, (a) => a.createdById === "bob").map((m) => m.colour)).toEqual(["#0000ff"]);
+	});
+});
+
+describe("sliceOf", () => {
+	it("puts a shape drawn on a volume on the slice it was drawn on", () => {
+		expect(sliceOf(true, 4, false)).toEqual({ sliceFrom: 4, sliceTo: 4 });
+	});
+
+	it("leaves it on every slice when asked, and always on a flat slide", () => {
+		expect(sliceOf(true, 4, true)).toEqual({});
+		expect(sliceOf(false, 0, false)).toEqual({});
+	});
+});
+
+describe("boxOf and shapes", () => {
+	const footprint = markerGeoJson({ minX: 0, minY: 0, maxX: 10, maxY: 10, sliceFrom: 2, sliceTo: 2 });
+
+	it("is a box for a rectangle on its slices", () => {
+		expect(boxOf({ geoJson: footprint, sliceFrom: 2, sliceTo: 2, shape: "rectangle" })).not.toBeNull();
+	});
+
+	it("isn't for a polygon drawn on one slice - its extent would claim more than was drawn", () => {
+		expect(boxOf({ geoJson: footprint, sliceFrom: 2, sliceTo: 2, shape: "polygon" })).toBeNull();
+	});
+});
+
+describe("sliceTagText", () => {
+	const footprint = markerGeoJson({ minX: 0, minY: 0, maxX: 10, maxY: 10, sliceFrom: 3, sliceTo: 8 });
+
+	it("says 3D for a box made in 3D, and just the slice for a 2D shape", () => {
+		expect(sliceTagText({ geoJson: footprint, sliceFrom: 3, sliceTo: 8, shape: "rectangle" })).toBe("3D · slices 4 to 9");
+		expect(sliceTagText({ geoJson: footprint, sliceFrom: 3, sliceTo: 3, shape: "polygon" })).toBe("Slice 4");
+		expect(sliceTagText({ geoJson: footprint, sliceFrom: null, sliceTo: null, shape: "polygon" })).toBeNull();
+	});
+
+	it("says just the slice for a rectangle drawn in 2D on one", () => {
+		expect(sliceTagText({ geoJson: footprint, sliceFrom: 2, sliceTo: 2, shape: "rectangle" })).toBe("Slice 3");
+	});
+});
+
+describe("countOnSlice and countSliceText", () => {
+	it("is only on the slice it was counted on", () => {
+		expect(countOnSlice({ slice: 4 }, 4, true)).toBe(true);
+		expect(countOnSlice({ slice: 4 }, 5, true)).toBe(false);
+	});
+
+	it("is on every slice without one, and everything is on a flat slide", () => {
+		expect(countOnSlice({}, 5, true)).toBe(true);
+		expect(countOnSlice({ slice: null }, 5, true)).toBe(true);
+		expect(countOnSlice({ slice: 4 }, 0, false)).toBe(true);
+	});
+
+	it("says the slice from 1", () => {
+		expect(countSliceText({ slice: 0 })).toBe("Slice 1");
+		expect(countSliceText({})).toBeNull();
+	});
+});
+
+describe("rangeFromInputs", () => {
+	it("turns the boxes, from 1, into a range from 0, either way round", () => {
+		expect(rangeFromInputs("4", "9", 15)).toEqual({ sliceFrom: 3, sliceTo: 8 });
+		expect(rangeFromInputs("9", "4", 15)).toEqual({ sliceFrom: 3, sliceTo: 8 });
+		expect(rangeFromInputs(" 15 ", "15", 15)).toEqual({ sliceFrom: 14, sliceTo: 14 });
+	});
+
+	it("is null until both are whole slices in the volume", () => {
+		for (const [from, to] of [
+			["", "4"],
+			["0", "4"],
+			["4", "16"],
+			["2.5", "4"],
+			["-1", "4"],
+			["four", "4"],
+		])
+			expect(rangeFromInputs(from, to, 15)).toBeNull();
 	});
 });

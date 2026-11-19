@@ -1,6 +1,7 @@
 import * as solo from "./solo.js";
 import * as together from "./together.js";
 import * as gallery from "./gallery.js";
+import * as depth from "./depth.js";
 
 export { SLIDE } from "./helpers.js";
 
@@ -17,6 +18,7 @@ export const SCENES = [
 	{ name: "tab-docking", title: "Panels - floating, every edge, sharing, closing", cast: ["sam"], run: solo.tabDocking },
 	{ name: "collections", title: "Collections - renaming, sharing, import, export, paging", cast: ["sam"], run: solo.collections },
 	{ name: "history", title: "History - every change, putting back, timelines, rollback", cast: ["sam"], run: solo.history },
+	{ name: "depth", title: "A volume - slices, shapes and counts on a slice, the 3D block, a marker", cast: ["sam"], run: depth.depthAlone },
 	{ name: "gallery", title: "Gallery - moving between slides, filmstrip, docking, being asked first", cast: ["sam"], run: gallery.galleryAlone },
 	{
 		name: "collaboration",

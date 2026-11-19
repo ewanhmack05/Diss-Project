@@ -9,6 +9,7 @@ import { LABEL_MAX, NOTES_MAX, TEXT_SAVE_MS, nextSave } from "../../realtime/aut
 import { newChangeSet } from "../bulk";
 import ColourPicker from "../../colour-picker/ColourPicker";
 import DockedCard from "../../toolbar/DockedCard";
+import SliceRangeCard from "./SliceRangeCard";
 import "../FreeForm/AnnotationForm.css";
 
 interface SavedAnnotationEditProps {
@@ -119,6 +120,8 @@ function SavedAnnotationEdit({ annotation, onBack }: SavedAnnotationEditProps) {
 			<DockedCard title="Colour" className="annotation-form-colour-card">
 				<ColourPicker value={colour} onChange={handleColourChange} />
 			</DockedCard>
+
+			<SliceRangeCard annotation={annotation} changeSet={changeSet} />
 
 			<DockedCard title="Actions" className="annotation-form-actions-card">
 				<div className="annotation-form-actions annotation-form-actions--stacked">

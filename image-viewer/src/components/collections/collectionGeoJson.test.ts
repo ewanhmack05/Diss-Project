@@ -258,3 +258,25 @@ describe("3D markers in a file", () => {
 		}
 	});
 });
+
+describe("a count's slice in a file", () => {
+	const onSlice: CellCount = { ...cellCount, id: "c2", label: "Mitoses on 5", slice: 4 };
+	const withSlice: FullCollection = { ...collection, annotations: [], cellCounts: [cellCount, onSlice] };
+
+	it("writes the slice it was counted on, and null for one on a flat slide", () => {
+		const [flat, sliced] = collectionToGeoJson(withSlice).features;
+		expect(flat.properties?.slice).toBeNull();
+		expect(sliced.properties?.slice).toBe(4);
+	});
+
+	it("reads it back, and leaves out one that doesn't make sense", () => {
+		const file = collectionToGeoJson(withSlice);
+		const [flat, sliced] = parseImport(JSON.stringify(file)).cellCounts;
+		expect(flat.slice).toBeUndefined();
+		expect(sliced.slice).toBe(4);
+		for (const bad of [-1, 2.5, "4"]) {
+			file.features[1].properties = { ...file.features[1].properties, slice: bad };
+			expect(parseImport(JSON.stringify(file)).cellCounts[1].slice).toBeUndefined();
+		}
+	});
+});

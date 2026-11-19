@@ -52,7 +52,14 @@ function readConflict(body: unknown): Conflict | null {
 	};
 }
 
-const FIELD_NAMES: Record<string, string> = { Colour: "colour", GroupId: "group", Name: "name", Notes: "notes" };
+const FIELD_NAMES: Record<string, string> = {
+	Colour: "colour",
+	GroupId: "group",
+	Name: "name",
+	Notes: "notes",
+	SliceFrom: "first slice",
+	SliceTo: "last slice",
+};
 
 function listed(items: string[]): string {
 	return items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;

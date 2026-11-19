@@ -6,6 +6,7 @@ import CountedBy from "../CountedBy";
 import { placedByBreakdown } from "../CellCountDots";
 import "./CellCountForm.css";
 import { newId } from "../../../newId";
+import { useSliceContext } from "../../../context/SliceContext";
 
 // Mirrors AddAnnotationForm: only rendered once a counting session has been
 // stopped (pending non-null). Unlike AddAnnotationForm, colour/count/dot
@@ -17,6 +18,8 @@ function AddCellCountForm() {
 	const { pending, setPending, resetCount } = useCellCountDrawContext();
 	const [label, setLabel] = useState("");
 	const [notes, setNotes] = useState("");
+	// On a volume the count belongs to the slice it was counted on.
+	const { volume, current } = useSliceContext();
 
 	if (!pending) return null;
 
@@ -35,6 +38,7 @@ function AddCellCountForm() {
 			locationY: pending.location?.y ?? null,
 			regionOfInterest: pending.roiGeoJson ? { id: newId(), geoJson: pending.roiGeoJson, created: new Date().toISOString() } : null,
 			created: new Date().toISOString(),
+			...(volume ? { slice: current } : {}),
 		});
 		setPending(null);
 		resetCount();

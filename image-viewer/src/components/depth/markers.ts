@@ -1,6 +1,8 @@
-// 3D markers: a box round a feature in a volume, saved as an ordinary
-// rectangle annotation with the slices it spans (sliceFrom to sliceTo). See
-// docs/volume-live.md, phase 6.
+// Annotations at a depth. A 3D marker is a box round a feature in a volume,
+// saved as an ordinary rectangle annotation with the slices it spans
+// (sliceFrom to sliceTo) - see docs/volume-live.md, phase 6. A shape drawn in
+// 2D on a volume gets the one slice it was drawn on (sliceOf). Both go
+// through onSlice for the 2D map.
 
 import type { Annotation } from "../../interfaces/Annotation";
 import { layerZ, type Vec3 } from "./volume";
@@ -58,7 +60,14 @@ function markerGeoJson(box: MarkerBox): string {
 	});
 }
 
-type Ranged = Pick<Annotation, "geoJson" | "sliceFrom" | "sliceTo">;
+type Ranged = Pick<Annotation, "geoJson" | "sliceFrom" | "sliceTo"> & Partial<Pick<Annotation, "shape">>;
+
+// The range a shape drawn in 2D gets: the slice it was drawn on, on a
+// volume, unless it's meant for all of them. Nothing on a flat slide, so 2D
+// slides save exactly what they did before.
+function sliceOf(volume: boolean, slice: number, everySlice: boolean): { sliceFrom?: number; sliceTo?: number } {
+	return volume && !everySlice ? { sliceFrom: slice, sliceTo: slice } : {};
+}
 
 function isMarker(annotation: Pick<Annotation, "sliceFrom" | "sliceTo">): boolean {
 	return typeof annotation.sliceFrom === "number" && typeof annotation.sliceTo === "number";
@@ -67,7 +76,9 @@ function isMarker(annotation: Pick<Annotation, "sliceFrom" | "sliceTo">): boolea
 // A saved marker's box, back from its GeoJSON's extent and its range. Null
 // for anything without a range, or GeoJSON that doesn't read.
 function boxOf(annotation: Ranged): MarkerBox | null {
-	if (!isMarker(annotation)) return null;
+	// Only a rectangle is a box. A polygon or line on its slices isn't drawn
+	// in the block - its extent would claim more than was drawn.
+	if (!isMarker(annotation) || (annotation.shape !== undefined && annotation.shape !== "rectangle")) return null;
 	let points: number[][];
 	try {
 		const geometry = JSON.parse(annotation.geoJson)?.geometry;
@@ -116,6 +127,34 @@ function sliceRangeText(annotation: Pick<Annotation, "sliceFrom" | "sliceTo">): 
 	return from === to ? `slice ${from}` : `slices ${from} to ${to}`;
 }
 
+// The Saved list's tag: "3D · slices 4 to 9" for a box through the slices,
+// "Slice 4" for anything on one - a rectangle drawn in 2D is a one-slice box
+// too, and reads as what it was.
+function sliceTagText(annotation: Ranged): string | null {
+	const range = sliceRangeText(annotation);
+	if (range === null) return null;
+	return boxOf(annotation) && annotation.sliceFrom !== annotation.sliceTo ? `3D · ${range}` : range[0].toUpperCase() + range.slice(1);
+}
+
+// Whether a count belongs on the 2D map at this slice. A count is on the one
+// slice its dots were placed on; one without a slice is on all of them.
+function countOnSlice(count: { slice?: number | null }, slice: number, volume: boolean): boolean {
+	return !volume || typeof count.slice !== "number" || count.slice === slice;
+}
+
+// "Slice 5" for a count on a volume - from 1, as the Depth tab shows them.
+function countSliceText(count: { slice?: number | null }): string | null {
+	return typeof count.slice === "number" ? `Slice ${count.slice + 1}` : null;
+}
+
+// A range from the edit form's two boxes, typed from 1: whole numbers within
+// the volume, either way round. Null until they make sense.
+function rangeFromInputs(from: string, to: string, count: number): { sliceFrom: number; sliceTo: number } | null {
+	const [a, b] = [from, to].map((text) => (/^\s*\d+\s*$/.test(text) ? Number(text) : NaN));
+	if (!(a >= 1 && b >= 1 && a <= count && b <= count)) return null;
+	return { sliceFrom: Math.min(a, b) - 1, sliceTo: Math.max(a, b) - 1 };
+}
+
 // The box as twelve edges in the scene, for line segments - the block
 // centred on the origin, size big, layer 0 at the front. Its depth runs from
 // the front of its first slice's layer to the back of its last. Empty when
@@ -138,5 +177,5 @@ function boxEdges(box: MarkerBox, slide: { width: number; height: number }, size
 	return edges;
 }
 
-export { SMALLEST_SIDE_PX, boxFromHits, isUsable, markerGeoJson, isMarker, boxOf, shownMarkers, onSlice, sliceRangeText, boxEdges };
+export { SMALLEST_SIDE_PX, boxFromHits, isUsable, markerGeoJson, isMarker, boxOf, shownMarkers, onSlice, sliceOf, sliceRangeText, sliceTagText, countOnSlice, countSliceText, rangeFromInputs, boxEdges };
 export type { Hit, MarkerBox };

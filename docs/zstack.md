@@ -463,10 +463,16 @@ to look.
    slice, boxes and the Active list saying the slice. See
    [volume-live.md](volume-live.md#51-phase-1-built).
 5. **Annotate at a depth.** `Z` on annotations and dots, conflicts, history
-   lines that say which slice moved where. Started: annotations have a slice
-   range (`sliceFrom`/`sliceTo`) for 3D markers - see
-   [volume-live.md](volume-live.md#56-phase-6-built). 2D annotations still
-   go on every slice, and dots have no depth yet.
+   lines that say which slice moved where. Mostly done: annotations have a
+   slice range (`sliceFrom`/`sliceTo`) - a 3D marker spans its slices (see
+   [volume-live.md](volume-live.md#56-phase-6-built)), and a shape drawn in
+   2D on a volume goes on the slice it was drawn on unless it's put on every
+   slice. Cell counts have a `Slice`, the one they were counted on. Both are
+   fixed once saved, so nothing ever moves between slices and there's no
+   conflict to have over one; every restore path brings them back, and files
+   carry them. A change's History detail names the slices of each row it
+   deleted, "Duct (slices 4 to 9)", read out of the delete entries in the
+   database (`DeletedRow` in annotation-store's `ChangeSetChanges.cs`).
 6. **3D view.** Done - the Depth tab's 2D / 3D switch, a ray-marched block
    with cut (X, Y, Z, diagonal), slices drawn, opacity, depth stretch (or true depth), a
    gap between slices, guides and reset, and a click on the tissue opening that place in 2D.
@@ -484,6 +490,24 @@ sharp on a slice change (3), how long until a follower's on the host's slice
 (4, the same way [timing.md](timing.md) times viewports), frame rate of the 3D
 view while cutting (6).
 
+Measured with `node playback/measure-depth.js` against the liver volume, a
+1600 x 900 window, localhost, twice (18 November 2026):
+
+| What | Run 1 | Run 2 |
+| --- | --- | --- |
+| Tiles requested per slice step (median, of 10) | 15 | 15 |
+| Sharp after a step: last tile in (median / max) | 175 / 192 ms | 168 / 179 ms |
+| 3D view still | 59.7 fps, 95th frame 16.8 ms | 59.3 fps, 16.8 ms |
+| 3D view with the cut moving every key press | 60 fps, 95th frame 16.8 ms | 60 fps, 16.8 ms |
+
+Moving the cut costs nothing measurable: the view stays at the display's 60
+Hz while the cut changes about 780 times a second. Both on an AMD Radeon RX
+7800 XT through Chrome's ANGLE; a laptop's integrated graphics would want
+its own run. A tile request counts whether or not the browser's disk cache
+answers it, so 15 is what the map asks for, not what crosses the network.
+Localhost only: over a real network the time to sharp grows with the
+round trip.
+
 ## 10. Open questions
 
 - Is the 3D view in scope for the dissertation, or the stretch goal after
@@ -496,6 +520,8 @@ view while cutting (6).
 - Plane index or microns for `Z`? Storing the index and showing microns from
   `slices` covers both.
 - Should annotations default to "every slice" or "the slice you drew on"?
+  Settled: the slice you drew on, with **On every slice** in the add form for
+  the other. A shape that marks the slide as a whole is the exception.
 - Where does volume data get hosted for the Azure deploy
   ([azure.md](azure.md))? The tiler image is already 3.1 GB with one slide.
 
@@ -503,6 +529,7 @@ view while cutting (6).
 
 | Claim | Checked against | Status |
 | --- | --- | --- |
+| Frame rate while cutting, and time to sharp on a slice change (section 9) | `playback/measure-depth.js`, two runs, numbers in section 9 | Checked - one desktop GPU, localhost |
 | Goal figure is DPLab, Shen et al., Phys. Med. Biol. 2022, built from registered serial sections | ResearchGate figure page, PubMed and bioRxiv listings | Checked |
 | Liver set: 15 H&E serial sections, VS200, CC BY 4.0, 3.0 GB, direct download | Zenodo record page | Checked |
 | Liver set is VSI + ETS, 15 `.vsi` files | Zenodo zip preview listing | Checked |

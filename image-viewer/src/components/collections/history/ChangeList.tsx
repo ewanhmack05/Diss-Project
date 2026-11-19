@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuthContext } from "../../../context/AuthContext";
 import { useAnnotationStoreContext } from "../../../context/AnnotationStoreContext";
 import ChangeLineItem from "./ChangeLines";
-import { changeLines, deletedLine, deletedMore, type ChangeSetChanges } from "./changes";
+import { changeLines, deletedLine, deletedMore, deletedRowText, type ChangeSetChanges } from "./changes";
 import { isItemEntity, type Item } from "./itemVersions";
 
 type Loaded = { status: "loading" } | { status: "error" } | { status: "ready"; result: ChangeSetChanges };
@@ -70,14 +70,14 @@ function ChangeList({ changeSetId, onOpenItem }: { changeSetId: string; onOpenIt
 						</div>
 						{onOpenItem && openable.length > 0 ? (
 							<div className="history-deleted-rows">
-								{openable.map(({ entity, id, name }) => (
+								{openable.map(({ entity, id, name, ...slices }) => (
 									<button
 										type="button"
 										key={id}
 										className="history-deleted-row"
 										onClick={() => onOpenItem({ entity: entity as Item["entity"], id, name })}
 									>
-										{name || "one with no name"}
+										{deletedRowText({ name, ...slices })}
 									</button>
 								))}
 								{more && <span className="history-deleted-more">{more}</span>}

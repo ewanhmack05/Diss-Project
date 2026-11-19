@@ -214,6 +214,39 @@ app.MapPut("/annotations/{id:guid}", async (Guid id, AnnotationUpdate update, Ht
     return Results.Ok(existing);
 });
 
+// Moving an annotation to other slices of a volume, or onto every slice - a
+// 3D marker made deeper, or a 2D shape put on all of them. Its own endpoint,
+// as PUT /annotations/{id} saves label, notes and colour as they're typed.
+app.MapPut("/annotations/{id:guid}/slices", async (Guid id, SliceRangeUpdate update, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
+{
+    var existing = await db.Annotations.FirstOrDefaultAsync(r => r.Id == id);
+    if (existing is null) return Results.NotFound();
+    if (await db.RequireAsync(existing.CollectionId, user, CollectionRole.Editor) is { } denied) return denied;
+    var wanted = new Annotation { SliceFrom = update.SliceFrom, SliceTo = update.SliceTo };
+    if (Annotation.SliceRangeProblem(wanted) is { } badRange) return Results.BadRequest(badRange);
+
+    await using var transaction = await HistoryLog.BeginAsync(db);
+    await EditConflicts.LockAnnotationsAsync(db, [id]);
+    await db.Entry(existing).ReloadAsync();
+    if (db.Entry(existing).State == EntityState.Detached) return Results.NotFound();
+    var now = new SliceRange(existing.SliceFrom, existing.SliceTo);
+    if (EditConflicts.InWay(update.Was is not null, update.Was, now, new SliceRange(update.SliceFrom, update.SliceTo)))
+    {
+        var policy = await EditConflicts.PolicyAsync(db, existing.CollectionId);
+        EditConflicts.Count(policy, HistoryLog.Annotation);
+        if (policy == EditPolicy.FirstComeWins)
+            return await EditConflicts.ConflictAsync(db, HistoryLog.Annotation, id, existing, EditConflicts.AnnotationSlices);
+        http.Response.Headers[EditConflicts.OverwroteHeader] = "1";
+    }
+    if (now == new SliceRange(update.SliceFrom, update.SliceTo)) return Results.Ok(existing);
+    if ((await db.ChangeSetAsync(http, existing.CollectionId, user, "change annotation slices")).Problem is { } problem) return problem;
+    existing.SliceFrom = update.SliceFrom;
+    existing.SliceTo = update.SliceTo;
+    await db.SaveChangesAsync();
+    if (transaction is not null) await transaction.CommitAsync();
+    return Results.Ok(existing);
+});
+
 app.MapDelete("/annotations/{id:guid}", async (Guid id, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
 {
     var existing = await db.Annotations.FirstOrDefaultAsync(r => r.Id == id);
@@ -277,6 +310,7 @@ app.MapGet("/cellcounts/{id:guid}", async (Guid id, ClaimsPrincipal user, Annota
 app.MapPost("/cellcounts", [RequestSizeLimit(CellCountLimits.MaxRequestBytes)] async (CellCount cellCount, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
 {
     if (await db.RequireAsync(cellCount.CollectionId, user, CollectionRole.Editor) is { } denied) return denied;
+    if (CellCountSlices.Problem(cellCount) is { } badSlice) return Results.BadRequest(badSlice);
     if ((await db.ChangeSetAsync(http, cellCount.CollectionId, user, "add cell count")).Problem is { } problem) return problem;
     var collection = await db.Collections.FirstAsync(c => c.CollectionId == cellCount.CollectionId);
 

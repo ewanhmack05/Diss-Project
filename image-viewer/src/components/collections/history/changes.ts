@@ -2,6 +2,8 @@
 // annotation-store's History/ChangeSetChanges.cs - and turned into the lines
 // the History detail page shows: "Label  Region 4 -> Region 4 (checked)".
 
+import { sliceRangeText } from "../../depth/markers";
+
 // One column going from one value to another, on count rows of one kind.
 // names are the first few of those rows, null for one that's gone since.
 interface FieldChange {
@@ -28,6 +30,10 @@ interface DeletedRow {
 	entity: string;
 	id: string;
 	name: string | null;
+	// The slices of a volume it was on - a count's one slice is both. Null
+	// for every slice, and missing from a store before slices.
+	sliceFrom?: number | null;
+	sliceTo?: number | null;
 }
 
 type ValueKind = "text" | "colour" | "group" | "other";
@@ -72,6 +78,8 @@ const FIELDS: Record<string, string> = {
 	WithRoi: "With ROI",
 	Count: "Count",
 	DotSize: "Dot size",
+	SliceFrom: "First slice",
+	SliceTo: "Last slice",
 };
 
 // An image adjustment's settings are one JSON column - each one in it that
@@ -101,6 +109,9 @@ function show(column: string, value: unknown, groups: Record<string, string>): S
 	if (column === "GroupId")
 		return typeof value === "string" ? { text: groups[value] ?? "a deleted group", empty: false } : { text: "No group", empty: true };
 	if (column === "Colour" && typeof value === "string") return { text: value.toUpperCase(), empty: false, colour: value };
+	// Stored from 0, shown from 1 like the Depth tab. None is every slice.
+	if (column === "SliceFrom" || column === "SliceTo")
+		return typeof value === "number" ? { text: number(value + 1), empty: false } : { text: "Every slice", empty: false };
 	if (typeof value === "boolean") return { text: value ? "Yes" : "No", empty: false };
 	if (typeof value === "number") return { text: number(value), empty: false };
 	if (value === null || value === undefined || value === "") return { text: "(empty)", empty: true };
@@ -176,10 +187,18 @@ function changeLines(result: ChangeSetChanges): ChangeLine[] {
 	});
 }
 
+// "Duct (slices 4 to 9)" - a deleted row by name, and where it was in a
+// volume, so a history line says which slice lost something.
+function deletedRowText(row: Pick<DeletedRow, "name" | "sliceFrom" | "sliceTo">): string {
+	const name = row.name || "one with no name";
+	const slices = sliceRangeText(row);
+	return slices ? `${name} (${slices})` : name;
+}
+
 // "Region 7, Count 2 and 2,138 more" - what it took out, by name.
 function deletedLine(result: ChangeSetChanges): string | null {
 	if (result.deleted === 0) return null;
-	const names = result.deletedNames.map((n) => n || "one with no name");
+	const names = result.deletedRows ? result.deletedRows.map(deletedRowText) : result.deletedNames.map((n) => n || "one with no name");
 	const more = result.deleted - names.length;
 	if (more <= 0) return names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 	return `${names.join(", ")} and ${number(more)} more`;
@@ -191,5 +210,5 @@ function deletedMore(result: ChangeSetChanges): string | null {
 	return more > 0 ? `and ${number(more)} more` : null;
 }
 
-export { changeLines, deletedLine, deletedMore };
+export { changeLines, deletedLine, deletedMore, deletedRowText };
 export type { ChangeSetChanges, ChangeLine, DeletedRow, FieldChange, Shown };
