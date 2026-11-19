@@ -45,15 +45,23 @@ import { LessDetail } from "./open-layers/LessDetail";
 import { translatePending } from "./open-layers/TranslatePending";
 import { annotationRenderer } from "./open-layers/renderer";
 import { useMapSelection } from "./annotation/Select/useMapSelection";
-import { matchesSearch, passes } from "./saved/filters";
-import { isShown } from "./collections/map/layers";
-import { useLayersContext } from "../context/LayersContext";
+import { useOnTheMap } from "./collections/map/useOnTheMap";
 import { degreesToRadians, radiansToDegrees } from "./rotation/rotation";
 import { pixelDistance, physicalDistanceMicrons, formatDistanceMicrons, formatDistancePixels } from "./ruler/ruler";
 import { parseCellCountDots, dotsFromHistory } from "./cell-count/CellCountDots";
 import { computeViewedCellCountExtent } from "./cell-count/CellCountView";
 import { compareCounts } from "./cell-count/comparison/compare";
-import { followView, sameView, viewportDisplay, viewportFrom, viewportRing, watchView, type ViewState } from "./realtime/realtime";
+import {
+	followSlice,
+	followView,
+	sameView,
+	sliceNote,
+	viewportDisplay,
+	viewportFrom,
+	viewportRing,
+	watchView,
+	type ViewState,
+} from "./realtime/realtime";
 import {
 	annotationSketch,
 	remoteSketchFeatures,
@@ -86,6 +94,7 @@ import { ShapeTools } from "./annotation/Tools";
 import "./MapNode.css";
 import { newId } from "../newId";
 import { useSliceContext } from "../context/SliceContext";
+import { countOnSlice, onSlice } from "./depth/markers";
 import { isVolume, keyStep, readSlices, sliceLabel, sliceWindow, wheelStepper, type Slice } from "./depth/slices";
 import { isTypingTarget } from "../typing";
 
@@ -156,11 +165,22 @@ function sharedDotOf(feature: Feature<Point>): Omit<SharedDot, "connectionId"> {
 
 function MapNode() {
 	const { source } = useImageViewerContext();
-	const { annotations, selectedAnnotationId, viewedAnnotationId, setViewedAnnotationId, annotationsSource, addAnnotation, mapFilter } =
+	const { annotations, selectedAnnotationId, viewedAnnotationId, setViewedAnnotationId, annotationsSource, addAnnotation } =
 		useAnnotationStoreContext();
 	const { activeTool, colour, lineThickness, lineStyle, pending, setPending, quickDraw } = useDrawContext();
 	const { rotationDegrees, setRotationDegrees, resetRotation } = useRotationContext();
-	const { slices, current: currentSlice, setSlices, step: stepSlice, view: depthView, lookAt: depthLookAt } = useSliceContext();
+	const {
+		slices,
+		current: currentSlice,
+		setSlices,
+		step: stepSlice,
+		showSlice,
+		volume,
+		view: depthView,
+		lookAt: depthLookAt,
+		cameraNow,
+		onCamera,
+	} = useSliceContext();
 	// The slide's size, for the 3D view - set with each slide.
 	const [slideSize, setSlideSize] = useState<{ width: number; height: number; mppX: number | null; tileSize: number } | null>(null);
 	const { setLastMeasurement, clearSignal: rulerClearSignal } = useRulerContext();
@@ -186,7 +206,7 @@ function MapNode() {
 	} = useCellCountDrawContext();
 	const { cellCounts, viewedCellCountId, setViewedCellCountId } = useCellCountStoreContext();
 	const { activeTools } = useToolbarContext();
-	const { hidden } = useLayersContext();
+	const isOnTheMap = useOnTheMap();
 	const { me, others, sendViewport, sendSketch, clearSketch, addSharedDot, removeSharedDot } = useRealtimeContext();
 	const { pointedAt, shown: viewportsShown } = useViewportsContext();
 	const { session } = useCollectionContext();
@@ -577,11 +597,8 @@ function MapNode() {
 	// are left off, and so is anything the Saved list's search and filters
 	// leave out while it's open.
 	useEffect(() => {
-		const shown = annotations.filter(
-			(annotation) =>
-				isShown(annotation, hidden) &&
-				(!mapFilter || (passes(annotation, mapFilter.filters) && matchesSearch(annotation, mapFilter.search))),
-		);
+		// A 3D marker is only on the slices it spans.
+		const shown = annotations.filter((annotation) => onSlice(annotation, currentSlice, volume) && isOnTheMap(annotation));
 		annotationsSource.clear();
 		annotationsSource.addFeatures(
 			shown.map((annotation) => {
@@ -595,12 +612,15 @@ function MapNode() {
 				return feature;
 			}),
 		);
-	}, [annotations, annotationsSource, hidden, mapFilter]);
+	}, [annotations, annotationsSource, isOnTheMap, currentSlice, volume]);
 
 	useMapSelection(mapRef, mapVersion, annotationsSource, annotations, annotationsVisible);
 
-	// Tell the hub where you are whenever the view moves or the window
-	// resizes. The context throttles it and resends it after a reconnect.
+	// Tell the hub where you are whenever the view moves, the window resizes,
+	// you step to another slice or turn the block in 3D. The context throttles
+	// it and resends it after a reconnect.
+	const sentSlice = volume ? currentSlice : null;
+	const inThreeD = volume && depthView === "3d";
 	useEffect(() => {
 		const map = mapRef.current;
 		if (!map) return;
@@ -611,12 +631,21 @@ function MapNode() {
 			const resolution = view.getResolution();
 			const size = map.getSize();
 			if (!center || resolution === undefined || !size) return;
-			sendViewport(viewportFrom([center[0], center[1]], resolution, view.getRotation(), [size[0], size[1]]));
+			sendViewport({
+				...viewportFrom([center[0], center[1]], resolution, view.getRotation(), [size[0], size[1]]),
+				z: sentSlice,
+				camera: inThreeD ? cameraNow() : null,
+			});
 		};
 
 		send();
-		return watchView(view, map, send);
-	}, [mapVersion, sendViewport]);
+		const stopWatching = watchView(view, map, send);
+		const stopCamera = onCamera(send);
+		return () => {
+			stopWatching();
+			stopCamera();
+		};
+	}, [mapVersion, sendViewport, sentSlice, inThreeD, cameraNow, onCamera]);
 
 	// Follow me and Present - keep the view on the host's (see
 	// NavigationContext). Fitted to your screen, so you see roughly what they
@@ -665,8 +694,31 @@ function MapNode() {
 		};
 	}, [leaderViewport, locked, breakAway, mapVersion]);
 
+	// Read by the viewed-marker effect, which only runs when the pick changes.
+	const annotationsRef = useRef(annotations);
+	const currentSliceRef = useRef(currentSlice);
+	useEffect(() => {
+		annotationsRef.current = annotations;
+		currentSliceRef.current = currentSlice;
+	});
+
+	// And the host's slice, on a volume (see followSlice). hostSliceRef is the
+	// host's slice last time round, to tell their step from yours.
+	const leaderSlice = following && volume ? (leader?.viewport?.z ?? null) : null;
+	const hostSliceRef = useRef<number | null>(null);
+	useEffect(() => {
+		if (leaderSlice === null) {
+			hostSliceRef.current = null;
+			return;
+		}
+		const action = followSlice(leaderSlice, currentSlice, hostSliceRef.current, locked);
+		hostSliceRef.current = leaderSlice;
+		if (action === "go") showSlice(leaderSlice);
+		else if (action === "break") breakAway();
+	}, [leaderSlice, currentSlice, locked, showSlice, breakAway]);
+
 	// Said yes to the host's "look here" - glide to roughly what they saw,
-	// fitted to your screen like following is.
+	// fitted to your screen like following is, on their slice.
 	useEffect(() => {
 		const map = mapRef.current;
 		const size = map?.getSize();
@@ -674,6 +726,15 @@ function MapNode() {
 		const target = followView(lookAt.viewport, [size[0], size[1]]);
 		glideTo(map, target, setRotationDegrees);
 	}, [lookAt]);
+
+	// And onto the slice they were on. Once for each request, so the slide
+	// turning out to be a volume later doesn't replay an old one.
+	const lookedAtRef = useRef<number | null>(null);
+	useEffect(() => {
+		if (!lookAt || lookedAtRef.current === lookAt.id) return;
+		lookedAtRef.current = lookAt.id;
+		if (volume && typeof lookAt.viewport.z === "number") showSlice(lookAt.viewport.z);
+	}, [lookAt, volume, showSlice]);
 
 	// Something sent being looked at: drawn, and the map goes there once for each.
 	useEffect(() => {
@@ -707,13 +768,17 @@ function MapNode() {
 				const display = viewportDisplay(participant.userId, pointedAt, viewportsShown, large, others);
 				if (!participant.viewport || display === "hidden") return [];
 				const feature = new Feature({ geometry: new Polygon([viewportRing(participant.viewport)]) });
+				// On another slice, dashed and saying which - they're looking at
+				// different tissue in the same place.
+				const elsewhere = sliceNote(participant.viewport.z, currentSlice, volume);
 				feature.set("colour", participant.colour);
-				feature.set("label", participant.displayName);
+				feature.set("label", elsewhere ? `${participant.displayName} · ${elsewhere}` : participant.displayName);
+				feature.set("otherSlice", !!elsewhere);
 				feature.set("emphasis", display);
 				return [feature];
 			}),
 		);
-	}, [others, large, pointedAt, viewportsShown]);
+	}, [others, large, pointedAt, viewportsShown, currentSlice, volume]);
 
 	// Redraw what everyone else is mid-drawing whenever it changes.
 	useEffect(() => {
@@ -1020,6 +1085,32 @@ function MapNode() {
 	useEffect(() => {
 		if (viewedAnnotationId) flyToAnnotation(viewedAnnotationId);
 	}, [viewedAnnotationId, flyToAnnotation, mapVersion]);
+
+	// Viewing a 3D marker from a slice it isn't on goes to its first slice -
+	// it isn't drawn anywhere else. Only when the pick changes, like above.
+	useEffect(() => {
+		const viewed = viewedAnnotationId ? annotationsRef.current.find((a) => a.id === viewedAnnotationId) : null;
+		if (viewed && !onSlice(viewed, currentSliceRef.current, volume)) showSlice(viewed.sliceFrom!);
+	}, [viewedAnnotationId, volume, showSlice]);
+
+	// A count's dots were all placed on one slice: viewing it goes there, and
+	// moving off that slice stops viewing it, as its dots don't belong anywhere else.
+	const cellCountsRef = useRef(cellCounts);
+	const viewedCellCountIdRef = useRef(viewedCellCountId);
+	useEffect(() => {
+		cellCountsRef.current = cellCounts;
+		viewedCellCountIdRef.current = viewedCellCountId;
+	}, [cellCounts, viewedCellCountId]);
+	useEffect(() => {
+		const viewed = viewedCellCountId ? cellCountsRef.current.find((c) => c.id === viewedCellCountId) : null;
+		if (viewed && !countOnSlice(viewed, currentSliceRef.current, volume)) showSlice(viewed.slice!);
+	}, [viewedCellCountId, volume, showSlice]);
+	// Only on a slice change - the jump above settles a new pick itself.
+	useEffect(() => {
+		const id = viewedCellCountIdRef.current;
+		const viewed = id ? cellCountsRef.current.find((c) => c.id === id) : null;
+		if (viewed && !countOnSlice(viewed, currentSlice, volume)) setViewedCellCountId(null);
+	}, [currentSlice, volume, setViewedCellCountId]);
 
 	// The halo follows the annotation's current shape and line thickness.
 	useEffect(() => {
@@ -1642,7 +1733,6 @@ function MapNode() {
 
 	// PageUp/PageDown and Shift+wheel move through a volume's slices. Not in
 	// Present - the host's moving everyone, the same as panning is locked.
-	const volume = isVolume(slices);
 	useEffect(() => {
 		const element = mapElement.current;
 		if (!volume || locked || !element) return;

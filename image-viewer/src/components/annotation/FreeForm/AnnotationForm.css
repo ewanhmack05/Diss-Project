@@ -171,3 +171,40 @@
 	font-size: 0.8em;
 	color: var(--chrome-text-secondary);
 }
+
+/* "On every slice" on a volume - see sliceOf in depth/markers.ts. */
+.annotation-form-check {
+	display: flex;
+	align-items: center;
+	gap: 0.5em;
+	font-size: 0.9em;
+	color: var(--chrome-text-secondary);
+	cursor: pointer;
+}
+
+/* From and To side by side - see SliceRangeCard. */
+.annotation-form-slices {
+	display: flex;
+	gap: 0.5em;
+	margin-top: 0.5em;
+}
+
+.annotation-form-slices .annotation-form-field {
+	flex: 1;
+}
+
+.annotation-form-slices input[type="number"] {
+	width: 100%;
+	padding: 0.5em;
+	font-family: var(--sans);
+	font-size: 1em;
+	color: var(--chrome-text);
+	background: var(--white-06);
+	border: 1px solid transparent;
+	border-radius: 0.3125rem;
+}
+
+.annotation-form-slices input[type="number"]:focus {
+	outline: none;
+	border-color: var(--accent);
+}

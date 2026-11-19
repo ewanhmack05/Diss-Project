@@ -4,21 +4,27 @@
 """
 import base64
 import json
+import math
 import random
 import unittest
 
 from simulate_session import (
+    BLOCK_DEPTH_OF_WIDTH,
     MAX_PEOPLE,
     NAMES,
+    ORBIT,
     RECORD_SEPARATOR,
     RESOLUTIONS,
     SCREEN,
+    Person,
     hub_message,
     hub_records,
     invite_code,
     keycloak_user,
+    orbit_camera,
     role_summary,
     sim_people,
+    three_d_screen,
     token_subject,
     viewport,
     wander,
@@ -121,6 +127,52 @@ class RoleSummary(unittest.TestCase):
 
     def test_small_while_everyone_could_edit(self):
         self.assertIn("a small session", role_summary([("Alice", "owner"), ("Bob", "editor")], 6))
+
+
+
+def fake_token(subject="sim-1"):
+    def part(data):
+        return base64.urlsafe_b64encode(json.dumps(data).encode()).rstrip(b"=").decode()
+    return ".".join([part({"alg": "RS256"}), part({"sub": subject}), "sig"])
+
+
+class ThreeD(unittest.TestCase):
+    def test_a_camera_goes_round_at_the_same_distance_on_every_side(self):
+        # Back from block units to the scene, the block being a fifth as deep
+        # as it is wide: the same distance from the middle all the way round.
+        for angle in (0, 0.7, math.pi / 2, 2.5, math.pi):
+            x, _, z = orbit_camera(angle, 0.3)["position"]
+            self.assertAlmostEqual(math.hypot(x, z * BLOCK_DEPTH_OF_WIDTH), ORBIT)
+
+    def test_a_camera_looks_at_the_middle_with_a_real_field_of_view(self):
+        camera = orbit_camera(1.0, 0.5)
+        self.assertEqual(camera["target"], [0, 0, 0])
+        self.assertTrue(0 < camera["fov"] < 180)
+        self.assertEqual(camera["position"][1], 0.5)
+
+    def test_the_screen_says_3d(self):
+        screen = three_d_screen()
+        self.assertEqual(screen["depth"]["view"], "3d")
+        # Everything the viewer's Screen has, so nothing reading it trips.
+        for key in ("panels", "tabs", "adjustments", "viewedCellCountId", "viewedAnnotationId",
+                    "editingAnnotationId", "editingCellCountId"):
+            self.assertIn(key, screen)
+
+    def test_someone_in_3d_sends_their_slice_and_camera_and_keeps_going_round(self):
+        person = Person({"firstName": "A", "lastName": "B"}, fake_token(), "editor", None, "s", "store",
+                        random.Random(3), (0.0, 1000.0, -800.0, 0.0), slices=15)
+        first = person.view()
+        self.assertTrue(0 <= first["z"] < 15)
+        person.look_elsewhere()
+        second = person.view()
+        self.assertEqual(second["z"], first["z"])
+        self.assertNotEqual(second["camera"]["position"], first["camera"]["position"])
+
+    def test_someone_in_2d_sends_neither(self):
+        person = Person({"firstName": "A", "lastName": "B"}, fake_token(), "editor", None, "s", "store",
+                        random.Random(3), (0.0, 1000.0, -800.0, 0.0))
+        self.assertNotIn("z", person.view())
+        self.assertNotIn("camera", person.view())
 
 
 if __name__ == "__main__":

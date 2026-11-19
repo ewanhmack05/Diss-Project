@@ -277,4 +277,133 @@ public class AnnotationsTests : IClassFixture<CellCountApiFactory>
         Assert.Empty(await db.HistoryEntries.Where(e => e.EntityId == oldShape.Id && e.Op == AnnotationStore.History.HistoryOp.Update).ToListAsync());
         Assert.Equal((0, 0), await GeoJsonBackfill.RunAsync(db));
     }
+
+    // A 3D marker: a box over a feature, spanning slices of a volume.
+    private static Annotation OnSlices(Guid collectionId, int? from, int? to)
+    {
+        var annotation = NewAnnotation(collectionId);
+        annotation.SliceFrom = from;
+        annotation.SliceTo = to;
+        return annotation;
+    }
+
+    [Fact]
+    public async Task Post_WithASliceRange_KeepsIt_AndTheListSendsItAsSliceFromAndSliceTo()
+    {
+        var client = _factory.CreateClient();
+        var collectionId = await CreateCollectionAsync(client, Guid.NewGuid().ToString());
+
+        var response = await client.PostAsJsonAsync("/annotations", OnSlices(collectionId, 3, 7));
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var created = (await response.Content.ReadFromJsonAsync<Annotation>())!;
+        Assert.Equal((3, 7), (created.SliceFrom, created.SliceTo));
+
+        var raw = await client.GetStringAsync($"/annotations?collectionId={collectionId}");
+        using var listed = System.Text.Json.JsonDocument.Parse(raw);
+        var row = Assert.Single(listed.RootElement.EnumerateArray());
+        Assert.Equal(3, row.GetProperty("sliceFrom").GetInt32());
+        Assert.Equal(7, row.GetProperty("sliceTo").GetInt32());
+    }
+
+    [Fact]
+    public async Task Post_OnOneSlice_IsFromAndToTheSame()
+    {
+        var client = _factory.CreateClient();
+        var collectionId = await CreateCollectionAsync(client, Guid.NewGuid().ToString());
+
+        var created = (await (await client.PostAsJsonAsync("/annotations", OnSlices(collectionId, 0, 0))).Content.ReadFromJsonAsync<Annotation>())!;
+
+        Assert.Equal((0, 0), (created.SliceFrom, created.SliceTo));
+    }
+
+    [Fact]
+    public async Task Post_WithoutASliceRange_IsEverySlice_NullInTheList()
+    {
+        var client = _factory.CreateClient();
+        var collectionId = await CreateCollectionAsync(client, Guid.NewGuid().ToString());
+
+        var created = (await (await client.PostAsJsonAsync("/annotations", NewAnnotation(collectionId))).Content.ReadFromJsonAsync<Annotation>())!;
+
+        Assert.Equal((null, null), (created.SliceFrom, created.SliceTo));
+        var raw = await client.GetStringAsync($"/annotations?collectionId={collectionId}");
+        using var listed = System.Text.Json.JsonDocument.Parse(raw);
+        var row = Assert.Single(listed.RootElement.EnumerateArray());
+        Assert.Equal(System.Text.Json.JsonValueKind.Null, row.GetProperty("sliceFrom").ValueKind);
+        Assert.Equal(System.Text.Json.JsonValueKind.Null, row.GetProperty("sliceTo").ValueKind);
+    }
+
+    public static TheoryData<int?, int?, string> BadSliceRanges => new()
+    {
+        { 2, null, "sliceFrom and sliceTo go together - set both or neither" },
+        { null, 2, "sliceFrom and sliceTo go together - set both or neither" },
+        { -1, 4, "sliceFrom can't be below 0" },
+        { -3, -1, "sliceFrom can't be below 0" },
+        { 5, 4, "sliceFrom can't be after sliceTo" },
+    };
+
+    [Theory]
+    [MemberData(nameof(BadSliceRanges))]
+    public async Task Post_WithABadSliceRange_IsTurnedDown_AndSavesNothing(int? from, int? to, string message)
+    {
+        var client = _factory.CreateClient();
+        var collectionId = await CreateCollectionAsync(client, Guid.NewGuid().ToString());
+
+        var response = await client.PostAsJsonAsync("/annotations", OnSlices(collectionId, from, to));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(message, await response.Content.ReadFromJsonAsync<string>());
+        Assert.Empty((await client.GetFromJsonAsync<List<Annotation>>($"/annotations?collectionId={collectionId}"))!);
+    }
+
+    [Fact]
+    public async Task Import_KeepsEachAnnotationsSliceRange()
+    {
+        var client = _factory.CreateClient();
+        var collectionId = await CreateCollectionAsync(client, Guid.NewGuid().ToString());
+        var marker = OnSlices(collectionId, 10, 12);
+        marker.Label = "marker";
+        var flat = NewAnnotation(collectionId);
+        flat.Label = "flat";
+
+        var response = await client.PostAsJsonAsync($"/collections/{collectionId}/import", new ImportRequest([marker, flat], []), TestJson.Options);
+        response.EnsureSuccessStatusCode();
+
+        var saved = (await client.GetFromJsonAsync<List<Annotation>>($"/annotations?collectionId={collectionId}"))!.ToDictionary(a => a.Label);
+        Assert.Equal((10, 12), (saved["marker"].SliceFrom, saved["marker"].SliceTo));
+        Assert.Equal((null, null), (saved["flat"].SliceFrom, saved["flat"].SliceTo));
+    }
+
+    // One bad row turns down the whole import - it all goes in or none of it does.
+    [Theory]
+    [MemberData(nameof(BadSliceRanges))]
+    public async Task Import_WithABadSliceRange_IsTurnedDown_AndSavesNothing(int? from, int? to, string message)
+    {
+        var client = _factory.CreateClient();
+        var collectionId = await CreateCollectionAsync(client, Guid.NewGuid().ToString());
+
+        var response = await client.PostAsJsonAsync($"/collections/{collectionId}/import",
+            new ImportRequest([OnSlices(collectionId, 1, 2), OnSlices(collectionId, from, to)], []), TestJson.Options);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(message, await response.Content.ReadFromJsonAsync<string>());
+        Assert.Empty((await client.GetFromJsonAsync<List<Annotation>>($"/annotations?collectionId={collectionId}"))!);
+    }
+
+    // PUT only takes label, notes and colour, so a full row sent back with
+    // other slices can't move it.
+    [Fact]
+    public async Task Put_LeavesTheSliceRangeAlone()
+    {
+        var client = _factory.CreateClient();
+        var collectionId = await CreateCollectionAsync(client, Guid.NewGuid().ToString());
+        var created = (await (await client.PostAsJsonAsync("/annotations", OnSlices(collectionId, 3, 7))).Content.ReadFromJsonAsync<Annotation>())!;
+        created.Label = "renamed";
+        created.SliceFrom = 0;
+        created.SliceTo = 1;
+
+        (await client.PutAsJsonAsync($"/annotations/{created.Id}", created)).EnsureSuccessStatusCode();
+
+        var now = Assert.Single((await client.GetFromJsonAsync<List<Annotation>>($"/annotations?collectionId={collectionId}"))!);
+        Assert.Equal(("renamed", 3, 7), (now.Label, now.SliceFrom, now.SliceTo));
+    }
 }

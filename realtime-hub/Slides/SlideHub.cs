@@ -114,6 +114,8 @@ public partial class SlideHub(SlideRooms rooms, ISessionAccess sessions, ILogger
     // Clients throttle this to ~10/sec, the hub just passes it on.
     public async Task UpdateViewport(Viewport viewport)
     {
+        if (viewport.Z is < 0) throw new HubException("viewport.z can't be negative");
+        if (viewport.Camera is { } camera && CameraProblem(camera) is { } problem) throw new HubException(problem);
         var me = rooms.SetViewport(Context.ConnectionId, viewport) ?? throw NotJoined();
         await Clients.OthersInGroup(GroupName(me.RoomId))
             .ViewportUpdated(new ViewportUpdate(Context.ConnectionId, viewport));
@@ -142,6 +144,18 @@ public partial class SlideHub(SlideRooms rooms, ISessionAccess sessions, ILogger
         var me = rooms.SetSketch(Context.ConnectionId, tool, null) ?? throw NotJoined();
         await Clients.OthersInGroup(GroupName(me.RoomId))
             .SketchUpdated(new SketchUpdate(Context.ConnectionId, tool, null));
+    }
+
+    // Three finite numbers each for where it is and what it's looking at, and
+    // a field of view a camera could have. Anything else would draw nonsense
+    // in everyone else's block.
+    private static string? CameraProblem(Camera camera)
+    {
+        static bool Point(double[]? p) => p is { Length: 3 } && p.All(double.IsFinite);
+        if (!Point(camera.Position)) return "viewport.camera.position has to be three numbers";
+        if (!Point(camera.Target)) return "viewport.camera.target has to be three numbers";
+        if (!double.IsFinite(camera.Fov) || camera.Fov <= 0 || camera.Fov >= 180) return "viewport.camera.fov has to be between 0 and 180";
+        return null;
     }
 
     private static void ValidateTool(string tool, string name)

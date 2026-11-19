@@ -5,6 +5,8 @@ import type OlMap from "ol/Map";
 import type View from "ol/View";
 import type { LineStyleName, ShapeTool } from "../annotation/Tools";
 import type { ImageAdjustmentValues } from "../adjustments/adjustments";
+import type { DepthView, VolumeSettings } from "../../context/SliceContext";
+import type { MarkerBox } from "../depth/markers";
 
 type Coord = [number, number];
 
@@ -15,6 +17,19 @@ interface Viewport {
 	// The view box before rotation - centre ± half the screen size, in map
 	// units. Turn it by `rotation` round the centre to get what's on screen.
 	extent: [number, number, number, number];
+	// Which slice, when the slide's a volume. Null or missing on a flat slide,
+	// and from a viewer from before slices were sent.
+	z?: number | null;
+	// The 3D view's camera, while they're in it - see Camera. Null in 2D.
+	camera?: Camera | null;
+}
+
+// A 3D view's camera, in block units: each axis as a fraction of the block,
+// its middle at 0. fov is vertical, in degrees. See depth/cameras.ts.
+interface Camera {
+	position: [number, number, number];
+	target: [number, number, number];
+	fov: number;
 }
 
 interface Participant {
@@ -51,6 +66,14 @@ interface Screen {
 	viewedAnnotationId: string | null;
 	editingAnnotationId: string | null;
 	editingCellCountId: string | null;
+	// On a volume: 2D or 3D, and how the block's drawn. Null on a flat slide,
+	// missing from a viewer from before this.
+	depth?: DepthScreen | null;
+}
+
+interface DepthScreen {
+	view: DepthView;
+	settings: VolumeSettings;
 }
 
 // How everyone moves round the slide - see the hub's NavigationMode.
@@ -58,7 +81,9 @@ type NavigationMode = "free" | "follow" | "present";
 
 // The host asking you to do something - you can always say no.
 type HostRequest = { fromConnectionId: string; fromName: string } & (
-	| { kind: "look"; data: Viewport }
+	// Their viewport - with their camera when they're in 3D, and point, a spot
+	// in the block they picked out (block units). See lookIn3d.
+	| { kind: "look"; data: Viewport & { point?: [number, number, number] } }
 	| { kind: "openPanel"; data: { panel: string } }
 	// To a guest - make an account to be able to edit.
 	| { kind: "edit"; data: null }
@@ -71,7 +96,18 @@ interface ScreenUpdate {
 
 // Something someone is part way through drawing. The hub never looks
 // inside data, it just passes it on and keeps the latest for late joiners.
-type Sketch = { tool: "annotation"; data: AnnotationSketch } | { tool: "ruler"; data: RulerSketch } | { tool: "cellCount"; data: CellCountSketch };
+type Sketch =
+	| { tool: "annotation"; data: AnnotationSketch }
+	| { tool: "ruler"; data: RulerSketch }
+	| { tool: "cellCount"; data: CellCountSketch }
+	| { tool: "marker3d"; data: MarkerSketch };
+
+// A 3D marker part way through being placed - its box so far (slide pixels
+// and slices, see depth/markers.ts) and its colour. Drawn in others' 3D views.
+interface MarkerSketch {
+	box: MarkerBox;
+	colour: string;
+}
 
 // The host's count as it goes, for everyone watching them present. count
 // is the tally - it can be more than the dots, since a count can be taken
@@ -389,6 +425,78 @@ function followView(host: Viewport, size: [number, number]): Pick<Viewport, "cen
 	return { center: host.center, resolution: Number.isFinite(resolution) && resolution > 0 ? resolution : host.resolution, rotation: host.rotation };
 }
 
+// What following does about the slice, each time the host's or yours
+// changes. hostBefore is the host's slice the last time this was asked - a
+// change in it means the host moved, otherwise it's you that did. In Follow,
+// stepping away yourself breaks it, as panning does; in Present it puts you
+// back.
+type SliceFollow = "stay" | "go" | "break";
+
+function followSlice(host: number | null | undefined, mine: number, hostBefore: number | null, locked: boolean): SliceFollow {
+	if (host === null || host === undefined || host === mine) return "stay";
+	if (host !== hostBefore) return "go";
+	return locked ? "go" : "break";
+}
+
+// Whether someone's looking at the block in 3D, from what their screen says.
+function inThreeD(participant: Pick<Participant, "screen">): boolean {
+	return participant.screen?.depth?.view === "3d";
+}
+
+// The host's 2D or 3D and block settings, when they're yours to take: only
+// while they present, only on a volume, and only from a viewer that sends them.
+function hostDepth(hostScreen: Screen | null, presenting: boolean, volume: boolean): DepthScreen | null {
+	if (!presenting || !volume) return null;
+	return hostScreen?.depth ?? null;
+}
+
+// Under Follow, the host's cut and where it is - what changes where you look
+// into the block, unlike opacity or the gap, which stay yours. Null unless
+// you're following someone who's on a volume and says.
+function followedCut(
+	leaderScreen: Screen | null | undefined,
+	mode: NavigationMode,
+	following: boolean,
+	volume: boolean,
+): Pick<DepthScreen["settings"], "cut" | "cutPosition"> | null {
+	if (mode !== "follow" || !following || !volume) return null;
+	const settings = leaderScreen?.depth?.settings;
+	return settings ? { cut: settings.cut, cutPosition: settings.cutPosition } : null;
+}
+
+// A "look here" that's for the 3D view: where to put your camera, what to
+// pulse, and which slice. The point is the spot they picked, or the middle of
+// what they're looking at. Null for a look from 2D, on a flat slide, or with
+// anything that isn't numbers where numbers should be.
+interface LookIn3d {
+	camera: Camera;
+	point: [number, number, number];
+	slice: number | null;
+}
+
+const isPoint = (p: unknown): p is [number, number, number] =>
+	Array.isArray(p) && p.length === 3 && p.every((v) => typeof v === "number" && Number.isFinite(v));
+
+function lookIn3d(data: unknown, volume: boolean): LookIn3d | null {
+	if (!volume || typeof data !== "object" || data === null) return null;
+	const { camera, point, z } = data as { camera?: unknown; point?: unknown; z?: unknown };
+	if (typeof camera !== "object" || camera === null) return null;
+	const { position, target, fov } = camera as Partial<Camera>;
+	if (!isPoint(position) || !isPoint(target) || typeof fov !== "number" || !(fov > 0 && fov < 180)) return null;
+	return {
+		camera: { position, target, fov },
+		point: isPoint(point) ? point : target,
+		slice: typeof z === "number" && Number.isInteger(z) && z >= 0 ? z : null,
+	};
+}
+
+// What someone's box says about their slice: nothing when you're on the same
+// one, or either of you isn't on a volume. Slices are shown from 1.
+function sliceNote(theirs: number | null | undefined, mine: number, volume: boolean): string | null {
+	if (!volume || theirs === null || theirs === undefined || theirs === mine) return null;
+	return `slice ${theirs + 1}`;
+}
+
 type ViewState = Pick<Viewport, "center" | "resolution" | "rotation">;
 
 // Whether the view is still where following put it - so something else
@@ -493,6 +601,12 @@ export {
 	sketchFor,
 	leaderOf,
 	followView,
+	followSlice,
+	sliceNote,
+	inThreeD,
+	hostDepth,
+	followedCut,
+	lookIn3d,
 	sameView,
 	panelChanges,
 	tabChanges,
@@ -512,14 +626,19 @@ export {
 };
 export type {
 	Viewport,
+	Camera,
 	ViewportDisplay,
 	ViewState,
+	SliceFollow,
 	Participant,
 	NavigationMode,
 	Screen,
+	DepthScreen,
+	LookIn3d,
 	ScreenUpdate,
 	HostRequest,
 	Sketch,
+	MarkerSketch,
 	AnnotationSketch,
 	RulerSketch,
 	CellCountSketch,

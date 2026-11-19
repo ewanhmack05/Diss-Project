@@ -144,11 +144,24 @@ type Screen = {
 	viewedCellCountId: string | null;
 	editingAnnotationId: string | null;
 	editingCellCountId: string | null;
+	// On a volume: 2D or 3D and how the block's drawn (see SliceContext). Null on a flat slide.
+	depth?: { view: "2d" | "3d"; settings: Record<string, unknown> } | null;
 };
 type ScreenUpdate = { connectionId: string; screen: Screen };
 // extent is the view box before rotation (centre ± half the screen size, in
 // map units) - turn it by rotation round the centre to get what's on screen.
-type Viewport = { center: [number, number]; resolution: number; rotation: number; extent: [number, number, number, number] };
+// z is the slice when the slide's a volume, null (or missing) on a flat one.
+// camera is the 3D view's, in block units (each axis a fraction of the block,
+// its middle at 0), null in 2D. fov is vertical, in degrees.
+type Camera = { position: [number, number, number]; target: [number, number, number]; fov: number };
+type Viewport = {
+	center: [number, number];
+	resolution: number;
+	rotation: number;
+	extent: [number, number, number, number];
+	z?: number | null;
+	camera?: Camera | null;
+};
 type ViewportUpdate = { connectionId: string; viewport: Viewport };
 type Sketch = { tool: string; data: unknown }; // tool: 'annotation', 'ruler' (stays up once done, until cleared) or 'cellCount' (the host's count while presenting)
 type SketchUpdate = { connectionId: string; tool: string; sketch: Sketch | null };

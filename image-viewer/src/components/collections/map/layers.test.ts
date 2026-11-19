@@ -8,6 +8,7 @@ import {
 	isOnlyShown,
 	isShown,
 	offTheMap,
+	onTheMap,
 	shownInGroup,
 	onlyShowing,
 	peopleIn,
@@ -142,6 +143,20 @@ describe("isShown", () => {
 	});
 });
 
+describe("onTheMap", () => {
+	it("is isShown when the Saved list isn't narrowing the map", () => {
+		expect(onTheMap(drawn("bob", "Bob", "g1"), NONE_HIDDEN)).toBe(true);
+		expect(onTheMap(drawn("bob", "Bob", "g1"), hiding([], ["g1"]))).toBe(false);
+	});
+
+	it("needs the chips and the Saved list both to let it through", () => {
+		const onlyAnn = (a: Drawn) => a.createdById === "ann";
+		expect(onTheMap(drawn("ann", "Ann", "g1"), NONE_HIDDEN, onlyAnn)).toBe(true);
+		expect(onTheMap(drawn("bob", "Bob", "g1"), NONE_HIDDEN, onlyAnn)).toBe(false);
+		expect(onTheMap(drawn("ann", "Ann", "g1"), hiding(["ann"]), onlyAnn)).toBe(false);
+	});
+});
+
 describe("shownInGroup", () => {
 	const annotations = [
 		{ ...drawn("bob", "Bob", "g1"), id: "a" },
@@ -223,8 +238,8 @@ describe("tally", () => {
 				for (const s of saved) {
 					const counts = tally(annotations, hiding(p, g), s);
 					expect(counts.shown + counts.byPeople + counts.byGroups + counts.bySaved).toBe(counts.total);
-					// And shown is exactly what isShown and the Saved check let through.
-					expect(counts.shown).toBe(annotations.filter((a) => isShown(a, hiding(p, g)) && (!s || s(a))).length);
+					// And shown is exactly what the map and the 3D block draw.
+					expect(counts.shown).toBe(annotations.filter((a) => onTheMap(a, hiding(p, g), s)).length);
 				}
 	});
 });

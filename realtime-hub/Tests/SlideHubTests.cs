@@ -398,6 +398,87 @@ public class SlideHubTests : IClassFixture<HubFactory>
     }
 
     [Fact]
+    public async Task ViewportSlice_IsRelayed_AndGivenToLateJoiners()
+    {
+        var slide = NewRoom();
+        await using var a = await ConnectAsync("a");
+        await using var b = await ConnectAsync("b");
+        await using var c = await ConnectAsync("c");
+        await Join(a, slide);
+        await Join(b, slide);
+
+        var updated = Listen<ViewportUpdate>(b, nameof(ISlideClient.ViewportUpdated));
+        await a.InvokeAsync("UpdateViewport", new Viewport([100, 200], 4, 0, [0, 0, 200, 400], Z: 7));
+
+        Assert.Equal(7, (await updated.Task.WaitAsync(Timeout)).Viewport.Z);
+        var cJoin = await Join(c, slide);
+        Assert.Equal(7, Assert.Single(cJoin.Others, p => p.UserId == "a").Viewport!.Z);
+    }
+
+    [Fact]
+    public async Task ViewportWithoutSlice_IsStillTaken()
+    {
+        // A viewer from before slices went out sends no z at all.
+        var slide = NewRoom();
+        await using var a = await ConnectAsync("a");
+        await using var b = await ConnectAsync("b");
+        await Join(a, slide);
+        await Join(b, slide);
+
+        var updated = Listen<ViewportUpdate>(b, nameof(ISlideClient.ViewportUpdated));
+        await a.InvokeAsync("UpdateViewport", new { center = new[] { 1.0, 2.0 }, resolution = 1.0, rotation = 0.0, extent = new[] { 0.0, 0.0, 2.0, 4.0 } });
+
+        Assert.Null((await updated.Task.WaitAsync(Timeout)).Viewport.Z);
+    }
+
+    [Fact]
+    public async Task ViewportCamera_IsRelayed_AndGivenToLateJoiners()
+    {
+        var slide = NewRoom();
+        await using var a = await ConnectAsync("a");
+        await using var b = await ConnectAsync("b");
+        await using var c = await ConnectAsync("c");
+        await Join(a, slide);
+        await Join(b, slide);
+
+        var updated = Listen<ViewportUpdate>(b, nameof(ISlideClient.ViewportUpdated));
+        var camera = new Camera([1.2, 0.8, 9.5], [0, 0, 0], 40);
+        await a.InvokeAsync("UpdateViewport", new Viewport([100, 200], 4, 0, [0, 0, 200, 400], Z: 3, Camera: camera));
+
+        var got = (await updated.Task.WaitAsync(Timeout)).Viewport.Camera!;
+        Assert.Equal([1.2, 0.8, 9.5], got.Position);
+        Assert.Equal(40, got.Fov);
+        var cJoin = await Join(c, slide);
+        Assert.Equal([0.0, 0, 0], Assert.Single(cJoin.Others, p => p.UserId == "a").Viewport!.Camera!.Target);
+    }
+
+    [Theory]
+    [InlineData(new[] { 1.0, 2.0 }, new[] { 0.0, 0, 0 }, 40)]
+    [InlineData(new[] { 1.0, 2.0, 3.0 }, new[] { 0.0, 0 }, 40)]
+    [InlineData(new double[0], new[] { 0.0, 0, 0 }, 40)]
+    [InlineData(new[] { 1.0, 2.0, 3.0 }, new[] { 0.0, 0, 0 }, 0)]
+    [InlineData(new[] { 1.0, 2.0, 3.0 }, new[] { 0.0, 0, 0 }, 180)]
+    public async Task ViewportWithABadCamera_IsRefused(double[] position, double[] target, double fov)
+    {
+        var slide = NewRoom();
+        await using var a = await ConnectAsync("a");
+        await Join(a, slide);
+
+        await Assert.ThrowsAsync<HubException>(() =>
+            a.InvokeAsync("UpdateViewport", new Viewport([1, 2], 1, 0, [0, 0, 2, 4], Camera: new Camera(position, target, fov))));
+    }
+
+    [Fact]
+    public async Task ViewportOnANegativeSlice_IsRefused()
+    {
+        var slide = NewRoom();
+        await using var a = await ConnectAsync("a");
+        await Join(a, slide);
+
+        await Assert.ThrowsAsync<HubException>(() => a.InvokeAsync("UpdateViewport", new Viewport([1, 2], 1, 0, [0, 0, 2, 4], Z: -1)));
+    }
+
+    [Fact]
     public async Task Disconnect_TellsTheRoom()
     {
         var slide = NewRoom();

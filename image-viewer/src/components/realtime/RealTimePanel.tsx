@@ -19,6 +19,7 @@ import { EDIT_POLICY_CHOICES } from "./editPolicy";
 import { useEndSession } from "./useEndSession";
 import { defaultSessionName } from "../collections/shared-collection/sessions";
 import { activeUsers, splitActive, type ActiveKind, type ActiveUser } from "./activeUsers";
+import { useSliceContext } from "../../context/SliceContext";
 import InfoNote from "../info/InfoNote";
 import "./RealTimePanel.css";
 import Icon from "../../icons/Icon";
@@ -132,6 +133,7 @@ const ACTIVE_TEXT: Record<ActiveKind, string> = {
 function ActiveUsers({ controls }: { controls: boolean }) {
 	const { me, others, status, askToEdit } = useRealtimeContext();
 	const { pointedAt, pointAt } = useViewportsContext();
+	const { volume } = useSliceContext();
 	const emit = useEmitEvent();
 	const [asked, setAsked] = useState<Set<string>>(() => new Set());
 	const users = activeUsers(me, others);
@@ -158,6 +160,8 @@ function ActiveUsers({ controls }: { controls: boolean }) {
 			<span className="realtime-person-name">
 				{user.name}
 				{user.me && " (you)"}
+				{volume && user.slice !== null && <span className="realtime-person-away"> · slice {user.slice + 1}</span>}
+				{volume && user.threeD && <span className="realtime-person-away"> · in 3D</span>}
 			</span>
 			{user.kind !== "guest" ? (
 				<span className="realtime-person-role">{ACTIVE_TEXT[user.kind]}</span>

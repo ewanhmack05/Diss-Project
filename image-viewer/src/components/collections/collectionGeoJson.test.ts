@@ -225,3 +225,58 @@ describe("exportFileName", () => {
 		expect(exportFileName({ collectionName: 'A/B: "x"', slideId: "003" })).toBe("AB x - 003.geojson");
 	});
 });
+
+describe("3D markers in a file", () => {
+	const marker: Annotation = { ...annotation, id: "m1", label: "Duct", sliceFrom: 2, sliceTo: 6 };
+	const withMarker: FullCollection = { ...collection, annotations: [annotation, marker], cellCounts: [] };
+
+	it("writes a marker's slices, and null for a plain annotation", () => {
+		const [plain, box] = collectionToGeoJson(withMarker).features;
+		expect([plain.properties?.sliceFrom, plain.properties?.sliceTo]).toEqual([null, null]);
+		expect([box.properties?.sliceFrom, box.properties?.sliceTo]).toEqual([2, 6]);
+	});
+
+	it("reads them back, so a marker stays a marker", () => {
+		const [plain, box] = parseImport(JSON.stringify(collectionToGeoJson(withMarker))).annotations;
+		expect(plain.sliceFrom).toBeUndefined();
+		expect([box.sliceFrom, box.sliceTo]).toEqual([2, 6]);
+	});
+
+	it("leaves out a range that doesn't make sense, keeping the shape", () => {
+		const file = collectionToGeoJson({ ...withMarker, annotations: [marker] });
+		for (const [from, to] of [
+			[6, 2],
+			[-1, 3],
+			[1.5, 3],
+			["2", 6],
+			[2, null],
+		]) {
+			file.features[0].properties = { ...file.features[0].properties, sliceFrom: from, sliceTo: to };
+			const [read] = parseImport(JSON.stringify(file)).annotations;
+			expect(read.sliceFrom).toBeUndefined();
+			expect(read.label).toBe("Duct");
+		}
+	});
+});
+
+describe("a count's slice in a file", () => {
+	const onSlice: CellCount = { ...cellCount, id: "c2", label: "Mitoses on 5", slice: 4 };
+	const withSlice: FullCollection = { ...collection, annotations: [], cellCounts: [cellCount, onSlice] };
+
+	it("writes the slice it was counted on, and null for one on a flat slide", () => {
+		const [flat, sliced] = collectionToGeoJson(withSlice).features;
+		expect(flat.properties?.slice).toBeNull();
+		expect(sliced.properties?.slice).toBe(4);
+	});
+
+	it("reads it back, and leaves out one that doesn't make sense", () => {
+		const file = collectionToGeoJson(withSlice);
+		const [flat, sliced] = parseImport(JSON.stringify(file)).cellCounts;
+		expect(flat.slice).toBeUndefined();
+		expect(sliced.slice).toBe(4);
+		for (const bad of [-1, 2.5, "4"]) {
+			file.features[1].properties = { ...file.features[1].properties, slice: bad };
+			expect(parseImport(JSON.stringify(file)).cellCounts[1].slice).toBeUndefined();
+		}
+	});
+});

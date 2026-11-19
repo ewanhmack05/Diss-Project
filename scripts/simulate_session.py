@@ -16,11 +16,13 @@ running. Standard library only - no pip install.
     python scripts/simulate_session.py "https://localhost:5173/?invite=juyhsUFHC4gB"
     python scripts/simulate_session.py juyhsUFHC4gB --people 12 --seconds 60
     python scripts/simulate_session.py juyhsUFHC4gB --leave    # take them out again
+    python scripts/simulate_session.py juyhsUFHC4gB --three-d  # on a volume: each in 3D, circling the block
 """
 import argparse
 import base64
 import itertools
 import json
+import math
 import random
 import threading
 import time
@@ -123,6 +125,39 @@ def slide_bounds(tiler, slide):
     with urllib.request.urlopen(f"{tiler}/slides/{slide}") as response:
         info = json.load(response)
     return 0.0, float(info["width"]), -float(info["height"]), 0.0
+
+
+def slide_slices(tiler, slide):
+    """How many slices the slide has - 1 for a flat one."""
+    with urllib.request.urlopen(f"{tiler}/slides/{slide}") as response:
+        return max(1, len(json.load(response).get("slices") or [None]))
+
+
+# --- In 3D, on a volume ----------------------------------------------------
+
+# The block is about a fifth as deep as it's wide by default (the viewer's
+# DEFAULT_STRETCH_OF_WIDTH), and a camera's in block units - each axis a
+# fraction of the block - so going round it at the same distance on every
+# side is five times further in z.
+BLOCK_DEPTH_OF_WIDTH = 0.2
+ORBIT = 1.6
+
+
+def orbit_camera(angle, height, distance=ORBIT):
+    """A camera going round the block at the same height, looking at its
+    middle, in block units like the viewer sends."""
+    return {"position": [distance * math.cos(angle), height, distance * math.sin(angle) / BLOCK_DEPTH_OF_WIDTH],
+            "target": [0, 0, 0], "fov": 40}
+
+
+def three_d_screen():
+    """What the viewer says is on screen when it's in 3D with the block as it
+    starts - all the hub passes on, and all anyone reads of it is the view."""
+    return {"panels": ["depth"], "tabs": {}, "adjustments": None, "viewedCellCountId": None,
+            "viewedAnnotationId": None, "editingAnnotationId": None, "editingCellCountId": None,
+            "depth": {"view": "3d", "settings": {"cut": "none", "cutPosition": 0.5, "opacity": 1, "stretch": 1,
+                                                 "trueDepth": False, "spacing": 0, "firstSlice": 0,
+                                                 "lastSlice": 0, "guides": True}}}
 
 
 def role_summary(joined, max_editors):
@@ -253,13 +288,20 @@ class Person:
     their role, and where they're looking. simulate_annotations.py and
     simulate_cell_counts.py hang what they do off this."""
 
-    def __init__(self, info, token, role, hub, session_id, store, rng, bounds):
+    def __init__(self, info, token, role, hub, session_id, store, rng, bounds, slices=None):
         self.info, self.token, self.role, self.hub = info, token, role, hub
         self.session_id, self.store, self.rng, self.bounds = session_id, store, rng, bounds
         self.user_id = token_subject(token)
         x0, x1, y0, y1 = bounds
         self.center = (rng.uniform(x0, x1), rng.uniform(y0, y1))
         self.resolution = rng.uniform(*RESOLUTIONS)
+        # In 3D on a volume of this many slices, going round the block - see
+        # --three-d. None is 2D, as before.
+        self.slices = slices
+        if slices:
+            self.slice = rng.randrange(slices)
+            self.angle = rng.uniform(0, 2 * math.pi)
+            self.height = rng.uniform(-0.6, 1.2)
         # What an act keeps between turns - when it next does something.
         self.state = {}
 
@@ -272,10 +314,16 @@ class Person:
         return self.role in ("editor", "owner")
 
     def view(self):
-        return viewport(self.center, self.resolution)
+        seen = viewport(self.center, self.resolution)
+        if self.slices:
+            seen["z"] = self.slice
+            seen["camera"] = orbit_camera(self.angle, self.height)
+        return seen
 
     def look_elsewhere(self):
         self.center, self.resolution = wander(self.center, self.resolution, self.bounds, self.rng)
+        if self.slices:
+            self.angle += self.rng.uniform(0.05, 0.25)
 
 
 def look_round(person, stop, every, act=None):
@@ -363,6 +411,8 @@ def add_session_args(parser, people=8):
     parser.add_argument("--every", type=float, default=0.5, help="seconds between viewport moves (default: %(default)s)")
     parser.add_argument("--seed", type=int, default=0, help="seed for what they each do, so repeat runs can differ (default: %(default)s)")
     parser.add_argument("--leave", action="store_true", help="take the simulated people out of the session and stop")
+    parser.add_argument("--three-d", action="store_true",
+                        help="on a volume, each is in 3D on a slice of their own, their camera going round the block")
     parser.add_argument("--keycloak", default="http://localhost:8080/auth", help="Keycloak URL (default: %(default)s)")
     parser.add_argument("--realm", default="diss", help="Keycloak realm (default: %(default)s)")
     add_admin_args(parser)
@@ -425,14 +475,19 @@ def join(args, people, tokens, preview):
 def go_live(args, people, tokens, preview, roles, act=None):
     """Connects them to realtime-hub and has them look round until stopped."""
     bounds = slide_bounds(args.tiler, preview["slideId"])
+    slices = slide_slices(args.tiler, preview["slideId"]) if getattr(args, "three_d", False) else None
+    if slices == 1:
+        raise SystemExit("--three-d needs a volume - that slide has one slice")
     stop = threading.Event()
     live = []
     for i, info in enumerate(people):
         hub = Hub(args.hub, tokens[info["username"]])
         hub.start()
         hub.invoke("JoinSession", preview["collectionId"])
+        if slices:
+            hub.send("UpdateScreen", three_d_screen())
         person = Person(info, tokens[info["username"]], roles[info["username"]], hub,
-                        preview["collectionId"], args.store, random.Random(args.seed * 1000 + i), bounds)
+                        preview["collectionId"], args.store, random.Random(args.seed * 1000 + i), bounds, slices)
         live.append(person)
         threading.Thread(target=look_round, args=(person, stop, args.every, act), daemon=True).start()
     print(f"{len(live)} people live on slide {preview['slideId']} - " + ("Ctrl+C to stop" if not args.seconds else f"for {args.seconds:g}s"))

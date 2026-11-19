@@ -136,6 +136,7 @@ public static class EditConflicts
     }
 
     public static readonly string[] AnnotationColour = [nameof(Annotation.Colour)];
+    public static readonly string[] AnnotationSlices = [nameof(Annotation.SliceFrom), nameof(Annotation.SliceTo)];
     public static readonly string[] AnnotationFields = [nameof(Annotation.Colour), nameof(Annotation.GroupId)];
     public static readonly string[] CountGroupField = [nameof(CellCounts.CellCount.GroupId)];
 }

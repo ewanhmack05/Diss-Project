@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { changeLines, deletedLine, deletedMore, type ChangeSetChanges, type FieldChange } from "./changes";
+import { changeLines, deletedLine, deletedMore, deletedRowText, type ChangeSetChanges, type FieldChange } from "./changes";
 
 const none: ChangeSetChanges = { changes: [], created: 0, deleted: 0, deletedNames: [], groups: {} };
 
@@ -23,6 +23,16 @@ describe("changeLines", () => {
 			from: [{ text: "Region 4", empty: false }],
 			to: { text: "Region 4 (checked)", empty: false },
 		});
+	});
+
+	it("shows a moved slice from 1, and none as every slice", () => {
+		const [deeper, everywhere] = changeLines({
+			...none,
+			changes: [change({ column: "SliceTo", before: 8, after: 11 }), change({ column: "SliceFrom", before: 3, after: null })],
+		});
+		expect(deeper.field).toBe("Last slice");
+		expect([deeper.from, deeper.to]).toEqual([[{ text: "9", empty: false }], { text: "12", empty: false }]);
+		expect(everywhere.to).toEqual({ text: "Every slice", empty: false });
 	});
 
 	it("shows nothing as (empty), so notes added to a blank show where they came from", () => {
@@ -148,5 +158,28 @@ describe("deletedLine", () => {
 
 	it("is nothing when nothing was deleted", () => {
 		expect(deletedLine(none)).toBeNull();
+	});
+});
+
+describe("deleted rows on a volume", () => {
+	it("says which slices each was on", () => {
+		expect(deletedRowText({ name: "Duct", sliceFrom: 3, sliceTo: 8 })).toBe("Duct (slices 4 to 9)");
+		expect(deletedRowText({ name: "Mitoses", sliceFrom: 4, sliceTo: 4 })).toBe("Mitoses (slice 5)");
+	});
+
+	it("says nothing more for one on every slice, or from a store before slices", () => {
+		expect(deletedRowText({ name: "Region 7", sliceFrom: null, sliceTo: null })).toBe("Region 7");
+		expect(deletedRowText({ name: "Region 7" })).toBe("Region 7");
+		expect(deletedRowText({ name: null, sliceFrom: 0, sliceTo: 0 })).toBe("one with no name (slice 1)");
+	});
+
+	it("puts them in the deleted line when the store sends the rows", () => {
+		const rows = [
+			{ entity: "annotation", id: "1", name: "Duct", sliceFrom: 3, sliceTo: 8 },
+			{ entity: "annotation", id: "2", name: "Region 7", sliceFrom: null, sliceTo: null },
+		];
+		expect(deletedLine({ ...none, deleted: 3, deletedNames: ["Duct", "Region 7"], deletedRows: rows })).toBe(
+			"Duct (slices 4 to 9), Region 7 and 1 more",
+		);
 	});
 });

@@ -115,6 +115,17 @@ any edge of the screen - two panels on the same edge split it evenly.
   map - a trackpad swipe adds up to one slice rather than racing through.
   The slice showing is in a chip at the top of the map. In Present it's
   locked, like panning (`src/components/depth/`, `src/context/SliceContext.tsx`)
+  - **On a slice** - on a volume, a shape drawn in 2D goes on the slice it
+    was drawn on (the add form's **On every slice** puts it on all of them),
+    and a cell count on the slice it was counted on. The map only draws them
+    there, the Saved lists say "Slice 4", and viewing one from another slice
+    goes to its slice. Moving off a viewed count's slice stops viewing it
+    (`sliceOf`, `countOnSlice` in `src/components/depth/markers.ts`).
+    The Saved edit form's **Slices** card moves a shape or marker after it's
+    saved: another range, or on every slice and back. It saves as you type,
+    like the rest of the form, and goes through first change wins like the
+    colour (`SliceRangeCard.tsx`, `moveToSlices` in
+    `AnnotationStoreContext.tsx`).
   - **3D** - the switch at the top of the Depth tab shows the volume as a
     block ([three.js](https://threejs.org/), loaded the first time it's
     opened). Drag to turn it, scroll to zoom, right-drag to move it. Cut it on

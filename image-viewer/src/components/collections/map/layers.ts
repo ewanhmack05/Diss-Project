@@ -84,6 +84,12 @@ function isShown(annotation: Drawn, hidden: Hidden): boolean {
 	return !hidden.people.has(personKey(annotation)) && !hidden.groups.has(groupKey(annotation));
 }
 
+// Shown by the chips and let through by the open Saved list, when it's
+// narrowing the map - exactly what tally counts as shown.
+function onTheMap<T extends Drawn>(annotation: T, hidden: Hidden, passesSaved?: (annotation: T) => boolean): boolean {
+	return isShown(annotation, hidden) && (!passesSaved || passesSaved(annotation));
+}
+
 // A group's annotations that are on the map, by id - what picking a group
 // picks, since hidden ones can't be picked.
 function shownInGroup<T extends Drawn & { id: string }>(annotations: T[], groupId: string, hidden: Hidden): string[] {
@@ -144,5 +150,5 @@ function offTheMap(counts: Tally): string | null {
 	return `${off} ${off === 1 ? "annotation" : "annotations"} off the map`;
 }
 
-export { NOBODY, UNGROUPED, NONE_HIDDEN, personKey, groupKey, peopleIn, groupsIn, isShown, shownInGroup, onlyShowing, isOnlyShown, tally, reasons, offTheMap };
+export { NOBODY, UNGROUPED, NONE_HIDDEN, personKey, groupKey, peopleIn, groupsIn, isShown, onTheMap, shownInGroup, onlyShowing, isOnlyShown, tally, reasons, offTheMap };
 export type { Drawn, Chip, Person, Hidden, Tally };

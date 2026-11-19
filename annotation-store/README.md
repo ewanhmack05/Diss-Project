@@ -313,9 +313,21 @@ back, changed, gone }`, how many of each kind come back, go back how they
   `authors` (`{ id, name, count }` by name - rows from before sign-in aren't
   included) and `colours` (`{ colour, count }`, most used first)
 - `POST /annotations` - create one (body: `Annotation` minus `id`/`created`,
-  both are assigned server-side if omitted)
+  both are assigned server-side if omitted). `sliceFrom` / `sliceTo` are the
+  slices of a volume it's on, inclusive, for a 3D marker: both left out (or
+  null) means every slice, otherwise both set with `0 <= sliceFrom <= sliceTo`,
+  or it's a 400. `PUT` doesn't touch them - `PUT /annotations/{id}/slices` moves them. The import
+  checks each annotation the same way
 - `PUT /annotations/{id}` - update `label`/`notes`/`colour`, with
   `wasColour` to check it (see above)
+- `PUT /annotations/{id}/slices` - move it to other slices of a volume:
+  `{ sliceFrom, sliceTo, was }`, both null for every slice, `was` the range
+  the change started from (`{ sliceFrom, sliceTo }`). Under first come wins
+  a `was` that's no longer there is a 409 naming who moved it and which end;
+  under last write wins it goes through with an `Overwrote` header. A range that's
+  half set, below 0 or backwards is a 400. Moving it to where it is records
+  nothing. Its own endpoint so it isn't caught up in the label and notes
+  saving as they're typed
 - `DELETE /annotations/{id}` - delete (the row goes to the history - see above)
 - `PUT /annotations/bulk` - many at once, from the viewer's Select tab:
   `{ collectionId, ids, colour?, setGroup, groupId?, wasColours?, wasGroups? }`.
@@ -453,6 +465,8 @@ erDiagram
         Shape text "not null"
         SlideId text "not null"
         Created timestamp_with_time_zone "not null"
+        SliceFrom integer "null"
+        SliceTo integer "null"
     }
 
     CellCountGroups {
@@ -480,6 +494,7 @@ erDiagram
         Created timestamp_with_time_zone "not null"
         LocationX double_precision "null"
         LocationY double_precision "null"
+        Slice integer "null"
         ColourCountsJson text "null"
         PlacedByCountsJson text "null"
     }
@@ -688,7 +703,7 @@ A named set of annotations in one collection. One level only, and an annotation 
 
 One shape someone drew on a slide. The shape itself is fixed once saved - only the label, notes, colour and group can change. Going back through history only ever touches those four.
 
-**To make one:** `POST /annotations` with `collectionId`, `label`, `colour`, `shape`, `lineStyle`, `lineThickness` and `geoJson`. Editors only. `notes` and `groupId` are optional, and the group has to be in the same collection. `id` is optional too - the viewer sends its own, so it can draw the shape before the save comes back.
+**To make one:** `POST /annotations` with `collectionId`, `label`, `colour`, `shape`, `lineStyle`, `lineThickness` and `geoJson`. Editors only. `notes` and `groupId` are optional, and the group has to be in the same collection. `sliceFrom` and `sliceTo` are optional, but go together. `id` is optional too - the viewer sends its own, so it can draw the shape before the save comes back.
 
 | Column | Type | Key | Set by | Notes |
 |---|---|---|---|---|
@@ -706,6 +721,8 @@ One shape someone drew on a slide. The shape itself is fixed once saved - only t
 | `Shape` | text |  | client | `line`, `freehand`, `polygon`, `arrow`, `rectangle` or `circle`. The viewer can't show anything else, and the store doesn't check |
 | `SlideId` | text |  | server | Copied from the collection, never taken from the client |
 | `Created` | timestamp with time zone |  | server |  |
+| `SliceFrom` | integer, null |  | client | The first slice of a volume it's on, from 0. Null with `SliceTo` means every slice, as every 2D one is. Changed through `PUT /annotations/{id}/slices` |
+| `SliceTo` | integer, null |  | client | The last slice it's on, so a marker on one slice has both the same. Not checked against how many slices the slide has. Changed with `SliceFrom` |
 
 - Index on `CollectionId`
 - Index on `GroupId`
@@ -754,6 +771,7 @@ A manual count of cells, such as mitotic figures: every dot placed, and the tall
 | `Created` | timestamp with time zone |  | server |  |
 | `LocationX` | double precision, null |  | client | Where it was counted, for going back there. Null for a count with no location |
 | `LocationY` | double precision, null |  | client | See `LocationX` |
+| `Slice` | integer, null |  | client | The slice of a volume it was counted on, from 0. Null on a flat slide and on counts from before volumes. Fixed once saved |
 | `ColourCountsJson` | text, null |  | server | How many dots of each colour, worked out from `Dots`. Null on rows older than this column until they're first listed. Not a change anyone made, so not in the history |
 | `PlacedByCountsJson` | text, null |  | server | How many dots each person placed, the same way as `ColourCountsJson` |
 

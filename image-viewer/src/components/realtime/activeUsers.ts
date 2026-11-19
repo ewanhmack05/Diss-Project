@@ -1,4 +1,4 @@
-import type { Participant } from "./realtime";
+import { inThreeD, type Participant } from "./realtime";
 
 type ActiveKind = "host" | "editor" | "viewer" | "guest";
 
@@ -12,6 +12,10 @@ interface ActiveUser {
 	me: boolean;
 	// More than one if they've got it open in more than one tab.
 	connectionIds: string[];
+	// The slice they're on, on a volume - from the first of their tabs to say.
+	slice: number | null;
+	// Looking at the block in 3D, in any of their tabs.
+	threeD: boolean;
 }
 
 const ORDER: Record<ActiveKind, number> = { host: 0, editor: 1, viewer: 2, guest: 3 };
@@ -39,10 +43,14 @@ function activeUsers(me: Participant | null, others: Participant[]): ActiveUser[
 				kind,
 				me: isMe,
 				connectionIds: [participant.connectionId],
+				slice: participant.viewport?.z ?? null,
+				threeD: inThreeD(participant),
 			});
 			continue;
 		}
 		seen.connectionIds.push(participant.connectionId);
+		seen.slice ??= participant.viewport?.z ?? null;
+		seen.threeD ||= inThreeD(participant);
 		if (ORDER[kind] < ORDER[seen.kind]) seen.kind = kind;
 	}
 	return [...byUser.values()].sort((a, b) => ORDER[a.kind] - ORDER[b.kind] || a.name.localeCompare(b.name, undefined, { numeric: true }));

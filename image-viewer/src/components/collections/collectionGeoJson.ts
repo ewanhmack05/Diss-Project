@@ -109,6 +109,9 @@ function annotationFeature(annotation: Annotation, groupNames: Map<string, strin
 			lineStyle: annotation.lineStyle,
 			lineThickness: annotation.lineThickness,
 			group: (annotation.groupId && groupNames.get(annotation.groupId)) || null,
+			// A 3D marker's slices, from 0. Null for everything else.
+			sliceFrom: annotation.sliceFrom ?? null,
+			sliceTo: annotation.sliceTo ?? null,
 			created: annotation.created,
 			createdBy: annotation.createdByName ?? null,
 		},
@@ -136,6 +139,7 @@ function cellCountFeature(cellCount: CellCount): GeoFeature {
 			dotPlacedBy: dots.some((d) => d.placedBy) ? dots.map((d) => d.placedBy ?? null) : undefined,
 			location: cellCount.locationX !== null && cellCount.locationY !== null ? flipPosition([cellCount.locationX, cellCount.locationY]) : null,
 			regionOfInterest: roi && flipGeometry(roi),
+			slice: cellCount.slice ?? null,
 			created: cellCount.created,
 			createdBy: cellCount.createdByName ?? null,
 		},
@@ -262,7 +266,17 @@ function annotationFrom(properties: Record<string, unknown>, geometry: Geometry 
 		lineThickness: LineThicknessOptions.includes(thickness) ? thickness : 2,
 		geoJson: toStored(geometry),
 		created: now,
+		...sliceRangeOf(properties),
 	};
+}
+
+const whole = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0;
+
+// A 3D marker's slices, if the file has a range that makes sense - both
+// whole numbers, from 0, in order. Otherwise it's on every slice.
+function sliceRangeOf(properties: Record<string, unknown>): { sliceFrom?: number; sliceTo?: number } {
+	const { sliceFrom, sliceTo } = properties;
+	return whole(sliceFrom) && whole(sliceTo) && sliceFrom <= sliceTo ? { sliceFrom, sliceTo } : {};
 }
 
 function cellCountFrom(properties: Record<string, unknown>, points: Position[], now: string, toMap: (geometry: Geometry) => Geometry): CellCount {
@@ -291,6 +305,8 @@ function cellCountFrom(properties: Record<string, unknown>, points: Position[], 
 		locationX: location?.[0] ?? null,
 		locationY: location?.[1] ?? null,
 		regionOfInterest: roi?.type === "Polygon" ? { id: newId(), geoJson: toStored(toMap(roi)), created: now } : null,
+		// The slice it was counted on, if the file has one that makes sense.
+		...(whole(properties.slice) ? { slice: properties.slice } : {}),
 		created: now,
 	};
 }

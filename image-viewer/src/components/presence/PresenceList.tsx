@@ -7,7 +7,7 @@ import { useCollectionContext } from "../../context/CollectionContext";
 import { sessionSize } from "../realtime/sessionSize";
 import { splitChips } from "./chips";
 import MorePeople from "./MorePeople";
-import { sketchFor, viewportShown } from "../realtime/realtime";
+import { inThreeD, sketchFor, viewportShown } from "../realtime/realtime";
 import "./PresenceList.css";
 
 const STATUS_TEXT = {
@@ -110,6 +110,7 @@ function PresenceList() {
 					>
 						<span className="presence-dot presence-dot--toggle" style={{ color: participant.colour }} />
 						{participant.displayName}
+						{inThreeD(participant) && <span className="presence-chip-tag">3D</span>}
 					</button>
 				);
 			})}

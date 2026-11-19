@@ -72,6 +72,12 @@ namespace AnnotationStore.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int?>("SliceFrom")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("SliceTo")
+                        .HasColumnType("integer");
+
                     b.Property<string>("SlideId")
                         .IsRequired()
                         .HasColumnType("text");
@@ -166,6 +172,9 @@ namespace AnnotationStore.Migrations
 
                     b.Property<string>("PlacedByCountsJson")
                         .HasColumnType("text");
+
+                    b.Property<int?>("Slice")
+                        .HasColumnType("integer");
 
                     b.Property<string>("SlideId")
                         .IsRequired()

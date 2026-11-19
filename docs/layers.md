@@ -303,8 +303,15 @@ Phases 1 to 3, plus rule 4 brought forward. Where it differs from the design abo
 How it's put together:
 
 - [layers.ts](../image-viewer/src/components/collections/map/layers.ts) - the
-  pure part: `peopleIn`, `groupsIn` (with None), `isShown`, `onlyShowing`,
-  `isOnlyShown`, `tally` and `reasons`. It replaced `Select/people.ts`.
+  pure part: `peopleIn`, `groupsIn` (with None), `isShown`, `onTheMap`,
+  `onlyShowing`, `isOnlyShown`, `tally` and `reasons`. It replaced
+  `Select/people.ts`.
+- [useOnTheMap.ts](../image-viewer/src/components/collections/map/useOnTheMap.ts) -
+  whether an annotation's on the map: the chips and the open Saved list,
+  through `onTheMap`. The 2D map and the 3D block's markers (`shownMarkers`
+  in `depth/markers.ts`) both draw from it, so a person or group turned off
+  is off in 3D too. `savedCheck` is the Saved list part, shared with
+  `useMapTally`.
 - [LayersContext.tsx](../image-viewer/src/context/LayersContext.tsx) - which
   chips are off. Kept with the collection it's about and reset during render
   when that changes, so moving collection (and coming back) starts with

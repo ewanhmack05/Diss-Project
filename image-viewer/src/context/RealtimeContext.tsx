@@ -64,8 +64,9 @@ interface RealtimeContextValue {
 	navigation: NavigationMode;
 	setNavigation: (mode: NavigationMode) => Promise<void>;
 	// Host only. to is connection ids, or null for everyone else. Look sends
-	// where you are now.
-	askToLook: (to: string[] | null) => Promise<void>;
+	// where you are now - with your camera in 3D, and point if you picked a
+	// spot in the block (block units, see lookIn3d).
+	askToLook: (to: string[] | null, point?: [number, number, number]) => Promise<void>;
 	askToOpen: (to: string[] | null, panel: string) => Promise<void>;
 	// Host to a guest - they can only look, so it asks them to make an account.
 	askToEdit: (connectionId: string) => Promise<void>;
@@ -414,9 +415,9 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
 	}, []);
 
 	const askToLook = useCallback(
-		(to: string[] | null) => {
+		(to: string[] | null, point?: [number, number, number]) => {
 			const viewport = lastViewportRef.current;
-			return viewport ? sendRequest(to, "look", viewport) : Promise.reject(new Error("Nowhere to look yet"));
+			return viewport ? sendRequest(to, "look", point ? { ...viewport, point } : viewport) : Promise.reject(new Error("Nowhere to look yet"));
 		},
 		[sendRequest],
 	);

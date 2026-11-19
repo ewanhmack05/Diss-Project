@@ -154,19 +154,19 @@ function App({ source, tilerServiceUrl, annotationStoreUrl, realtimeHubUrl, mess
 																				<RulerContextProvider>
 																					<AdjustmentsContextProvider baseUrl={annotationStoreUrl}>
 																						<ToolbarContextProvider>
-																							<NavigationContextProvider>
-																								<ComparisonContextProvider>
-																									<SharedCountContextProvider>
-																										<MessagingContextProvider baseUrl={messagingUrl}>
-																											<SliceContextProvider>
+																							<SliceContextProvider>
+																								<NavigationContextProvider>
+																									<ComparisonContextProvider>
+																										<SharedCountContextProvider>
+																											<MessagingContextProvider baseUrl={messagingUrl}>
 																												<LayersContextProvider>
 																													<ViewerShell fontSize={options?.fontSize} tools={options?.tools} storeUrl={annotationStoreUrl} />
 																												</LayersContextProvider>
-																											</SliceContextProvider>
-																										</MessagingContextProvider>
-																									</SharedCountContextProvider>
-																								</ComparisonContextProvider>
-																							</NavigationContextProvider>
+																											</MessagingContextProvider>
+																										</SharedCountContextProvider>
+																									</ComparisonContextProvider>
+																								</NavigationContextProvider>
+																							</SliceContextProvider>
 																						</ToolbarContextProvider>
 																					</AdjustmentsContextProvider>
 																				</RulerContextProvider>

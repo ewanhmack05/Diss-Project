@@ -55,6 +55,9 @@ interface CellCount {
 	locationX: number | null;
 	locationY: number | null;
 	regionOfInterest: RegionOfInterest | null;
+	// The slice of a volume it was counted on, from 0. Missing or null on a
+	// flat slide (see countOnSlice in components/depth/markers.ts).
+	slice?: number | null;
 	created: string;
 	// Who saved it (the host, for a shared count - dots say who placed them).
 	// Set by annotation-store from their token; missing from before sign-in.

@@ -108,6 +108,7 @@ public static class CellCountSummary
                 c.RegionOfInterest,
                 c.ColourCountsJson,
                 c.PlacedByCountsJson,
+                c.Slice,
             })
             .ToListAsync();
 
@@ -131,7 +132,7 @@ public static class CellCountSummary
             return new CellCountListItem(
                 r.Id, r.CollectionId, r.SlideId, r.Label, r.Notes, r.WithAnnotation, r.WithRoi, r.Count, r.DotSize,
                 r.LocationX, r.LocationY, r.Created, r.CreatedById, r.CreatedByName, r.RegionOfInterest,
-                Read<ColourCount>(colours), Read<PlacedByCount>(placedBy), r.GroupId);
+                Read<ColourCount>(colours), Read<PlacedByCount>(placedBy), r.GroupId, r.Slice);
         }).ToList();
     }
 }
@@ -157,7 +158,8 @@ public record CellCountListItem(
     RegionOfInterest? RegionOfInterest,
     List<ColourCount> ColourCounts,
     List<PlacedByCount> PlacedByCounts,
-    Guid? GroupId = null)
+    Guid? GroupId = null,
+    int? Slice = null)
 {
     public string? Dots => null;
 }

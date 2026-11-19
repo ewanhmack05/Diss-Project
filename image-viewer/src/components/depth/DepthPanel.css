@@ -214,3 +214,47 @@
 	margin-left: 0;
 	box-shadow: inset 2px 0 0 var(--chrome-bg);
 }
+
+/* Groups the block's settings so Present can turn them all off at once. Lays
+   out as if it weren't there. */
+.depth-panel-settings {
+	display: contents;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	min-width: 0;
+}
+
+/* Placing a 3D marker - see MarkerSection. */
+.depth-panel-marker-form {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5em;
+}
+
+.depth-panel-field {
+	display: flex;
+	flex-direction: column;
+	gap: 0.2em;
+	font-size: 0.9em;
+	color: var(--chrome-text-secondary);
+}
+
+.depth-panel-field input {
+	font: inherit;
+	color: var(--chrome-text);
+	background: var(--white-08);
+	border: 1px solid var(--white-22);
+	border-radius: 0.25em;
+	padding: 0.3em 0.45em;
+	min-width: 0;
+}
+
+.depth-panel-field-row {
+	display: flex;
+	gap: 0.5em;
+}
+
+.depth-panel-field-row .depth-panel-field {
+	flex: 1;
+}

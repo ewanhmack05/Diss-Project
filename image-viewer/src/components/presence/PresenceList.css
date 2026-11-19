@@ -261,3 +261,13 @@
 	font-size: 0.85em;
 	color: var(--chrome-text-secondary);
 }
+
+/* Someone looking at the block in 3D rather than the slide. */
+.presence-chip-tag {
+	margin-left: 0.4em;
+	padding: 0 0.3em;
+	font-size: 0.8em;
+	font-weight: 700;
+	border-radius: 0.25em;
+	background: var(--white-08);
+}

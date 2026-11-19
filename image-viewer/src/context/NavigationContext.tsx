@@ -7,7 +7,11 @@ import { useDrawContext } from "./DrawContext";
 import { useCellCountDrawContext } from "./CellCountDrawContext";
 import { useAnnotationStoreContext } from "./AnnotationStoreContext";
 import { useCellCountStoreContext } from "./CellCountStoreContext";
+import { useSliceContext, type VolumeSettings } from "./SliceContext";
 import {
+	followedCut,
+	hostDepth,
+	lookIn3d,
 	leaderOf,
 	panelChanges,
 	tabChanges,
@@ -50,6 +54,7 @@ function NavigationContextProvider({ children }: { children: ReactNode }) {
 	const { pending: counting } = useCellCountDrawContext();
 	const { selectedAnnotationId, setSelectedAnnotationId, viewedAnnotationId, setViewedAnnotationId } = useAnnotationStoreContext();
 	const { selectedCellCountId, viewedCellCountId, setSelectedCellCountId, setViewedCellCountId } = useCellCountStoreContext();
+	const { volume, view, setView, settings, changeSettings, showSlice, showPulse, goToCamera } = useSliceContext();
 	const [brokeAway, setBrokeAway] = useState(false);
 	// A new mode starts everyone on the host again.
 	const [modeBefore, setModeBefore] = useState(mode);
@@ -71,8 +76,21 @@ function NavigationContextProvider({ children }: { children: ReactNode }) {
 			viewedAnnotationId,
 			editingAnnotationId: selectedAnnotationId,
 			editingCellCountId: selectedCellCountId,
+			depth: volume ? { view, settings } : null,
 		});
-	}, [activeTools, panelTabs, adjustments, viewedCellCountId, viewedAnnotationId, selectedAnnotationId, selectedCellCountId, sendScreen]);
+	}, [
+		activeTools,
+		panelTabs,
+		adjustments,
+		viewedCellCountId,
+		viewedAnnotationId,
+		selectedAnnotationId,
+		selectedCellCountId,
+		volume,
+		view,
+		settings,
+		sendScreen,
+	]);
 
 	// In Present, open and close what the host does. Only changes are copied,
 	// so you can still open something else yourself in between.
@@ -188,23 +206,83 @@ function NavigationContextProvider({ children }: { children: ReactNode }) {
 		ownAdjustmentsRef.current = null;
 	}, [presenting, setAdjustments]);
 
+	// On a volume, 2D or 3D goes with the host - only changes, like panels, so
+	// Present starting puts you where they are. Present ending leaves you there.
+	const presentedDepth = hostDepth(hostScreen, presenting, volume);
+	const hostView = presentedDepth?.view ?? null;
+	const lastHostViewRef = useRef<string | null>(null);
+	useEffect(() => {
+		if (!hostView) {
+			lastHostViewRef.current = null;
+			return;
+		}
+		if (hostView === lastHostViewRef.current) return;
+		lastHostViewRef.current = hostView;
+		setView(hostView);
+	}, [hostView, setView]);
+
+	// And how the block's drawn - cut, opacity, slices, depth, gap, guides -
+	// like the adjustments: the host's while they present, yours back after.
+	const hostSettingsKey = presentedDepth ? JSON.stringify(presentedDepth.settings) : "";
+	const ownSettingsRef = useRef<VolumeSettings | null>(null);
+	const settingsRef = useRef(settings);
+	useEffect(() => {
+		settingsRef.current = settings;
+	});
+	useEffect(() => {
+		if (!hostSettingsKey) return;
+		if (!ownSettingsRef.current) ownSettingsRef.current = settingsRef.current;
+		changeSettings(JSON.parse(hostSettingsKey) as VolumeSettings);
+	}, [hostSettingsKey, changeSettings]);
+	useEffect(() => {
+		if (hostSettingsKey || !ownSettingsRef.current) return;
+		changeSettings(ownSettingsRef.current);
+		ownSettingsRef.current = null;
+	}, [hostSettingsKey, changeSettings]);
+
+	// Under Follow, the host's cut too - it's part of where you're looking
+	// into the block. Only changes, so cutting it yourself (which breaks Follow,
+	// see DepthPanel) isn't fought.
+	const cut = followedCut(leader?.screen, mode, following, volume);
+	const cutKey = cut ? `${cut.cut} ${cut.cutPosition}` : "";
+	useEffect(() => {
+		if (!cutKey) return;
+		const [axis, position] = cutKey.split(" ");
+		changeSettings({ cut: axis as VolumeSettings["cut"], cutPosition: Number(position) });
+	}, [cutKey, changeSettings]);
+
 	// The host asking you to look somewhere or open a panel - a toast you can
 	// say yes or no to. Nobody's asked to look while they're following, since
 	// they're already there.
 	const followingRef = useRef(following);
+	// Read by the request handler, which isn't set up again for these.
+	const volumeRef = useRef(volume);
+	const othersRef = useRef(others);
 	useEffect(() => {
 		followingRef.current = following;
+		volumeRef.current = volume;
+		othersRef.current = others;
 	});
 	useEffect(
 		() =>
 			onRequest((request) => {
 				if (request.kind === "look") {
+					// From the 3D view: a pulse at the spot for anyone in 3D -
+					// following or not - and Go takes you into 3D to their camera.
+					const inBlock = lookIn3d(request.data, volumeRef.current);
+					const colour = othersRef.current.find((p) => p.connectionId === request.fromConnectionId)?.colour ?? "#fff";
+					if (inBlock) showPulse(inBlock.point, colour);
 					if (followingRef.current) return;
-					addToast(`${request.fromName} wants you to look at something`, "info", {
-						actions: [
-							{ label: "Go", primary: true, onClick: () => setLookAt((current) => ({ viewport: request.data, id: (current?.id ?? 0) + 1 })) },
-							{ label: "Not now" },
-						],
+					const go = inBlock
+						? () => {
+								setView("3d");
+								if (inBlock.slice !== null) showSlice(inBlock.slice);
+								goToCamera(inBlock.camera);
+								showPulse(inBlock.point, colour);
+							}
+						: () => setLookAt((current) => ({ viewport: request.data, id: (current?.id ?? 0) + 1 }));
+					addToast(`${request.fromName} wants you to look at something${inBlock ? " in 3D" : ""}`, "info", {
+						actions: [{ label: "Go", primary: true, onClick: go }, { label: "Not now" }],
 					});
 				} else if (request.kind === "openPanel") {
 					const panel = request.data.panel as ToolId;
@@ -215,7 +293,7 @@ function NavigationContextProvider({ children }: { children: ReactNode }) {
 					});
 				}
 			}),
-		[onRequest, addToast, openTool],
+		[onRequest, addToast, openTool, showPulse, setView, showSlice, goToCamera],
 	);
 
 	const breakAway = useCallback(() => {

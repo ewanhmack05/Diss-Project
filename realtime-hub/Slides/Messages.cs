@@ -42,7 +42,15 @@ public record HostRequest(string FromConnectionId, string FromName, string Kind,
 // OpenLayers view state. Extent is the view box before rotation, in map
 // units - turn it by Rotation round Center to get what's actually on screen.
 // Saves everyone else working it out from a screen size they don't know.
-public record Viewport(double[] Center, double Resolution, double Rotation, double[] Extent);
+// Z is which slice they're on when the slide's a volume - null on a flat
+// slide, and from a viewer from before slices were sent. Camera is where
+// they're looking from in the 3D view, null in 2D.
+public record Viewport(double[] Center, double Resolution, double Rotation, double[] Extent, int? Z = null, Camera? Camera = null);
+
+// A 3D view's camera, in block units - each axis as a fraction of the block,
+// its middle at 0 - so people who draw the block at different depths still
+// see the same side of it. Fov is the vertical field of view in degrees.
+public record Camera(double[] Position, double[] Target, double Fov);
 
 public record ViewportUpdate(string ConnectionId, Viewport Viewport);
 

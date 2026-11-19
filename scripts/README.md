@@ -82,6 +82,7 @@ layers for annotations and cell-count dots.
 | `clean_stress.py`         | Removes exactly what `seed_stress.py` added, and nothing else                                                                                                                     |
 | `map_bench.js`            | Measures the viewer's frame rate while panning and zooming                                                                                                                        |
 | `simulate_session.py`     | Fills a session with simulated people who move round live - see [below](#simulated-people-in-a-session)                                                                           |
+| `drive_host_3d.py`        | Plays a session's host in 3D on a volume - Follow or Present, camera moves on a timer, a cut, a look here, a marker placed live, going to 2D - for following in a browser and timing it ([volume-live.md](../docs/volume-live.md#54-phase-4-built)) |
 | `simulate_annotations.py` | Same, and the editors draw shapes live in what they're looking at - see [below](#drawing-and-counting)                                                                            |
 | `simulate_cell_counts.py` | Same, and the editors count cells live in what they're looking at - see [below](#drawing-and-counting)                                                                            |
 | `simulate_conflicts.py`   | Same, and the editors keep recolouring the same few annotations, for measuring a session's edit policy - see [below](#people-changing-the-same-thing)                             |
@@ -188,7 +189,16 @@ including that the largest count it allows really fits under 80 MiB, and
 SignalR message framing, the shapes and dots the drawing and counting
 scripts make (all inside the view, valid part way through), and who
 `teardown_users.py` removes and protects.
-CI runs them with ruff.
+CI runs them, and lints with ruff 0.17.5 on its default rules (no config
+file), which include sorted imports and `itertools.pairwise` over
+`zip(xs, xs[1:])`. Run the same lint before pushing:
+
+```bash
+python -m pip install --user ruff==0.17.5
+python -m ruff check scripts
+```
+
+`python -m ruff check --fix scripts` sorts imports itself.
 
 ## Simulated people in a session
 
@@ -207,6 +217,7 @@ python scripts/simulate_session.py "https://localhost:5173/?invite=juyhsUFHC4gB"
 python scripts/simulate_session.py juyhsUFHC4gB --people 12 --seconds 60
 python scripts/simulate_session.py juyhsUFHC4gB --no-hub     # join, but don't show up live
 python scripts/simulate_session.py juyhsUFHC4gB --leave      # take them out of the session again
+python scripts/simulate_session.py juyhsUFHC4gB --three-d    # on a volume: each in 3D on a slice, circling the block
 ```
 
 Each one opens the link like a real person would, so annotation-store
@@ -225,6 +236,11 @@ Then they connect to realtime-hub and look round the slide until Ctrl+C
 (or `--seconds`), so they show up as chips in the viewer with viewport
 boxes that move. In a large session the boxes start off - click a chip to
 see one. Stopping leaves them in the session; `--leave` takes them out.
+
+On a volume, `--three-d` has each one say they're in 3D, on a slice of their
+own, with a camera going round the block - for seeing many people's cameras
+in the 3D view, and timing it (see
+[docs/volume-live.md](../docs/volume-live.md#53-phase-3-built)).
 
 The people are Keycloak users `sim1`, `sim2`, ... (password `password`),
 up to 40. The script makes any that don't exist yet through Keycloak's

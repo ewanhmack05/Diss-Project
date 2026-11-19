@@ -4,7 +4,13 @@ import type OlMap from "ol/Map";
 import View from "ol/View";
 import {
 	applyOp,
+	followSlice,
 	followView,
+	followedCut,
+	hostDepth,
+	lookIn3d,
+	inThreeD,
+	sliceNote,
 	leaderOf,
 	panelChanges,
 	tabChanges,
@@ -379,5 +385,200 @@ describe("viewport boxes", () => {
 
 	it("changes nothing when the one pointed at hasn't sent a viewport yet", () => {
 		expect(viewportDisplay("amy", "eve", {}, false, [...others, person("eve", null)])).toBe("normal");
+	});
+});
+
+describe("followSlice", () => {
+	it("goes to the host's slice when following starts", () => {
+		expect(followSlice(9, 2, null, false)).toBe("go");
+	});
+
+	it("goes with the host when they step", () => {
+		expect(followSlice(10, 9, 9, false)).toBe("go");
+	});
+
+	it("stays when you're already there, or the host's on a flat slide", () => {
+		expect(followSlice(4, 4, null, false)).toBe("stay");
+		expect(followSlice(null, 4, 3, false)).toBe("stay");
+		expect(followSlice(undefined, 4, 3, true)).toBe("stay");
+	});
+
+	it("breaks Follow when you step yourself", () => {
+		expect(followSlice(9, 8, 9, false)).toBe("break");
+	});
+
+	it("puts you back in Present when you step yourself", () => {
+		expect(followSlice(9, 8, 9, true)).toBe("go");
+	});
+
+	// The map's effect: asked on every change of either slice, remembering
+	// the host's, and going or breaking as told. Settles without looping.
+	function run(steps: { host?: number | null; mine?: number }[], locked: boolean) {
+		let host: number | null = null;
+		let mine = 0;
+		let before: number | null = null;
+		let broke = false;
+		const ask = () => {
+			for (let guard = 0; guard < 5; guard++) {
+				const action = followSlice(host, mine, before, locked);
+				before = host;
+				if (action === "go") mine = host!;
+				else if (action === "break") {
+					// Breaking away stops following, so the host's slice stops
+					// coming through (leaderSlice is null in the map).
+					broke = true;
+					host = null;
+				} else return;
+			}
+			throw new Error("didn't settle");
+		};
+		for (const step of steps) {
+			if (step.host !== undefined && !broke) host = step.host;
+			if (step.mine !== undefined) mine = step.mine;
+			ask();
+		}
+		return { mine, broke };
+	}
+
+	it("keeps a follower with the host through several steps", () => {
+		expect(run([{ host: 3 }, { host: 4 }, { host: 7 }, { host: 6 }], false)).toEqual({ mine: 6, broke: false });
+	});
+
+	it("leaves a follower where they stepped to, once they break away", () => {
+		expect(run([{ host: 3 }, { mine: 5 }, { host: 8 }], false)).toEqual({ mine: 5, broke: true });
+	});
+
+	it("holds a presented-to viewer on the host's slice", () => {
+		expect(run([{ host: 3 }, { mine: 5 }, { mine: 1 }], true)).toEqual({ mine: 3, broke: false });
+	});
+});
+
+describe("sliceNote", () => {
+	it("says the slice, from 1, when they're on another", () => {
+		expect(sliceNote(8, 2, true)).toBe("slice 9");
+	});
+
+	it("says nothing on the same slice, a flat slide, or with no slice sent", () => {
+		expect(sliceNote(2, 2, true)).toBeNull();
+		expect(sliceNote(8, 2, false)).toBeNull();
+		expect(sliceNote(null, 2, true)).toBeNull();
+		expect(sliceNote(undefined, 2, true)).toBeNull();
+	});
+
+	it("tells slice 1 from no slice", () => {
+		expect(sliceNote(0, 3, true)).toBe("slice 1");
+	});
+});
+
+const depthScreen = (view: "2d" | "3d") => ({
+	view,
+	settings: {
+		cut: "x" as const,
+		cutPosition: 0.3,
+		opacity: 0.6,
+		stretch: 2,
+		trueDepth: false,
+		spacing: 1,
+		firstSlice: 2,
+		lastSlice: 9,
+		guides: false,
+	},
+});
+
+const screenWith = (depth: ReturnType<typeof depthScreen> | null | undefined) => ({
+	panels: [],
+	tabs: {},
+	adjustments: null,
+	viewedCellCountId: null,
+	viewedAnnotationId: null,
+	editingAnnotationId: null,
+	editingCellCountId: null,
+	...(depth === undefined ? {} : { depth }),
+});
+
+describe("inThreeD", () => {
+	it("is whether their screen says 3D", () => {
+		expect(inThreeD({ screen: screenWith(depthScreen("3d")) })).toBe(true);
+		expect(inThreeD({ screen: screenWith(depthScreen("2d")) })).toBe(false);
+	});
+
+	it("is no for a flat slide, an older viewer, or no screen yet", () => {
+		expect(inThreeD({ screen: screenWith(null) })).toBe(false);
+		expect(inThreeD({ screen: screenWith(undefined) })).toBe(false);
+		expect(inThreeD({ screen: null })).toBe(false);
+	});
+});
+
+describe("hostDepth", () => {
+	it("is the host's view and block while they present a volume", () => {
+		const host = screenWith(depthScreen("3d"));
+		expect(hostDepth(host, true, true)).toEqual(depthScreen("3d"));
+	});
+
+	it("is nothing outside Present, so Follow doesn't switch you", () => {
+		expect(hostDepth(screenWith(depthScreen("3d")), false, true)).toBeNull();
+	});
+
+	it("is nothing on a flat slide, even if the host says 3D", () => {
+		expect(hostDepth(screenWith(depthScreen("3d")), true, false)).toBeNull();
+	});
+
+	it("is nothing from a host whose viewer doesn't send it, or with no screen yet", () => {
+		expect(hostDepth(screenWith(undefined), true, true)).toBeNull();
+		expect(hostDepth(screenWith(null), true, true)).toBeNull();
+		expect(hostDepth(null, true, true)).toBeNull();
+	});
+});
+
+describe("followedCut", () => {
+	const leader = screenWith(depthScreen("3d"));
+
+	it("is the host's cut while you follow them on a volume", () => {
+		expect(followedCut(leader, "follow", true, true)).toEqual({ cut: "x", cutPosition: 0.3 });
+	});
+
+	it("is nothing once you've broken away, in Free, or in Present (which takes everything)", () => {
+		expect(followedCut(leader, "follow", false, true)).toBeNull();
+		expect(followedCut(leader, "free", true, true)).toBeNull();
+		expect(followedCut(leader, "present", true, true)).toBeNull();
+	});
+
+	it("is nothing on a flat slide, or from a host whose viewer doesn't say", () => {
+		expect(followedCut(leader, "follow", true, false)).toBeNull();
+		expect(followedCut(screenWith(undefined), "follow", true, true)).toBeNull();
+		expect(followedCut(null, "follow", true, true)).toBeNull();
+	});
+});
+
+describe("lookIn3d", () => {
+	const camera = { position: [1.6, 0.5, 8] as [number, number, number], target: [0, 0.1, 0] as [number, number, number], fov: 40 };
+	const flat = { center: [10, -20] as [number, number], resolution: 2, rotation: 0, extent: [0, -40, 20, 0] as [number, number, number, number] };
+
+	it("takes the camera, the point picked and the slice", () => {
+		expect(lookIn3d({ ...flat, z: 4, camera, point: [0.2, -0.1, 0.3] }, true)).toEqual({ camera, point: [0.2, -0.1, 0.3], slice: 4 });
+	});
+
+	it("points at the middle of their view when they didn't pick a spot", () => {
+		expect(lookIn3d({ ...flat, camera }, true)?.point).toEqual([0, 0.1, 0]);
+	});
+
+	it("is nothing for a look from 2D, or on a flat slide", () => {
+		expect(lookIn3d({ ...flat, z: 4, camera: null }, true)).toBeNull();
+		expect(lookIn3d(flat, true)).toBeNull();
+		expect(lookIn3d({ ...flat, camera }, false)).toBeNull();
+	});
+
+	it("is nothing when the camera isn't numbers", () => {
+		expect(lookIn3d({ camera: { ...camera, position: [1, 2] } }, true)).toBeNull();
+		expect(lookIn3d({ camera: { ...camera, target: ["a", 0, 0] } }, true)).toBeNull();
+		expect(lookIn3d({ camera: { ...camera, fov: 0 } }, true)).toBeNull();
+		expect(lookIn3d(null, true)).toBeNull();
+		expect(lookIn3d("look", true)).toBeNull();
+	});
+
+	it("ignores a point or slice that doesn't make sense, keeping the rest", () => {
+		const look = lookIn3d({ camera, point: [1, Infinity, 0], z: -2 }, true);
+		expect(look?.point).toEqual(camera.target);
+		expect(look?.slice).toBeNull();
 	});
 });

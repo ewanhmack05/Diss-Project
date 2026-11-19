@@ -54,6 +54,10 @@ describe("conflictMessage", () => {
 		expect(conflictMessage(conflict, "Region 4", now)).toBe("Bob changed the colour of Region 4 2 minutes ago, before your change got there.");
 	});
 
+	it("names the ends of a slice range someone moved", () => {
+		expect(conflictMessage({ ...conflict, changed: ["SliceFrom", "SliceTo"] }, "Duct", now)).toContain("the first slice and last slice of Duct");
+	});
+
 	it("names several fields, and copes with not knowing who or when", () => {
 		expect(conflictMessage({ ...conflict, changed: ["Name", "Notes"] }, "Tumour", now)).toContain("the name and notes of Tumour");
 		expect(conflictMessage({ ...conflict, changedBy: null, changedAt: null, changed: [] }, "Region 4", now)).toBe(

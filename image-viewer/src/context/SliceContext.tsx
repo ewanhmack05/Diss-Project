@@ -2,6 +2,12 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState, type
 import { clampSlice, FLAT, isVolume, type Slice } from "../components/depth/slices";
 import type { CutAxis } from "../components/depth/volume";
 import { useEmitEvent } from "./EventContext";
+import type { Camera } from "../components/realtime/realtime";
+import type { Hit, MarkerBox } from "../components/depth/markers";
+
+// Placing a 3D marker: waiting for the first corner, then the second (with
+// the box so far while the pointer moves), then naming it before it's saved.
+type Marking = { stage: "first" } | { stage: "second"; first: Hit; box: MarkerBox | null } | { stage: "form"; box: MarkerBox } | null;
 
 type DepthView = "2d" | "3d";
 
@@ -64,6 +70,32 @@ interface SliceContextValue {
 	lookAt: { x: number; y: number; id: number } | null;
 	// A click in the 3D view: that slice, that place, in 2D.
 	openInTwoD: (slice: number, x: number, y: number) => void;
+	// Your 3D camera in block units, as the 3D view last said - null out of
+	// 3D. Kept out of state so turning the block doesn't re-render everything
+	// that reads this; onCamera hears each change (the map sends it on).
+	reportCamera: (camera: Camera | null) => void;
+	cameraNow: () => Camera | null;
+	onCamera: (listener: () => void) => () => void;
+	// A spot in the block someone asked everyone to look at, in block units,
+	// pulsing for a few seconds from at (see VolumeView).
+	pulse: Pulse | null;
+	showPulse: (point: [number, number, number], colour: string) => void;
+	// Somewhere for the 3D camera to go - Go on a look. The 3D view eases to
+	// it once it's open, then calls doneCamera so it isn't done again.
+	cameraGoal: { camera: Camera; id: number } | null;
+	goToCamera: (camera: Camera) => void;
+	doneCamera: (id: number) => void;
+	// Placing a 3D marker - the Depth tab starts it and saves it, the 3D view
+	// takes the corners. Null when nothing's being placed.
+	marking: Marking;
+	setMarking: (marking: Marking) => void;
+}
+
+interface Pulse {
+	point: [number, number, number];
+	colour: string;
+	id: number;
+	at: number;
 }
 
 const SliceContext = createContext<SliceContextValue | null>(null);
@@ -100,6 +132,9 @@ function SliceContextProvider({ children }: { children: ReactNode }) {
 		setViewState("2d");
 		setSettings({ ...DEFAULT_SETTINGS, ...allSlices(next.length) });
 		setLookAt(null);
+		setPulse(null);
+		setCameraGoal(null);
+		setMarking(null);
 	}, []);
 
 	const showSlice = useCallback(
@@ -119,6 +154,7 @@ function SliceContextProvider({ children }: { children: ReactNode }) {
 	const setView = useCallback(
 		(next: DepthView) => {
 			setViewState(next);
+			if (next === "2d") setMarking(null);
 			emit("depth:view", { slideId: stateRef.current.slideId, view: next });
 		},
 		[emit],
@@ -126,6 +162,31 @@ function SliceContextProvider({ children }: { children: ReactNode }) {
 
 	const changeSettings = useCallback((change: Partial<VolumeSettings>) => setSettings((now) => ({ ...now, ...change })), []);
 	const resetCamera = useCallback(() => setCameraReset((count) => count + 1), []);
+
+	const [pulse, setPulse] = useState<Pulse | null>(null);
+	const showPulse = useCallback(
+		(point: [number, number, number], colour: string) => setPulse((now) => ({ point, colour, id: (now?.id ?? 0) + 1, at: Date.now() })),
+		[],
+	);
+	const [cameraGoal, setCameraGoal] = useState<{ camera: Camera; id: number } | null>(null);
+	const goToCamera = useCallback((camera: Camera) => setCameraGoal((now) => ({ camera, id: (now?.id ?? 0) + 1 })), []);
+	const doneCamera = useCallback((id: number) => setCameraGoal((now) => (now?.id === id ? null : now)), []);
+
+	const [marking, setMarking] = useState<Marking>(null);
+
+	const cameraRef = useRef<Camera | null>(null);
+	const cameraListeners = useRef(new Set<() => void>());
+	const reportCamera = useCallback((camera: Camera | null) => {
+		cameraRef.current = camera;
+		cameraListeners.current.forEach((listener) => listener());
+	}, []);
+	const cameraNow = useCallback(() => cameraRef.current, []);
+	const onCamera = useCallback((listener: () => void) => {
+		cameraListeners.current.add(listener);
+		return () => {
+			cameraListeners.current.delete(listener);
+		};
+	}, []);
 
 	const openInTwoD = useCallback(
 		(slice: number, x: number, y: number) => {
@@ -154,8 +215,43 @@ function SliceContextProvider({ children }: { children: ReactNode }) {
 			resetCamera,
 			lookAt,
 			openInTwoD,
+			reportCamera,
+			cameraNow,
+			onCamera,
+			pulse,
+			showPulse,
+			cameraGoal,
+			goToCamera,
+			doneCamera,
+			marking,
+			setMarking,
 		}),
-		[slices, defaultSlice, current, sectionMicrons, setSlices, showSlice, step, view, setView, settings, changeSettings, cameraReset, resetCamera, lookAt, openInTwoD],
+		[
+			slices,
+			defaultSlice,
+			current,
+			sectionMicrons,
+			setSlices,
+			showSlice,
+			step,
+			view,
+			setView,
+			settings,
+			changeSettings,
+			cameraReset,
+			resetCamera,
+			lookAt,
+			openInTwoD,
+			reportCamera,
+			cameraNow,
+			onCamera,
+			pulse,
+			showPulse,
+			cameraGoal,
+			goToCamera,
+			doneCamera,
+			marking,
+		],
 	);
 	return <SliceContext.Provider value={value}>{children}</SliceContext.Provider>;
 }
@@ -169,4 +265,4 @@ function useSliceContext(): SliceContextValue {
 }
 
 export { SliceContextProvider, useSliceContext };
-export type { DepthView, VolumeSettings };
+export type { DepthView, VolumeSettings, Pulse, Marking };

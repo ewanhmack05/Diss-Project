@@ -815,6 +815,61 @@ The other tabs:
 The host can also **ask** everyone, or one person, to look where they are or
 open a panel. It comes up as a toast with Go / Not now.
 
+On a **volume** the viewport carries the slice (`z`), so all of this works in
+depth too:
+
+- Follow and Present put you on the host's slice as well as their view.
+  Stepping slices yourself breaks Follow, like panning; in Present the
+  Depth tab's slice controls are off and you're held on the host's
+  (`followSlice` in `realtime.ts`, used by `MapNode`).
+- Someone on another slice has a dashed box labelled with it - "Bob Hughes ·
+  slice 6" - on the map and the overview (`sliceNote`). Same slice, a solid
+  box as before.
+- The Active list says which slice each person's on. Not your own row, and
+  not the Users tab, which only has app-wide presence.
+- Go on a "look here" takes you to the host's slice too.
+- Everyone's screen says whether they're in 2D or 3D and how their block's
+  drawn (`Screen.depth`). Someone in 3D has a **3D** tag on their chip and
+  "in 3D" in the Active list.
+- Present takes you into 3D and back out with the host, and gives you their
+  block - cut, opacity, slices drawn, depth, gap, guides. The Depth tab's
+  switch and block settings are off while it lasts; turning and zooming the
+  block stay yours. Your own settings come back when it ends, like image
+  adjustments; you stay in whichever view it left you in. Follow doesn't
+  switch you. `SliceContextProvider` sits above `NavigationContextProvider`
+  in `App.tsx` for this.
+
+- In 3D you see everyone else in the block: a small pyramid for each
+  person in 3D, where their camera is and which way it's looking, with
+  their cut as a faint outline; a box on their slice for each person in 2D.
+  Their name sits by it - click it to go to their camera, or open their
+  slice and place in 2D. A camera still for 30 s fades; past six, only the
+  host's and those that moved in the last minute are drawn. Cameras go out
+  in block units (`Viewport.camera`), so someone who's stretched their block
+  deeper is still drawn in the same place against the tissue. The maths is
+  in `depth/cameras.ts`; `SliceContext` holds your camera outside React
+  state so turning the block doesn't re-render the viewer.
+
+- Follow in 3D eases your camera to the host's (half the gap every 60 ms,
+  `easeCamera`) and takes their cut; opacity, the gap and the rest stay
+  yours. Turning or zooming, cutting it yourself, Reset view or Go there
+  breaks away. Present takes the camera too and turns your controls, Reset
+  view and Go there off. Following someone in 2D leaves your camera alone.
+
+- Look here in 3D: the host Shift+clicks the tissue (or uses Look here,
+  which points at the middle of their view). The same `look` request as in
+  2D, with their camera and the spot (`lookIn3d`). Everyone in 3D sees rings
+  pulse there for 4 s in the host's colour; anyone not following gets a
+  toast whose Go takes them into 3D, onto the host's slice and camera.
+
+- 3D markers: Mark a box in the Depth tab's 3D section, click two corners on
+  the tissue, name it and set its slices. It saves as a rectangle annotation
+  with `sliceFrom`/`sliceTo` (`depth/markers.ts`), drawn as a box in the
+  block for everyone, and on the 2D map only on its slices. While it's being
+  placed it goes out as a `marker3d` sketch, dashed in others' 3D views.
+
+See [volume-live.md](../volume-live.md) for the rest of working together in 3D.
+
 Everyone sends a small **screen** message (open panels, tabs, adjustments,
 what's being viewed or edited) whenever it changes, which is what Present
 copies.

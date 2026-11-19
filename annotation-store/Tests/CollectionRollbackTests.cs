@@ -235,6 +235,23 @@ public class CollectionRollbackTests : IClassFixture<CellCountApiFactory>
     }
 
     [Fact]
+    public async Task GoingBackToBeforeADelete_BringsBackTheSliceRange()
+    {
+        var alice = As("alice");
+        var id = await OwnAsync(alice);
+        var response = await alice.PostAsJsonAsync("/annotations",
+            new Annotation { CollectionId = id, Label = "marker", Colour = "#FF0000", Shape = "Box", SliceFrom = 2, SliceTo = 5 });
+        var add = ChangeSetOf(response);
+        var marker = (await response.Content.ReadFromJsonAsync<Annotation>(Json))!;
+        ChangeSetOf(await alice.DeleteAsync($"/annotations/{marker.Id}"));
+
+        (await RollBackAsync(alice, add)).EnsureSuccessStatusCode();
+
+        var back = Assert.Single((await alice.GetFromJsonAsync<List<Annotation>>($"/annotations?collectionId={id}", Json))!);
+        Assert.Equal((marker.Id, 2, 5), (back.Id, back.SliceFrom, back.SliceTo));
+    }
+
+    [Fact]
     public async Task GoingBackToHowItAlreadyIs_IsntAChange()
     {
         var alice = As("alice");

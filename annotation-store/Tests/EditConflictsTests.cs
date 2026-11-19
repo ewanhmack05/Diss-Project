@@ -150,6 +150,136 @@ public class EditConflictsTests : IClassFixture<CellCountApiFactory>, IDisposabl
         return (await response.Content.ReadFromJsonAsync<CountGroupView>(Json))!;
     }
 
+    // A 3D marker made deeper, or a 2D shape moved: PUT /annotations/{id}/slices.
+    private static Task<HttpResponseMessage> SlicesAsync(HttpClient client, Guid id, int? from, int? to, SliceRange? was = null) =>
+        client.PutAsJsonAsync($"/annotations/{id}/slices", new SliceRangeUpdate(from, to, was), Json);
+
+    private static async Task<Annotation> MarkerAsync(HttpClient client, Guid collectionId, int? from, int? to)
+    {
+        var response = await client.PostAsJsonAsync("/annotations",
+            new Annotation { CollectionId = collectionId, Label = "marker", Colour = "#FF0000", Shape = "rectangle", SliceFrom = from, SliceTo = to }, Json);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<Annotation>(Json))!;
+    }
+
+    [Fact]
+    public async Task Slices_MovesIt_AndLeavesLabelAndColourAlone_WithOneHistoryEntry()
+    {
+        var session = await SessionAsync(EditPolicy.FirstComeWins);
+        var alice = As("alice");
+        var marker = await MarkerAsync(alice, session.CollectionId, 3, 8);
+
+        var moved = await SlicesAsync(alice, marker.Id, 2, 11, new SliceRange(3, 8));
+
+        moved.EnsureSuccessStatusCode();
+        var now = await GetAsync(alice, session.CollectionId, marker.Id);
+        Assert.Equal((2, 11, "marker", "#FF0000"), (now.SliceFrom, now.SliceTo, now.Label, now.Colour));
+        Assert.Equal(1, await EntriesAsync(moved));
+    }
+
+    [Fact]
+    public async Task Slices_CanPutAShapeOnEverySlice_AndBackOnOne()
+    {
+        var session = await SessionAsync(null);
+        var alice = As("alice");
+        var shape = await MarkerAsync(alice, session.CollectionId, 4, 4);
+
+        (await SlicesAsync(alice, shape.Id, null, null)).EnsureSuccessStatusCode();
+        Assert.Equal((null, null), ((await GetAsync(alice, session.CollectionId, shape.Id)).SliceFrom, (await GetAsync(alice, session.CollectionId, shape.Id)).SliceTo));
+        (await SlicesAsync(alice, shape.Id, 6, 6)).EnsureSuccessStatusCode();
+        Assert.Equal(6, (await GetAsync(alice, session.CollectionId, shape.Id)).SliceFrom);
+    }
+
+    [Theory]
+    [InlineData(2, null, "sliceFrom and sliceTo go together - set both or neither")]
+    [InlineData(-1, 3, "sliceFrom can't be below 0")]
+    [InlineData(5, 2, "sliceFrom can't be after sliceTo")]
+    public async Task Slices_RefusesARangeThatDoesntMakeSense(int? from, int? to, string message)
+    {
+        var session = await SessionAsync(null);
+        var alice = As("alice");
+        var marker = await MarkerAsync(alice, session.CollectionId, 3, 8);
+
+        var refused = await SlicesAsync(alice, marker.Id, from, to);
+
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.Equal(message, await refused.Content.ReadFromJsonAsync<string>(Json));
+        Assert.Equal(3, (await GetAsync(alice, session.CollectionId, marker.Id)).SliceFrom);
+    }
+
+    [Fact]
+    public async Task Slices_ToWhereItAlreadyIs_RecordsNothing()
+    {
+        var session = await SessionAsync(null);
+        var alice = As("alice");
+        var marker = await MarkerAsync(alice, session.CollectionId, 3, 8);
+
+        var same = await SlicesAsync(alice, marker.Id, 3, 8);
+
+        same.EnsureSuccessStatusCode();
+        Assert.False(same.Headers.Contains(ChangeSetEndpoints.Header));
+    }
+
+    [Fact]
+    public async Task FirstComeWins_TurnsDownSlicesFromAnOldCopy_SayingWhoAndWhichEnd_AndSavingFromTheirsWorks()
+    {
+        var session = await SessionAsync(EditPolicy.FirstComeWins);
+        var (alice, bob) = (As("alice"), As("bob"));
+        var marker = await MarkerAsync(alice, session.CollectionId, 3, 8);
+        var before = Counted(EditPolicy.FirstComeWins, HistoryLog.Annotation);
+        (await SlicesAsync(alice, marker.Id, 0, 8, new SliceRange(3, 8))).EnsureSuccessStatusCode();
+
+        var refused = await SlicesAsync(bob, marker.Id, 3, 12, new SliceRange(3, 8));
+
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        var conflict = (await refused.Content.ReadFromJsonAsync<ConflictView>(Json))!;
+        Assert.Equal("User alice", conflict.ChangedBy);
+        // Only what Alice actually moved - her change left the last slice where it was.
+        Assert.Equal(["SliceFrom"], conflict.Changed);
+        Assert.Equal(before + 1, Counted(EditPolicy.FirstComeWins, HistoryLog.Annotation));
+        Assert.Equal((0, 8), ((await GetAsync(bob, session.CollectionId, marker.Id)).SliceFrom, (await GetAsync(bob, session.CollectionId, marker.Id)).SliceTo));
+
+        (await SlicesAsync(bob, marker.Id, 3, 12, new SliceRange(0, 8))).EnsureSuccessStatusCode();
+    }
+
+    [Fact]
+    public async Task FirstComeWins_ARecolourSince_DoesntStopAMoveBetweenSlices()
+    {
+        var session = await SessionAsync(EditPolicy.FirstComeWins);
+        var (alice, bob) = (As("alice"), As("bob"));
+        var marker = await MarkerAsync(alice, session.CollectionId, 3, 8);
+        (await SaveAsync(alice, marker.Id, "#00FF00", wasColour: "#FF0000", label: "marker")).EnsureSuccessStatusCode();
+
+        (await SlicesAsync(bob, marker.Id, 1, 9, new SliceRange(3, 8))).EnsureSuccessStatusCode();
+    }
+
+    [Fact]
+    public async Task LastWriteWins_LetsSlicesThrough_AndSaysItOverwrote()
+    {
+        var session = await SessionAsync(EditPolicy.LastWriteWins);
+        var (alice, bob) = (As("alice"), As("bob"));
+        var marker = await MarkerAsync(alice, session.CollectionId, 3, 8);
+        (await SlicesAsync(alice, marker.Id, 0, 8, new SliceRange(3, 8))).EnsureSuccessStatusCode();
+
+        var through = await SlicesAsync(bob, marker.Id, 3, 12, new SliceRange(3, 8));
+
+        through.EnsureSuccessStatusCode();
+        Assert.True(through.Headers.Contains(EditConflicts.OverwroteHeader));
+        Assert.Equal(12, (await GetAsync(bob, session.CollectionId, marker.Id)).SliceTo);
+    }
+
+    [Fact]
+    public async Task Slices_FromSomeoneOutsideTheCollection_OrOnAMissingOne_IsNotFound()
+    {
+        var alice = As("alice");
+        var session = await SessionAsync(null);
+        var marker = await MarkerAsync(alice, session.CollectionId, 3, 8);
+
+        Assert.Equal(HttpStatusCode.NotFound, (await SlicesAsync(As("mallory"), marker.Id, 0, 1)).StatusCode);
+        Assert.Equal(3, (await GetAsync(alice, session.CollectionId, marker.Id)).SliceFrom);
+        Assert.Equal(HttpStatusCode.NotFound, (await SlicesAsync(alice, Guid.NewGuid(), 0, 1)).StatusCode);
+    }
+
     [Fact]
     public async Task FirstComeWins_TurnsDownACountGroupsNameFromAnOldCopy_SayingWho()
     {

@@ -331,6 +331,24 @@ public class ItemHistoryTests : IClassFixture<CellCountApiFactory>
         Assert.Equal("create", (await TimelineAsync(alice, id, annotation.Id)).Versions[0].Op);
     }
 
+    [Fact]
+    public async Task GoingBackToBeforeADelete_BringsBackTheSliceRange()
+    {
+        var alice = As("alice");
+        var id = await OwnAsync(alice);
+        var response = await alice.PostAsJsonAsync("/annotations",
+            new Annotation { CollectionId = id, Label = "v1", Colour = "#FF0000", Shape = "Box", SliceFrom = 4, SliceTo = 9 });
+        var marker = (await response.Content.ReadFromJsonAsync<Annotation>(Json))!;
+        await EditAsync(alice, marker.Id, "v2");
+        var v2 = (await TimelineAsync(alice, id, marker.Id)).Versions[0].Id;
+        await alice.DeleteAsync($"/annotations/{marker.Id}");
+
+        (await GoBackAsync(alice, marker.Id, v2)).EnsureSuccessStatusCode();
+
+        var now = await ReadAsync(alice, id, marker.Id);
+        Assert.Equal(("v2", 4, 9), (now.Label, now.SliceFrom, now.SliceTo));
+    }
+
     // Back past a delete and its put back, with the row here now.
     [Fact]
     public async Task GoingBack_PastADeleteThatWasPutBack_StillLandsRight()
@@ -487,6 +505,29 @@ public class ItemHistoryTests : IClassFixture<CellCountApiFactory>
 
         var row = Assert.Single(changes.DeletedRows);
         Assert.Equal((HistoryLog.Annotation, annotation.Id, "gone"), (row.Entity, row.Id, row.Name));
+    }
+
+    [Fact]
+    public async Task AChange_SaysWhichSlicesItsDeletedRowsWereOn()
+    {
+        var alice = As("alice");
+        var id = await OwnAsync(alice);
+        var marker = (await (await alice.PostAsJsonAsync("/annotations",
+            new Annotation { CollectionId = id, Label = "marker", Colour = "#FF0000", Shape = "rectangle", SliceFrom = 3, SliceTo = 8 })).Content.ReadFromJsonAsync<Annotation>(Json))!;
+        var flat = await AddAsync(alice, id, "flat");
+        var count = (await (await alice.PostAsJsonAsync("/cellcounts",
+            new CellCount { CollectionId = id, Label = "count", Dots = "[]", Slice = 5 })).Content.ReadFromJsonAsync<CellCount>(Json))!;
+        var delete = await alice.PostAsJsonAsync("/annotations/bulk-delete", new BulkDeleteRequest(id, [marker.Id, flat.Id]), Json);
+        var countDelete = await alice.DeleteAsync($"/cellcounts/{count.Id}");
+
+        var rows = (await alice.GetFromJsonAsync<ChangeSetChanges>($"/changesets/{delete.Headers.GetValues(ChangeSetEndpoints.Header).Single()}/changes", Json))!
+            .DeletedRows.ToDictionary(r => r.Name!);
+        var countRow = Assert.Single((await alice.GetFromJsonAsync<ChangeSetChanges>(
+            $"/changesets/{countDelete.Headers.GetValues(ChangeSetEndpoints.Header).Single()}/changes", Json))!.DeletedRows);
+
+        Assert.Equal((3, 8), (rows["marker"].SliceFrom, rows["marker"].SliceTo));
+        Assert.Equal((null, null), (rows["flat"].SliceFrom, rows["flat"].SliceTo));
+        Assert.Equal((5, 5), (countRow.SliceFrom, countRow.SliceTo));
     }
 
     // Two people bringing the same row back: there's no row to lock, so the

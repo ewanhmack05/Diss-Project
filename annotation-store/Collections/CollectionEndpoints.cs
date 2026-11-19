@@ -356,6 +356,8 @@ public static class CollectionEndpoints
         {
             if (await db.RequireAsync(id, user, CollectionRole.Editor) is { } denied) return denied;
             if (request.Source is { } source && SourceProblem(source, request) is { } invalid) return Results.BadRequest(invalid);
+            if (request.Annotations.Select(Annotation.SliceRangeProblem).FirstOrDefault(p => p is not null) is { } badRange) return Results.BadRequest(badRange);
+            if (request.CellCounts.Select(CellCountSlices.Problem).FirstOrDefault(p => p is not null) is { } badSlice) return Results.BadRequest(badSlice);
             var (changeSet, problem) = await db.ChangeSetAsync(http, id, user, request.Source is null ? "import" : AddFromMessage);
             if (problem is not null) return problem;
             if (request.Source is { } sent)
