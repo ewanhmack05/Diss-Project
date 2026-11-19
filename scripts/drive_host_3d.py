@@ -23,7 +23,15 @@ import json
 import time
 
 from keycloak_login import access_token
-from simulate_session import Hub, call, invite_code, orbit_camera, slide_bounds, three_d_screen, viewport
+from simulate_session import (
+    Hub,
+    call,
+    invite_code,
+    orbit_camera,
+    slide_bounds,
+    three_d_screen,
+    viewport,
+)
 
 
 def camera_path(moves, start=0.0, step=0.9):

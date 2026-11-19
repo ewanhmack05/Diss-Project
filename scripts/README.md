@@ -189,7 +189,16 @@ including that the largest count it allows really fits under 80 MiB, and
 SignalR message framing, the shapes and dots the drawing and counting
 scripts make (all inside the view, valid part way through), and who
 `teardown_users.py` removes and protects.
-CI runs them with ruff.
+CI runs them, and lints with ruff 0.17.5 on its default rules (no config
+file), which include sorted imports and `itertools.pairwise` over
+`zip(xs, xs[1:])`. Run the same lint before pushing:
+
+```bash
+python -m pip install --user ruff==0.17.5
+python -m ruff check scripts
+```
+
+`python -m ruff check --fix scripts` sorts imports itself.
 
 ## Simulated people in a session
 

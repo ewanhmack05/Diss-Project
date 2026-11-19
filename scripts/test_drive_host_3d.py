@@ -1,6 +1,14 @@
 import unittest
+from itertools import pairwise
 
-from drive_host_3d import camera_path, host_screen, host_view, look_request, marker_sketches, two_d_view
+from drive_host_3d import (
+    camera_path,
+    host_screen,
+    host_view,
+    look_request,
+    marker_sketches,
+    two_d_view,
+)
 
 
 class CameraPath(unittest.TestCase):
@@ -8,12 +16,12 @@ class CameraPath(unittest.TestCase):
         path = camera_path(12)
         self.assertEqual(len(path), 12)
         positions = [tuple(round(v, 6) for v in camera["position"]) for camera in path]
-        for before, after in zip(positions, positions[1:]):
+        for before, after in pairwise(positions):
             self.assertNotEqual(before, after)
 
     def test_it_never_sits_at_the_same_height_twice_running(self):
         heights = [camera["position"][1] for camera in camera_path(6)]
-        for before, after in zip(heights, heights[1:]):
+        for before, after in pairwise(heights):
             self.assertNotEqual(before, after)
 
     def test_each_looks_at_the_middle_of_the_block(self):
