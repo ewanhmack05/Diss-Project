@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <!-- Slides/OpenSlideApi.cs - LibraryImport's generated string marshalling uses pointers. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <UserSecretsId>d0094721-5b1b-493e-b36c-4468f69852ae</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

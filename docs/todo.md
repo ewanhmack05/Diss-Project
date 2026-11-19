@@ -116,6 +116,13 @@ an afternoon, medium a few days, large a week or more.
   of the slide; annotation-store counts collections and live sessions per
   slide. Invites, sent things and the Users tab can go to another slide now.
   See [gallery.md](gallery.md)
+- **Gallery for a big set** - tried on the 200-slide TCIA
+  Hungarian-Colorectal-Screening set. Search by name, a Filter sheet like the
+  Saved lists' (kind, z-stack, objective, channel, collections, people on it
+  now), cards 24 to a page, a scrollbar along the bottom dock that can be
+  reached, thumbnails that try again before falling back, and a tiler that
+  lists 200 slides in 0.06s after a restart instead of 50s. See
+  [gallery.md](gallery.md#finding-a-slide)
 - **Playback videos** - `node record.js` in [playback](../playback/README.md) remakes
   them all, messaging included, and each scene checks what it shows
 
@@ -383,6 +390,69 @@ written up in [background.md](background.md#read-and-noted). None built yet.
 - **Annotations as GeoJSON** (CytoBrowser saves JSON) - already done here:
   collections import and export GeoJSON in slide pixels
   ([collectionGeoJson.ts](../image-viewer/src/components/collections/collectionGeoJson.ts))
+
+## 13. Grouping slides in the gallery - thoughts, not built
+
+The gallery is one flat list. With the TCIA set that's 200 slides, one per
+patient, and a real study has several per patient - serial sections,
+different stains, a biopsy and a resection - so the list stops being enough
+before search and filters run out. Grouping is a big change, so these are notes
+to decide from, not a plan.
+
+**What a group is.** Patient, area (organ, site, block), stain, scan batch,
+study arm. A slide is in several at once - patient 12 _and_ H&E _and_ colon -
+so groups are tags with a key, not folders in a tree. A tree forces one way of
+slicing the set, and whoever set it up picks it for everyone. A z-stack is
+already a group of a kind: sections of one block lined up, opened as one slide.
+
+**Where the tags come from**, cheapest first:
+
+1. _The data folder_ - subfolders as groups (`colon/patient-012/slide.mrxs`).
+   Nothing new to write, but it's one way of slicing again, and moving files
+   breaks the slide ids annotation-store keys everything on
+2. _A manifest next to the slides_ - a CSV or JSON of slide id to tags
+   (`hcrc-012, patient=12, diagnosis=adenoma`). TCIA ships one for this
+   collection already: a 3.93 KB clinical CSV (demographics and diagnosis) per
+   patient. The tiler reads it with the slides and sends `tags` on each slide
+   in `GET /slides` - a contract change, but an added field. No database
+3. _Groups people make_ - in annotation-store, like annotation groups: named,
+   shared, editable. Those are edits, so they'd need the history log and
+   putting back like everything else, and permissions for who can change a
+   shared group. The most work, and the only one that suits a set nobody
+   catalogued
+
+Probably 2 first, with 3 later if people need groups the files don't have.
+
+**What it looks like.** The tags become Filter sheet sections on their own -
+a Patient section, a Diagnosis section - which the sheet built for search and
+filters already handles: chips with counts, any of these. A "Group by" picker
+above the cards adds headers ("Patient 12 - 3 slides"), folding, and the pager
+counting groups rather than slides so a group isn't split across pages. The
+filmstrip gets a divider and the group's name between runs. A saved filter
+("adenomas, x40") is a smart group, the way an asset browser's saved searches
+are.
+
+**What it touches.**
+
+- Sessions across slides (see [gallery.md](gallery.md#whats-next---sessions-across-slides))
+  - a group is the natural thing for a session to span: "review patient 12"
+  rather than one slide. Worth deciding together, since both turn slides into
+  sets
+- The arrows step within a group, and the address could carry it
+  (`?slide=hcrc-012&group=patient-12`)
+- Ethics - patient ids are personal data. TCIA's are pseudonymised; an NHS
+  number wouldn't be, so a manifest from real clinical data needs the same
+  thought as [section 11](#11-what-id-do-in-the-future)
+
+**Games parallel for the write up.** Engine asset browsers deal with the same
+thing: thousands of assets, many ways to slice them. Unreal has folders plus
+Collections (hand-made and dynamic, saved searches) and Unity has labels.
+Both kept folders and added tags and saved searches on top, rather than making
+one tree do everything.
+
+**Size.** The manifest and tag filters: medium - the tiler reads a file and
+sends a field, and the viewer gets new sections and a Group by. Groups people
+make, with history: large.
 
 ## Suggested order
 

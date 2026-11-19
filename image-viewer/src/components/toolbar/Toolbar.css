@@ -15,9 +15,12 @@
 	z-index: 30;
 }
 
+/* As tall as the bar, not 3.69em: a button's em is the browser's button text
+   size (13.3px), not the bar's 11px, so 3.69em came out 8px taller than the
+   bar and the buttons stuck up over whatever was docked along the bottom. */
 .toolbar-button {
 	width: 3.69em;
-	height: 3.69em;
+	height: 100%;
 	flex-shrink: 0;
 	display: flex;
 	align-items: center;

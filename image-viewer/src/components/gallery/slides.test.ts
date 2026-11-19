@@ -14,6 +14,7 @@ import {
 	scannerText,
 	slideName,
 	sortSlides,
+	thumbnailRetryDelay,
 	thumbnailUrl,
 	wholeSlideTileUrl,
 	zoomText,
@@ -216,6 +217,20 @@ describe("moving along", () => {
 		expect(positionText(slides, "000")).toBe("1 of 4");
 		expect(positionText(slides, "999")).toBe("4 slides");
 		expect(positionText([cmu], "999")).toBe("1 slide");
+	});
+});
+
+describe("a thumbnail that doesn't load", () => {
+	it("is tried again after 1s, then 4s, then falls back", () => {
+		expect(thumbnailRetryDelay(0)).toBeNull();
+		expect(thumbnailRetryDelay(1)).toBe(1000);
+		expect(thumbnailRetryDelay(2)).toBe(4000);
+		expect(thumbnailRetryDelay(3)).toBeNull();
+	});
+
+	it("asks again with a different address, so the browser doesn't hand back the failure", () => {
+		expect(thumbnailUrl("/tiler", "a")).not.toContain("try=");
+		expect(thumbnailUrl("/tiler", "a", 2)).toBe("/tiler/slides/a/thumbnail.jpg?width=192&square=true&try=2");
 	});
 });
 

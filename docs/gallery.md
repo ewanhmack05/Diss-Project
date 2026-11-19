@@ -10,30 +10,85 @@ A toolbar button, second after fullscreen, opens a panel like any other.
 
 | Where the panel is      | What it shows                                                                                                           |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Floating, cards         | A card per slide - picture, name, size in pixels, max zoom and µm per pixel, real size, kind and channels, file size, collections, live sessions, who's on it now |
+| Floating, cards         | A card per slide - picture, name, size in pixels, max zoom and µm per pixel, real size, kind and channels, file size, collections, live sessions, who's on it now. 24 to a page |
 | Floating, filmstrip     | Pictures only in a row, with the name in a bar under each. The button at the top switches between the two              |
 | Docked left or right    | Always a filmstrip, running down the edge                                                                                |
-| Docked top or bottom    | Always a filmstrip, running along the edge                                                                               |
+| Docked top or bottom    | Always a filmstrip, running along the edge, with the search box and Filter button down its left                         |
 
-Docked, the pictures are smaller and a fixed size (8em), and an edge with
-only the gallery on it shrinks to fit them - 11em at the sides, 14em along
-the top or bottom, against 20em and 21em for other panels
-(`edgeSizeEm` in [dock.ts](../image-viewer/src/components/toolbar/dock.ts)).
-Share the edge with another panel and it goes back to the usual size, since
-that panel needs the room.
+Down the side the pictures are smaller and a fixed size (8em). Along the top
+or bottom they're as big as fits over the scrollbar - the list is a size
+container and each picture is `100cqh` less the scrollbar, the tile's border
+and the name bar. A fixed 8em didn't fit there: the scrollbar pushed the row
+past the bottom of the panel, which cut the scrollbar off, so with 200 slides
+there was no way along but the arrows. An edge with only the gallery on it
+shrinks to fit - 11em at the sides, 14em along the top or bottom, against
+20em and 21em for other panels (`edgeSizeEm` in
+[dock.ts](../image-viewer/src/components/toolbar/dock.ts)). Share the edge
+with another panel and it goes back to the usual size, since that panel needs
+the room.
 
 A filmstrip has the arrows on a ribbon floating over the bottom of it, with
-"3 of 4" between them. Docked along the top or bottom it overlaps the
-pictures rather than taking a row of its own, so the edge stays slim. The open slide has an outline, and a dot by a
+"3 of 4" between them. Along the top or bottom it sits just above the
+scrollbar, so all of the scrollbar can be dragged. The open slide has an outline, and a dot by a
 name means someone's working on it now - a live session you're in, or
 someone online with it open.
 
 Each picture is a square from the middle of the slide, its shorter side
 across - so a slide twice as tall as it's wide shows its middle half. The
 tiler cuts it (`GET /slides/{id}/thumbnail.jpg?width=192&square=true`), so
-it's read at the size it's shown. If the tiler can't make one, the viewer
-falls back to the one tile that's the whole slide, cropped to the same
-square.
+it's read at the size it's shown. One that doesn't load is asked for again
+after 1s and 4s (`&try=1`, `&try=2`, so the browser doesn't hand back the
+failure), and only then falls back to the one tile that's the whole slide,
+cropped to the same square. For a MIRAX slide that tile is mostly black -
+nothing's scanned round the tissue - and falling back on the first failure
+left black squares in the strip whenever the tiler was busy or restarting,
+until the page was reloaded. Checked by stopping the tiler while a page of
+cards loaded and starting it again: every first try and `try=1` got a 502,
+every `try=2` loaded, none fell back.
+
+## Finding a slide
+
+With a set like the 200 TCIA slides, scrolling isn't enough. Above the slides,
+in every layout:
+
+- **Search** - every word typed is somewhere in the name the scanner gave it,
+  its id or its file name, in any case. "hcrc 01" finds hcrc-010 to hcrc-019
+- **Filter** - the same sheet as the Saved lists' (see `FilterSheet` below),
+  with a badge for how many are on. Kind (brightfield, fluorescence, not
+  stated), Z-stack (z-stacks, flat), Objective, Channel (when any slide has
+  channels), Collections (with, without) and People on it now (a live session
+  on it or someone with it open). Each chip says how many slides it covers,
+  out of all of them, so chips don't vanish as others go on
+- **Pages** - cards come 24 to a page with the Saved lists' pager, opening on
+  the page the open slide's on. Searching or filtering starts from the first.
+  The strips aren't paged: they scroll, with the scrollbar or the arrows, and
+  a page break in a filmstrip would just be a second way to get stuck
+
+While anything's narrowing it, the bar says "3 of 12 · 202 in all", and the
+arrows step through what's showing - from a slide that's filtered out, to the
+nearest one showing on that side. Nothing matching says so, with a button to
+clear the search and filters.
+
+All of it's worked out in the viewer from what the tiler and annotation-store
+already sent ([galleryFilters.ts](../image-viewer/src/components/gallery/galleryFilters.ts)),
+so it's instant and nothing new goes to a server. That holds into the
+thousands; past that the tiler's list itself would want paging.
+
+The filter sheet's shell - the button, following the panel, closing on a click
+outside or Escape, Clear all and Done - came out of the Saved lists' menu into
+[FilterSheet.tsx](../image-viewer/src/components/saved/FilterSheet.tsx), so both
+use it and look the same. Docked along the bottom the sheet now comes up from
+the button instead of dropping off the bottom of the screen
+(`placeSheet`'s "above"), which fixes the Saved lists docked there too.
+
+## A big set of slides
+
+The tiler lists slides by opening each one, and OpenSlide reads all of a MIRAX
+slide's `Index.dat` to do it - 15 MB each for the TCIA slides. The first
+`GET /slides` after a start took 50s for 200 of them, and the gallery said
+"Loading slides…" the whole time. The tiler now keeps what it read in the data
+folder and reads it in the background at start, so after a restart the list
+takes 0.06s. See [tiler/README.md](../tiler/README.md#slide-info-between-starts).
 
 Guests don't get it - they're on the one session their link is for.
 
@@ -47,6 +102,7 @@ Guests don't get it - they're on the one session their link is for.
 | Collections                  | annotation-store's `GET /slides/summary` - collections you can open that have something in them                                                           |
 | Live sessions                | The same - sessions you're in that haven't ended                                                                                                           |
 | People here now              | The realtime hub's presence, which already said which slide everyone's on                                                                                  |
+| Z-stack                      | The tiler's `slices` - more than one is a volume                                                                                                           |
 
 Empty collections aren't counted. Opening a slide makes everyone an empty
 personal collection there (`POST /collections/ensure`), so counting those
@@ -188,11 +244,21 @@ the hub, and the viewer's move becoming two-way.
 
 - tiler: `SlideMetadataTests`, `ThumbnailTests`, `SlideApiTests` (names,
   kinds, channels, the thumbnail's size, background and cache header, the
-  square crop, against the real slides - skipped where they're LFS pointers)
+  square crop, against the real slides - skipped where they're LFS pointers),
+  `SlideInfoCacheTests` and `SlideInfoWarmupTests` (kept info used without
+  opening the slide, read again when a file changes, read once however many
+  ask at once, the warm-up). `scripts/time_slide_list.py` times the list on a
+  first start and a restart
 - annotation-store: `SlideSummaryTests` (what's counted, sharing, sessions
   ending, deleted and restored, guests refused, two queries however many
   slides)
 - image-viewer: `gallery/slideUrl.test.ts` (reading and writing `?slide=`,
   unsafe ids), `gallery/slides.test.ts` (every line on a card, layout by
-  dock side, moving along), `gallery/moving.test.ts` (what the popup says),
+  dock side, moving along, thumbnail retries), `gallery/galleryFilters.test.ts`
+  (search, every filter, chip counts, arrows over what's showing, pages),
+  `gallery/stripLayout.test.ts` (the CSS that keeps the bottom strip's
+  scrollbar in reach), `saved/sheetPlacement.test.ts` (the sheet coming up
+  from the bottom dock), `gallery/moving.test.ts` (what the popup says),
   `open-layers/OpenLayers.test.ts` (each slide's own extent and ladder)
+- playback: the gallery scene checks the bottom-docked row fits the panel
+  with room for the scrollbar, and the toolbar doesn't cover it

@@ -86,6 +86,7 @@ public sealed class VolumeApiFactory : WebApplicationFactory<Program>
     {
         builder.UseEnvironment("Testing");
         builder.UseSetting("OTEL_SDK_DISABLED", "true");
+        TilerApiFactory.NoKeptSlideInfo(builder);
         builder.UseSetting("Slides:Volumes:stack", Volume.Path);
     }
 

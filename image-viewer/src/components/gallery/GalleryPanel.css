@@ -57,6 +57,90 @@
 	color: var(--chrome-text-secondary);
 }
 
+/* Nothing matches the search and filters - with a way back. */
+.gallery-none {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 0.6em;
+}
+
+.gallery-none .gallery-bar-button {
+	padding: 0.4em 0.7em;
+	font-size: 1em;
+}
+
+/* The search box and Filter button (a .saved-search-row) - under the bar
+   floating, at the top of a strip down the side, and down the left of a strip
+   along the top or bottom, so they don't take height from the pictures. */
+.gallery-search {
+	padding: 0.5em 0.8em 0;
+	margin-bottom: 0;
+}
+
+.gallery-search-input {
+	box-sizing: border-box;
+	width: 100%;
+	padding: 0.45em 0.5em;
+	font-family: var(--sans);
+	font-size: 0.9em;
+	color: var(--chrome-text);
+	background: var(--white-06);
+	border: 1px solid transparent;
+	border-radius: 0.3125rem;
+}
+
+.gallery-search-input:focus {
+	outline: none;
+	border-color: var(--accent);
+}
+
+.gallery--docked.gallery--strip-vertical .gallery-search {
+	padding: 0.5em 0.5em 0;
+}
+
+/* Down the side there's only room for the filter icon - its name is its label. */
+.gallery--strip-vertical .saved-filter-toggle-text {
+	display: none;
+}
+
+.gallery--strip-vertical .saved-filter-toggle {
+	padding: 0 0.5em;
+}
+
+.gallery--docked.gallery--strip-horizontal {
+	flex-direction: row;
+}
+
+.gallery--docked.gallery--strip-horizontal .gallery-search {
+	flex: 0 0 11em;
+	flex-direction: column;
+	padding: 0.5em 0 0.5em 0.5em;
+}
+
+/* The row's flex: 1 would stretch the box down the column. */
+.gallery--docked.gallery--strip-horizontal .gallery-search input[type="search"] {
+	flex: 0 0 auto;
+}
+
+.gallery--docked.gallery--strip-horizontal .gallery-search .saved-filter-toggle {
+	justify-content: center;
+	padding: 0.4em 0.7em;
+}
+
+/* Under the cards - SavedPager, which shows nothing on one page. */
+.gallery-pager {
+	flex-shrink: 0;
+	display: flex;
+	justify-content: center;
+	padding: 0.4em 0.8em 0.6em;
+	border-top: 1px solid var(--white-10);
+}
+
+.gallery-pager:empty {
+	display: none;
+}
+
 /* The picture - a square from the middle of the slide (see thumbnailUrl).
    Covered rather than contained, so the fallback tile of the whole slide is
    cropped to the same middle square. */
@@ -155,6 +239,7 @@
 	position: relative;
 	display: flex;
 	flex: 1;
+	min-width: 0;
 	min-height: 0;
 }
 
@@ -175,10 +260,19 @@
 	overflow-y: auto;
 }
 
+/* The scrollbar along the bottom is how you get along a long row, so the
+   ribbon sits above it rather than on it (see .gallery-ribbon), and the list
+   leaves room under the pictures for both. A thin scrollbar is at most about
+   11px in any browser, and none where they float over. */
+.gallery-strip--horizontal {
+	--strip-scrollbar: 12px;
+}
+
 .gallery-strip--horizontal .gallery-strip-list {
 	flex-direction: row;
-	padding-bottom: 3.2em;
+	padding-bottom: 3.6em;
 	overflow-x: auto;
+	overflow-y: hidden;
 }
 
 .gallery-strip-list > li {
@@ -221,24 +315,35 @@
 	height: 7em;
 }
 
-/* Docked they're smaller and fixed, so the strip doesn't take a big bite out
-   of the map. Down the side they sit in the middle of the edge. */
-.gallery--docked .gallery-thumb,
-.gallery--docked .gallery-strip--horizontal .gallery-thumb {
+/* Down the side they're smaller and fixed, so the strip doesn't take a big
+   bite out of the map, and sit in the middle of the edge. */
+.gallery--docked .gallery-strip--vertical .gallery-thumb {
 	width: 8em;
 	height: 8em;
 }
 
-/* Along the top or bottom the strip is only as tall as the pictures, so the
-   ribbon stays with them however tall the dock is. */
-.gallery--docked .gallery-strip--horizontal {
-	flex: 0 0 auto;
-}
-
 /* Along the top or bottom the arrows don't get a row of their own - the
-   ribbon floats over the bottom of the pictures. */
+   ribbon floats over the bottom of the pictures. The pictures are as big as
+   fits over the scrollbar: a fixed size didn't fit, so the scrollbar went
+   past the bottom of the panel and was cut off. The list is a size container
+   so 100cqh is its height inside the padding - the scrollbar not taken off. */
 .gallery--docked .gallery-strip--horizontal .gallery-strip-list {
 	padding-bottom: 0.5em;
+	container-type: size;
+}
+
+/* Square, the row's height less the scrollbar, the tile's border and padding
+   (2px and 0.2em a side) and the name bar under it (1.35em - see below). */
+.gallery--docked .gallery-strip--horizontal .gallery-thumb {
+	--size: calc(100cqh - var(--strip-scrollbar) - 4px - 0.4em - 1.35em);
+	width: var(--size);
+	height: var(--size);
+}
+
+/* 1.8em of its own 0.75em text is 1.35em of the tile's - fixed, so the
+   pictures above can be sized to what's left. */
+.gallery--docked .gallery-strip--horizontal .gallery-tile-name {
+	height: 1.8em;
 }
 
 .gallery--docked .gallery-strip--vertical .gallery-tile {
@@ -294,6 +399,11 @@
 	border: 1px solid var(--white-22);
 	border-radius: 0.4em;
 	box-shadow: 0 0.25em 0.75em var(--black-35);
+}
+
+/* Above the scrollbar, so the whole of it can be dragged. */
+.gallery-strip--horizontal .gallery-ribbon {
+	bottom: calc(0.6em + var(--strip-scrollbar));
 }
 
 .gallery-ribbon-button {

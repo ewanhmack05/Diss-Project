@@ -53,10 +53,14 @@ public sealed class SlideCatalog : IDisposable
 
     private readonly Dictionary<string, Source> _sources;
     private readonly ConcurrentDictionary<(string Id, int Slice), Lazy<SlideHandlePool>> _pools = new();
-    private readonly ConcurrentDictionary<string, SlideInfo> _infos = new(StringComparer.OrdinalIgnoreCase);
+    // Lazy so a slide is read once when GET /slides and the warm-up (see
+    // SlideInfoWarmup) ask for it at the same time.
+    private readonly ConcurrentDictionary<string, Lazy<SlideInfo>> _infos = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<string> _skipped = [];
     private readonly Timer _trim;
     private readonly TimeSpan _idleFor;
+    private int _infoReads;
+    private int _infoHits;
 
     // What a file checked out without Git LFS starts with - see IsLfsPointer.
     private const string LfsPointerStart = "version https://git-lfs";
@@ -71,6 +75,17 @@ public sealed class SlideCatalog : IDisposable
         _trim = new Timer(_ => Budget.TrimIdle(_idleFor), null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
 
         var dataDirectory = Path.Combine(env.ContentRootPath, configuration["Slides:DataPath"] ?? "data");
+        // Slides:InfoCachePath picks where slide info is kept between starts -
+        // in the data folder if it isn't set, nowhere if it's empty.
+        var infoCachePath = configuration["Slides:InfoCachePath"];
+        InfoCache = new SlideInfoCache(
+            infoCachePath switch
+            {
+                null => Path.Combine(dataDirectory, SlideInfoCache.DefaultFileName),
+                "" => null,
+                _ => Path.GetFullPath(Path.Combine(env.ContentRootPath, infoCachePath)),
+            },
+            logger);
         _sources = new Dictionary<string, Source>(StringComparer.OrdinalIgnoreCase);
         var mirax = Directory.Exists(dataDirectory) ? Directory.GetFiles(dataDirectory, "*.mrxs").Order() : Enumerable.Empty<string>();
         foreach (var path in mirax)
@@ -132,8 +147,17 @@ public sealed class SlideCatalog : IDisposable
     /// <summary>Slides and volumes in the data folder that were left out because their files are Git LFS pointers.</summary>
     public IReadOnlyList<string> Skipped => _skipped;
 
-    // A MIRAX slide is the .mrxs and everything in the folder of the same name.
-    private static IEnumerable<string> MiraxFiles(string mrxs)
+    /// <summary>Where MIRAX slides' info is kept between starts - see SlideInfoCache.</summary>
+    public SlideInfoCache InfoCache { get; }
+
+    /// <summary>How many slides' info has been read by opening them since the start.</summary>
+    public int InfoReads => Volatile.Read(ref _infoReads);
+
+    /// <summary>How many slides' info came from InfoCache instead.</summary>
+    public int InfoHits => Volatile.Read(ref _infoHits);
+
+    /// <summary>A MIRAX slide's files: the .mrxs and everything in the folder of the same name.</summary>
+    public static IEnumerable<string> MiraxFiles(string mrxs)
     {
         yield return mrxs;
         var folder = Path.Combine(Path.GetDirectoryName(mrxs)!, Path.GetFileNameWithoutExtension(mrxs));
@@ -163,14 +187,51 @@ public sealed class SlideCatalog : IDisposable
         return _pools.GetOrAdd((id.ToLowerInvariant(), index), _ => new Lazy<SlideHandlePool>(() => new SlideHandlePool(path, HandlesPerSlide, Budget))).Value;
     }
 
-    /// <summary>Slide dimensions and metadata - read once, then cached, since every tile request needs them.</summary>
+    /// <summary>
+    /// Slide dimensions and metadata - read once, then kept, since every tile
+    /// request needs them. A MIRAX slide's comes from InfoCache when its files
+    /// haven't changed, without opening it.
+    /// </summary>
     public SlideInfo? GetInfo(string id)
     {
-        if (_infos.TryGetValue(id, out var cached)) return cached;
         if (!_sources.TryGetValue(id, out var source)) return null;
-        var pool = GetPool(id)!;
+        var info = _infos.GetOrAdd(id, _ => new Lazy<SlideInfo>(() => LoadInfo(id, source)));
+        try
+        {
+            return info.Value;
+        }
+        catch
+        {
+            // Lazy would keep the exception for good. Without it the next ask
+            // tries again, as it did before.
+            _infos.TryRemove(new KeyValuePair<string, Lazy<SlideInfo>>(id, info));
+            throw;
+        }
+    }
 
-        return _infos.GetOrAdd(id, _ => pool.Use(slide => ReadInfo(id, source, slide)));
+    private SlideInfo LoadInfo(string id, Source source)
+    {
+        // Only a flat MIRAX slide: a volume is a handful of TIFFs, quick to open.
+        var mrxs = source.Files.Count == 1 && source.Files[0].EndsWith(".mrxs", StringComparison.OrdinalIgnoreCase)
+            ? Path.GetFullPath(source.Files[0])
+            : null;
+        string? stamp = null;
+        if (mrxs is not null)
+        {
+            // Worked out before it's read, so a file changed while it's being
+            // read is stamped as it was and read again next start.
+            stamp = SlideInfoCache.Stamp(MiraxFiles(mrxs));
+            if (InfoCache.Get(mrxs, stamp) is { } kept && kept.Id == id)
+            {
+                Interlocked.Increment(ref _infoHits);
+                return kept;
+            }
+        }
+
+        var info = GetPool(id)!.Use(slide => ReadInfo(id, source, slide));
+        Interlocked.Increment(ref _infoReads);
+        if (mrxs is not null) InfoCache.Put(mrxs, stamp!, info);
+        return info;
     }
 
     // Every slice of a volume has to be the same size, or the same tile would
@@ -188,6 +249,9 @@ public sealed class SlideCatalog : IDisposable
         }
     }
 
+    // What this returns for a MIRAX slide is kept on disk between starts.
+    // Change what it works out and bump SlideInfoCache.Version, or slides
+    // keep what the old code said until their files change.
     private static SlideInfo ReadInfo(string id, Source source, OpenSlideImage slide)
     {
         var dimensions = slide.Dimensions;

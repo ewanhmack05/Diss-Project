@@ -141,7 +141,7 @@ function filterKey(filters: SavedFilters): string {
 }
 
 // Adds or takes away one value from a multi-pick filter.
-function toggled(values: string[], value: string): string[] {
+function toggled<T>(values: T[], value: T): T[] {
 	return values.includes(value) ? values.filter((v) => v !== value) : [...values, value];
 }
 
