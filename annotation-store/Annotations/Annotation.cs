@@ -19,7 +19,7 @@ public class Annotation
     public Guid? GroupId { get; set; }
     // The slices of a volume it's on, inclusive - a 3D marker spans several.
     // Both null means every slice: every row from before, and every 2D
-    // annotation. Set when it's added and never changed after.
+    // annotation. Moved by PUT /annotations/{id}/slices.
     public int? SliceFrom { get; set; }
     public int? SliceTo { get; set; }
     public DateTimeOffset Created { get; set; }

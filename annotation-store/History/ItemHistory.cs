@@ -40,11 +40,11 @@ public record WalkedBack(Dictionary<string, JsonElement> Columns, bool Whole, bo
 public static class ItemHistory
 {
     // What someone can change on a row. Everything else is fixed once saved,
-    // so going back never needs to touch it. Snapshots.StateJsonAsync has the
-    // same list.
-    internal static readonly Dictionary<string, string[]> Changeable = new()
+    // so going back never needs to touch it. AnnotationState and
+    // Snapshots.StateJsonAsync have the same lists, and a test holds them to it.
+    public static readonly Dictionary<string, string[]> Changeable = new()
     {
-        [HistoryLog.Annotation] = [nameof(Annotation.Label), nameof(Annotation.Notes), nameof(Annotation.Colour), nameof(Annotation.GroupId)],
+        [HistoryLog.Annotation] = [nameof(Annotation.Label), nameof(Annotation.Notes), nameof(Annotation.Colour), nameof(Annotation.GroupId), nameof(Annotation.SliceFrom), nameof(Annotation.SliceTo)],
         [HistoryLog.Group] = [nameof(AnnotationGroup.Name), nameof(AnnotationGroup.Notes)],
         [HistoryLog.CellCountGroup] = [nameof(CellCountGroup.Name), nameof(CellCountGroup.Notes)],
         [HistoryLog.CellCount] = [nameof(CellCount.Label), nameof(CellCount.Notes), nameof(CellCount.GroupId), nameof(CellCount.WithAnnotation), nameof(CellCount.WithRoi), nameof(CellCount.Count), nameof(CellCount.DotSize)],
@@ -272,8 +272,10 @@ public static class ItemHistory
         Guid? groupWas = null;
         foreach (var column in Changeable[version.Entity])
         {
-            if (!walked.Columns.TryGetValue(column, out var value)) continue;
-            var wanted = HistoryLog.ValueOf(value, row.Property(column).Metadata.ClrType);
+            object? wanted = null;
+            if (walked.Columns.TryGetValue(column, out var value)) wanted = HistoryLog.ValueOf(value, row.Property(column).Metadata.ClrType);
+            // A delete from before slices were there has none, which was every slice.
+            else if (!walked.Whole || !EditConflicts.AnnotationSlices.Contains(column)) continue;
             if (column == nameof(Annotation.GroupId))
             {
                 var now = version.Entity == HistoryLog.CellCount
@@ -283,6 +285,9 @@ public static class ItemHistory
                 wanted = now;
             }
             var current = live is null ? null : row.Property(column).CurrentValue;
+            // Coming back on every slice isn't worth saying - on a flat slide
+            // everything is.
+            if (live is null && wanted is null && EditConflicts.AnnotationSlices.Contains(column)) continue;
             if (live is null || !Equals(current, wanted)) changes.Add(new Change(column, current, wanted));
         }
         return new Plan(live, row, changes, groupWas, since);

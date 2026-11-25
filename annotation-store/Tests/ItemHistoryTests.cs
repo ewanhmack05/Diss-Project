@@ -349,6 +349,145 @@ public class ItemHistoryTests : IClassFixture<CellCountApiFactory>
         Assert.Equal(("v2", 4, 9), (now.Label, now.SliceFrom, now.SliceTo));
     }
 
+    private static async Task<Annotation> AddOnSlicesAsync(HttpClient client, Guid collectionId, int? from, int? to)
+    {
+        var response = await client.PostAsJsonAsync("/annotations",
+            new Annotation { CollectionId = collectionId, Label = "v1", Colour = "#FF0000", Shape = "Box", SliceFrom = from, SliceTo = to });
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<Annotation>(Json))!;
+    }
+
+    private static async Task MoveAsync(HttpClient client, Guid id, int? from, int? to) =>
+        (await client.PutAsJsonAsync($"/annotations/{id}/slices", new SliceRangeUpdate(from, to), Json)).EnsureSuccessStatusCode();
+
+    private static async Task<(int?, int?)> SlicesAsync(HttpClient client, Guid collectionId, Guid id)
+    {
+        var row = await ReadAsync(client, collectionId, id);
+        return (row.SliceFrom, row.SliceTo);
+    }
+
+    [Fact]
+    public async Task EveryPointOfSlicesMoving_GoesBackToExactlyThoseSlices()
+    {
+        var alice = As("alice");
+        var id = await OwnAsync(alice);
+        var marker = await AddOnSlicesAsync(alice, id, 3, 8);
+        var points = new List<(long Entry, (int?, int?) Slices)>();
+        async Task Mark() => points.Add(((await TimelineAsync(alice, id, marker.Id)).Latest!.Value, await SlicesAsync(alice, id, marker.Id)));
+        await Mark();
+        foreach (var (from, to) in new (int?, int?)[] { (3, 11), (0, 11), (0, 1), (null, null), (6, 6) })
+        {
+            await MoveAsync(alice, marker.Id, from, to);
+            await Mark();
+        }
+
+        foreach (var (entry, slices) in points)
+        {
+            (await GoBackAsync(alice, marker.Id, entry)).EnsureSuccessStatusCode();
+            Assert.Equal(slices, await SlicesAsync(alice, id, marker.Id));
+        }
+    }
+
+    [Fact]
+    public async Task Preview_SaysWhichSlicesItWouldGoBackTo()
+    {
+        var alice = As("alice");
+        var id = await OwnAsync(alice);
+        var marker = await AddOnSlicesAsync(alice, id, 3, 8);
+        await MoveAsync(alice, marker.Id, null, null);
+        var added = (await TimelineAsync(alice, id, marker.Id)).Versions[^1].Id;
+
+        var preview = (await alice.GetFromJsonAsync<ItemPreview>($"/annotations/{marker.Id}/history/{added}", Json))!;
+
+        var byColumn = preview.Changes.ToDictionary(c => c.Column);
+        Assert.Equal(["SliceFrom", "SliceTo"], byColumn.Keys.Order());
+        Assert.Equal(System.Text.Json.JsonValueKind.Null, byColumn["SliceFrom"].Before.ValueKind);
+        Assert.Equal((3, 8), (byColumn["SliceFrom"].After.GetInt32(), byColumn["SliceTo"].After.GetInt32()));
+    }
+
+    // Moved, then deleted: its delete's copy has where it was moved to, and
+    // going back to before the move has to take that off again.
+    [Fact]
+    public async Task ADeletedAnnotation_ComesBackOnTheSlicesItHadAtThatPoint()
+    {
+        var alice = As("alice");
+        var id = await OwnAsync(alice);
+        var marker = await AddOnSlicesAsync(alice, id, 3, 8);
+        var added = (await TimelineAsync(alice, id, marker.Id)).Versions[0].Id;
+        await MoveAsync(alice, marker.Id, 2, 11);
+        await alice.DeleteAsync($"/annotations/{marker.Id}");
+
+        var preview = (await alice.GetFromJsonAsync<ItemPreview>($"/annotations/{marker.Id}/history/{added}", Json))!;
+        Assert.Equal(3, preview.Changes.Single(c => c.Column == "SliceFrom").After.GetInt32());
+        (await GoBackAsync(alice, marker.Id, added)).EnsureSuccessStatusCode();
+
+        Assert.Equal((3, 8), await SlicesAsync(alice, id, marker.Id));
+    }
+
+    // On a flat slide there are no slices to talk about.
+    [Fact]
+    public async Task ADeletedAnnotationOnEverySlice_SaysNothingAboutSlicesComingBack()
+    {
+        var alice = As("alice");
+        var id = await OwnAsync(alice);
+        var annotation = await AddAsync(alice, id);
+        await alice.DeleteAsync($"/annotations/{annotation.Id}");
+        var delete = (await TimelineAsync(alice, id, annotation.Id)).Versions[0].Id;
+
+        var preview = (await alice.GetFromJsonAsync<ItemPreview>($"/annotations/{annotation.Id}/history/{delete}", Json))!;
+
+        Assert.True(preview.Gone);
+        Assert.Equal(["Colour", "GroupId", "Label", "Notes"], preview.Changes.Select(c => c.Column).Order());
+    }
+
+    // A delete from before the columns were there has no slices in it, which
+    // was every slice. Brought back and moved since, it goes back to that.
+    [Fact]
+    public async Task GoingBackToADeleteFromBeforeSliceRanges_IsEverySlice_EvenIfItsMovedSince()
+    {
+        var alice = As("alice");
+        var id = await OwnAsync(alice);
+        var annotation = await AddAsync(alice, id);
+        var delete = await alice.DeleteAsync($"/annotations/{annotation.Id}");
+        var deleteSet = Guid.Parse(delete.Headers.GetValues(ChangeSetEndpoints.Header).Single());
+        await ForgetSlicesAsync(deleteSet);
+        var deleted = (await TimelineAsync(alice, id, annotation.Id)).Versions[0].Id;
+        (await alice.PostAsync($"/changesets/{deleteSet}/restore", null)).EnsureSuccessStatusCode();
+        await MoveAsync(alice, annotation.Id, 4, 6);
+
+        (await GoBackAsync(alice, annotation.Id, deleted)).EnsureSuccessStatusCode();
+
+        Assert.Equal((null, null), await SlicesAsync(alice, id, annotation.Id));
+    }
+
+    private async Task ForgetSlicesAsync(Guid changeSet)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AnnotationDbContext>();
+        var entry = await db.HistoryEntries.SingleAsync(e => e.ChangeSetId == changeSet);
+        var before = System.Text.Json.Nodes.JsonNode.Parse(entry.Before!)!.AsObject();
+        before.Remove("SliceFrom");
+        before.Remove("SliceTo");
+        entry.Before = before.ToJsonString();
+        await db.SaveChangesAsync();
+    }
+
+    // Every column on a row is either one that can go back or one that's fixed
+    // once saved. A new one has to be put in one list or the other - slices
+    // could be moved for a while before anything could put them back.
+    [Theory]
+    [InlineData(typeof(Annotation), HistoryLog.Annotation, "Id CollectionId SlideId Shape LineStyle LineThickness GeoJson Created CreatedById CreatedByName")]
+    [InlineData(typeof(CellCount), HistoryLog.CellCount, "Id CollectionId SlideId Dots LocationX LocationY Slice ColourCountsJson PlacedByCountsJson Created CreatedById CreatedByName")]
+    [InlineData(typeof(AnnotationGroup), HistoryLog.Group, "Id CollectionId Created")]
+    [InlineData(typeof(CellCountGroup), HistoryLog.CellCountGroup, "Id CollectionId Created")]
+    public void EveryColumn_EitherGoesBackOrIsFixed(Type row, string entity, string fixedOnceSaved)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var columns = scope.ServiceProvider.GetRequiredService<AnnotationDbContext>().Model.FindEntityType(row)!.GetProperties().Select(p => p.Name);
+
+        Assert.Equal(columns.Order(), ItemHistory.Changeable[entity].Concat(fixedOnceSaved.Split(' ')).Order());
+    }
+
     // Back past a delete and its put back, with the row here now.
     [Fact]
     public async Task GoingBack_PastADeleteThatWasPutBack_StillLandsRight()

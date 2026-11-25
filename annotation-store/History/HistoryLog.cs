@@ -224,8 +224,8 @@ public static class HistoryLog
     // What an update would go back to: for each column it changed that's
     // still what it changed it to, the value from before. A column changed
     // again since is left out, so a later edit is never undone. now gives
-    // a column's value now; types its type.
-    public static Dictionary<string, object?> Reverted(HistoryEntry update, Func<string, object?> now, Func<string, Type> types)
+    // a column's value now; types its type, or null for one to leave alone.
+    public static Dictionary<string, object?> Reverted(HistoryEntry update, Func<string, object?> now, Func<string, Type?> types)
     {
         var back = new Dictionary<string, object?>();
         if (update.Before is null || update.After is null) return back;
@@ -233,7 +233,7 @@ public static class HistoryLog
         using var after = JsonDocument.Parse(update.After);
         foreach (var column in after.RootElement.EnumerateObject())
         {
-            var type = types(column.Name);
+            if (types(column.Name) is not { } type) continue;
             if (!Equals(now(column.Name), column.Value.Deserialize(type, Json))) continue;
             if (before.RootElement.TryGetProperty(column.Name, out var was)) back[column.Name] = was.Deserialize(type, Json);
         }

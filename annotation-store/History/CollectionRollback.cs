@@ -6,6 +6,7 @@ using AnnotationStore.Annotations;
 using AnnotationStore.Auth;
 using AnnotationStore.CellCounts;
 using AnnotationStore.Collections;
+using AnnotationStore.Conflicts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
@@ -77,7 +78,11 @@ public static class CollectionRollback
                     state.Remove((entity, id));
                     break;
                 case HistoryOp.Delete when before is not null:
-                    state[(entity, id)] = Columns(before, columns);
+                    var whole = Columns(before, columns);
+                    // One from before slices were there has none, which was every slice.
+                    if (entity == HistoryLog.Annotation)
+                        foreach (var end in EditConflicts.AnnotationSlices) whole.TryAdd(end, EverySlice);
+                    state[(entity, id)] = whole;
                     break;
                 case HistoryOp.Update when before is not null && state.TryGetValue((entity, id), out var row):
                     foreach (var (name, value) in Columns(before, columns)) row[name] = value;
@@ -85,6 +90,8 @@ public static class CollectionRollback
             }
         }
     }
+
+    private static readonly JsonElement EverySlice = JsonSerializer.SerializeToElement<int?>(null);
 
     private static RowState Columns(string json, string[] columns)
     {
@@ -99,10 +106,7 @@ public static class CollectionRollback
     // comparing the two ways - they have to land on the same answer.
     public static async Task<Plan> PlanAsync(AnnotationDbContext db, Guid collectionId, long point, bool useSnapshots = true)
     {
-        var snapshot = !useSnapshots ? null : await db.Snapshots.AsNoTracking()
-            .Where(s => s.CollectionId == collectionId && s.UpToEntry >= point)
-            .OrderBy(s => s.UpToEntry)
-            .FirstOrDefaultAsync();
+        var snapshot = useSnapshots ? await Snapshots.NearestAsync(db, collectionId, point) : null;
         var nowJson = await Snapshots.StateJsonAsync(db, collectionId);
         var now = ParseState(nowJson);
         var target = ParseState(snapshot?.Rows ?? nowJson);
@@ -356,33 +360,23 @@ public static class CollectionRollback
     {
         if (rows.Count == 0) return;
         var ids = rows.Select(r => r.Key.Id).ToList();
-        var now = await db.Annotations.AsNoTracking().Where(a => ids.Contains(a.Id))
-            .Select(a => new { a.Id, a.Label, a.Notes, a.Colour, a.GroupId }).ToDictionaryAsync(a => a.Id);
-        Type TypeOf(string column) => column == nameof(Annotation.GroupId) ? typeof(Guid?) : typeof(string);
+        var now = (await AnnotationState.ReadAsync(db.Annotations.Where(a => ids.Contains(a.Id)))).ToDictionary(a => a.Id, a => a.Columns());
+        object? ValueOf(string column, JsonElement value) => HistoryLog.ValueOf(value, AnnotationState.TypeOf(db, column)!);
 
         foreach (var batch in rows.GroupBy(r => JsonSerializer.Serialize(r.Value.OrderBy(c => c.Key))))
         {
             var rowIds = batch.Select(r => r.Key.Id).ToList();
-            var set = batch.First().Value.ToDictionary(c => c.Key, c => HistoryLog.ValueOf(c.Value, TypeOf(c.Key)));
+            var set = batch.First().Value.ToDictionary(c => c.Key, c => ValueOf(c.Key, c.Value));
             await db.Annotations.Where(a => rowIds.Contains(a.Id)).ExecuteUpdateAsync(s =>
             {
-                foreach (var (column, value) in set)
-                    if (column == nameof(Annotation.GroupId)) s.SetProperty(a => a.GroupId, (Guid?)value);
-                    else s.SetProperty(a => EF.Property<string>(a, column), (string)value!);
+                foreach (var (column, value) in set) AnnotationState.Set(s, column, value);
             });
         }
 
-        object? Was(Guid id, string column) => column switch
-        {
-            nameof(Annotation.Label) => now[id].Label,
-            nameof(Annotation.Notes) => now[id].Notes,
-            nameof(Annotation.Colour) => now[id].Colour,
-            _ => now[id].GroupId,
-        };
         var history = rows
             .Where(r => now.ContainsKey(r.Key.Id))
             .Select(r => HistoryLog.Updated(db, HistoryLog.Annotation, r.Key.Id,
-                r.Value.ToDictionary(c => c.Key, c => (Was(r.Key.Id, c.Key), HistoryLog.ValueOf(c.Value, TypeOf(c.Key))))))
+                r.Value.ToDictionary(c => c.Key, c => (now[r.Key.Id][c.Key], ValueOf(c.Key, c.Value)))))
             .OfType<HistoryEntry>()
             .ToList();
         await HistoryLog.WriteAsync(db, history);

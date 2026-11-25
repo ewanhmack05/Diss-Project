@@ -58,7 +58,7 @@
 		}
 	},
 	"Annotations": {
-		"summary": "One shape someone drew on a slide. The shape itself is fixed once saved - only the label, notes, colour and group can change. Going back through history only ever touches those four.",
+		"summary": "One shape someone drew on a slide. The shape itself is fixed once saved - only the label, notes, colour, group and slices can change. Going back through history only ever touches those.",
 		"make": "`POST /annotations` with `collectionId`, `label`, `colour`, `shape`, `lineStyle`, `lineThickness` and `geoJson`. Editors only. `notes` and `groupId` are optional, and the group has to be in the same collection. `sliceFrom` and `sliceTo` are optional, but go together. `id` is optional too - the viewer sends its own, so it can draw the shape before the save comes back.",
 		"columns": {
 			"CollectionId": ["client", "Which collection it's in"],

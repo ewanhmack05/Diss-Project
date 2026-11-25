@@ -220,6 +220,166 @@ public class HistoryTests : IClassFixture<CellCountApiFactory>
         Assert.Equal(("old", null, null), (back.Label, back.SliceFrom, back.SliceTo));
     }
 
+    private static async Task<Guid> MoveAsync(HttpClient client, Guid id, int? from, int? to, Guid? changeSet = null)
+    {
+        var url = $"/annotations/{id}/slices";
+        var body = new SliceRangeUpdate(from, to);
+        var response = changeSet is { } inside
+            ? await client.SendAsync(InChangeSet(HttpMethod.Put, url, inside, body))
+            : await client.PutAsJsonAsync(url, body, Json);
+        response.EnsureSuccessStatusCode();
+        return ChangeSetOf(response);
+    }
+
+    private static async Task<(int?, int?)> SlicesAsync(HttpClient client, Guid collectionId, Guid id)
+    {
+        var row = (await AnnotationsAsync(client, collectionId)).Single(a => a.Id == id);
+        return (row.SliceFrom, row.SliceTo);
+    }
+
+    // Both ends, one end, onto every slice and off it.
+    [Theory]
+    [InlineData(3, 8, 2, 11)]
+    [InlineData(3, 8, 3, 11)]
+    [InlineData(3, 8, 0, 8)]
+    [InlineData(3, 8, null, null)]
+    [InlineData(null, null, 4, 4)]
+    public async Task PuttingBackASliceMove_PutsItOnTheSlicesItWasOn_AsAChangeOfItsOwn(int? from, int? to, int? movedFrom, int? movedTo)
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var marker = await AddOnSlicesAsync(alice, id, "marker", from, to);
+        var move = await MoveAsync(alice, marker.Id, movedFrom, movedTo);
+
+        var restore = await RestoreAsync(alice, move);
+
+        restore.EnsureSuccessStatusCode();
+        Assert.Equal((from, to), await SlicesAsync(alice, id, marker.Id));
+        var changed = Assert.Single((await restore.Content.ReadFromJsonAsync<RestoredView>(Json))!.ChangedAnnotations);
+        Assert.Equal((marker.Id, from, to), (changed.Id, changed.SliceFrom, changed.SliceTo));
+        var logged = Assert.Single(await EntriesAsync(ChangeSetOf(restore)));
+        Assert.Equal(Columns(Assert.Single(await EntriesAsync(move)).Before), Columns(logged.After));
+
+        // And that goes back on as well.
+        (await RestoreAsync(alice, ChangeSetOf(restore))).EnsureSuccessStatusCode();
+        Assert.Equal((movedFrom, movedTo), await SlicesAsync(alice, id, marker.Id));
+    }
+
+    // Undoing the first move's end alone would give 3 to 1, which is backwards,
+    // and in the second case a last slice with no first one.
+    [Theory]
+    [InlineData(3, 8, 0, 8, 0, 1)]
+    [InlineData(null, null, 2, 5, 2, 7)]
+    [InlineData(3, 8, 2, 11, 2, 5)]
+    public async Task PuttingBackASliceMove_LeavesItAlone_OnceEitherEndHasMovedSince(
+        int? from, int? to, int movedFrom, int movedTo, int laterFrom, int laterTo)
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var marker = await AddOnSlicesAsync(alice, id, "marker", from, to);
+        var move = await MoveAsync(alice, marker.Id, movedFrom, movedTo);
+        await MoveAsync(alice, marker.Id, laterFrom, laterTo);
+
+        var restore = await RestoreAsync(alice, move);
+
+        restore.EnsureSuccessStatusCode();
+        Assert.Equal((laterFrom, laterTo), await SlicesAsync(alice, id, marker.Id));
+        Assert.Empty((await restore.Content.ReadFromJsonAsync<RestoredView>(Json))!.ChangedAnnotations);
+    }
+
+    // Anything else in the change still goes back.
+    [Fact]
+    public async Task PuttingBackAnEdit_PutsTheRestBack_WhenItsSlicesHaveMovedSince()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var marker = await AddOnSlicesAsync(alice, id, "marker", 3, 8);
+        var edit = await MoveAsync(alice, marker.Id, 0, 8);
+        (await alice.SendAsync(InChangeSet(HttpMethod.Put, $"/annotations/{marker.Id}", edit,
+            new AnnotationUpdate { Label = "renamed", Colour = "#FF0000" }))).EnsureSuccessStatusCode();
+        await MoveAsync(alice, marker.Id, 0, 1);
+
+        (await RestoreAsync(alice, edit)).EnsureSuccessStatusCode();
+
+        var now = Assert.Single(await AnnotationsAsync(alice, id));
+        Assert.Equal(("marker", 0, 1), (now.Label, now.SliceFrom, now.SliceTo));
+    }
+
+    // Deleted since and brought back, it's still where the move left it.
+    [Fact]
+    public async Task PuttingBackASliceMove_Works_ThroughADeleteAndItsPutBack()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var marker = await AddOnSlicesAsync(alice, id, "marker", 3, 8);
+        var move = await MoveAsync(alice, marker.Id, 2, 11);
+        var delete = await alice.DeleteAsync($"/annotations/{marker.Id}");
+        (await RestoreAsync(alice, ChangeSetOf(delete))).EnsureSuccessStatusCode();
+        Assert.Equal((2, 11), await SlicesAsync(alice, id, marker.Id));
+
+        (await RestoreAsync(alice, move)).EnsureSuccessStatusCode();
+
+        Assert.Equal((3, 8), await SlicesAsync(alice, id, marker.Id));
+    }
+
+    // Moved and deleted in the one change, it comes back where it was before
+    // either.
+    [Fact]
+    public async Task PuttingBackAMoveAndADeleteInOneChange_UndoesBoth()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var marker = await AddOnSlicesAsync(alice, id, "marker", 3, 8);
+        var change = await MoveAsync(alice, marker.Id, 2, 11);
+        (await alice.SendAsync(InChangeSet(HttpMethod.Delete, $"/annotations/{marker.Id}", change))).EnsureSuccessStatusCode();
+
+        (await RestoreAsync(alice, change)).EnsureSuccessStatusCode();
+
+        Assert.Equal((3, 8), await SlicesAsync(alice, id, marker.Id));
+    }
+
+    // Nothing folds across a delete, so one change can have moved it twice. It
+    // goes back to before the first.
+    [Fact]
+    public async Task PuttingBackTwoMovesInOneChange_EitherSideOfADelete_GoesToBeforeTheFirst()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var marker = await AddOnSlicesAsync(alice, id, "marker", 3, 8);
+        var change = await MoveAsync(alice, marker.Id, 2, 11);
+        (await alice.SendAsync(InChangeSet(HttpMethod.Delete, $"/annotations/{marker.Id}", change))).EnsureSuccessStatusCode();
+        var delete = (await EntriesAsync(change)).Single(e => e.Op == HistoryOp.Delete).Id;
+        (await alice.PostAsync($"/annotations/{marker.Id}/history/{delete}/restore", null)).EnsureSuccessStatusCode();
+        await MoveAsync(alice, marker.Id, 1, 4, change);
+        Assert.Equal(2, (await EntriesAsync(change)).Count(e => e.Op == HistoryOp.Update));
+
+        (await RestoreAsync(alice, change)).EnsureSuccessStatusCode();
+
+        Assert.Equal((3, 8), await SlicesAsync(alice, id, marker.Id));
+    }
+
+    // An open edit form is one change set: typing, a colour and moves of its
+    // slices go back together, and so does another row in it.
+    [Fact]
+    public async Task PuttingBackAnEditThatMovedSlicesToo_PutsAllOfItBack()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var one = await AddOnSlicesAsync(alice, id, "one", 3, 8);
+        var two = await AddOnSlicesAsync(alice, id, "two", null, null);
+        var edit = await MoveAsync(alice, one.Id, 3, 9);
+        await MoveAsync(alice, one.Id, 1, 9, edit);
+        (await alice.SendAsync(InChangeSet(HttpMethod.Put, $"/annotations/{one.Id}", edit,
+            new AnnotationUpdate { Label = "renamed", Colour = "#0000FF" }))).EnsureSuccessStatusCode();
+        await MoveAsync(alice, two.Id, 5, 5, edit);
+
+        (await RestoreAsync(alice, edit)).EnsureSuccessStatusCode();
+
+        var back = (await AnnotationsAsync(alice, id)).ToDictionary(a => a.Id);
+        Assert.Equal(("one", "#FF0000", 3, 8), (back[one.Id].Label, back[one.Id].Colour, back[one.Id].SliceFrom, back[one.Id].SliceTo));
+        Assert.Equal((null, null), (back[two.Id].SliceFrom, back[two.Id].SliceTo));
+    }
+
     [Fact]
     public async Task ADeletedRow_CantBeChangedOrDeletedAgain()
     {

@@ -4,6 +4,7 @@ using AnnotationStore.Annotations;
 using AnnotationStore.Auth;
 using AnnotationStore.CellCounts;
 using AnnotationStore.Collections;
+using AnnotationStore.Conflicts;
 using AnnotationStore.Paging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -436,23 +437,24 @@ public static class ChangeSetEndpoints
     {
         if (updates.Count == 0) return;
         var ids = updates.Select(e => e.EntityId).Distinct().ToList();
-        var now = (await db.Annotations.AsNoTracking().Where(a => ids.Contains(a.Id))
-                .Select(a => new { a.Id, a.Label, a.Notes, a.Colour, a.GroupId }).ToListAsync())
-            .ToDictionary(a => a.Id, a => new Dictionary<string, object?>
-            {
-                [nameof(Annotation.Label)] = a.Label,
-                [nameof(Annotation.Notes)] = a.Notes,
-                [nameof(Annotation.Colour)] = a.Colour,
-                [nameof(Annotation.GroupId)] = a.GroupId,
-            });
+        var now = (await AnnotationState.ReadAsync(db.Annotations.Where(a => ids.Contains(a.Id)))).ToDictionary(a => a.Id, a => a.Columns());
         var was = now.ToDictionary(a => a.Key, a => new Dictionary<string, object?>(a.Value));
-        Type TypeOf(string column) => column == nameof(Annotation.GroupId) ? typeof(Guid?) : typeof(string);
+        // Slices are put back together, below.
+        Type? TypeOf(string column) => EditConflicts.AnnotationSlices.Contains(column) ? null : AnnotationState.TypeOf(db, column);
 
         foreach (var entry in updates)
         {
             if (!now.TryGetValue(entry.EntityId, out var columns)) continue;
-            foreach (var (column, value) in HistoryLog.Reverted(entry, c => columns.GetValueOrDefault(c), TypeOf))
+            foreach (var (column, value) in HistoryLog.Reverted(entry, c => columns[c], TypeOf))
                 columns[column] = column == nameof(Annotation.GroupId) && value is Guid group ? await GroupNowAsync(db, group) : value;
+        }
+        foreach (var moved in updates.Where(MovesSlices).GroupBy(e => e.EntityId))
+        {
+            if (!now.TryGetValue(moved.Key, out var columns)) continue;
+            var here = new SliceRange((int?)columns[nameof(Annotation.SliceFrom)], (int?)columns[nameof(Annotation.SliceTo)]);
+            if (await SlicesBeforeAsync(db, moved.ToList(), here) is not { } before) continue;
+            columns[nameof(Annotation.SliceFrom)] = before.SliceFrom;
+            columns[nameof(Annotation.SliceTo)] = before.SliceTo;
         }
 
         var changes = now
@@ -465,9 +467,7 @@ public static class ChangeSetEndpoints
             var set = batch.First().Changes;
             await db.Annotations.Where(a => rows.Contains(a.Id)).ExecuteUpdateAsync(s =>
             {
-                foreach (var (column, value) in set)
-                    if (column == nameof(Annotation.GroupId)) s.SetProperty(a => a.GroupId, (Guid?)value);
-                    else s.SetProperty(a => EF.Property<string>(a, column), (string)value!);
+                foreach (var (column, value) in set) AnnotationState.Set(s, column, value);
             });
         }
         foreach (var (id, set) in changes)
@@ -476,6 +476,38 @@ public static class ChangeSetEndpoints
                 set.ToDictionary(c => c.Key, c => (was[id][c.Key], c.Value)))!);
             if (!back.Annotations.Contains(id)) back.ChangedAnnotations.Add(id);
         }
+    }
+
+    private static bool MovesSlices(HistoryEntry update)
+    {
+        if (update.After is null) return false;
+        using var after = JsonDocument.Parse(update.After);
+        return after.RootElement.EnumerateObject().Any(c => EditConflicts.AnnotationSlices.Contains(c.Name));
+    }
+
+    // The slices an annotation was on before a change moved it - or null if it's
+    // moved again since, so stays where it is. The two ends are one value: an
+    // entry only has the end that changed, and undoing that on its own once the
+    // other has moved could leave slices 4 to 2, or a first with no last. So what
+    // the whole range was, either side of the change, comes from walking back.
+    private static async Task<SliceRange?> SlicesBeforeAsync(AnnotationDbContext db, List<HistoryEntry> moves, SliceRange here)
+    {
+        var (first, last) = (moves.Min(e => e.Id), moves.Max(e => e.Id));
+        var (collectionId, id) = (moves[0].CollectionId, moves[0].EntityId);
+        var since = await db.HistoryEntries.AsNoTracking()
+            .Where(e => e.CollectionId == collectionId && e.Entity == HistoryLog.Annotation && e.EntityId == id && e.Id >= first)
+            .OrderByDescending(e => e.Id)
+            .ToListAsync();
+
+        SliceRange? At(IEnumerable<HistoryEntry> undoing)
+        {
+            var walked = ItemHistory.WalkBack(undoing);
+            if (walked.Absent) return null;
+            int? End(string column, int? now) =>
+                walked.Columns.TryGetValue(column, out var value) ? (int?)HistoryLog.ValueOf(value, typeof(int?)) : walked.Whole ? null : now;
+            return new SliceRange(End(nameof(Annotation.SliceFrom), here.SliceFrom), End(nameof(Annotation.SliceTo), here.SliceTo));
+        }
+        return At(since.Where(e => e.Id > last)) == here ? At(since) : null;
     }
 
     // The same as GroupNowAsync, for cell counts.

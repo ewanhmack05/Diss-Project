@@ -467,12 +467,13 @@ to look.
    slice range (`sliceFrom`/`sliceTo`) - a 3D marker spans its slices (see
    [volume-live.md](volume-live.md#56-phase-6-built)), and a shape drawn in
    2D on a volume goes on the slice it was drawn on unless it's put on every
-   slice. Cell counts have a `Slice`, the one they were counted on. Both are
-   fixed once saved, so nothing ever moves between slices and there's no
-   conflict to have over one; every restore path brings them back, and files
-   carry them. A change's History detail names the slices of each row it
-   deleted, "Duct (slices 4 to 9)", read out of the delete entries in the
-   database (`DeletedRow` in annotation-store's `ChangeSetChanges.cs`).
+   slice. Cell counts have a `Slice`, the one they were counted on, fixed once
+   saved. An annotation's range can be moved from its edit form, checked for
+   conflicts under either policy (see
+   [volume-live.md](volume-live.md#7-open-questions)); every restore path puts a
+   move back, and files carry both. A change's History detail names the slices
+   of each row it deleted, "Duct (slices 4 to 9)", read out of the delete entries
+   in the database (`DeletedRow` in annotation-store's `ChangeSetChanges.cs`).
 6. **3D view.** Done - the Depth tab's 2D / 3D switch, a ray-marched block
    with cut (X, Y, diagonal - Z was dropped as Slices drawn covers it), slices drawn, opacity, depth stretch (or true depth), a
    gap between slices, guides and reset, and a click on the tissue opening that place in 2D.

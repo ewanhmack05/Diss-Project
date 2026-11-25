@@ -140,8 +140,12 @@ afternoon, medium a few days, large a week or more.
 - **Annotating at a depth** - a shape is on the slice it was drawn on, a range
   or every slice, and its slices can change after saving, with conflicts checked
   under either policy. A count stays on the slice it was counted on. All of it
-  goes through history and files, and comes back after a delete. Putting a
-  [slice move](#known-gaps-still-open) back doesn't work yet
+  goes through history, put back, rollback, snapshots and files. Moving
+  between slices couldn't be put back at first - the columns that go back were
+  listed by hand in four places, and slices weren't in any of them. A test now
+  fails for a column that's in neither the list that goes back nor the one
+  that's fixed. See
+  [version-control.md](breakdown/version-control.md#slices-go-back-together)
 - **Working together in 3D** (all six phases) - the slice live, who's in 3D,
   other people's cameras, Follow and Present in 3D, look here, and markers. A
   marker is three clicks: a corner, the opposite corner, then how deep. See
@@ -154,12 +158,11 @@ afternoon, medium a few days, large a week or more.
 
 ## 1. Version control
 
-All seven steps are done (see Done), the last one simulated only, and there's
-[one bug to fix](#known-gaps-still-open): every write is in a change set that
-says who did what, and the history schema keeps what each change did to every
-row, before and after. How it's built, across the services, is
-in [version-control.md](breakdown/version-control.md). The Yjs history for a
-label or notes box is dropped when the last person closes it.
+All seven steps are done (see Done), the last one simulated only: every write
+is in a change set that says who did what, and the history schema keeps what
+each change did to every row, before and after. How it's built, across the
+services, is in [version-control.md](breakdown/version-control.md). The Yjs
+history for a label or notes box is dropped when the last person closes it.
 
 ### The steps, in order
 
@@ -239,21 +242,8 @@ strongest thing the evaluation can show.
 
 The full list is in
 [version-control.md](breakdown/version-control.md#12-known-gaps). The ones that
-matter most, with one that isn't in there yet:
+matter most:
 
-- **Moving an annotation between slices can't be put back** - a bug. The move is
-  logged, but nothing undoes it. Putting the change back throws, and going back
-  on the annotation's timeline or putting the whole collection back says it
-  worked and leaves the new slices. Tried with tests on a copy of the store.
-  The columns that can go back are listed by hand, and `SliceFrom` and `SliceTo`
-  aren't in any of the lists: `Changeable` in
-  [ItemHistory.cs](../annotation-store/History/ItemHistory.cs),
-  `RevertAnnotationsAsync` in
-  [ChangeSets.cs](../annotation-store/History/ChangeSets.cs),
-  `ChangeAnnotationsAsync` in
-  [CollectionRollback.cs](../annotation-store/History/CollectionRollback.cs) and
-  the snapshots in [Snapshots.cs](../annotation-store/History/Snapshots.cs).
-  Small to medium - snapshots taken before the fix won't have the slices
 - **Not logged:** renaming a collection, sharing, ending a session, members and
   invite links
 - **Someone else's typing saves under your edit**, in a session with the same
@@ -566,7 +556,5 @@ the write up, from the [viewer](breakdown/image-viewer.md#16-known-gaps),
 
 ## Suggested order
 
-1. **The slice move bug** in [section 1](#known-gaps-still-open) - an edit that's
-   in the history and can't be put back
-2. **Reading list** for [background.md](background.md), alongside the others
-3. **Writing it up** - version control is finished and measured, apart from that
+1. **Reading list** for [background.md](background.md), alongside the others
+2. **Writing it up** - version control is finished and measured

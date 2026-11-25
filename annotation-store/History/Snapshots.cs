@@ -38,8 +38,7 @@ public static class Snapshots
     // whether it's from a snapshot or what's there now.
     public static async Task<string> StateJsonAsync(AnnotationDbContext db, Guid collectionId)
     {
-        var annotations = await db.Annotations.AsNoTracking().Where(a => a.CollectionId == collectionId)
-            .Select(a => new { a.Id, a.Label, a.Notes, a.Colour, a.GroupId }).ToListAsync();
+        var annotations = await AnnotationState.ReadAsync(db.Annotations.Where(a => a.CollectionId == collectionId));
         var groups = await db.AnnotationGroups.AsNoTracking().Where(g => g.CollectionId == collectionId)
             .Select(g => new { g.Id, g.Name, g.Notes }).ToListAsync();
         var countGroups = await db.CellCountGroups.AsNoTracking().Where(g => g.CollectionId == collectionId)
@@ -48,11 +47,31 @@ public static class Snapshots
             .Select(c => new { c.Id, c.Label, c.Notes, c.GroupId, c.WithAnnotation, c.WithRoi, c.Count, c.DotSize }).ToListAsync();
         return JsonSerializer.Serialize(new Dictionary<string, object>
         {
-            [HistoryLog.Annotation] = annotations.ToDictionary(a => a.Id, a => new { a.Label, a.Notes, a.Colour, a.GroupId }),
+            [HistoryLog.Annotation] = annotations.ToDictionary(a => a.Id, a => a.Columns()),
             [HistoryLog.Group] = groups.ToDictionary(g => g.Id, g => new { g.Name, g.Notes }),
             [HistoryLog.CellCountGroup] = countGroups.ToDictionary(g => g.Id, g => new { g.Name, g.Notes }),
             [HistoryLog.CellCount] = counts.ToDictionary(c => c.Id, c => new { c.Label, c.Notes, c.GroupId, c.WithAnnotation, c.WithRoi, c.Count, c.DotSize }),
         });
+    }
+
+    // The nearest one at or after a point. One from before slices were in them
+    // can't say which slices anything was on, so it's passed over, unless there
+    // was nothing to be on any. A quote in someone's label is escaped, so it
+    // can't look like the column.
+    public static async Task<CollectionSnapshot?> NearestAsync(AnnotationDbContext db, Guid collectionId, long point)
+    {
+        var table = HistoryLog.IsPostgres(db) ? "history.\"Snapshots\"" : "\"Snapshots\"";
+        var sql = $$"""
+            SELECT * FROM {{table}}
+            WHERE "CollectionId" = {0} AND "UpToEntry" >= {1}
+              AND (CAST("Rows" AS text) LIKE {2} OR REPLACE(CAST("Rows" AS text), ' ', '') LIKE {3})
+            ORDER BY "UpToEntry" LIMIT 1
+            """;
+        var found = await db.Snapshots
+            .FromSqlRaw(sql, collectionId, point, $"%\"{nameof(AnnotationState.SliceTo)}\":%", $"%\"{HistoryLog.Annotation}\":{{}}%")
+            .AsNoTracking()
+            .ToListAsync();
+        return found.FirstOrDefault();
     }
 
     // Null if nothing's happened in it yet. Entry ids are handed out before a

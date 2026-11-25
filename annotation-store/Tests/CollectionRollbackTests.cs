@@ -50,6 +50,15 @@ public class CollectionRollbackTests : IClassFixture<CellCountApiFactory>
     private static async Task<Guid> EditAsync(HttpClient client, Guid id, string label, string notes = "", string colour = "#FF0000") =>
         ChangeSetOf(await client.PutAsJsonAsync($"/annotations/{id}", new Annotation { Label = label, Notes = notes, Colour = colour }));
 
+    private static async Task<Guid> MoveAsync(HttpClient client, Guid id, int? from, int? to) =>
+        ChangeSetOf(await client.PutAsJsonAsync($"/annotations/{id}/slices", new SliceRangeUpdate(from, to), Json));
+
+    private static async Task<(int?, int?)> SlicesAsync(HttpClient client, Guid collectionId, Guid id)
+    {
+        var row = (await client.GetFromJsonAsync<List<Annotation>>($"/annotations?collectionId={collectionId}", Json))!.Single(a => a.Id == id);
+        return (row.SliceFrom, row.SliceTo);
+    }
+
     private async Task<T> WithDbAsync<T>(Func<AnnotationDbContext, Task<T>> read)
     {
         using var scope = _factory.Services.CreateScope();
@@ -65,7 +74,7 @@ public class CollectionRollbackTests : IClassFixture<CellCountApiFactory>
     private async Task<string> DumpAsync(HttpClient client, Guid collectionId)
     {
         var annotations = (await client.GetFromJsonAsync<List<Annotation>>($"/annotations?collectionId={collectionId}", Json))!
-            .OrderBy(a => a.Id).Select(a => new { a.Id, a.Label, a.Notes, a.Colour, a.GroupId, a.GeoJson, a.Shape });
+            .OrderBy(a => a.Id).Select(a => new { a.Id, a.Label, a.Notes, a.Colour, a.GroupId, a.SliceFrom, a.SliceTo, a.GeoJson, a.Shape });
         var groups = (await client.GetFromJsonAsync<List<GroupView>>($"/annotationgroups?collectionId={collectionId}", Json))!
             .OrderBy(g => g.Id).Select(g => new { g.Id, g.Name, g.Notes });
         var counts = await WithDbAsync(db => db.CellCounts.Include(c => c.RegionOfInterest).Where(c => c.CollectionId == collectionId).AsNoTracking()
@@ -107,9 +116,15 @@ public class CollectionRollbackTests : IClassFixture<CellCountApiFactory>
         await Mark(deleteCount);
         var putBack = await alice.PostAsync($"/changesets/{deleteCount}/restore", null);
         await Mark(ChangeSetOf(putBack));
-        var (_, addC) = await AddAsync(alice, id, "c");
+        var (c, addC) = await AddAsync(alice, id, "c");
         await Mark(addC);
+        await Mark(await MoveAsync(alice, a.Id, 3, 8));
+        await Mark(await MoveAsync(alice, c.Id, 5, 5));
+        await Mark(await MoveAsync(alice, a.Id, 0, 8));
+        await Mark(await MoveAsync(alice, a.Id, 0, 1));
         await Mark(ChangeSetOf(await alice.DeleteAsync($"/annotationgroups/{groupView.Id}")));
+        await Mark(ChangeSetOf(await alice.DeleteAsync($"/annotations/{c.Id}")));
+        await Mark(await MoveAsync(alice, a.Id, null, null));
         await Mark(await EditAsync(alice, a.Id, "a3", "second look", "#00FF00"));
         return (id, points);
     }
@@ -249,6 +264,138 @@ public class CollectionRollbackTests : IClassFixture<CellCountApiFactory>
 
         var back = Assert.Single((await alice.GetFromJsonAsync<List<Annotation>>($"/annotations?collectionId={id}", Json))!);
         Assert.Equal((marker.Id, 2, 5), (back.Id, back.SliceFrom, back.SliceTo));
+    }
+
+    [Fact]
+    public async Task GoingBackToBeforeASliceMove_PutsItBackOnItsSlices_AndCountsIt()
+    {
+        var alice = As("alice");
+        var id = await OwnAsync(alice);
+        var (marker, add) = await AddAsync(alice, id, "marker");
+        var placed = await MoveAsync(alice, marker.Id, 3, 8);
+        var moved = await MoveAsync(alice, marker.Id, 2, 11);
+
+        Assert.Equal(new RollbackCounts(0, 1, 0), (await PreviewAsync(alice, placed)).Annotations);
+        (await RollBackAsync(alice, placed)).EnsureSuccessStatusCode();
+        Assert.Equal((3, 8), await SlicesAsync(alice, id, marker.Id));
+
+        (await RollBackAsync(alice, add)).EnsureSuccessStatusCode();
+        Assert.Equal((null, null), await SlicesAsync(alice, id, marker.Id));
+        (await RollBackAsync(alice, moved)).EnsureSuccessStatusCode();
+        Assert.Equal((2, 11), await SlicesAsync(alice, id, marker.Id));
+    }
+
+    // Its delete's copy has where it was moved to, so that's taken off again.
+    [Fact]
+    public async Task GoingBackToBeforeASliceMoveAndADelete_BringsItBackOnTheSlicesItHadThen()
+    {
+        var alice = As("alice");
+        var id = await OwnAsync(alice);
+        var (marker, _) = await AddAsync(alice, id, "marker");
+        var placed = await MoveAsync(alice, marker.Id, 3, 8);
+        await MoveAsync(alice, marker.Id, 2, 11);
+        await alice.DeleteAsync($"/annotations/{marker.Id}");
+
+        (await RollBackAsync(alice, placed)).EnsureSuccessStatusCode();
+
+        Assert.Equal((3, 8), await SlicesAsync(alice, id, marker.Id));
+    }
+
+    // A delete from before the columns were there was of something on every
+    // slice, whatever's happened to it since.
+    [Fact]
+    public async Task GoingBackPastADeleteFromBeforeSlices_IsEverySlice()
+    {
+        var alice = As("alice");
+        var id = await OwnAsync(alice);
+        var (a, add) = await AddAsync(alice, id, "a");
+        var delete = ChangeSetOf(await alice.DeleteAsync($"/annotations/{a.Id}"));
+        await WithDbAsync(async db =>
+        {
+            var entry = await db.HistoryEntries.SingleAsync(e => e.ChangeSetId == delete);
+            var before = System.Text.Json.Nodes.JsonNode.Parse(entry.Before!)!.AsObject();
+            before.Remove(nameof(Annotation.SliceFrom));
+            before.Remove(nameof(Annotation.SliceTo));
+            entry.Before = before.ToJsonString();
+            return await db.SaveChangesAsync();
+        });
+        (await alice.PostAsync($"/changesets/{delete}/restore", null)).EnsureSuccessStatusCode();
+        await MoveAsync(alice, a.Id, 4, 6);
+
+        (await RollBackAsync(alice, add)).EnsureSuccessStatusCode();
+
+        Assert.Equal((null, null), await SlicesAsync(alice, id, a.Id));
+    }
+
+    // A snapshot from before slices were in them can't say which slices
+    // anything was on, so it's passed over - for a newer one that can, or for
+    // what's there now.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ASnapshotFromBeforeSlices_IsPassedOver(bool newerOneToo)
+    {
+        var alice = As("alice");
+        var id = await OwnAsync(alice);
+        var (marker, _) = await AddAsync(alice, id, "marker");
+        var placed = await MoveAsync(alice, marker.Id, 3, 8);
+        var old = (await SnapshotAsync(id))!;
+        await ForgetSlicesAsync(old.Id);
+        await MoveAsync(alice, marker.Id, 2, 11);
+        if (newerOneToo) await SnapshotAsync(id);
+        await EditAsync(alice, marker.Id, "after");
+
+        var preview = await PreviewAsync(alice, placed);
+        (await RollBackAsync(alice, placed)).EnsureSuccessStatusCode();
+
+        Assert.Equal(newerOneToo, preview.FromSnapshot);
+        Assert.Equal((3, 8), await SlicesAsync(alice, id, marker.Id));
+    }
+
+    // With nothing in it to be on a slice, a snapshot's still good.
+    [Fact]
+    public async Task ASnapshotWithNoAnnotations_IsUsed()
+    {
+        var alice = As("alice");
+        var id = await OwnAsync(alice);
+        var made = ChangeSetOf(await alice.PostAsJsonAsync("/annotationgroups", new NewGroupRequest(id, "Tumour", null), Json));
+        await SnapshotAsync(id);
+        await AddAsync(alice, id, "a");
+
+        var preview = await PreviewAsync(alice, made);
+
+        Assert.True(preview.FromSnapshot);
+        Assert.Equal(new RollbackCounts(0, 0, 1), preview.Annotations);
+    }
+
+    private Task<int> ForgetSlicesAsync(long snapshotId) => WithDbAsync(async db =>
+    {
+        var snapshot = await db.Snapshots.SingleAsync(s => s.Id == snapshotId);
+        var rows = System.Text.Json.Nodes.JsonNode.Parse(snapshot.Rows)!;
+        foreach (var row in rows[HistoryLog.Annotation]!.AsObject())
+        {
+            row.Value!.AsObject().Remove(nameof(Annotation.SliceFrom));
+            row.Value!.AsObject().Remove(nameof(Annotation.SliceTo));
+        }
+        snapshot.Rows = rows.ToJsonString();
+        return await db.SaveChangesAsync();
+    });
+
+    // A snapshot missing a column that can change would put it back wrong
+    // without saying so.
+    [Fact]
+    public async Task ASnapshot_HoldsExactlyWhatCanChange()
+    {
+        var alice = As("alice");
+        var (id, points) = await StoryAsync(alice);
+        (await RollBackAsync(alice, points[5].ChangeSet)).EnsureSuccessStatusCode();
+        (await alice.PostAsJsonAsync("/cellcountgroups", new NewCountGroupRequest(id, "Mitoses"), Json)).EnsureSuccessStatusCode();
+
+        var state = CollectionRollback.ParseState((await SnapshotAsync(id))!.Rows);
+
+        Assert.Equal(ItemHistory.Changeable.Keys.Order(), state.Keys.Select(k => k.Entity).Distinct().Order());
+        foreach (var ((entity, _), row) in state)
+            Assert.Equal(ItemHistory.Changeable[entity].Order(), row.Keys.Order());
     }
 
     [Fact]
