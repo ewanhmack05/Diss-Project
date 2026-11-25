@@ -141,9 +141,10 @@ describe("cutOutline", () => {
 	});
 
 	it("scales with the block", () => {
-		const ring = cutOutline("z", 0, [1, 2, 0.4]);
-		for (const p of ring) expect(p[2]).toBeCloseTo(0.2);
-		expect(Math.max(...ring.map((p) => p[1]))).toBeCloseTo(1);
+		// A Y cut at 0 is the block's top face, 2 high and 0.4 deep.
+		const ring = cutOutline("y", 0, [1, 2, 0.4]);
+		for (const p of ring) expect(p[1]).toBeCloseTo(1);
+		expect(Math.max(...ring.map((p) => p[2]))).toBeCloseTo(0.2);
 	});
 });
 

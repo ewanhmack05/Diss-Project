@@ -99,7 +99,7 @@ def main():
                         help="after the moves, go to 2D on --slice, as clicking the tissue does")
     parser.add_argument("--moves", type=int, default=20, help="how many times to move the camera (default: %(default)s)")
     parser.add_argument("--every", type=float, default=1.5, help="seconds between moves (default: %(default)s)")
-    parser.add_argument("--cut", choices=("none", "x", "y", "z", "diagonal"), default="none", help="the host's cut (default: %(default)s)")
+    parser.add_argument("--cut", choices=("none", "x", "y", "diagonal"), default="none", help="the host's cut (default: %(default)s)")
     parser.add_argument("--cut-position", type=float, default=0.5, help="how far through the block it is, 0-1 (default: %(default)s)")
     parser.add_argument("--slice", type=int, default=7, help="the slice the host is on (default: %(default)s)")
     parser.add_argument("--user", default="alice", help="the session's host (default: %(default)s)")

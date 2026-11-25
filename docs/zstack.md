@@ -412,7 +412,7 @@ What's in it:
 | **Slice** | Slider and number, with depth in microns. Same as Shift+wheel and PageUp/PageDown | Moves the cut plane through the block |
 | **Neighbours** | Fade annotations on the slices either side, on/off | |
 | **Thickness** | | How many slices are drawn, round the current one |
-| **Cut** | | Clip on X, Y, Z or a diagonal, with a slider for where |
+| **Cut** | | Clip on X, Y or a diagonal, with a slider for where. A Z cut was built and then taken out - it only did what Thickness (Slices drawn) already does |
 | **Opacity** | | How see-through the block is |
 | **Gap between slices** | | Spaces the slices out, up to 8 times a slice's thickness, so they show one by one |
 | **Guides** | | Gridlines and the block's boundary, on/off |
@@ -474,7 +474,7 @@ to look.
    deleted, "Duct (slices 4 to 9)", read out of the delete entries in the
    database (`DeletedRow` in annotation-store's `ChangeSetChanges.cs`).
 6. **3D view.** Done - the Depth tab's 2D / 3D switch, a ray-marched block
-   with cut (X, Y, Z, diagonal), slices drawn, opacity, depth stretch (or true depth), a
+   with cut (X, Y, diagonal - Z was dropped as Slices drawn covers it), slices drawn, opacity, depth stretch (or true depth), a
    gap between slices, guides and reset, and a click on the tissue opening that place in 2D.
    Built from one thumbnail per slice (up to 1024 px), no extra file to
    make, with the slice being looked at drawn sharp from the slide's own

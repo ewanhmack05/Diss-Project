@@ -523,6 +523,12 @@ describe("hostDepth", () => {
 		expect(hostDepth(screenWith(depthScreen("3d")), true, false)).toBeNull();
 	});
 
+	it("takes a Z cut from an older viewer as no cut", () => {
+		const old = depthScreen("3d");
+		const fromOld = { ...old, settings: { ...old.settings, cut: "z" } } as unknown as ReturnType<typeof depthScreen>;
+		expect(hostDepth(screenWith(fromOld), true, true)?.settings.cut).toBe("none");
+	});
+
 	it("is nothing from a host whose viewer doesn't send it, or with no screen yet", () => {
 		expect(hostDepth(screenWith(undefined), true, true)).toBeNull();
 		expect(hostDepth(screenWith(null), true, true)).toBeNull();
@@ -535,6 +541,12 @@ describe("followedCut", () => {
 
 	it("is the host's cut while you follow them on a volume", () => {
 		expect(followedCut(leader, "follow", true, true)).toEqual({ cut: "x", cutPosition: 0.3 });
+	});
+
+	it("takes a Z cut from an older viewer as no cut", () => {
+		const old = depthScreen("3d");
+		const fromOld = { ...old, settings: { ...old.settings, cut: "z" } } as unknown as ReturnType<typeof depthScreen>;
+		expect(followedCut(screenWith(fromOld), "follow", true, true)).toEqual({ cut: "none", cutPosition: 0.3 });
 	});
 
 	it("is nothing once you've broken away, in Free, or in Present (which takes everything)", () => {

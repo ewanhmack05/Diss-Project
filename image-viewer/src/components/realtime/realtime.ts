@@ -7,6 +7,7 @@ import type { LineStyleName, ShapeTool } from "../annotation/Tools";
 import type { ImageAdjustmentValues } from "../adjustments/adjustments";
 import type { DepthView, VolumeSettings } from "../../context/SliceContext";
 import type { MarkerBox } from "../depth/markers";
+import { isCutAxis, type CutAxis } from "../depth/volume";
 
 type Coord = [number, number];
 
@@ -447,7 +448,14 @@ function inThreeD(participant: Pick<Participant, "screen">): boolean {
 // while they present, only on a volume, and only from a viewer that sends them.
 function hostDepth(hostScreen: Screen | null, presenting: boolean, volume: boolean): DepthScreen | null {
 	if (!presenting || !volume) return null;
-	return hostScreen?.depth ?? null;
+	const depth = hostScreen?.depth;
+	return depth ? { ...depth, settings: { ...depth.settings, cut: knownCut(depth.settings.cut) } } : null;
+}
+
+// A cut this viewer has - a host on an older one can still send a Z cut,
+// which is gone, so it's taken as no cut.
+function knownCut(cut: unknown): CutAxis {
+	return isCutAxis(cut) ? cut : "none";
 }
 
 // Under Follow, the host's cut and where it is - what changes where you look
@@ -461,7 +469,7 @@ function followedCut(
 ): Pick<DepthScreen["settings"], "cut" | "cutPosition"> | null {
 	if (mode !== "follow" || !following || !volume) return null;
 	const settings = leaderScreen?.depth?.settings;
-	return settings ? { cut: settings.cut, cutPosition: settings.cutPosition } : null;
+	return settings ? { cut: knownCut(settings.cut), cutPosition: settings.cutPosition } : null;
 }
 
 // A "look here" that's for the 3D view: where to put your camera, what to

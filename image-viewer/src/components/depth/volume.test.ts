@@ -16,7 +16,9 @@ import {
 	facePixel,
 	faceTier,
 	faceTiles,
+	CUT_AXES,
 	cutPlane,
+	isCutAxis,
 	defaultStretch,
 	depthStretch,
 	firstHit,
@@ -261,7 +263,14 @@ describe("blockWidthFor", () => {
 describe("cutPlane", () => {
 	it("cuts each axis at the position given", () => {
 		expect(cutPlane("x", 0.3)).toEqual({ normal: [1, 0, 0], offset: 0.3 });
-		expect(cutPlane("z", 2)).toEqual({ normal: [0, 0, 1], offset: 1 });
+		expect(cutPlane("y", 2)).toEqual({ normal: [0, 1, 0], offset: 1 });
+	});
+
+	it("has no Z cut - Slices drawn does that job", () => {
+		expect(CUT_AXES).toEqual(["none", "x", "y", "diagonal"]);
+		expect(isCutAxis("z")).toBe(false);
+		expect(isCutAxis("x")).toBe(true);
+		expect(isCutAxis(undefined)).toBe(false);
 	});
 
 	it("keeps everything with no cut", () => {
@@ -436,7 +445,6 @@ describe("the sharp cut face", () => {
 	it("is only for X and Y cuts", () => {
 		expect(faceAxis("x")).toBe("x");
 		expect(faceAxis("y")).toBe("y");
-		expect(faceAxis("z")).toBeNull();
 		expect(faceAxis("diagonal")).toBeNull();
 		expect(faceAxis("none")).toBeNull();
 	});
@@ -525,14 +533,11 @@ describe("detailSlice", () => {
 		expect(detailSlice({ ...view, lastLayer: 3, cameraInFront: false })).toBe(2);
 	});
 
-	it("from behind a Z cut, the face it leaves", () => {
-		// The cut at 0.5 keeps layers 0-2.
-		expect(detailSlice({ ...view, cut: "z", cameraInFront: false })).toBe(2);
-		expect(detailSlice({ ...view, cut: "z", cutPosition: 0.75, cameraInFront: false })).toBe(3);
-		// 0.9 keeps part of the last layer, so its face is there.
-		expect(detailSlice({ ...view, cut: "z", cutPosition: 0.9, cameraInFront: false })).toBe(4);
-		// From the front a Z cut changes nothing.
-		expect(detailSlice({ ...view, cut: "z" })).toBe(0);
+	it("isn't moved by a cut - only the slices drawn say where the block ends", () => {
+		for (const cut of CUT_AXES) {
+			expect(detailSlice({ ...view, cut, cameraInFront: false })).toBe(4);
+			expect(detailSlice({ ...view, cut })).toBe(0);
+		}
 	});
 
 	it("spaced out: the slice the 2D view's on, wherever the camera is", () => {
@@ -542,7 +547,6 @@ describe("detailSlice", () => {
 
 	it("nothing when that slice isn't drawn, or nothing is", () => {
 		expect(detailSlice({ ...view, spacing: 1, firstLayer: 4 })).toBeNull();
-		expect(detailSlice({ ...view, cut: "z", cutPosition: 0, cameraInFront: false })).toBeNull();
 		expect(detailSlice({ ...view, firstLayer: 3, lastLayer: 3 })).toBeNull();
 	});
 });

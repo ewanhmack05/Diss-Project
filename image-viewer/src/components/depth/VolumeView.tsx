@@ -28,7 +28,18 @@ import { useRealtimeContext } from "../../context/RealtimeContext";
 import { useNavigationContext } from "../../context/NavigationContext";
 import { useAnnotationStoreContext } from "../../context/AnnotationStoreContext";
 import { useDrawContext } from "../../context/DrawContext";
-import { boxEdges, boxFromHits, shownMarkers, type Hit, type MarkerBox } from "./markers";
+import {
+	boxEdges,
+	boxFromHits,
+	cornerOnSlice,
+	isUsable,
+	sameBox,
+	shownMarkers,
+	sliceAlongDepth,
+	type Hit,
+	type MarkerBox,
+	type Ray,
+} from "./markers";
 import { useOnTheMap } from "../collections/map/useOnTheMap";
 import { inThreeD, sketchFor, type Camera } from "../realtime/realtime";
 import {
@@ -761,14 +772,19 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 		const onDown = (event: PointerEvent) => {
 			down = { x: event.clientX, y: event.clientY };
 		};
-		// The tissue under a point on the screen, or null.
-		const tissueAt = (clientX: number, clientY: number) => {
+		// The ray from the camera through a point on the screen, in the scene.
+		const rayAt = (clientX: number, clientY: number): Ray => {
 			const rect = canvas.getBoundingClientRect();
 			const pointer = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
 			const raycaster = new THREE.Raycaster();
 			raycaster.setFromCamera(pointer, scene.camera);
 			const { origin, direction } = raycaster.ray;
-			const ray = textureRay([origin.x, origin.y, origin.z], [direction.x, direction.y, direction.z], size);
+			return { origin: [origin.x, origin.y, origin.z], direction: [direction.x, direction.y, direction.z] };
+		};
+		// The tissue under a point on the screen, or null.
+		const tissueAt = (clientX: number, clientY: number) => {
+			const scenic = rayAt(clientX, clientY);
+			const ray = textureRay(scenic.origin, scenic.direction, size);
 			const plane = cutPlane(settings.cut, settings.cutPosition);
 			const uniforms = scene.block.material.uniforms;
 			const hit = firstHit(volume, ray.origin, ray.direction, {
@@ -782,18 +798,33 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 			return slice === null ? null : { hit, slice, corner: { x: hit.x * slideWidth, y: hit.y * slideHeight, slice } as Hit };
 		};
 
-		// While the second corner's being placed, the box follows the pointer -
-		// once a frame at most, as finding the tissue isn't free.
+		// The box the pointer makes at this stage: the opposite corner on the
+		// first one's slice, then how deep. Null where the pointer gives nothing.
+		const slide = { width: slideWidth, height: slideHeight };
+		const boxAt = (clientX: number, clientY: number): { box: MarkerBox; corner: Hit } | null => {
+			if (marking?.stage === "second") {
+				const corner = cornerOnSlice(rayAt(clientX, clientY), marking.first.slice, slide, size, volume.layerSlice);
+				return corner && { box: boxFromHits(marking.first, corner), corner };
+			}
+			if (marking?.stage === "depth") {
+				const slice = sliceAlongDepth(rayAt(clientX, clientY), marking.corner, slide, size, volume.layerSlice);
+				return slice === null ? null : { box: boxFromHits(marking.first, { ...marking.corner, slice }), corner: marking.corner };
+			}
+			return null;
+		};
+
+		// While the second corner or the depth is being placed, the box follows
+		// the pointer - once a frame at most.
 		let frame = 0;
 		let lastMove: PointerEvent | null = null;
 		const onMove = (event: PointerEvent) => {
-			if (marking?.stage !== "second" || down) return;
+			if ((marking?.stage !== "second" && marking?.stage !== "depth") || down) return;
 			lastMove = event;
 			if (frame) return;
 			frame = requestAnimationFrame(() => {
 				frame = 0;
-				const at = lastMove && tissueAt(lastMove.clientX, lastMove.clientY);
-				if (at) setMarking({ ...marking, box: boxFromHits(marking.first, at.corner) });
+				const at = lastMove && boxAt(lastMove.clientX, lastMove.clientY);
+				if (at && !sameBox(at.box, marking.box)) setMarking({ ...marking, box: at.box });
 			});
 		};
 
@@ -803,16 +834,24 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 			if (!start || Math.hypot(event.clientX - start.x, event.clientY - start.y) > CLICK_SLOP_PX) return;
 			// Naming one - clicks don't go anywhere until it's saved or not.
 			if (marking?.stage === "form") return;
+			// The second click fixes the box across the slice - two on the same
+			// spot is no box, so it waits for another - and the third how deep.
+			if (marking?.stage === "second") {
+				const at = boxAt(event.clientX, event.clientY);
+				if (at && isUsable(at.box)) setMarking({ stage: "depth", first: marking.first, corner: at.corner, box: at.box });
+				return;
+			}
+			if (marking?.stage === "depth") {
+				const at = boxAt(event.clientX, event.clientY);
+				setMarking({ stage: "form", box: at?.box ?? marking.box });
+				return;
+			}
 			const at = tissueAt(event.clientX, event.clientY);
 			if (!at) return;
 			const { hit, slice } = at;
-			// Placing a marker: the click is a corner.
+			// The first click is a corner on the tissue, and says which slice.
 			if (marking?.stage === "first") {
 				setMarking({ stage: "second", first: at.corner, box: null });
-				return;
-			}
-			if (marking?.stage === "second") {
-				setMarking({ stage: "form", box: boxFromHits(marking.first, at.corner) });
 				return;
 			}
 			// The host, with Shift: point everyone at it, rather than going there.
@@ -862,7 +901,7 @@ function VolumeView({ tilerUrl, slideId, slideWidth, slideHeight, micronsPerPixe
 	}, [placing, setMarking]);
 
 	// Yours as you place it goes out as a sketch, so others see it take shape.
-	const myBox = marking?.stage === "second" ? marking.box : marking?.stage === "form" ? marking.box : null;
+	const myBox = marking && marking.stage !== "first" ? marking.box : null;
 	const sentBoxRef = useRef(false);
 	useEffect(() => {
 		if (myBox) {

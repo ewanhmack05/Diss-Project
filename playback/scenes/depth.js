@@ -166,6 +166,11 @@ export async function depthAlone({ sam }) {
 	await sam.moveTo(second);
 	await sam.pause(600);
 	await sam.clickAt(second);
+	await sam.caption("A third click says how deep", 500);
+	const deep = { x: second.x + 20, y: second.y - 15 };
+	await sam.moveTo(deep);
+	await sam.pause(600);
+	await sam.clickAt(deep);
 	const form = depth(sam).locator(".depth-panel-marker-form");
 	await expect(form).toBeVisible({ timeout: 5_000 });
 	await sam.caption("Name it, and set which slices it spans", 500);

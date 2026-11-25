@@ -6,10 +6,17 @@ import { useDrawContext } from "../../context/DrawContext";
 import { newId } from "../../newId";
 import { isUsable, markerGeoJson, type MarkerBox } from "./markers";
 
+// What to do next, step by step. Each says which of the three clicks it is.
+const HINTS = {
+	first: "1 of 3: click one corner on the tissue.",
+	second: "2 of 3: click the opposite corner. It stays on the same slice.",
+	depth: "3 of 3: move through the slices and click to set how deep. Turn the block side on to see it best.",
+} as const;
+
 // The Depth tab's Mark section, in 3D: placing a box round a feature that
 // spans slices, and saving it as a rectangle annotation with its slices (see
-// markers.ts). The 3D view takes the two corners; this says what to do and
-// names it.
+// markers.ts). The 3D view takes the three clicks - a corner, the opposite
+// corner on the same slice, then how deep; this says what to do and names it.
 function MarkerSection({ count, locked }: { count: number; locked: boolean }) {
 	const { marking, setMarking } = useSliceContext();
 	const { canEdit } = useCollectionContext();
@@ -29,11 +36,7 @@ function MarkerSection({ count, locked }: { count: number; locked: boolean }) {
 			)}
 			{marking && marking.stage !== "form" && (
 				<>
-					<p className="depth-panel-hint">
-						{marking.stage === "first"
-							? "Click one corner on the tissue."
-							: "Now the opposite corner. Turn or cut the block first to reach another depth."}
-					</p>
+					<p className="depth-panel-hint">{HINTS[marking.stage]}</p>
 					<div className="depth-panel-buttons">
 						<button type="button" onClick={() => setMarking(null)}>
 							Cancel
@@ -46,8 +49,7 @@ function MarkerSection({ count, locked }: { count: number; locked: boolean }) {
 	);
 }
 
-// Naming it, and the slices it spans - from the corners, but changeable,
-// since two clicks can only reach so far into the block.
+// Naming it, and the slices it spans - from the clicks, but changeable.
 function MarkerForm({ box, count }: { box: MarkerBox; count: number }) {
 	const { setMarking } = useSliceContext();
 	const { addAnnotation } = useAnnotationStoreContext();

@@ -129,7 +129,7 @@ any edge of the screen - two panels on the same edge split it evenly.
   - **3D** - the switch at the top of the Depth tab shows the volume as a
     block ([three.js](https://threejs.org/), loaded the first time it's
     opened). Drag to turn it, scroll to zoom, right-drag to move it. Cut it on
-    X, Y, Z or a diagonal to see inside, draw fewer slices to make it
+    X, Y or a diagonal to see inside, draw fewer slices to make it
     thinner, lower the opacity, stretch the depth, space the slices out, turn
     the outline and grid off. A frame on the block shows the slice the 2D
     view's on, and a gap is an empty layer. **Gap between slices** (none up to
@@ -150,7 +150,7 @@ any edge of the screen - two panels on the same edge split it evenly.
     x 4096 pixels (64 MB) - 1/8 of Kartasalo's slides, about 3.7 um a pixel,
     individual nuclei. Which slice (`detailSlice` in `volume.ts`): with no gap,
     the face towards the camera - the first slice drawn from the front, the
-    last from behind, or the face a Z cut leaves; spaced out, the framed one,
+    last from behind; spaced out, the framed one,
     so stepping through slices sharpens each in turn. It's stitched from
     tiles (`loadDetail.ts`) - the 2D view's, so usually cached - rather than
     one big thumbnail, so the tiler never holds a large picture for it, and
@@ -173,8 +173,9 @@ any edge of the screen - two panels on the same edge split it evenly.
     the sections really are (`depthStretch` in `volume.ts`) - a thin sheet,
     but the cut face is then real tissue at real proportions, about a pixel
     a section. Moving the Depth slider turns it off. Zoomed out it fades into the block,
-    which is as good there. A Z cut's face is a slice, so the sharp slice
-    covers it; a diagonal cut runs across tiles and isn't sharpened. It's ray marched in a fragment shader
+    which is as good there. A diagonal cut runs across tiles and isn't
+    sharpened. There's no Z cut: it only kept a run of slices from the
+    front, which **Slices drawn** already does from either end. It's ray marched in a fragment shader
     (`src/components/depth/volumeShader.ts`), stored premultiplied so
     filtering next to glass or a gap doesn't darken it. Sections are much
     thinner than the slide is wide, so it's drawn thicker than it is. How

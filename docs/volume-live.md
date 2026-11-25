@@ -316,7 +316,7 @@ the viewport. The shapes are worked out in `depth/cameras.ts`.
 | Others' cameras as a small pyramid in their colour, named | As designed, from their field of view, at a 16:10 screen | Screens differ; the shape only has to say which way they look |
 | Faded when still for a while | After 30 s still, see-through, name dimmed | |
 | Others' 2D view boxes on their slice | As designed, rotation and all | |
-| Their cut as a thin outline | As designed, faint, any of X, Y, Z and the diagonal | |
+| Their cut as a thin outline | As designed, faint, any of X, Y and the diagonal | Z was taken out later. A host on an older viewer sending one is read as no cut (`knownCut` in `realtime.ts`) |
 | Past six cameras, only the host's and anyone who's moved in the last minute | As designed | |
 | Go there from a camera or box | Click their name. A camera moves yours to theirs; a 2D box opens their slice and place in 2D | Someone in 2D has no camera to go to |
 
@@ -475,7 +475,7 @@ as they rebuild from the deleted row. Schema docs regenerated.
 | While it's drawn, a `marker3d` sketch others see grow | As designed - dashed, in its colour, in others' 3D views | |
 | Once saved, an annotation with a slice range and a box | A rectangle annotation with `sliceFrom`/`sliceTo` | The box's footprint really is a rectangle, so 2D tools, filters and glyphs all just work |
 | On the 2D map, its box on every slice it spans | As designed, and nowhere else. View on map from a slice it isn't on goes to its first | It's not drawn anywhere else, so viewing it from there showed nothing |
-| - | Placing it: Mark a box in the Depth tab's 3D section, click two corners on the tissue, then name it and set its slices | Two clicks can reach different depths once the block's turned or cut, so the corners give a real range; the form lets it go deeper than clicks can reach |
+| - | Placing it: Mark a box in the Depth tab's 3D section, then three clicks - a corner on the tissue, the opposite corner on the same slice, then how deep - then name it and set its slices | First built as two corners on the tissue, but a click only reaches tissue you can see, so a range needed the block turned or cut first. Now the second corner is where the pointer meets that slice's plane (`cornerOnSlice`) and the depth is where the pointer passes closest to the line down through the block at that corner (`sliceAlongDepth`), so neither needs tissue under the pointer and any depth is a click away. Looking straight down the block gives no depth, so the hint says to turn it side on |
 | - | The Saved list says "3D · slices 4 to 9", and Slices in its details | |
 | - | Export writes `sliceFrom`/`sliceTo` into each feature's properties, import reads them back - a range that doesn't make sense is dropped, the shape kept | So a marker survives a round trip through a file |
 

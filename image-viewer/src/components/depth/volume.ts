@@ -157,8 +157,7 @@ interface DetailView {
 // Which slice gets drawn sharp. Spaced out, every slice can be seen, so it's
 // the one the 2D view's on - the framed one, moved with the slice slider.
 // Solid, only the block's face towards the camera can be: the first slice
-// drawn from the front, the last from behind (or the face a Z cut leaves).
-// Null if that's nothing drawn.
+// drawn from the front, the last from behind. Null if that's nothing drawn.
 function detailSlice(view: DetailView): number | null {
 	const { layerSlice, firstLayer, lastLayer } = view;
 	const drawn = (layer: number) => layer >= firstLayer && layer <= lastLayer && layerSlice[layer] != null;
@@ -166,13 +165,9 @@ function detailSlice(view: DetailView): number | null {
 		const layer = layerSlice.indexOf(view.current);
 		return layer >= 0 && drawn(layer) ? view.current : null;
 	}
-	let back = lastLayer;
-	// A Z cut keeps the front of the block, up to the cut.
-	if (view.cut === "z") back = Math.min(back, Math.ceil(Math.min(1, Math.max(0, view.cutPosition)) * layerSlice.length) - 1);
-	if (back < firstLayer) return null;
 	const towards = view.cameraInFront ? 1 : -1;
 	// A gap layer has nothing to show, so the face is the next slice in.
-	for (let layer = view.cameraInFront ? firstLayer : back; layer >= firstLayer && layer <= back; layer += towards) {
+	for (let layer = view.cameraInFront ? firstLayer : lastLayer; layer >= firstLayer && layer <= lastLayer; layer += towards) {
 		if (drawn(layer)) return layerSlice[layer] ?? null;
 	}
 	return null;
@@ -184,8 +179,8 @@ function detailSlice(view: DetailView): number | null {
 // column (X cut) or row (Y cut) of each slice's tiles, at the finest tier
 // that keeps the tiles fetched under this many. 47 liver slices at 1/8 are
 // 752 tiles, about 3.4 s from the tiler and 1.4 s once cached; the 260
-// prostate slices get 1/32. A Z cut's face is a slice, sharpened by
-// detailSlice; a diagonal one cuts across tiles, so it isn't.
+// prostate slices get 1/32. A diagonal cut runs across tiles, so its face
+// isn't sharpened.
 const FACE_TILES = 1200;
 
 type FaceAxis = "x" | "y";
@@ -316,7 +311,15 @@ function spacingText(spacing: number): string {
 	return `${Number(spacing.toFixed(2))}x a slice`;
 }
 
-type CutAxis = "none" | "x" | "y" | "z" | "diagonal";
+// No Z cut: it only kept a run of slices from the front, which Slices drawn
+// already does from either end.
+const CUT_AXES = ["none", "x", "y", "diagonal"] as const;
+type CutAxis = (typeof CUT_AXES)[number];
+
+// A cut from outside - a host on an older viewer can still send "z".
+function isCutAxis(value: unknown): value is CutAxis {
+	return (CUT_AXES as readonly unknown[]).includes(value);
+}
 
 // A cut as a plane in texture space (each axis 0-1): what's kept is where
 // normal . p <= offset. position (0-1) is how far through the block it is.
@@ -328,8 +331,6 @@ function cutPlane(axis: CutAxis, position: number): { normal: [number, number, n
 			return { normal: [1, 0, 0], offset: t };
 		case "y":
 			return { normal: [0, 1, 0], offset: t };
-		case "z":
-			return { normal: [0, 0, 1], offset: t };
 		case "diagonal": {
 			const n = 1 / Math.sqrt(3);
 			// n . p runs from 0 at one corner to sqrt(3) * n = 1 at the other.
@@ -443,6 +444,8 @@ export {
 	spacingText,
 	defaultStretch,
 	depthStretch,
+	CUT_AXES,
+	isCutAxis,
 	cutPlane,
 	firstHit,
 	textureRay,

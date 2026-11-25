@@ -5,9 +5,15 @@ import { useEmitEvent } from "./EventContext";
 import type { Camera } from "../components/realtime/realtime";
 import type { Hit, MarkerBox } from "../components/depth/markers";
 
-// Placing a 3D marker: waiting for the first corner, then the second (with
-// the box so far while the pointer moves), then naming it before it's saved.
-type Marking = { stage: "first" } | { stage: "second"; first: Hit; box: MarkerBox | null } | { stage: "form"; box: MarkerBox } | null;
+// Placing a 3D marker: waiting for the first corner, then the opposite one on
+// the same slice, then how deep (each with the box so far while the pointer
+// moves), then naming it before it's saved.
+type Marking =
+	| { stage: "first" }
+	| { stage: "second"; first: Hit; box: MarkerBox | null }
+	| { stage: "depth"; first: Hit; corner: Hit; box: MarkerBox }
+	| { stage: "form"; box: MarkerBox }
+	| null;
 
 type DepthView = "2d" | "3d";
 

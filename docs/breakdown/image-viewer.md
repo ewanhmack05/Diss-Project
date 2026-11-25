@@ -862,8 +862,9 @@ depth too:
   pulse there for 4 s in the host's colour; anyone not following gets a
   toast whose Go takes them into 3D, onto the host's slice and camera.
 
-- 3D markers: Mark a box in the Depth tab's 3D section, click two corners on
-  the tissue, name it and set its slices. It saves as a rectangle annotation
+- 3D markers: Mark a box in the Depth tab's 3D section, then three clicks - a
+  corner on the tissue, the opposite corner on the same slice, then how deep.
+  Name it, and change its slices if they're off. It saves as a rectangle annotation
   with `sliceFrom`/`sliceTo` (`depth/markers.ts`), drawn as a box in the
   block for everyone, and on the 2D map only on its slices. While it's being
   placed it goes out as a `marker3d` sketch, dashed in others' 3D views.

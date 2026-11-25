@@ -4,6 +4,7 @@ import {
 	boxEdges,
 	boxFromHits,
 	boxOf,
+	cornerOnSlice,
 	countOnSlice,
 	countSliceText,
 	isMarker,
@@ -11,10 +12,14 @@ import {
 	markerGeoJson,
 	onSlice,
 	rangeFromInputs,
+	sameBox,
 	shownMarkers,
+	sliceAlongDepth,
+	sliceAtZ,
 	sliceOf,
 	sliceRangeText,
 	sliceTagText,
+	type Ray,
 } from "./markers";
 import type { Vec3 } from "./volume";
 
@@ -243,5 +248,115 @@ describe("rangeFromInputs", () => {
 			["four", "4"],
 		])
 			expect(rangeFromInputs(from, to, 15)).toBeNull();
+	});
+});
+
+// A block 1 across, 1 high and 1 deep, four slices, layer 0 at the front
+// (+z). Layer middles are at z 0.375, 0.125, -0.125 and -0.375.
+const cube: Vec3 = [1, 1, 1];
+const slide = { width: 1000, height: 800 };
+const four = [0, 1, 2, 3];
+const ray = (origin: Vec3, direction: Vec3): Ray => ({ origin, direction });
+
+describe("cornerOnSlice", () => {
+	it("is where the ray meets the slice's plane, in slide pixels", () => {
+		expect(cornerOnSlice(ray([0, 0, 5], [0, 0, -1]), 1, slide, cube, four)).toEqual({ x: 500, y: 400, slice: 1 });
+		expect(cornerOnSlice(ray([0.25, 0.25, 5], [0, 0, -1]), 1, slide, cube, four)).toEqual({ x: 750, y: 200, slice: 1 });
+	});
+
+	it("follows an angled ray to that slice's depth", () => {
+		const corner = cornerOnSlice(ray([0, 0, 5], [0.1, 0, -1]), 0, slide, cube, four);
+		expect(corner?.x).toBeCloseTo(962.5);
+		expect(corner?.y).toBeCloseTo(400);
+	});
+
+	it("finds the slice's layer past a gap", () => {
+		// Slice 2 is layer 3 here, not layer 2.
+		const corner = cornerOnSlice(ray([0, 0, 5], [0.05, 0, -1]), 2, slide, cube, [0, 1, null, 2]);
+		expect(corner?.x).toBeCloseTo(768.75);
+	});
+
+	it("keeps the corner on the slide", () => {
+		expect(cornerOnSlice(ray([2, -3, 5], [0, 0, -1]), 1, slide, cube, four)).toEqual({ x: 1000, y: 800, slice: 1 });
+	});
+
+	it("is nothing along the plane, behind the camera, or for a slice not in the block", () => {
+		expect(cornerOnSlice(ray([0, 0, 0.125], [1, 0, 0]), 1, slide, cube, four)).toBeNull();
+		expect(cornerOnSlice(ray([0, 0, 5], [0, 0, 1]), 1, slide, cube, four)).toBeNull();
+		expect(cornerOnSlice(ray([0, 0, 5], [0, 0, -1]), 9, slide, cube, four)).toBeNull();
+	});
+});
+
+describe("sliceAlongDepth", () => {
+	const middle = { x: 500, y: 400 };
+
+	it("is the slice where a side-on ray crosses the depth line", () => {
+		expect(sliceAlongDepth(ray([5, 0, -0.125], [-1, 0, 0]), middle, slide, cube, four)).toBe(2);
+		expect(sliceAlongDepth(ray([5, 0, 0.375], [-1, 0, 0]), middle, slide, cube, four)).toBe(0);
+	});
+
+	it("takes where a ray passes closest, when it misses the line", () => {
+		// One above the line and level with it: closest at its own depth.
+		expect(sliceAlongDepth(ray([5, 1, 0.3], [-1, 0, 0]), middle, slide, cube, four)).toBe(0);
+		// From above and to the side, aimed through the line at z 0.13.
+		expect(sliceAlongDepth(ray([5, 2, 0.13], [-5, -2, 0]), middle, slide, cube, four)).toBe(1);
+	});
+
+	it("uses the line through the corner given, not the block's middle", () => {
+		const corner = { x: 750, y: 200 };
+		expect(sliceAlongDepth(ray([5, 0.25, -0.3], [-1, 0, 0]), corner, slide, cube, four)).toBe(3);
+	});
+
+	it("reads depth against the block's own depth", () => {
+		// z 0.06 is layer 1 in a cube, but layer 0 in a block 0.2 deep.
+		expect(sliceAlongDepth(ray([5, 0, 0.06], [-1, 0, 0]), middle, slide, cube, four)).toBe(1);
+		expect(sliceAlongDepth(ray([5, 0, 0.06], [-1, 0, 0]), middle, slide, [1, 1, 0.2], four)).toBe(0);
+	});
+
+	it("stops at the first and last slices past the block", () => {
+		expect(sliceAlongDepth(ray([5, 0, 3], [-1, 0, 0]), middle, slide, cube, four)).toBe(0);
+		expect(sliceAlongDepth(ray([5, 0, -3], [-1, 0, 0]), middle, slide, cube, four)).toBe(3);
+	});
+
+	it("is nothing looking straight down the line, nearly so, or behind the camera", () => {
+		expect(sliceAlongDepth(ray([0, 0, 5], [0, 0, -1]), middle, slide, cube, four)).toBeNull();
+		expect(sliceAlongDepth(ray([0, 0, 5], [0.01, 0, -1]), middle, slide, cube, four)).toBeNull();
+		expect(sliceAlongDepth(ray([5, 0, 0], [1, 0, 0]), middle, slide, cube, four)).toBeNull();
+	});
+});
+
+describe("sliceAtZ", () => {
+	it("gives a gap layer to the nearer slice either side", () => {
+		// Layers: slice 0, a gap, slice 1 - middles at z 1/3, 0 and -1/3.
+		expect(sliceAtZ(0.05, 1, [0, null, 1])).toBe(0);
+		expect(sliceAtZ(-0.05, 1, [0, null, 1])).toBe(1);
+	});
+
+	it("is nothing with no slices", () => {
+		expect(sliceAtZ(0, 1, [])).toBeNull();
+		expect(sliceAtZ(0, 1, [null])).toBeNull();
+	});
+});
+
+describe("sameBox", () => {
+	const box = { minX: 1, minY: 2, maxX: 3, maxY: 4, sliceFrom: 0, sliceTo: 2 };
+
+	it("is every side and slice the same", () => {
+		expect(sameBox(box, { ...box })).toBe(true);
+		expect(sameBox(box, { ...box, sliceTo: 3 })).toBe(false);
+		expect(sameBox(null, null)).toBe(true);
+		expect(sameBox(box, null)).toBe(false);
+	});
+});
+
+describe("three clicks", () => {
+	it("makes a box across the first slice, as deep as the third click", () => {
+		const first = { x: 200, y: 300, slice: 1 };
+		// Second click from in front: on slice 1, whatever's under the pointer.
+		const corner = cornerOnSlice(ray([0.25, 0.25, 5], [0, 0, -1]), first.slice, slide, cube, four)!;
+		expect(boxFromHits(first, corner)).toEqual({ minX: 200, minY: 200, maxX: 750, maxY: 300, sliceFrom: 1, sliceTo: 1 });
+		// Third from the side, level with slice 3.
+		const slice = sliceAlongDepth(ray([5, 0.25, -0.375], [-1, 0, 0]), corner, slide, cube, four)!;
+		expect(boxFromHits(first, { ...corner, slice })).toEqual({ minX: 200, minY: 200, maxX: 750, maxY: 300, sliceFrom: 1, sliceTo: 3 });
 	});
 });

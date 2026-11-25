@@ -24,8 +24,9 @@ interface MarkerBox {
 	sliceTo: number;
 }
 
-// The box two corners make - clicked anywhere on the block, so turning or
-// cutting it first lets the corners be at different depths.
+// The box two spots make, whichever way round, spanning both their slices.
+// Placing one takes three clicks: a corner on the tissue, the opposite corner
+// on the same slice (cornerOnSlice), then how deep (sliceAlongDepth).
 function boxFromHits(a: Hit, b: Hit): MarkerBox {
 	return {
 		minX: Math.min(a.x, b.x),
@@ -177,5 +178,106 @@ function boxEdges(box: MarkerBox, slide: { width: number; height: number }, size
 	return edges;
 }
 
-export { SMALLEST_SIDE_PX, boxFromHits, isUsable, markerGeoJson, isMarker, boxOf, shownMarkers, onSlice, sliceOf, sliceRangeText, sliceTagText, countOnSlice, countSliceText, rangeFromInputs, boxEdges };
-export type { Hit, MarkerBox };
+// A ray from the camera through the pointer, in the scene.
+interface Ray {
+	origin: Vec3;
+	direction: Vec3;
+}
+
+type Slide = { width: number; height: number };
+
+const clamp = (n: number, lo: number, hi: number) => Math.min(Math.max(n, lo), hi);
+
+// The second corner: where the pointer's ray meets the plane through the
+// middle of this slice, in slide pixels kept on the slide. No tissue needed
+// under the pointer, and it's on the first corner's slice by construction.
+// Null when the ray runs along the plane or meets it behind the camera.
+function cornerOnSlice(ray: Ray, slice: number, slide: Slide, size: Vec3, layerSlice: readonly (number | null)[]): Hit | null {
+	const layer = layerSlice.indexOf(slice);
+	if (layer < 0) return null;
+	const z = layerZ(layer, layerSlice.length, size[2]);
+	const dz = ray.direction[2];
+	if (Math.abs(dz) < 1e-9) return null;
+	const t = (z - ray.origin[2]) / dz;
+	if (t <= 0) return null;
+	const sx = ray.origin[0] + t * ray.direction[0];
+	const sy = ray.origin[1] + t * ray.direction[1];
+	return {
+		x: clamp((sx / size[0] + 0.5) * slide.width, 0, slide.width),
+		y: clamp((0.5 - sy / size[1]) * slide.height, 0, slide.height),
+		slice,
+	};
+}
+
+// Below this (the sine squared of the angle between the ray and the depth
+// line) the ray's too close to looking straight down the line for where it
+// passes to mean anything - a pixel would swing it front to back.
+const MIN_DEPTH_ANGLE_SQ = 0.0025;
+
+// How deep: the slice nearest where the pointer's ray passes closest to the
+// line through the block's depth at this spot. Any depth can be reached,
+// tissue under the pointer or not. Null when looking straight along the line,
+// or when the closest point is behind the camera.
+function sliceAlongDepth(ray: Ray, at: { x: number; y: number }, slide: Slide, size: Vec3, layerSlice: readonly (number | null)[]): number | null {
+	const [dx, dy, dz] = ray.direction;
+	const c = dx * dx + dy * dy + dz * dz;
+	// The line is (lx, ly, 0) + s(0, 0, 1). The usual closest points of two
+	// lines, with the line's direction a unit vector.
+	const denominator = dx * dx + dy * dy;
+	if (c === 0 || denominator / c < MIN_DEPTH_ANGLE_SQ) return null;
+	const lx = (at.x / slide.width - 0.5) * size[0];
+	const ly = (0.5 - at.y / slide.height) * size[1];
+	const w: Vec3 = [lx - ray.origin[0], ly - ray.origin[1], -ray.origin[2]];
+	const e = dx * w[0] + dy * w[1] + dz * w[2];
+	const s = (dz * e - c * w[2]) / denominator;
+	const t = (e - dz * w[2]) / denominator;
+	if (t <= 0) return null;
+	return sliceAtZ(s, size[2], layerSlice);
+}
+
+// The real slice nearest a depth in the scene, kept inside the block - a gap
+// layer gives way to the slice either side that's closer.
+function sliceAtZ(z: number, depth: number, layerSlice: readonly (number | null)[]): number | null {
+	const layers = layerSlice.length;
+	if (layers === 0) return null;
+	const position = clamp((0.5 - z / depth) * layers, 0, layers - 1e-6);
+	let best: number | null = null;
+	let bestDistance = Infinity;
+	for (let layer = 0; layer < layers; layer++) {
+		const slice = layerSlice[layer];
+		const distance = Math.abs(layer + 0.5 - position);
+		if (slice !== null && distance < bestDistance) {
+			best = slice;
+			bestDistance = distance;
+		}
+	}
+	return best;
+}
+
+function sameBox(a: MarkerBox | null, b: MarkerBox | null): boolean {
+	if (!a || !b) return a === b;
+	return a.minX === b.minX && a.minY === b.minY && a.maxX === b.maxX && a.maxY === b.maxY && a.sliceFrom === b.sliceFrom && a.sliceTo === b.sliceTo;
+}
+
+export {
+	SMALLEST_SIDE_PX,
+	boxFromHits,
+	isUsable,
+	markerGeoJson,
+	isMarker,
+	boxOf,
+	shownMarkers,
+	onSlice,
+	sliceOf,
+	sliceRangeText,
+	sliceTagText,
+	countOnSlice,
+	countSliceText,
+	rangeFromInputs,
+	boxEdges,
+	cornerOnSlice,
+	sliceAlongDepth,
+	sliceAtZ,
+	sameBox,
+};
+export type { Hit, MarkerBox, Ray };

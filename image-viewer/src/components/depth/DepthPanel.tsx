@@ -13,7 +13,6 @@ const CUTS: { axis: CutAxis; label: string }[] = [
 	{ axis: "none", label: "None" },
 	{ axis: "x", label: "X" },
 	{ axis: "y", label: "Y" },
-	{ axis: "z", label: "Z" },
 	{ axis: "diagonal", label: "Diagonal" },
 ];
 
