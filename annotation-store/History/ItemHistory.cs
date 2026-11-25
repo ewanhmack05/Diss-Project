@@ -140,7 +140,8 @@ public static class ItemHistory
                 // Already how it was, so it isn't a change.
                 if (plan.Changes.Count == 0 && plan.Live is not null) return Results.Ok(Answer(null, null, null, null));
 
-                if ((await db.ChangeSetAsync(http, version.CollectionId, user, what)).Problem is { } problem) return problem;
+                var (changeSet, problem) = await db.ChangeSetAsync(http, version.CollectionId, user, what);
+                if (problem is not null) return problem;
                 var bringingBack = plan.Live is null;
                 foreach (var change in plan.Changes) plan.Row.Property(change.Column).CurrentValue = change.Wanted;
                 if (bringingBack)
@@ -158,15 +159,17 @@ public static class ItemHistory
                     // lock, so the second finds out from the primary key.
                     return Results.Conflict("It's changed since you opened it");
                 }
+                EditConflicts.StampText(http);
                 await transaction.CommitAsync();
 
+                var textWas = await ChangeSetEndpoints.TextWasAsync(db, changeSet!.Id);
                 if (entity == HistoryLog.Annotation)
                 {
                     var annotation = (Annotation)plan.Row.Entity;
-                    return Results.Ok(bringingBack ? Answer(annotation, null, null, null) : Answer(null, annotation, null, null));
+                    return Results.Ok(bringingBack ? Answer(annotation, null, null, null) : Answer(null, annotation, null, null, textWas));
                 }
                 var count = (await db.CellCounts.Where(c => c.Id == id).NewestFirst().ListItemsAsync(db)).Single();
-                return Results.Ok(bringingBack ? Answer(null, null, count, null) : Answer(null, null, null, count));
+                return Results.Ok(bringingBack ? Answer(null, null, count, null) : Answer(null, null, null, count, textWas));
             });
         }
     }
@@ -174,10 +177,10 @@ public static class ItemHistory
     private static IResult NothingToGoBackTo() =>
         Results.Conflict("History doesn't say how it was then");
 
-    private static RestoredView Answer(Annotation? annotation, Annotation? changed, CellCountListItem? count, CellCountListItem? changedCount) =>
+    private static RestoredView Answer(Annotation? annotation, Annotation? changed, CellCountListItem? count, CellCountListItem? changedCount, List<TextWas>? textWas = null) =>
         new(new RestoreResult(annotation is null ? 0 : 1, 0, count is null ? 0 : 1, 0, false),
             annotation is null ? [] : [annotation], [], count is null ? [] : [count], [],
-            changed is null ? [] : [changed], changedCount is null ? [] : [changedCount], []);
+            changed is null ? [] : [changed], changedCount is null ? [] : [changedCount], [], [], [], textWas ?? []);
 
     private static Task<HistoryEntry?> VersionAsync(AnnotationDbContext db, string entity, Guid id, long entryId) =>
         db.HistoryEntries.AsNoTracking()

@@ -315,8 +315,14 @@ byte arrays and relays new ones. The doc id looks like
   [useSharedFields.ts](../../image-viewer/src/components/realtime/useSharedFields.ts)
   puts it back after React re-renders the input.
 - **Saving.** There's no Save button. The form autosaves to annotation-store
-  a second after typing stops, every save in one change set. Remote changes trigger a save too, so whoever
-  saves last always writes the fully merged text.
+  a second after typing stops, every save in one change set. Each person saves
+  only what they typed, so the history says who wrote what, and annotation-store
+  turns down a save that started from text that's changed since. An op about
+  text carries when it was stored and which characters it's made of, inside
+  `data`, which the hub passes on without reading. See
+  [version-control.md](version-control.md#labels-and-notes).
+- **Old text put back** goes into the doc like any other update, with a mark in a
+  map of its own, so nobody's form takes it for something they typed.
 
 `GET /rooms/{roomId}/docs` shows each open doc's editor count, number of
 updates and total bytes, for measuring doc growth during evaluation.

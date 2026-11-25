@@ -201,7 +201,10 @@ function CellCountGroupContextProvider({ baseUrl, children }: { baseUrl: string;
 
 	const addRestored = (restored: CellCountGroup[]) => {
 		if (restored.length === 0) return;
-		setGroups((current) => [...current, ...restored.filter((g) => !current.some((c) => c.id === g.id))].sort(byName));
+		const byId = new Map(restored.map((g) => [g.id, g]));
+		setGroups((current) =>
+			[...current.map((g) => byId.get(g.id) ?? g), ...restored.filter((g) => !current.some((c) => c.id === g.id))].sort(byName),
+		);
 	};
 
 	return (

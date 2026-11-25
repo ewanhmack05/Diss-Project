@@ -1015,7 +1015,52 @@
 			"gridPos": {
 				"x": 0,
 				"y": 49,
-				"w": 24,
+				"w": 12,
+				"h": 8
+			}
+		},
+		{
+			"type": "timeseries",
+			"title": "Labels and notes worked out again, per minute",
+			"description": "Saves turned down because the text had changed since they started, which the viewer works out again and saves on top. A few are normal with two people typing in the same box. A lot means saves are chasing each other. See annotation-store's Conflicts/EditConflicts.cs.",
+			"targets": [
+				{
+					"expr": "sum by (entity) (increase(annotation_store_text_saves_refused_total{job=~\"$service\"}[1m]))",
+					"legendFormat": "{{entity}}",
+					"refId": "A"
+				}
+			],
+			"fieldConfig": {
+				"defaults": {
+					"unit": "short",
+					"noValue": "0 - none",
+					"custom": {
+						"lineWidth": 2,
+						"fillOpacity": 12,
+						"showPoints": "never"
+					}
+				},
+				"overrides": []
+			},
+			"options": {
+				"legend": {
+					"displayMode": "list",
+					"placement": "bottom"
+				},
+				"tooltip": {
+					"mode": "multi",
+					"sort": "desc"
+				}
+			},
+			"id": 24,
+			"datasource": {
+				"type": "prometheus",
+				"uid": "prometheus"
+			},
+			"gridPos": {
+				"x": 12,
+				"y": 49,
+				"w": 12,
 				"h": 8
 			}
 		}

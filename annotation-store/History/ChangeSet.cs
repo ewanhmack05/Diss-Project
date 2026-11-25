@@ -32,13 +32,17 @@ public enum HistoryOp { Create, Update, Delete }
 // - Update: just the columns that changed, before and after.
 // - Delete: Before is the whole row, so it can be put back. After is only
 //   used to say where a merged group went (MergedInto).
+// A collection's settings - its name, who's in it and its links - are only
+// there to be read, so joining keeps what it was joined as in After, and
+// leaving keeps who left in Before. See HistoryLog.Settings.
 public class HistoryEntry
 {
     public long Id { get; set; }
     public Guid ChangeSetId { get; set; }
     public Guid CollectionId { get; set; }
-    // See HistoryLog.Entities - "annotation", "group", "cellCount",
-    // "regionOfInterest", "imageAdjustment" or "collection".
+    // See HistoryLog - "annotation", "group", "cellCountGroup", "cellCount",
+    // "regionOfInterest", "imageAdjustment", "collection", "member" or
+    // "invite".
     public string Entity { get; set; } = "";
     public Guid EntityId { get; set; }
     public HistoryOp Op { get; set; }

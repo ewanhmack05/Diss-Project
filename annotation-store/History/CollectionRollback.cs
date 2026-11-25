@@ -28,7 +28,8 @@ public record RollbackView(RollbackCounts Annotations, RollbackCounts Groups, Ro
 // are taken out, rows deleted since come back, and everything else goes back to
 // how it was, whoever changed it. A change of its own, so it can be gone back on
 // from the change before it. Image adjustments stay as they are - they're one
-// person's own presets, not the work being versioned.
+// person's own presets, not the work being versioned. So do its name, who's in
+// it and its links - going back on the work never lets someone in again.
 //
 // How it was is worked out backwards, like ItemHistory: start from a state
 // that's known, and undo each entry between there and the point. It can't go
@@ -170,8 +171,10 @@ public static class CollectionRollback
         return new RollbackView(Counts(HistoryLog.Annotation), allGroups, Counts(HistoryLog.CellCount), latest, plan.EntriesWalked, plan.FromSnapshot);
     }
 
+    // Not settings, which a rollback leaves alone - someone joining while you
+    // look at what it would do isn't a reason to look again.
     private static Task<long?> LatestAsync(AnnotationDbContext db, Guid collectionId) =>
-        db.HistoryEntries.Where(e => e.CollectionId == collectionId).MaxAsync(e => (long?)e.Id);
+        db.HistoryEntries.Where(e => e.CollectionId == collectionId).WithoutSettings().MaxAsync(e => (long?)e.Id);
 
     // The point a change set stands for: its last entry.
     private static Task<long?> PointAsync(AnnotationDbContext db, Guid changeSetId) =>

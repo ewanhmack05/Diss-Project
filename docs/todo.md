@@ -146,6 +146,13 @@ afternoon, medium a few days, large a week or more.
   fails for a column that's in neither the list that goes back nor the one
   that's fixed. See
   [version-control.md](breakdown/version-control.md#slices-go-back-together)
+- **Four gaps in the history closed** - renames, sharing, ending a session,
+  members and links are logged (never a link's code). Two people in the same
+  box each save only their own typing, so the history says who wrote what. A
+  form left open can't put old text back after a put back, a timeline step or
+  a whole collection rollback. Every row a change deleted can be found and
+  opened. See
+  [version-control.md](breakdown/version-control.md#labels-and-notes)
 - **Working together in 3D** (all six phases) - the slice live, who's in 3D,
   other people's cameras, Follow and Present in 3D, look here, and markers. A
   marker is three clicks: a corner, the opposite corner, then how deep. See
@@ -244,13 +251,6 @@ The full list is in
 [version-control.md](breakdown/version-control.md#12-known-gaps). The ones that
 matter most:
 
-- **Not logged:** renaming a collection, sharing, ending a session, members and
-  invite links
-- **Someone else's typing saves under your edit**, in a session with the same
-  box open
-- **A form left open** puts its old text back on its next pause, after a put
-  back, a timeline step or a whole collection rollback
-- **Only the first 5 deleted rows** of a change can be opened
 - **The hub trusts the viewer** to have saved before it tells everyone
 
 ### Games parallels to write up
@@ -288,7 +288,8 @@ Measured, simulated - results and how far to trust them in
   how often it happens, and how many changes each policy loses.
   `scripts/simulate_conflicts.py` runs it (see the
   [scripts README](../scripts/README.md#people-changing-the-same-thing)), and
-  `annotation_store.conflicting_saves` counts it on the dashboard
+  `annotation_store.conflicting_saves` counts it on the dashboard, with
+  `annotation_store.text_saves_refused` for labels and notes
 - **Yjs vs last write wins** for labels and notes
 - **History cost** - how much the log grows per change, and how long a
   rollback of 1, 1k and 20k items takes
@@ -398,9 +399,9 @@ Not being done for this project - left for the write up as what comes next. See
 - **Keeping history** - a purge rule. Nothing's purged now, so the log grows forever
 - **Retention** - the log keeps user ids and names indefinitely, and messages are kept
   until someone deletes them. Both need a rule
-- **Label and notes history** - they're merged live with Yjs, but no version is kept
-  once the box closes. Saving one to the history log when the last editor closes it is
-  the simple way, and enough for a history view
+- **Label and notes history, key by key** - the history says who changed a label or
+  notes, from what to what, one entry an edit. What was typed in between and the Yjs
+  history aren't kept once the box closes
 
 ## 12. Ideas from the reading
 

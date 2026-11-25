@@ -411,6 +411,39 @@ public class CollectionRollbackTests : IClassFixture<CellCountApiFactory>
         Assert.Equal(changeSets, await WithDbAsync(db => db.ChangeSets.CountAsync(c => c.CollectionId == id)));
     }
 
+    // Names, people and links are only a record. Going back past them leaves
+    // them as they are, and one happening while you look isn't a 409.
+    [Fact]
+    public async Task GoingBack_LeavesTheNameThePeopleAndTheLinksAlone_AndIsntPutOffByThem()
+    {
+        var (alice, bob, carol) = (As("alice"), As("bob"), As("carol"));
+        var start = await alice.PostAsJsonAsync("/sessions", new EnsureRequest(Guid.NewGuid().ToString(), "Before"), Json);
+        var id = (await start.Content.ReadFromJsonAsync<CollectionView>(Json))!.CollectionId;
+        var post = await alice.PostAsJsonAsync("/annotations", new Annotation { CollectionId = id, Label = "first", Colour = "#FF0000" }, Json);
+        var point = Guid.Parse(post.Headers.GetValues(ChangeSetEndpoints.Header).Single());
+        var invite = await alice.PostAsJsonAsync($"/collections/{id}/invites", new InviteRequest(CollectionRole.Editor, 24), Json);
+        var code = (await invite.Content.ReadFromJsonAsync<InviteView>(Json))!.Code;
+        (await bob.PostAsync($"/invites/{code}/accept", null)).EnsureSuccessStatusCode();
+        (await bob.PostAsJsonAsync("/annotations", new Annotation { CollectionId = id, Label = "second", Colour = "#FF0000" }, Json)).EnsureSuccessStatusCode();
+        var view = (await alice.GetFromJsonAsync<RollbackView>($"/changesets/{point}/rollback", Json))!;
+
+        (await carol.PostAsync($"/invites/{code}/accept", null)).EnsureSuccessStatusCode();
+        (await alice.DeleteAsync($"/collections/{id}/members/bob")).EnsureSuccessStatusCode();
+        (await alice.PutAsJsonAsync($"/collections/{id}", new RenameRequest("After"), Json)).EnsureSuccessStatusCode();
+        var back = await alice.PostAsync($"/changesets/{point}/rollback?latest={view.Latest}", null);
+
+        back.EnsureSuccessStatusCode();
+        Assert.Equal(["first"], (await alice.GetFromJsonAsync<List<Annotation>>($"/annotations?collectionId={id}", Json))!.Select(a => a.Label));
+        var now = (await alice.GetFromJsonAsync<CollectionView>($"/collections/{id}", Json))!;
+        Assert.Equal("After", now.CollectionName);
+        Assert.Equal(HttpStatusCode.NotFound, (await bob.GetAsync($"/annotations?collectionId={id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await carol.GetAsync($"/annotations?collectionId={id}")).StatusCode);
+
+        // Someone joining is still a point to go back to.
+        var joined = (await alice.GetFromJsonAsync<List<ChangeSetView>>($"/changesets?collectionId={id}&kind=people&createdBy=bob", Json))!.Single();
+        Assert.Equal(HttpStatusCode.OK, (await alice.PostAsync($"/changesets/{joined.Id}/rollback", null)).StatusCode);
+    }
+
     [Fact]
     public async Task ItsAChangeOfItsOwn_ThatCountsAsPutBack_WithOneEntryPerRow()
     {

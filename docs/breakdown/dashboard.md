@@ -118,13 +118,14 @@ One dashboard, refreshing every 5 seconds. The **Service** picker at the top
 lists every `job` Prometheus has seen, so a new service shows up on its
 own. Pick one, several or all.
 
-| Row           | Panels                                                                                              | Built from                                                                  |
-| ------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| **Load**      | Requests/sec, slowest 5% time, server error %, in flight now, requests/sec and in flight by service | `http_server_request_duration_seconds_count`, `http_server_active_requests` |
-| **Timing**    | Median, p95 and p99 request time per service                                                        | `histogram_quantile` over `http_server_request_duration_seconds_bucket`     |
-| **Endpoints** | Table of every route: count, rate, median, p95, over the last 5 minutes                             | Same, grouped by `http_route`                                               |
-| **Errors**    | 4xx and 5xx per minute, by status code                                                              | Same, filtered on `http_response_status_code`                               |
-| **Machine**   | CPU as % of all cores, memory, thread pool threads, GC pause time                                   | `dotnet_process_*`, `dotnet_thread_pool_*`, `dotnet_gc_*`                   |
+| Row           | Panels                                                                                              | Built from                                                                              |
+| ------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| **Load**      | Requests/sec, slowest 5% time, server error %, in flight now, requests/sec and in flight by service | `http_server_request_duration_seconds_count`, `http_server_active_requests`             |
+| **Timing**    | Median, p95 and p99 request time per service                                                        | `histogram_quantile` over `http_server_request_duration_seconds_bucket`                 |
+| **Endpoints** | Table of every route: count, rate, median, p95, over the last 5 minutes                             | Same, grouped by `http_route`                                                           |
+| **Errors**    | 4xx and 5xx per minute, by status code                                                              | Same, filtered on `http_response_status_code`                                           |
+| **Machine**   | CPU as % of all cores, memory, thread pool threads, GC pause time                                   | `dotnet_process_*`, `dotnet_thread_pool_*`, `dotnet_gc_*`                               |
+| **Edits**     | Saves over someone else's change, and labels and notes worked out again, per minute                 | `annotation_store_conflicting_saves_total`, `annotation_store_text_saves_refused_total` |
 
 Every panel has a description - hover the (i) by its title.
 

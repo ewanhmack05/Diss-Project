@@ -2,6 +2,7 @@ import { useCollectionContext } from "../../../context/CollectionContext";
 import { formatFullDate, timeAgo } from "../../saved/savedDates";
 import ChangeIcon from "./ChangeIcon";
 import ChangeList from "./ChangeList";
+import type { DeletedView } from "./DeletedList";
 import CollectionRollbackPanel from "./CollectionRollbackPanel";
 import { canRestore, changeKind, changeLabel, initials, restoreNote, restoreStatus, shortId, wasPutBack, type ChangeSet } from "./history";
 import type { Item } from "./itemVersions";
@@ -19,6 +20,9 @@ interface HistoryDetailProps {
 	onBack: () => void;
 	// One of the rows it deleted, opened on its own timeline.
 	onOpenItem: (item: Item) => void;
+	// Everything it deleted, opened up.
+	allDeleted: DeletedView | null;
+	onAllDeleted: (view: DeletedView | null) => void;
 	// The whole collection's been put back to this change.
 	onRolledBack: () => void;
 }
@@ -26,7 +30,18 @@ interface HistoryDetailProps {
 // One change opened up - who, exactly when, what it changed from and to,
 // and what's still deleted. This is the confirm too: Put back here does it
 // straight away.
-function HistoryDetail({ changeSet, canEdit, restoring, putBack, onRestore, onBack, onOpenItem, onRolledBack }: HistoryDetailProps) {
+function HistoryDetail({
+	changeSet,
+	canEdit,
+	restoring,
+	putBack,
+	onRestore,
+	onBack,
+	onOpenItem,
+	allDeleted,
+	onAllDeleted,
+	onRolledBack,
+}: HistoryDetailProps) {
 	const current = putBack ? { ...changeSet, deleted: 0 } : changeSet;
 	const kind = changeKind(changeSet.what);
 	const status = restoreStatus(current);
@@ -91,7 +106,7 @@ function HistoryDetail({ changeSet, canEdit, restoring, putBack, onRestore, onBa
 				</dd>
 			</dl>
 
-			<ChangeList changeSetId={changeSet.id} onOpenItem={onOpenItem} />
+			<ChangeList changeSetId={changeSet.id} onOpenItem={onOpenItem} allDeleted={allDeleted} onAllDeleted={onAllDeleted} />
 
 			{restorable ? (
 				<>

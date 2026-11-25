@@ -5,6 +5,9 @@ import { useAnnotationStoreContext } from "../../../context/AnnotationStoreConte
 import { useCellCountStoreContext } from "../../../context/CellCountStoreContext";
 import { useRealtimeContext } from "../../../context/RealtimeContext";
 import { useToastContext } from "../../../context/ToastContext";
+import { usePutText } from "../../realtime/usePutText";
+import { textToPut } from "../../realtime/putText";
+import { textAt } from "../../realtime/storedText";
 import { restoredOps, type Restored } from "./history";
 import { goBackPath, nameAfter, wentBackMessage, type Item } from "./itemVersions";
 
@@ -21,6 +24,7 @@ function useGoBackItem(): (item: Item, version: number, latest: number | null) =
 	const annotationStore = useAnnotationStoreContext();
 	const cellCountStore = useCellCountStoreContext();
 	const { sendOp } = useRealtimeContext();
+	const putText = usePutText();
 	const { addToast } = useToastContext();
 	// Moving to another collection while it's on its way mustn't put its row
 	// in that one's lists.
@@ -32,6 +36,7 @@ function useGoBackItem(): (item: Item, version: number, latest: number | null) =
 	return async (item, version, latest) => {
 		const askedIn = collectionIdRef.current;
 		let restored: Restored;
+		let at: number | undefined;
 		try {
 			const response = await authFetch(`${annotationStore.baseUrl}${goBackPath(item, version, latest)}`, { method: "POST" });
 			if (response.status === 409) {
@@ -40,15 +45,22 @@ function useGoBackItem(): (item: Item, version: number, latest: number | null) =
 			}
 			if (!response.ok) throw new Error(String(response.status));
 			restored = (await response.json()) as Restored;
+			at = textAt(response);
 		} catch {
 			addToast("Couldn't put that back - try again", "error");
 			return { status: "failed" };
 		}
 
 		if (collectionIdRef.current === askedIn) {
-			annotationStore.addRestored([...restored.annotations, ...restored.changedAnnotations]);
-			cellCountStore.addRestored([...restored.cellCounts, ...(restored.changedCellCounts ?? [])]);
-			for (const op of restoredOps(restored)) sendOp(op);
+			const texts = [
+				...textToPut("annotation", restored.changedAnnotations, restored.textWas),
+				...textToPut("cellCount", restored.changedCellCounts ?? [], restored.textWas),
+			];
+			annotationStore.addRestored([...restored.annotations, ...restored.changedAnnotations], at);
+			cellCountStore.addRestored([...restored.cellCounts, ...(restored.changedCellCounts ?? [])], at);
+			// Forms first, so nobody's typing is saved on top of text their box
+			// hasn't got yet.
+			void Promise.allSettled(texts.map(putText)).then(() => restoredOps(restored, at).forEach(sendOp));
 		}
 		addToast(wentBackMessage(item.entity, item.name, restored), "success");
 		return { status: "done", name: nameAfter(item.name, restored) };

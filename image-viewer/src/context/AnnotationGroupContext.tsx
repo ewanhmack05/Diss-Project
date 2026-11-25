@@ -208,7 +208,8 @@ function AnnotationGroupContextProvider({ baseUrl, children }: { baseUrl: string
 		if (restored.length === 0) return;
 		// The store sends a member count too - not kept, same as a made one.
 		const tidy = restored.map(({ id, collectionId, name, notes, created }) => ({ id, collectionId, name, notes: notes ?? "", created }));
-		setGroups((current) => [...current, ...tidy.filter((g) => !current.some((c) => c.id === g.id))].sort(byName));
+		const byId = new Map(tidy.map((g) => [g.id, g]));
+		setGroups((current) => [...current.map((g) => byId.get(g.id) ?? g), ...tidy.filter((g) => !current.some((c) => c.id === g.id))].sort(byName));
 	};
 
 	return (

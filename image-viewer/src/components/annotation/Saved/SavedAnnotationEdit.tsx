@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { useAnnotationStoreContext } from "../../../context/AnnotationStoreContext";
 import type { Annotation } from "../../../interfaces/Annotation";
 import { setAnnotationRenderProperties } from "../../open-layers/Styles";
-import { debounce, throttle } from "../../realtime/realtime";
-import { useSharedFields } from "../../realtime/useSharedFields";
+import { throttle } from "../../realtime/realtime";
+import { useSharedText } from "../../realtime/useSharedText";
 import EditingWith from "../../realtime/EditingWith";
-import { LABEL_MAX, NOTES_MAX, TEXT_SAVE_MS, nextSave } from "../../realtime/autosave";
+import { LABEL_MAX, NOTES_MAX } from "../../realtime/autosave";
 import { newChangeSet } from "../bulk";
 import ColourPicker from "../../colour-picker/ColourPicker";
 import DockedCard from "../../toolbar/DockedCard";
@@ -17,74 +17,63 @@ interface SavedAnnotationEditProps {
 	onBack: () => void;
 }
 
-const FIELDS = ["label", "notes"] as const;
-// Typing saves once you pause; colour goes out while you drag the custom
-// picker so everyone else sees it change.
+// Colour goes out while you drag the custom picker so everyone else sees it
+// change.
 const COLOUR_MS = 200;
 
-// Label and notes are shared live (see useSharedFields), so two people can
+// Label and notes are shared live (see useSharedText), so two people can
 // type in the same box at once. Everything saves as it changes - there's
 // no Save button, because with several people in here "unsaved" would mean
 // something different for each of them.
 function SavedAnnotationEdit({ annotation, onBack }: SavedAnnotationEditProps) {
-	const { annotationsSource, updateAnnotation, deleteAnnotation } = useAnnotationStoreContext();
+	const { annotationsSource, storedText, updateAnnotation, deleteAnnotation } = useAnnotationStoreContext();
 	const [colour, setColour] = useState(annotation.colour);
 
-	// Read by the save, which outlives any one render.
-	const [initial] = useState(() => ({ label: annotation.label, notes: annotation.notes ?? "", colour: annotation.colour }));
 	// Every save while the form's open is one change - one row in History,
 	// from how it was when the form opened to how it was when it closed.
 	const [changeSet] = useState(newChangeSet);
-	const latestRef = useRef(initial);
-	const savedRef = useRef(initial);
+	// Read by the saves, which outlive any one render.
+	const colourRef = useRef({ latest: annotation.colour, saved: annotation.colour });
 	const updateRef = useRef(updateAnnotation);
 	useEffect(() => {
 		updateRef.current = updateAnnotation;
 	});
 
-	const [[saveText, saveColour]] = useState(() => {
-		const commit = () => {
-			const next = nextSave(latestRef.current, savedRef.current);
-			if (!next) return;
-			savedRef.current = next;
-			updateRef.current(annotation.id, next, changeSet);
-		};
-		return [debounce(commit, TEXT_SAVE_MS), throttle(commit, COLOUR_MS)] as const;
+	const { values, editors, fieldProps, edit, cancel } = useSharedText({
+		docId: `annotation:${annotation.id}`,
+		id: annotation.id,
+		label: annotation.label,
+		notes: annotation.notes ?? "",
+		stored: storedText,
+		save: (text, options) => {
+			colourRef.current.saved = colourRef.current.latest;
+			return updateRef.current(annotation.id, colourRef.current.latest, text, changeSet, options);
+		},
 	});
 
-	const { values, editors, fieldProps } = useSharedFields(
-		`annotation:${annotation.id}`,
-		FIELDS,
-		{ label: annotation.label, notes: annotation.notes ?? "" },
-		// Remote changes save too - whoever saves last then always has the
-		// merged text, whatever order the saves land in.
-		(next) => {
-			latestRef.current = { ...latestRef.current, ...next };
-			saveText();
-		},
+	const [saveColour] = useState(() =>
+		throttle(() => {
+			const { latest, saved } = colourRef.current;
+			if (latest === saved) return;
+			colourRef.current.saved = latest;
+			void updateRef.current(annotation.id, latest, edit, changeSet);
+		}, COLOUR_MS),
 	);
 
 	// Closing the form, however it happens, saves whatever's still waiting.
-	useEffect(
-		() => () => {
-			saveText.flush();
-			saveColour.flush();
-		},
-		[saveText, saveColour],
-	);
+	useEffect(() => () => saveColour.flush(), [saveColour]);
 
 	// Someone else changed the colour - follow it, unless it's just our own
 	// save coming back round.
 	useEffect(() => {
-		if (annotation.colour === savedRef.current.colour) return;
-		savedRef.current = { ...savedRef.current, colour: annotation.colour };
-		latestRef.current = { ...latestRef.current, colour: annotation.colour };
+		if (annotation.colour === colourRef.current.saved) return;
+		colourRef.current = { latest: annotation.colour, saved: annotation.colour };
 		setColour(annotation.colour);
 	}, [annotation.colour]);
 
 	const handleColourChange = (next: string) => {
 		setColour(next);
-		latestRef.current = { ...latestRef.current, colour: next };
+		colourRef.current.latest = next;
 		const feature = annotationsSource.getFeatureById(annotation.id);
 		if (feature) {
 			feature.set("colour", next);
@@ -94,7 +83,7 @@ function SavedAnnotationEdit({ annotation, onBack }: SavedAnnotationEditProps) {
 	};
 
 	const handleDelete = () => {
-		saveText.cancel();
+		cancel();
 		saveColour.cancel();
 		deleteAnnotation(annotation.id);
 		onBack();

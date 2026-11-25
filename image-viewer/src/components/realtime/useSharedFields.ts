@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ChangeEvent } from "react";
 import { useRealtimeContext } from "../../context/RealtimeContext";
-import { SharedFields, transformIndex, type FieldChange } from "./sharedFields";
+import { SharedFields, transformIndex, type BoxChar, type FieldChange } from "./sharedFields";
 
 type FieldElement = HTMLInputElement | HTMLTextAreaElement;
 
@@ -19,8 +19,10 @@ function useSharedFields<F extends string>(
 	fields: readonly F[],
 	initial: Record<F, string>,
 	onChange?: (values: Record<F, string>, change: FieldChange<F>) => void,
+	// What's in each box to begin with.
+	onOpen?: (field: F, chars: BoxChar[]) => void,
 ) {
-	const { me, openDoc, sendDocUpdate, closeDoc, onDocUpdate, onDocEditors } = useRealtimeContext();
+	const { me, openDoc, sendDocUpdate, closeDoc, onDocUpdate, onDocEditors, openFields } = useRealtimeContext();
 	const [shared, setShared] = useState<SharedFields<F> | null>(null);
 	const [values, setValues] = useState(initial);
 	const [editors, setEditors] = useState<string[]>([]);
@@ -28,12 +30,16 @@ function useSharedFields<F extends string>(
 	const selectionsRef = useRef<Partial<Record<F, [number, number]>>>({});
 	const initialRef = useRef(initial);
 	const onChangeRef = useRef(onChange);
+	const onOpenRef = useRef(onOpen);
 	useEffect(() => {
 		onChangeRef.current = onChange;
+		onOpenRef.current = onOpen;
 	});
 
 	// Made in an effect, not during render, so a dev-mode double mount
 	// doesn't leave a destroyed doc behind.
+	// While it's open, a put back by you goes straight into it (see
+	// usePutText).
 	useEffect(() => {
 		const next = new SharedFields(fields, initialRef.current);
 		const unsubscribe = next.subscribe((change) => {
@@ -49,13 +55,17 @@ function useSharedFields<F extends string>(
 			setValues(current);
 			onChangeRef.current?.(current, change);
 		});
+		for (const field of fields) onOpenRef.current?.(field, next.chars(field));
 		setShared(next);
 		setValues(next.values());
+		const open = { put: (field: string, value: string, was: string) => next.put(field as F, value, was) };
+		openFields.set(docId, open);
 		return () => {
+			if (openFields.get(docId) === open) openFields.delete(docId);
 			unsubscribe();
 			next.dispose();
 		};
-	}, [docId, fields]);
+	}, [docId, fields, openFields]);
 
 	// Setting value from code puts the caret at the end, so put it back where
 	// the remote change moved it to.
@@ -92,7 +102,7 @@ function useSharedFields<F extends string>(
 	const fieldProps = useCallback(
 		(field: F): FieldProps => ({
 			value: values[field],
-			onChange: (event) => shared?.set(field, event.target.value),
+			onChange: (event) => shared?.set(field, event.target.value, event.target.selectionStart ?? undefined),
 			ref: (element) => {
 				elementsRef.current[field] = element;
 			},
@@ -100,8 +110,10 @@ function useSharedFields<F extends string>(
 		[values, shared],
 	);
 
+	const put = useCallback((field: F, value: string) => shared?.put(field, value), [shared]);
+
 	// Connection ids of everyone with this doc open, you included.
-	return { values, editors, fieldProps };
+	return { values, editors, fieldProps, put };
 }
 
 export { useSharedFields };

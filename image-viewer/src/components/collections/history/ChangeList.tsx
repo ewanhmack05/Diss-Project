@@ -2,15 +2,30 @@ import { useEffect, useState } from "react";
 import { useAuthContext } from "../../../context/AuthContext";
 import { useAnnotationStoreContext } from "../../../context/AnnotationStoreContext";
 import ChangeLineItem from "./ChangeLines";
-import { changeLines, deletedLine, deletedMore, deletedRowText, type ChangeSetChanges } from "./changes";
+import DeletedRowButton from "./DeletedRowButton";
+import DeletedList, { type DeletedView } from "./DeletedList";
+import { changeLines, deletedLine, showAllDeleted, type ChangeSetChanges } from "./changes";
 import { isItemEntity, type Item } from "./itemVersions";
 
 type Loaded = { status: "loading" } | { status: "error" } | { status: "ready"; result: ChangeSetChanges };
 
 // What one change did - each field it changed, from and to, and what it
-// deleted by name, each one that has a timeline opening it. Loaded when the
-// change is opened, not with the list.
-function ChangeList({ changeSetId, onOpenItem }: { changeSetId: string; onOpenItem?: (item: Item) => void }) {
+// deleted by name, each one that has a timeline opening it. The first few are
+// named, and Show all lists the rest. Loaded when the change is opened, not
+// with the list.
+function ChangeList({
+	changeSetId,
+	onOpenItem,
+	allDeleted = null,
+	onAllDeleted,
+}: {
+	changeSetId: string;
+	onOpenItem?: (item: Item) => void;
+	// Everything it deleted, opened up - null for just the first few. Kept by
+	// whoever has this open, so opening one and coming back lands here again.
+	allDeleted?: DeletedView | null;
+	onAllDeleted?: (view: DeletedView | null) => void;
+}) {
 	const { authFetch } = useAuthContext();
 	const { baseUrl } = useAnnotationStoreContext();
 	const [loaded, setLoaded] = useState<Loaded>({ status: "loading" });
@@ -52,11 +67,10 @@ function ChangeList({ changeSetId, onOpenItem }: { changeSetId: string; onOpenIt
 	// annotation shouldn't name it on every field. Not with a delete, or the
 	// rows it names would read as the ones deleted.
 	const rows = !deleted && lines.length > 0 && lines.every((line) => line.rows === lines[0].rows) ? lines[0].rows : null;
-	// Links in place of the names, when every row it names can be opened - a
-	// change's deleted rows are all one kind unless something's odd.
+	// Links in place of the names, when there's one to open.
 	const named = loaded.result.deletedRows ?? [];
-	const openable = named.every((row) => isItemEntity(row.entity)) ? named : [];
-	const more = deletedMore(loaded.result);
+	const openable = named.filter((row) => isItemEntity(row.entity));
+	const all = onOpenItem && onAllDeleted ? showAllDeleted(loaded.result) : null;
 
 	return (
 		<section className="history-changes">
@@ -68,19 +82,24 @@ function ChangeList({ changeSetId, onOpenItem }: { changeSetId: string; onOpenIt
 						<div className="history-change-head">
 							<span className="history-change-field">Deleted</span>
 						</div>
-						{onOpenItem && openable.length > 0 ? (
+						{onOpenItem && onAllDeleted && allDeleted ? (
+							<DeletedList
+								changeSetId={changeSetId}
+								total={loaded.result.deleted}
+								view={allDeleted}
+								onView={onAllDeleted}
+								onOpenItem={onOpenItem}
+							/>
+						) : onOpenItem && (openable.length > 0 || all) ? (
 							<div className="history-deleted-rows">
-								{openable.map(({ entity, id, name, ...slices }) => (
-									<button
-										type="button"
-										key={id}
-										className="history-deleted-row"
-										onClick={() => onOpenItem({ entity: entity as Item["entity"], id, name })}
-									>
-										{deletedRowText({ name, ...slices })}
-									</button>
+								{named.map((row) => (
+									<DeletedRowButton key={row.id} row={row} onOpenItem={onOpenItem} />
 								))}
-								{more && <span className="history-deleted-more">{more}</span>}
+								{all && (
+									<button type="button" className="history-deleted-all" onClick={() => onAllDeleted?.({ page: 0, search: "" })}>
+										{all}
+									</button>
+								)}
 							</div>
 						) : (
 							<div className="history-change-values">{deleted}</div>

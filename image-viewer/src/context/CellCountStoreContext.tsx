@@ -8,11 +8,14 @@ import { useAuthContext } from "./AuthContext";
 import { applyOp, isRollbackOp } from "../components/realtime/realtime";
 import { useSavedTotalAt } from "../components/saved/useSavedTotal";
 import { jsonHeaders } from "../components/annotation/bulk";
+import { oneAtATime } from "../components/realtime/editPolicy";
+import { idsOf, readBehind, saveText, whatChanged, type SaveOptions, type TextEdit } from "../components/realtime/ownText";
+import { StoredText, takeWhen, textAt, withWhen } from "../components/realtime/storedText";
 
 type Status = "loading" | "ready" | "error";
 
-// The editable bits plus the counted facts the PUT also overwrites.
-type CellCountEdit = Pick<CellCount, "label" | "notes" | "withAnnotation" | "withRoi" | "count" | "dotSize">;
+// The counted facts a save also overwrites, besides the label and notes.
+type CellCountFacts = Pick<CellCount, "withAnnotation" | "withRoi" | "count" | "dotSize">;
 
 interface CellCountStoreContextValue {
 	// Not every saved count - only the ones loaded so far: the newest, the
@@ -42,11 +45,12 @@ interface CellCountStoreContextValue {
 	addImported: (cellCounts: CellCount[]) => void;
 	// Put back by a restore, without their dots - shown again, here only.
 	// Whoever restored them tells everyone else.
-	addRestored: (cellCounts: CellCount[]) => void;
+	addRestored: (cellCounts: CellCount[], at?: number) => void;
 	// Loads the lot again, after the whole collection's been put back.
 	reload: () => void;
-	// changeSet keeps every save of one edit as one change - see SavedCountEdit.
-	updateCellCount: (id: string, patch: CellCountEdit, changeSet?: string) => void;
+	// The same as AnnotationStoreContext's, with the facts in place of a colour.
+	storedText: StoredText;
+	updateCellCount: (id: string, facts: CellCountFacts, text: TextEdit, changeSet?: string, options?: SaveOptions) => Promise<{ turnedDown: boolean }>;
 	// Local only, no request - for groups. markGrouped also tells everyone else,
 	// after annotation-store has already moved them; forgetGroup is for a group
 	// that's gone or was merged into another, which everyone hears about
@@ -94,17 +98,21 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
 	// deleted mustn't then PUT its last autosave to something that's gone.
 	const deletedIdsRef = useRef(new Set<string>());
 	const loadedForRef = useRef<string | null>(null);
+	const [storedText] = useState(() => new StoredText());
+	// Saves to one count one at a time - see oneAtATime.
+	const queueRef = useRef(oneAtATime());
 	// Same as AnnotationStoreContext - the whole collection was put back. The
 	// Saved list loads its own pages again from the revision.
 	const [reloads, setReloads] = useState(0);
 	const reload = useCallback(() => {
+		storedText.collectionPutBack();
 		deletedIdsRef.current.clear();
 		loadedForRef.current = null;
 		setSelectedCellCountId(null);
 		setViewedCellCountId(null);
 		setReloads((current) => current + 1);
 		setRevision((current) => current + 1);
-	}, []);
+	}, [storedText]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -153,20 +161,23 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
 	// Same as AnnotationStoreContext - mirror someone else's saved change.
 	useEffect(
 		() =>
-			onOp(({ op }) => {
+			onOp(({ op: sent }) => {
+				const { op, when } = takeWhen(sent);
 				if (isRollbackOp(op)) reload();
 				if (op.entity !== "cellCount") return;
 				if (op.kind === "delete") deletedIdsRef.current.add(op.id);
 				// Put back by someone else.
 				if (op.kind === "create") deletedIdsRef.current.delete(op.id);
-				setCellCounts((current) => applyOp(current, op));
+				const data =
+					op.data && typeof op.data === "object" ? storedText.remember([{ ...(op.data as Partial<CellCount>), id: op.id }], when)[0] : op.data;
+				setCellCounts((current) => applyOp(current, { ...op, data }));
 				if (op.kind === "delete") {
 					setSelectedCellCountId((current) => (current === op.id ? null : current));
 					setViewedCellCountId((current) => (current === op.id ? null : current));
 				}
 				if (op.kind !== "update") setRevision((current) => current + 1);
 			}),
-		[onOp, reload],
+		[onOp, reload, storedText],
 	);
 
 	const addCellCount = (unstamped: CellCount) => {
@@ -212,8 +223,9 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
 		bumpRevision();
 	};
 
-	const addRestored = (restored: CellCount[]) => {
+	const addRestored = (restored: CellCount[], at?: number) => {
 		if (restored.length === 0) return;
+		storedText.remember(restored, { at, putBack: true });
 		for (const c of restored) deletedIdsRef.current.delete(c.id);
 		const byId = new Map(restored.map((c) => [c.id, c]));
 		setCellCounts((current) => [
@@ -245,24 +257,48 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
 		setCellCounts((current) => current.map((c) => (byId.has(c.id) ? { ...c, groupId: byId.get(c.id) } : c)));
 	}, []);
 
-	// annotation-store's PUT replaces all of these together, so pass them all.
-	const updateCellCount = (id: string, patch: CellCountEdit, changeSet?: string) => {
-		if (deletedIdsRef.current.has(id)) return;
+	// The same as AnnotationStoreContext's updateAnnotation. annotation-store's PUT
+	// replaces the facts too, so they go as they are.
+	const updateCellCount = async (id: string, facts: CellCountFacts, text: TextEdit, changeSet?: string, options: SaveOptions = {}) => {
+		let turnedDown = false;
+		if (deletedIdsRef.current.has(id)) return { turnedDown };
+		const { label, notes } = text.next(options.everyones);
+		const patch = { ...facts, label, notes };
 		setCellCounts((current) => current.map((c) => (c.id === id ? { ...c, ...patch } : c)));
 		emit("cellcount:updated", { id, patch });
-		sendOp({ kind: "update", entity: "cellCount", id, data: patch });
-		authFetch(`${baseUrl}/cellcounts/${id}`, {
-			method: "PUT",
-			headers: jsonHeaders(changeSet),
-			body: JSON.stringify({ ...patch, slideId }),
-		})
-			.then((response) => {
-				if (!response.ok) throw new Error(String(response.status));
-			})
+		await queueRef
+			.current(id, () =>
+				saveText(text, options, async (typed, typedIds) => {
+					if (deletedIdsRef.current.has(id)) return { saved: null };
+					const response = await authFetch(`${baseUrl}/cellcounts/${id}`, {
+						method: "PUT",
+						headers: jsonHeaders(changeSet),
+						body: JSON.stringify({ ...facts, ...typed, slideId }),
+					});
+					if (response.status === 409) {
+						const behind = readBehind(await response.json());
+						if (!behind) throw new Error("409");
+						turnedDown = true;
+						const at = textAt(response);
+						storedText.remember([{ id, ...behind }], { at });
+						return { behind, at };
+					}
+					if (!response.ok) throw new Error(String(response.status));
+					// Not read back - the answer has the dots in it.
+					const now = whatChanged(typed);
+					const at = textAt(response);
+					const when = { at, ids: idsOf(now, typed, typedIds) };
+					storedText.remember([{ id, ...now }], when);
+					setCellCounts((current) => current.map((c) => (c.id === id ? { ...c, ...now } : c)));
+					sendOp({ kind: "update", entity: "cellCount", id, data: withWhen(now, when) });
+					return { saved: null, now, at };
+				}),
+			)
 			.catch(() => {
 				setStatus("error");
 				emit("cellcount:updated:error", { id, patch });
 			});
+		return { turnedDown };
 	};
 
 	const deleteCellCount = (id: string) => {
@@ -348,6 +384,7 @@ function CellCountStoreContextProvider({ baseUrl, children }: CellCountStoreCont
 				addImported,
 				addRestored,
 				reload,
+				storedText,
 				updateCellCount,
 				markGrouped,
 				forgetGroup,
@@ -371,4 +408,4 @@ function useCellCountStoreContext(): CellCountStoreContextValue {
 }
 
 export { CellCountStoreContextProvider, useCellCountStoreContext };
-export type { CellCountEdit };
+export type { CellCountFacts };

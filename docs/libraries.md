@@ -45,7 +45,7 @@ and viewer?
   seeds it; an `InstanceId` per doc lets a reconnecting client tell whether
   its history matches the hub's, so seed text is never doubled. Docs only
   live while someone has them open, and annotation-store stays the source of
-  truth - the viewer autosaves the merged text there.
+  truth - each person's viewer autosaves their own typing there.
 - **In-progress strokes** go out as throttled "sketches" (like viewports),
   simplified to half a screen pixel so a long freehand stroke stays small.
 - **One hub copy** - with more than one, users on different copies won't

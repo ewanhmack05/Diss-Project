@@ -39,7 +39,8 @@ any edge of the screen - two panels on the same edge split it evenly.
     live with anyone else who has the same annotation open - a
     [Yjs](https://github.com/yjs/yjs) CRDT, so two people typing in the same
     box both keep their text (`src/components/realtime/sharedFields.ts`).
-    Everything saves as it changes; the form lists who else is editing
+    Everything saves as it changes, each person saving only what they typed
+    (`src/components/realtime/ownText.ts`); the form lists who else is editing
   - **Saved** shows 50 a page, newest first, with search done by
     annotation-store across all of them. The map still loads every
     annotation - only the list pages. The page size is `SAVED_PAGE_SIZE` in

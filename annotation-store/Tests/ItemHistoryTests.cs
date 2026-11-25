@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using AnnotationStore.Annotations;
 using AnnotationStore.CellCounts;
 using AnnotationStore.Collections;
+using AnnotationStore.Conflicts;
 using AnnotationStore.History;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -186,6 +187,10 @@ public class ItemHistoryTests : IClassFixture<CellCountApiFactory>
         Assert.Equal(annotation.Id, Assert.Single(restored.ChangedAnnotations).Id);
         Assert.Empty(restored.Annotations);
         Assert.Equal(new RestoreResult(0, 0, 0, 0, false), restored.Counts);
+        // What it said, so a form that's open can be put right and keep what's
+        // being typed in it.
+        Assert.Equal(new TextWas(annotation.Id, "v3", "notes 3"), Assert.Single(restored.TextWas));
+        Assert.True(long.Parse(Assert.Single(response.Headers.GetValues(EditConflicts.TextAtHeader))) > 0);
 
         var now = await ReadAsync(alice, id, annotation.Id);
         Assert.Equal(("v2", "notes 2", "#FF0000"), (now.Label, now.Notes, now.Colour));

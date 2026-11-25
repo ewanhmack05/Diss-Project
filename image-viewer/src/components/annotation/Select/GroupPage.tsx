@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAnnotationGroupContext } from "../../../context/AnnotationGroupContext";
 import { useAnnotationSelectContext } from "../../../context/AnnotationSelectContext";
 import { UNDO_DELETE_MS, useAnnotationStoreContext } from "../../../context/AnnotationStoreContext";
@@ -10,6 +10,7 @@ import { useToastContext } from "../../../context/ToastContext";
 import type { AnnotationGroup } from "../../../interfaces/AnnotationGroup";
 import ColourPicker from "../../colour-picker/ColourPicker";
 import { debounce } from "../../realtime/realtime";
+import { useBox } from "../../realtime/useBox";
 import { TEXT_SAVE_MS } from "../../realtime/autosave";
 import { newChangeSet } from "../bulk";
 import { DefaultColour } from "../Tools";
@@ -58,19 +59,21 @@ function GroupPage({ group, editable, onBack }: GroupPageProps) {
 		for (const a of annotations) if (a.groupId === group.id) counts.set(a.colour, (counts.get(a.colour) ?? 0) + 1);
 		return [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? DefaultColour;
 	});
-	const [name, setName] = useState(group.name);
-	const [notes, setNotes] = useState(group.notes);
 	const [mergeInto, setMergeInto] = useState("");
 
 	// Someone else changing them shows here, unless you're typing in that box.
-	const [nameFocused, setNameFocused] = useState(false);
-	const [notesFocused, setNotesFocused] = useState(false);
-	useEffect(() => {
-		if (!nameFocused) setName(group.name);
-	}, [group.name, nameFocused]);
-	useEffect(() => {
-		if (!notesFocused) setNotes(group.notes);
-	}, [group.notes, notesFocused]);
+	const { text: name, type: setName, typed: nameTyped, reset: resetName } = useBox(group.name);
+	const cancelRef = useRef(() => {});
+	const { text: notes, type: setNotes, reset: resetNotes } = useBox(
+		group.notes,
+		useCallback(() => cancelRef.current(), []),
+	);
+	// Back to following the saved notes, once you've left the box and it's in.
+	const notesFocusedRef = useRef(false);
+	const savingRef = useRef(0);
+	const settleNotes = useCallback(() => {
+		if (!notesFocusedRef.current && savingRef.current === 0) resetNotes();
+	}, [resetNotes]);
 
 	// Renaming and every notes save while the page is open are one change -
 	// see SavedAnnotationEdit. Merging and deleting are changes of their own.
@@ -81,17 +84,27 @@ function GroupPage({ group, editable, onBack }: GroupPageProps) {
 	});
 	const [saveNotes] = useState(() =>
 		debounce((id: string, text: string) => {
-			updateRef.current(id, { notes: text }, changeSet).catch(() => {});
+			savingRef.current++;
+			updateRef
+				.current(id, { notes: text }, changeSet)
+				.catch(() => {})
+				.finally(() => {
+					savingRef.current--;
+					settleNotes();
+				});
 		}, TEXT_SAVE_MS),
 	);
+	useEffect(() => {
+		cancelRef.current = saveNotes.cancel;
+	}, [saveNotes]);
 	// Leaving the page doesn't lose the last few keys.
 	useEffect(() => () => saveNotes.flush(), [saveNotes]);
 
+
 	const saveName = () => {
-		setNameFocused(false);
 		const trimmed = name.trim();
-		if (!trimmed) setName(group.name);
-		else if (trimmed !== group.name) updateGroup(group.id, { name: trimmed }, changeSet).catch(() => setName(group.name));
+		if (!nameTyped || !trimmed || trimmed === group.name) resetName();
+		else updateGroup(group.id, { name: trimmed }, changeSet).catch(() => {}).finally(resetName);
 	};
 
 	const others = groups.filter((g) => g.id !== group.id);
@@ -170,7 +183,6 @@ function GroupPage({ group, editable, onBack }: GroupPageProps) {
 						aria-label="Group name"
 						value={name}
 						maxLength={64}
-						onFocus={() => setNameFocused(true)}
 						onChange={(e) => setName(e.target.value)}
 						onBlur={saveName}
 						onKeyDown={(e) => {
@@ -221,10 +233,13 @@ function GroupPage({ group, editable, onBack }: GroupPageProps) {
 						value={notes}
 						maxLength={NOTES_MAX}
 						rows={4}
-						onFocus={() => setNotesFocused(true)}
+						onFocus={() => {
+							notesFocusedRef.current = true;
+						}}
 						onBlur={() => {
+							notesFocusedRef.current = false;
 							saveNotes.flush();
-							setNotesFocused(false);
+							settleNotes();
 						}}
 						onChange={(e) => {
 							setNotes(e.target.value);

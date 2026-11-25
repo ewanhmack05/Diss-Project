@@ -1,7 +1,10 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using AnnotationStore.Annotations;
 using AnnotationStore.CellCounts;
+using AnnotationStore.Collections;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -23,10 +26,12 @@ public static class HistoryLog
     public const string RegionOfInterest = "regionOfInterest";
     public const string ImageAdjustment = "imageAdjustment";
     public const string Collection = "collection";
+    public const string Member = "member";
+    public const string Invite = "invite";
 
     // The rows that are versioned. Collections aren't on the list - deleting
     // one hides it (Collections.Deleted) and is logged by hand, see
-    // CollectionDeletedAsync.
+    // CollectionDeletedAsync - but their settings are logged, see Settings.
     public static readonly IReadOnlyDictionary<Type, string> Entities = new Dictionary<Type, string>
     {
         [typeof(Annotation)] = Annotation,
@@ -36,6 +41,38 @@ public static class HistoryLog
         [typeof(RegionOfInterest)] = RegionOfInterest,
         [typeof(ImageAdjustments.ImageAdjustments)] = ImageAdjustment,
     };
+
+    // What a collection's called and who can see or change it, and which of
+    // its columns are logged. Only ever a record of who did what: none of it
+    // is put back, or rolled back with the rest, since putting back an old
+    // change must never let someone in again. A link's code isn't a column
+    // here - it's the only secret there is, and anyone who can look at the
+    // collection can read its history.
+    private static readonly IReadOnlyDictionary<Type, (string Entity, string[] Columns)> Settings = new Dictionary<Type, (string, string[])>
+    {
+        [typeof(Collections.Collections)] = (Collection,
+            [nameof(Collections.Collections.CollectionName), nameof(Collections.Collections.Shared), nameof(Collections.Collections.Ended)]),
+        [typeof(CollectionMember)] = (Member, [nameof(CollectionMember.Role)]),
+        [typeof(CollectionInvite)] = (Invite, [nameof(CollectionInvite.Role), nameof(CollectionInvite.Expires), nameof(CollectionInvite.Stopped)]),
+    };
+
+    // Who a membership is, kept with it joining or going, as its row won't be
+    // there to say.
+    private static readonly string[] MemberNamed = [nameof(CollectionMember.UserId), nameof(CollectionMember.DisplayName)];
+
+    // Only what's in an entry about settings, rather than the work.
+    public static bool IsSetting(string entity, HistoryOp op) =>
+        entity is Member or Invite || (entity == Collection && op == HistoryOp.Update);
+
+    // The same, for a query.
+    public static IQueryable<HistoryEntry> WithoutSettings(this IQueryable<HistoryEntry> entries) =>
+        entries.Where(e => e.Entity != Member && e.Entity != Invite && !(e.Entity == Collection && e.Op == HistoryOp.Update));
+
+    // Members and invites aren't keyed by a guid, and an invite's key is its
+    // code, so what they're logged under is made from it and can't be turned
+    // back into it.
+    public static Guid SettingId(Guid collectionId, string key) =>
+        new(SHA256.HashData(Encoding.UTF8.GetBytes($"{collectionId}:{key}")).AsSpan(0, 16));
 
     // Worked out from other columns and stamped when a list first needs them
     // (CellCountSummary) - not a change anyone made.
@@ -57,6 +94,12 @@ public static class HistoryLog
         db.ChangeTracker.DetectChanges();
         foreach (var entry in db.ChangeTracker.Entries().ToList())
         {
+            if (Settings.TryGetValue(entry.Entity.GetType(), out var setting))
+            {
+                if (SettingChanged(db, entry, setting.Columns) is { } change)
+                    captured.Add(InChangeSet(db, change, setting.Entity, SettingIdOf(entry)));
+                continue;
+            }
             if (!Entities.TryGetValue(entry.Entity.GetType(), out var entity)) continue;
             var logged = entry.State switch
             {
@@ -76,6 +119,48 @@ public static class HistoryLog
         }
         return captured;
     }
+
+    // Made with its collection isn't a change to it, so a new collection and
+    // the owner in it aren't logged.
+    private static HistoryEntry? SettingChanged(AnnotationDbContext db, EntityEntry entry, string[] columns)
+    {
+        IEnumerable<(string, object?)> Values(IEnumerable<string> names, Func<PropertyEntry, object?> value) =>
+            names.Select(n => (n, Plain(value(entry.Property(n)))));
+        var named = entry.Entity is CollectionMember ? columns.Concat(MemberNamed) : columns;
+        switch (entry.State)
+        {
+            case EntityState.Added when entry.Entity is not Collections.Collections && !IsNew(db, CollectionOf(entry)):
+                return new HistoryEntry { Op = HistoryOp.Create, After = Columns(Values(named, p => p.CurrentValue)) };
+            case EntityState.Deleted when entry.Entity is not Collections.Collections:
+                return new HistoryEntry { Op = HistoryOp.Delete, Before = Columns(Values(named, p => p.OriginalValue)) };
+            case EntityState.Modified:
+                var changed = columns.Where(c => !Equals(entry.Property(c).OriginalValue, entry.Property(c).CurrentValue)).ToList();
+                if (changed.Count == 0) return null;
+                return new HistoryEntry
+                {
+                    Op = HistoryOp.Update,
+                    Before = Columns(Values(changed, p => p.OriginalValue)),
+                    After = Columns(Values(changed, p => p.CurrentValue)),
+                };
+            default:
+                return null;
+        }
+    }
+
+    // A role by name, so an entry reads the same if one's ever added.
+    private static object? Plain(object? value) => value is Enum named ? named.ToString() : value;
+
+    private static Guid CollectionOf(EntityEntry entry) => (Guid)entry.Property(nameof(CollectionMember.CollectionId)).CurrentValue!;
+
+    private static bool IsNew(AnnotationDbContext db, Guid collectionId) =>
+        db.ChangeTracker.Entries<Collections.Collections>().Any(c => c.State == EntityState.Added && c.Entity.CollectionId == collectionId);
+
+    private static Guid SettingIdOf(EntityEntry entry) => entry.Entity switch
+    {
+        CollectionMember member => SettingId(member.CollectionId, member.UserId),
+        CollectionInvite invite => SettingId(invite.CollectionId, invite.Code),
+        _ => CollectionOf(entry),
+    };
 
     // Straight into the table - on Postgres with COPY, since a bulk change can
     // be 20,000 rows of whole annotations. Same connection and transaction as
@@ -113,8 +198,9 @@ public static class HistoryLog
     // there rather than adding one: its before stays, the latest after wins.
     // A column that's ended up back where it started drops out, and an entry
     // left with none goes. One edit is one entry, however often it saved.
-    // Only into the row's latest entry in the change set, and only if that's
-    // an update - nothing folds across a create or delete.
+    // Only into the row's latest entry from anyone, and only if that's an
+    // update. Nothing folds across a create or delete, or across someone
+    // else's change - the entry would span it, and say you'd made it.
     // Two saves of the same row can't fold at once: each has already updated
     // the live row in this transaction, and Postgres holds that row until
     // the first commits.
@@ -126,11 +212,10 @@ public static class HistoryLog
         var changeSetId = updates[0].ChangeSetId;
         var ids = updates.Select(e => e.EntityId).Distinct().ToList();
         var earlier = (await db.HistoryEntries
-                .Where(e => e.ChangeSetId == changeSetId && ids.Contains(e.EntityId))
+                .Where(e => e.ChangeSetId == changeSetId && ids.Contains(e.EntityId) && e.Op == HistoryOp.Update
+                    && !db.HistoryEntries.Any(l => l.CollectionId == e.CollectionId && l.Entity == e.Entity
+                        && l.EntityId == e.EntityId && l.Id > e.Id))
                 .ToListAsync(cancellationToken))
-            .GroupBy(e => (e.Entity, e.EntityId))
-            .Select(g => g.MaxBy(e => e.Id)!)
-            .Where(e => e.Op == HistoryOp.Update)
             .ToDictionary(e => (e.Entity, e.EntityId));
         if (earlier.Count == 0) return entries;
 

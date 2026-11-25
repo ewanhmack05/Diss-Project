@@ -32,6 +32,7 @@ import {
 	type Viewport,
 	type ViewportUpdate,
 } from "../components/realtime/realtime";
+import type { OpenFields } from "../components/realtime/putText";
 import { useEmitEvent } from "./EventContext";
 import { useAuthContext } from "./AuthContext";
 import { useCollectionContext } from "./CollectionContext";
@@ -85,6 +86,8 @@ interface RealtimeContextValue {
 	closeDoc: (docId: string) => void;
 	onDocUpdate: (handler: DocUpdateHandler) => () => void;
 	onDocEditors: (handler: DocEditorsHandler) => () => void;
+	// The forms open in this viewer, by doc - see usePutText.
+	openFields: Map<string, OpenFields>;
 	// The comparison count running in the session, if any (see
 	// ComparisonContext). These reject with the hub's message if the call
 	// doesn't fit its current state, or if not connected.
@@ -440,6 +443,8 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
 		};
 	}, []);
 
+	const [openFields] = useState(() => new Map<string, OpenFields>());
+
 	const openDoc = useCallback(async (docId: string, seed: Uint8Array) => {
 		const connection = connectionRef.current;
 		if (!connection || !joinedRef.current) return null;
@@ -538,6 +543,7 @@ function RealtimeContextProvider({ hubUrl, children }: RealtimeContextProviderPr
 				sendDocUpdate,
 				closeDoc,
 				onDocUpdate,
+				openFields,
 				onDocEditors,
 				comparison,
 				startComparison,

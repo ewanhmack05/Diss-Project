@@ -20,8 +20,13 @@ public enum EditPolicy
 }
 
 // A 409's body: the row as it is now, and who last changed the fields in the
-// way, and when.
-public record ConflictView(string Entity, Guid Id, object Current, string? ChangedBy, DateTimeOffset? ChangedAt, IReadOnlyList<string> Changed);
+// way, and when. Text is a label or notes saved from text that's changed since
+// - the viewer works its typing out again from Current and saves that, rather
+// than asking anyone.
+public record ConflictView(string Entity, Guid Id, object Current, string? ChangedBy, DateTimeOffset? ChangedAt, IReadOnlyList<string> Changed, bool Text = false);
+
+// Just the text of a row, for a conflict over it.
+public record TextNow(Guid Id, string Label, string Notes);
 
 // One row a bulk change left alone under FirstComeWins, as it is now.
 public record BulkConflict(Guid Id, string Colour, Guid? GroupId, string? ChangedBy, DateTimeOffset? ChangedAt);
@@ -32,10 +37,17 @@ public record BulkConflict(Guid Id, string Colour, Guid? GroupId, string? Change
 // would change it again. Leaving the was out means don't check, which is what
 // scripts and older clients do.
 //
-// Only fields that aren't merged live are checked: an annotation's colour and
-// group, a cell count's group, a group's name and notes. Labels and notes on annotations and cell
-// counts are shared with Yjs, so two people typing never lose anything.
-// Deletes aren't checked - anything deleted can be put back from History.
+// What the policy decides is only for fields that aren't merged live: an
+// annotation's colour and group, a cell count's group, a group's name and
+// notes. Deletes aren't checked - anything deleted can be put back from
+// History.
+//
+// Labels and notes on annotations and cell counts are shared with Yjs, so two
+// people typing never lose anything. They're checked whatever the policy, and
+// nobody's asked: each viewer saves only what its own person typed, so a save
+// that started from text that's changed since would take out whatever changed
+// it - someone else's typing, or an old version being put back. Turned down,
+// it's worked out again from what's there now (the viewer's ownText.ts).
 //
 // The check and the save happen with the row locked (Postgres), so two saves
 // from the same was can't both get through. The write only joins its change
@@ -54,6 +66,36 @@ public static class EditConflicts
     // now silently gone. The evaluation compares the two on the same field.
     private static readonly Counter<long> InTheWay = Meter.CreateCounter<long>(
         "annotation_store.conflicting_saves", description: "Saves that would replace a change made since they read it - refused or overwriting");
+
+    private static readonly Counter<long> TextRefused = Meter.CreateCounter<long>(
+        "annotation_store.text_saves_refused", description: "Saves of a label or notes that started from text changed since, to be worked out again");
+
+    // When the text in an answer was what's stored, in microseconds. Taken while
+    // the row's held, so of two answers about one row the later has the newer
+    // text, whatever order they arrive in.
+    public const string TextAtHeader = "Text-At";
+
+    public static void StampText(HttpContext http) =>
+        http.Response.Headers[TextAtHeader] = ((DateTimeOffset.UtcNow - DateTimeOffset.UnixEpoch).Ticks / TimeSpan.TicksPerMicrosecond).ToString();
+
+    // A label or notes that would take out a change made since it was read.
+    // One that's the same as its was isn't being changed, so it's never stale.
+    public static bool StaleText(string? was, string now, string wanted) =>
+        InWay(was is not null && wanted != was, was, now, wanted);
+
+    // What to store for it - what's there, if it isn't being changed.
+    public static string TextToStore(string? was, string now, string wanted) =>
+        was is not null && wanted == was ? now : wanted;
+
+    // The 409 for stale text. Before the write joins a change set, as below.
+    public static async Task<IResult> StaleTextAsync(AnnotationDbContext db, string entity, Guid id, string label, string notes)
+    {
+        TextRefused.Add(1, new KeyValuePair<string, object?>("entity", entity));
+        var last = (await LastChangesAsync(db, entity, [id], Texts)).GetValueOrDefault(id);
+        return Results.Conflict(new ConflictView(entity, id, new TextNow(id, label, notes), last?.By, last?.At, last?.Columns ?? Texts, Text: true));
+    }
+
+    private static readonly string[] Texts = [nameof(Annotation.Label), nameof(Annotation.Notes)];
 
     // In the way of someone else's change: it's changed since was, and this
     // would change it again. No was, no check.

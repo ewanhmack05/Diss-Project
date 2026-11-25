@@ -25,6 +25,21 @@ Rough price idea:
 
 Roughly **£30-85/month**. Estimates - check against the Azure pricing calculator.
 
+### Network
+
+![Network diagram of the separate apps option](images/azure-separate-apps.svg)
+
+- The VNet isn't in the prices above. It adds **~£20/month** (UK South, checked 2026-11-25): the environment makes a load balancer (~£14) and two public IPs (~£6, one in and one out) once it's in our own VNet, and the private DNS zone is ~£0.40. So **£50-105/month** with it
+- What it buys is Postgres with no public address. Without it, Postgres has a public address with a firewall rule and a password, and the rest of the diagram stays the same
+- Has to be decided up front - neither the environment's network type nor the subnet Postgres is in can be changed later
+- All five apps need external ingress, since the browser calls each one itself. The tiler is the only one with no sign in
+- realtime-hub and messaging ask annotation-store about sessions and invites. All three read Keycloak's signing keys, and the hub reads its user list too. None of these calls leave the environment
+- Those calls need the app's https address, or `allowInsecure` on the app being called. Plain `http://annotation-store` gets redirected to https by default, and .NET drops the token when it follows a redirect
+- Subnets are the smallest each service takes: /27 delegated to `Microsoft.App/environments`, /28 delegated to `Microsoft.DBforPostgreSQL/flexibleServers`
+- The network security group needs its own deny rule after the allow. The default rules let anything in the VNet through
+- Application Insights only takes traces and logs from the environment's OpenTelemetry agent, not metrics. Metrics need somewhere else to go, or the Azure Monitor exporter in each service
+- Icons are [Microsoft's own](https://learn.microsoft.com/azure/architecture/icons/), V25, for use in diagrams and documentation only
+
 ## Option B - one VM
 
 Every service as a container on one Linux VM, so the cost is the VM rather
@@ -54,7 +69,7 @@ auto-shutdown. Dropping Grafana for Application Insights could fit a B2s
 
 |                  | Separate apps                           | One VM                                       |
 | ---------------- | --------------------------------------- | -------------------------------------------- |
-| Monthly cost     | ~£30–85                                 | ~£58–65 (24/7), ~£30–35 (overnight shutdown) |
+| Monthly cost     | ~£30–85, ~£50–105 with the VNet         | ~£58–65 (24/7), ~£30–35 (overnight shutdown) |
 | Tiler cold start | 1–3 min                                 | none                                         |
 | Stats            | Application Insights                    | Grafana, same as local                       |
 | CORS             | needed - each service on its own domain | none - single domain                         |

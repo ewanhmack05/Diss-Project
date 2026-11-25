@@ -37,7 +37,7 @@ builder.Services.AddDbContext<AnnotationDbContext>(options =>
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
-        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader().WithExposedHeaders(ChangeSetEndpoints.Header));
+        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader().WithExposedHeaders(ChangeSetEndpoints.Header, EditConflicts.TextAtHeader));
 });
 
 builder.Services.AddOpenApi();
@@ -185,7 +185,8 @@ app.MapPost("/annotations", async (Annotation annotation, HttpContext http, Clai
 // 409 in a FirstComeWins session (see Conflicts/EditConflicts.cs). A colour
 // the same as WasColour isn't being changed, so whatever's there now stays -
 // a label edit from an old copy never puts back an old colour. Label and
-// notes are merged live, so they're never checked.
+// notes are merged live, so a stale one is a 409 in any session, for the
+// viewer to work its own typing out again from what's there now.
 app.MapPut("/annotations/{id:guid}", async (Guid id, AnnotationUpdate update, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
 {
     var existing = await db.Annotations.FirstOrDefaultAsync(r => r.Id == id);
@@ -196,6 +197,9 @@ app.MapPut("/annotations/{id:guid}", async (Guid id, AnnotationUpdate update, Ht
     await EditConflicts.LockAnnotationsAsync(db, [id]);
     await db.Entry(existing).ReloadAsync();
     if (db.Entry(existing).State == EntityState.Detached) return Results.NotFound();
+    EditConflicts.StampText(http);
+    if (EditConflicts.StaleText(update.WasLabel, existing.Label, update.Label) || EditConflicts.StaleText(update.WasNotes, existing.Notes, update.Notes))
+        return await EditConflicts.StaleTextAsync(db, HistoryLog.Annotation, id, existing.Label, existing.Notes);
     var changingColour = update.WasColour is not null && update.Colour != update.WasColour;
     if (EditConflicts.InWay(changingColour, update.WasColour, existing.Colour, update.Colour))
     {
@@ -206,8 +210,8 @@ app.MapPut("/annotations/{id:guid}", async (Guid id, AnnotationUpdate update, Ht
         http.Response.Headers[EditConflicts.OverwroteHeader] = "1";
     }
     if ((await db.ChangeSetAsync(http, existing.CollectionId, user, "change annotation")).Problem is { } problem) return problem;
-    existing.Label = update.Label;
-    existing.Notes = update.Notes;
+    existing.Label = EditConflicts.TextToStore(update.WasLabel, existing.Label, update.Label);
+    existing.Notes = EditConflicts.TextToStore(update.WasNotes, existing.Notes, update.Notes);
     if (update.WasColour is null || changingColour) existing.Colour = update.Colour;
     await db.SaveChangesAsync();
     if (transaction is not null) await transaction.CommitAsync();
@@ -332,19 +336,29 @@ app.MapPost("/cellcounts", [RequestSizeLimit(CellCountLimits.MaxRequestBytes)] a
     return Results.Created($"/cellcounts/{cellCount.Id}", cellCount);
 });
 
-app.MapPut("/cellcounts/{id:guid}", async (Guid id, CellCount update, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
+// Label and notes are checked the way an annotation's are.
+app.MapPut("/cellcounts/{id:guid}", async (Guid id, CellCountUpdate update, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
 {
+    var collectionId = await db.CellCounts.Where(c => c.Id == id).Select(c => (Guid?)c.CollectionId).FirstOrDefaultAsync();
+    if (collectionId is null) return Results.NotFound();
+    if (await db.RequireAsync(collectionId.Value, user, CollectionRole.Editor) is { } denied) return denied;
+
+    await using var transaction = await HistoryLog.BeginAsync(db);
+    await EditConflicts.LockCellCountAsync(db, id);
     var existing = await db.CellCounts.FirstOrDefaultAsync(r => r.Id == id);
     if (existing is null) return Results.NotFound();
-    if (await db.RequireAsync(existing.CollectionId, user, CollectionRole.Editor) is { } denied) return denied;
+    EditConflicts.StampText(http);
+    if (EditConflicts.StaleText(update.WasLabel, existing.Label, update.Label) || EditConflicts.StaleText(update.WasNotes, existing.Notes, update.Notes))
+        return await EditConflicts.StaleTextAsync(db, HistoryLog.CellCount, id, existing.Label, existing.Notes);
     if ((await db.ChangeSetAsync(http, existing.CollectionId, user, "change cell count")).Problem is { } problem) return problem;
-    existing.Label = update.Label;
-    existing.Notes = update.Notes;
+    existing.Label = EditConflicts.TextToStore(update.WasLabel, existing.Label, update.Label);
+    existing.Notes = EditConflicts.TextToStore(update.WasNotes, existing.Notes, update.Notes);
     existing.WithAnnotation = update.WithAnnotation;
     existing.WithRoi = update.WithRoi;
     existing.Count = update.Count;
     existing.DotSize = update.DotSize;
     await db.SaveChangesAsync();
+    if (transaction is not null) await transaction.CommitAsync();
     return Results.Ok(existing);
 });
 

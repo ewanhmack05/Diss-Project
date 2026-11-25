@@ -4,6 +4,7 @@ import changeSvg from "../../../icons/changes/change.svg?raw";
 import deleteSvg from "../../../icons/changes/delete.svg?raw";
 import importSvg from "../../../icons/changes/import.svg?raw";
 import mergeSvg from "../../../icons/changes/merge.svg?raw";
+import peopleSvg from "../../../icons/changes/people.svg?raw";
 import restoreSvg from "../../../icons/changes/restore.svg?raw";
 import type { ChangeKind } from "./history";
 
@@ -14,6 +15,7 @@ const ICONS: Record<ChangeKind, string> = {
 	merge: mergeSvg,
 	import: importSvg,
 	restore: restoreSvg,
+	people: peopleSvg,
 };
 
 function ChangeIcon({ kind, className }: { kind: ChangeKind; className?: string }) {

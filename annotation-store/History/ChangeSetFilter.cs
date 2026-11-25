@@ -12,6 +12,21 @@ public record KindCount(string Kind, int Count);
 
 public record ChangeSetFacets(List<SavedAuthor> Authors, List<KindCount> Kinds);
 
+// What a change to who can see or change a collection is called.
+public static class PeopleChanges
+{
+    public const string Share = "share collection";
+    public const string StopSharing = "stop sharing collection";
+    public const string EndSession = "end session";
+    public const string Join = "join session";
+    public const string Leave = "leave session";
+    public const string ChangeRole = "change role";
+    public const string Remove = "remove member";
+    public const string MakeInvite = "make invite link";
+    public const string ChangeInvite = "change invite link";
+    public const string StopInvite = "stop invite link";
+}
+
 public static class ChangeKinds
 {
     public const string Add = "add";
@@ -20,8 +35,17 @@ public static class ChangeKinds
     public const string Merge = "merge";
     public const string Import = "import";
     public const string Restore = "restore";
+    public const string People = "people";
 
-    public static readonly string[] All = [Add, Change, Delete, Merge, Import, Restore];
+    public static readonly string[] All = [Add, Change, Delete, Merge, Import, Restore, People];
+
+    // Who can see or change the collection, rather than what's in it - see
+    // PeopleChanges.
+    public static readonly string[] PeopleWhats =
+    [
+        PeopleChanges.Share, PeopleChanges.StopSharing, PeopleChanges.EndSession, PeopleChanges.Join, PeopleChanges.Leave,
+        PeopleChanges.ChangeRole, PeopleChanges.Remove, PeopleChanges.MakeInvite, PeopleChanges.ChangeInvite, PeopleChanges.StopInvite,
+    ];
 
     // What a change set's What counts as. Anything new that isn't one of
     // these reads as a change, the same as in the viewer.
@@ -29,6 +53,7 @@ public static class ChangeKinds
     {
         "import" => Import,
         "merge groups" => Merge,
+        _ when PeopleWhats.Contains(what) => People,
         _ when what.StartsWith("restore") => Restore,
         _ when what.StartsWith("add") => Add,
         _ when what.StartsWith("delete") => Delete,
@@ -42,7 +67,7 @@ public static class ChangeKinds
 
     public static IQueryable<ChangeSet> Filtered(this IQueryable<ChangeSet> query, ChangeSetFilter filter)
     {
-        if (filter.CreatedBy is { Length: > 0 } people) query = query.Where(c => people.Contains(c.UserId));
+        if (filter.CreatedBy is { Length: > 0 } authors) query = query.Where(c => authors.Contains(c.UserId));
         if (filter.From is { } from) query = query.Where(c => c.Created >= from);
         if (filter.To is { } to) query = query.Where(c => c.Created < to);
         if (filter.Kind is { Length: > 0 } kinds)
@@ -53,6 +78,7 @@ public static class ChangeKinds
             var import = kinds.Contains(Import);
             var restore = kinds.Contains(Restore);
             var change = kinds.Contains(Change);
+            var people = kinds.Contains(People);
             // Of() in SQL - a change is anything none of the others is.
             query = query.Where(c =>
                 (add && c.What.StartsWith("add"))
@@ -60,7 +86,8 @@ public static class ChangeKinds
                 || (merge && c.What == "merge groups")
                 || (import && c.What == "import")
                 || (restore && c.What.StartsWith("restore"))
-                || (change && !c.What.StartsWith("add") && !c.What.StartsWith("delete")
+                || (people && PeopleWhats.Contains(c.What))
+                || (change && !PeopleWhats.Contains(c.What) && !c.What.StartsWith("add") && !c.What.StartsWith("delete")
                     && c.What != "merge groups" && c.What != "import" && !c.What.StartsWith("restore")));
         }
         return query;

@@ -89,6 +89,15 @@ describe("textDiff", () => {
 		expect(textDiff("same", "same")).toEqual({ index: 4, remove: 0, insert: "" });
 	});
 
+	it("takes the caret's word for which of two the same is new", () => {
+		expect(textDiff("a b", "a  b", 2)).toEqual({ index: 1, remove: 0, insert: " " });
+		expect(textDiff("a b", "a  b", 3)).toEqual({ index: 2, remove: 0, insert: " " });
+		expect(textDiff("aab", "ab", 0)).toEqual({ index: 0, remove: 1, insert: "" });
+		// One that can't be right is left out of it.
+		expect(textDiff("abc", "abXc", 0)).toEqual({ index: 2, remove: 0, insert: "X" });
+		expect(textDiff("abc", "abXc", 9)).toEqual({ index: 2, remove: 0, insert: "X" });
+	});
+
 	it("never overlaps prefix and suffix on repeated characters", () => {
 		expect(textDiff("aaa", "aaaa")).toEqual({ index: 3, remove: 0, insert: "a" });
 		expect(textDiff("aaaa", "aa")).toEqual({ index: 2, remove: 2, insert: "" });
@@ -243,9 +252,99 @@ describe("SharedFields", () => {
 		hub.deliverAll();
 
 		expect(seen).toEqual([
-			{ field: "notes", remote: false, delta: [{ insert: "mine" }] },
-			{ field: "label", remote: true, delta: [{ insert: "X " }] },
+			expect.objectContaining({ field: "notes", remote: false, put: false, delta: [{ insert: "mine" }] }),
+			expect.objectContaining({ field: "label", remote: true, put: false, delta: [{ insert: "X " }] }),
 		]);
+	});
+
+	it("gives every character an id that everyone has, and keeps the place of ones taken out", async () => {
+		const hub = new FakeHub();
+		const a = new Peer(hub, saved);
+		const b = new Peer(hub, saved);
+		await a.connect();
+		await b.connect();
+		a.shared.set("notes", "abc");
+		a.shared.set("notes", "ac");
+		hub.deliverAll();
+
+		const [left, right] = [a.shared.chars("notes"), b.shared.chars("notes")];
+		expect(right.map((c) => c.id)).toEqual(left.map((c) => c.id));
+		expect(new Set(right.map((c) => c.id)).size).toBe(3);
+		expect(right.map((c) => [c.ch, c.gone])).toEqual([
+			["a", false],
+			["", true],
+			["c", false],
+		]);
+	});
+
+	it("tells everyone an old version put back from typing", async () => {
+		const hub = new FakeHub();
+		const a = new Peer(hub, saved);
+		const b = new Peer(hub, saved);
+		await a.connect();
+		await b.connect();
+		const seen: [string, boolean, boolean][] = [];
+		for (const [name, peer] of [["a", a], ["b", b]] as const)
+			peer.shared.subscribe((change) => seen.push([name, change.remote, change.put]));
+
+		a.shared.put("label", "Old edge");
+		hub.deliverAll();
+		b.shared.set("label", "Old edge!");
+		hub.deliverAll();
+
+		expect(b.shared.get("label")).toBe("Old edge!");
+		expect(seen).toEqual([
+			["a", true, true],
+			["b", true, true],
+			["b", false, false],
+			["a", true, false],
+		]);
+	});
+
+	it("leaves what someone's typing when an old version's put back over it", async () => {
+		const hub = new FakeHub();
+		const a = new Peer(hub, saved);
+		const b = new Peer(hub, saved);
+		await a.connect();
+		await b.connect();
+		b.shared.set("label", "Tumour edge, seen");
+		hub.deliverAll();
+
+		a.shared.put("label", "Duct", "Tumour edge");
+		hub.deliverAll();
+
+		expect(a.shared.get("label")).toBe("Duct, seen");
+		expect(b.shared.get("label")).toBe("Duct, seen");
+	});
+
+	// It used to put your box in place of theirs.
+	it("keeps what someone else is typing when you typed before you'd joined", async () => {
+		const hub = new FakeHub();
+		const a = new Peer(hub, saved);
+		const b = new Peer(hub, saved);
+		await a.connect();
+		a.shared.set("label", "Tumour edge, theirs");
+		b.shared.set("label", "My Tumour edge");
+		await b.connect();
+		hub.deliverAll();
+
+		expect(b.shared.get("label")).toBe("My Tumour edge, theirs");
+		expect(a.shared.get("label")).toBe("My Tumour edge, theirs");
+	});
+
+	it("doesn't count text put in before joining as typed", async () => {
+		const hub = new FakeHub();
+		const a = new Peer(hub, saved);
+		const b = new Peer(hub, saved);
+		await a.connect();
+		a.shared.set("label", "Theirs");
+		b.shared.put("label", "Old edge");
+		const seen: boolean[] = [];
+		b.shared.subscribe((change) => seen.push(change.remote));
+		await b.connect();
+
+		expect(b.shared.get("label")).toBe("Theirs");
+		expect(seen.every((remote) => remote)).toBe(true);
 	});
 
 	it("works on its own with no hub at all", () => {

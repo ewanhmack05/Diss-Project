@@ -168,12 +168,12 @@
 		"summary": "What one change did to one row, and the only place anything that was there is kept. A delete keeps the whole row in `Before`. An update keeps only the columns it changed, before and after. A create keeps nothing, since the live row has it, or a later delete's `Before` will. Column names are as they are in the table, so `Before` is the same as Postgres' `to_jsonb` of the row.",
 		"make": "Never by hand. `HistoryLog` writes them with every save, in the same transaction, from what EF is about to change. Bulk changes go through `AnnotationBulk`, which writes its own with one `COPY`.",
 		"columns": {
-			"After": ["server", "An update: the same columns, as they became. A group's delete in a merge: `{ \"MergedInto\": id }`"],
-			"Before": ["server", "A delete: the whole row. An update: the columns it changed, as they were"],
+			"After": ["server", "An update: the same columns, as they became. A group's delete in a merge: `{ \"MergedInto\": id }`. Someone joining or a link made: what they are"],
+			"Before": ["server", "A delete: the whole row, or just who it was for someone leaving. An update: the columns it changed, as they were"],
 			"ChangeSetId": ["server", "The change it's part of"],
 			"CollectionId": ["server", "Copied from the change set, for reading one row's history. Not a foreign key of its own"],
-			"Entity": ["server", "`annotation`, `group`, `cellCount`, `regionOfInterest`, `imageAdjustment` or `collection`"],
-			"EntityId": ["server", "The row it's about. Not a foreign key, since that row may be gone"],
+			"Entity": ["server", "`annotation`, `group`, `cellCountGroup`, `cellCount`, `regionOfInterest`, `imageAdjustment`, `collection`, `member` or `invite`"],
+			"EntityId": ["server", "The row it's about. Not a foreign key, since that row may be gone. A member's or link's is a hash, never a link's code"],
 			"Id": [
 				"server",
 				"Identity, so it's the order they were written in. Handed out before a save commits, so a higher one can be visible before a lower one"

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { changeLines, deletedLine, deletedMore, deletedRowText, type ChangeSetChanges, type FieldChange } from "./changes";
+import { changeLines, deletedCount, deletedLine, deletedPath, deletedRowText, showAllDeleted, type ChangeSetChanges, type FieldChange } from "./changes";
 
 const none: ChangeSetChanges = { changes: [], created: 0, deleted: 0, deletedNames: [], groups: {} };
 
@@ -134,11 +134,65 @@ describe("changeLines", () => {
 	});
 });
 
-describe("deletedMore", () => {
-	it("says how many past the ones it names, or nothing", () => {
-		expect(deletedMore({ ...none, deleted: 2140, deletedNames: ["a", "b", "c", "d", "e"] })).toBe("and 2,135 more");
-		expect(deletedMore({ ...none, deleted: 1, deletedNames: ["a"] })).toBeNull();
-		expect(deletedMore(none)).toBeNull();
+describe("changeLines for the collection, and who's in it", () => {
+	const lines = (overrides: Partial<FieldChange>[]) =>
+		changeLines({ ...none, changes: overrides.map((o) => change({ names: ["Bob"], ...o })) }).map((l) => [l.rows, l.field, l.from[0].text, l.to.text]);
+
+	it("says what the collection was called", () => {
+		expect(lines([{ entity: "collection", column: "CollectionName", before: "Slide 4", after: "Margins", names: ["Margins"] }])).toEqual([
+			["", "Name", "Slide 4", "Margins"],
+		]);
+	});
+
+	it("says who joined, left, or was given what, by name", () => {
+		expect(
+			lines([
+				{ entity: "member", column: "Role", before: null, after: "Editor" },
+				{ entity: "member", column: "Role", before: "Editor", after: "Viewer" },
+				{ entity: "member", column: "Role", before: "Viewer", after: null },
+			]),
+		).toEqual([
+			["Bob", "Access", "Not in it", "Can edit"],
+			["Bob", "Access", "Can edit", "View only"],
+			["Bob", "Access", "View only", "Not in it"],
+		]);
+	});
+
+	it("says what a link let people do, and when it stopped", () => {
+		const [role, expires, stopped] = lines([
+			{ entity: "invite", column: "Role", before: null, after: "Editor", names: [null] },
+			{ entity: "invite", column: "Expires", before: null, after: "2026-11-25T10:00:00Z", names: [null] },
+			{ entity: "invite", column: "Stopped", before: null, after: "2026-11-25T10:00:00Z", names: [null] },
+		]);
+		expect(role).toEqual(["", "Access", "No link", "Can edit"]);
+		expect([expires[1], expires[2]]).toEqual(["Works until", "No link"]);
+		expect(expires[3]).toContain("2026");
+		expect([stopped[2], stopped[3].startsWith("Stopped ")]).toEqual(["Working", true]);
+	});
+
+	it("says when it was shared or ended", () => {
+		expect(lines([{ entity: "collection", column: "Shared", before: false, after: true }])).toEqual([["", "Anyone signed in can look", "No", "Yes"]]);
+		const [ended] = lines([{ entity: "collection", column: "Ended", before: null, after: "2026-11-25T10:00:00Z" }]);
+		expect([ended[1], ended[2], ended[3].startsWith("Ended ")]).toEqual(["Session", "Going", true]);
+	});
+});
+
+describe("everything a change deleted", () => {
+	it("can all be shown when there's more than it names", () => {
+		expect(showAllDeleted({ ...none, deleted: 2140, deletedNames: ["a", "b", "c", "d", "e"] })).toBe("Show all 2,140");
+		expect(showAllDeleted({ ...none, deleted: 5, deletedNames: ["a", "b", "c", "d", "e"] })).toBeNull();
+		expect(showAllDeleted(none)).toBeNull();
+	});
+
+	it("is asked for a page at a time, searched when there's something to search for", () => {
+		expect(deletedPath("a b", "  ", 0, 50)).toBe("/changesets/a%20b/deleted?skip=0&take=50");
+		expect(deletedPath("c", " duct & co ", 100, 50)).toBe("/changesets/c/deleted?skip=100&take=50&search=duct+%26+co");
+	});
+
+	it("says how many, and how many match", () => {
+		expect(deletedCount(2140, 2140, "")).toBe("2,140 deleted");
+		expect(deletedCount(2140, 12, "duct")).toBe("12 of 2,140");
+		expect(deletedCount(2140, 0, "duct")).toBe("None of the 2,140 match");
 	});
 });
 

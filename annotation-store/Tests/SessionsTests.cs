@@ -188,9 +188,8 @@ public class SessionsTests : IClassFixture<CellCountApiFactory>
         using (var scope = _factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AnnotationDbContext>();
-            var stored = await db.CollectionInvites.FirstAsync(i => i.Code == invite.Code);
-            stored.Expires = DateTimeOffset.UtcNow.AddMinutes(-1);
-            await db.SaveChangesAsync();
+            var past = DateTimeOffset.UtcNow.AddMinutes(-1);
+            await db.CollectionInvites.Where(i => i.Code == invite.Code).ExecuteUpdateAsync(s => s.SetProperty(i => i.Expires, past));
         }
 
         Assert.Equal("expired", (await PreviewAsync(bob, invite.Code))!.Status);

@@ -284,8 +284,64 @@
 	text-decoration: underline;
 }
 
-.history-deleted-more {
+.history-deleted-row--plain,
+.history-deleted-row--plain:hover {
+	color: var(--chrome-text);
+	text-decoration: none;
+	cursor: default;
+}
+
+.history-deleted-all {
 	align-self: center;
+	padding: 0.1em 0.2em;
+	font-family: var(--sans);
+	font-size: 0.95em;
+	font-weight: 600;
+	color: var(--accent);
+	background: none;
+	border: none;
+	cursor: pointer;
+}
+
+.history-deleted-all:hover,
+.history-deleted-all:focus-visible {
+	text-decoration: underline;
+}
+
+.history-deleted-all-list {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5em;
+}
+
+.history-deleted-all-list > .history-deleted-all {
+	align-self: flex-start;
+}
+
+.history-deleted-all-list > .history-deleted-rows {
+	max-height: 16rem;
+	overflow-y: auto;
+}
+
+.history-deleted-search {
+	box-sizing: border-box;
+	width: 100%;
+	padding: 0.5em;
+	font-family: var(--sans);
+	font-size: 0.95em;
+	color: var(--chrome-text);
+	background: var(--white-06);
+	border: 1px solid transparent;
+	border-radius: 0.3125rem;
+}
+
+.history-deleted-search:focus {
+	outline: none;
+	border-color: var(--accent);
+}
+
+.history-deleted-count {
+	margin: 0;
 	color: var(--chrome-text-secondary);
 }
 

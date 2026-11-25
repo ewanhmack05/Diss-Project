@@ -4,7 +4,7 @@ import { timeAgo } from "../saved/savedDates";
 // by the host when they start it, and saved on it. See annotation-store's
 // Conflicts/EditConflicts.cs. Only colour, group, and a group's name and
 // notes can conflict: labels and notes on annotations and counts are merged
-// live, so nobody loses typing either way.
+// live, so nobody loses typing either way (see ownText.ts).
 type EditPolicy = "lastWriteWins" | "firstComeWins";
 
 const DEFAULT_EDIT_POLICY: EditPolicy = "lastWriteWins";

@@ -364,8 +364,13 @@ in place of the list, with a way back:
   as _(empty)_, colours as swatches, groups by name, yes or no, an image
   adjustment's settings one by one. Rows that all went to the same thing are
   one line ("10 annotations", the colours they started as -> the one they
-  went to). One row's name is said once at the top. What it deleted is named
-  ("Region 15, Region 11 ... and 20 more"). A change from before history was
+  went to). One row's name is said once at the top. What it deleted is named,
+  and past the first 5 **Show all 60** opens
+  [DeletedList.tsx](../../image-viewer/src/components/collections/history/DeletedList.tsx):
+  every row, from `GET /changesets/{id}/deleted`, a page at a time with a
+  search. An annotation or count opens its timeline, and Back comes back to the
+  same page and search. Settings read as what they mean: "Access Not in it ->
+  Can edit" under the name of whoever joined. A change from before history was
   kept says nothing was recorded for it.
 - **Put back** and **Cancel**, for editors and the owner, when something's
   still deleted (`canRestore` - the one place that says who can, so it's one
@@ -386,12 +391,16 @@ again:
    the revisions so those lists refetch. `changedAnnotations` - ones that
    were already there and went back how they were, like being put back in a
    group - replace the copy the annotation context has.
-2. Everyone else gets a create op per row and an update op for each changed
-   annotation (`restoredOps` - groups first, so an annotation never arrives
+2. A label or notes that went back goes into any form that has that row open,
+   keeping what's being typed there
+   ([usePutText.ts](../../image-viewer/src/components/realtime/usePutText.ts)),
+   before anyone's told.
+3. Everyone else gets a create op per row and an update op for each changed
+   annotation, count and group (`restoredOps` - groups first, so an annotation never arrives
    before its group). Image adjustments are personal, so they're not sent.
    Receiving a create also clears that id from the other person's deleted
    ids.
-3. A toast says what came back ("Put back 2,140 annotations"), or that
+4. A toast says what came back ("Put back 2,140 annotations"), or that
    someone else had already put it back. A failure is the usual
    `annotations:restored:error` toast.
 
@@ -526,7 +535,11 @@ sequenceDiagram
   notes and colour. Label and notes are shared text - see
   [realtime-hub.md](realtime-hub.md#7-two-people-typing-in-the-same-box) -
   and everything autosaves a second after you stop (`TEXT_SAVE_MS` in
-  [autosave.ts](../../image-viewer/src/components/realtime/autosave.ts)).
+  [autosave.ts](../../image-viewer/src/components/realtime/autosave.ts)). You
+  only save what you typed - someone else's in the same box is theirs to save
+  ([useSharedText.ts](../../image-viewer/src/components/realtime/useSharedText.ts)
+  and what's behind it, in
+  [version-control.md](version-control.md#labels-and-notes)).
   Colour changes show live on the map as you drag the picker. Every save
   while the form's open goes in one change set, so the History tab shows
   one row for the whole edit (see
@@ -672,7 +685,9 @@ flowchart LR
   proof of concept.
 - **The op goes out before the save**, to keep the delay down for everyone
   else. The id is made in the browser (`newId()`) so the op and the saved
-  row match.
+  row match. A label or notes is the exception: everyone with the form open can
+  see it already, so its op goes once it's saved, and what anyone's heard is
+  always what's stored.
 - **Other people's ops** come in through `onOp` and go through `applyOp`
   (add, merge or remove), with no toast - those are for your own actions.
 - **Deleted ids are remembered.** An edit form closing because its
@@ -927,20 +942,20 @@ all tested without a browser.
 
 ## 15. Tests
 
-44 test files, 711 tests, run with Vitest (`npm test`). They sit next to
+70 test files, 1,332 tests, run with Vitest (`npm test`). They sit next to
 the code they cover and test the plain `.ts` logic, not React components or
 a live map.
 
-| Area        | Files                                                               | Covers                                                                                                                                                                         |
-| ----------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| open-layers | OpenLayers, Styles, GeoJSON                                         | Zoom ladder, styles, GeoJSON round trips                                                                                                                                       |
-| realtime    | realtime, sharedFields, sketch, autosave, editPolicy                | `applyOp`, caret moves, Yjs merges, sketch simplifying, what to autosave; reading a 409, the conflict card's wording, saves one at a time                                      |
-| cell-count  | CellCountDots, CellCountView, compare, sharedCount                  | Dot parsing, view extent, comparison matching, double counts                                                                                                                   |
-| saved       | paging, filters, savedBy, savedDates, sheetPlacement, useSavedTotal | Page maths, `mergePage` (pending deletes too), filter query strings, live filtering, search matching, the tab label, History's day headings and times                          |
-| annotation  | selection, bulk                                                     | Fully inside a box or lasso, which shape a click is on; batches and one change set per bulk change                                                                             |
-| collections | collectionGeoJson, history                                          | Export and import, y flipping, QuPath-style files, groups, what's skipped; History labels, icons, initials, what's still deleted, day headings, who can put back, the ops sent |
-| toolbar     | dock, focusOrder, panelPlacement                                    | Docking, splitting, stacking, placing                                                                                                                                          |
-| other       | adjustments, rotation, ruler, popupPosition, presence, newId, icons | Clamping, angles, distances, out-of-order presence, every icon is a file with a viewBox and no fixed colour                                                                    |
+| Area        | Files                                                                                                        | Covers                                                                                                                                                                                                             |
+| ----------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| open-layers | OpenLayers, Styles, GeoJSON                                                                                  | Zoom ladder, styles, GeoJSON round trips                                                                                                                                                                           |
+| realtime    | realtime, sharedFields, ownText, sharedTyping, textMerge, storedText, putText, textSaves, sketch, editPolicy | `applyOp`, caret moves, Yjs merges, sketch simplifying; which of a shared box is yours to save and when, simulated with people, a store and a hub; reading a 409, the conflict card's wording, saves one at a time |
+| cell-count  | CellCountDots, CellCountView, compare, sharedCount                                                           | Dot parsing, view extent, comparison matching, double counts                                                                                                                                                       |
+| saved       | paging, filters, savedBy, savedDates, sheetPlacement, useSavedTotal                                          | Page maths, `mergePage` (pending deletes too), filter query strings, live filtering, search matching, the tab label, History's day headings and times                                                              |
+| annotation  | selection, bulk                                                                                              | Fully inside a box or lasso, which shape a click is on; batches and one change set per bulk change                                                                                                                 |
+| collections | collectionGeoJson, history                                                                                   | Export and import, y flipping, QuPath-style files, groups, what's skipped; History labels, icons, initials, what's still deleted, day headings, who can put back, the ops sent                                     |
+| toolbar     | dock, focusOrder, panelPlacement                                                                             | Docking, splitting, stacking, placing                                                                                                                                                                              |
+| other       | adjustments, rotation, ruler, popupPosition, presence, newId, icons                                          | Clamping, angles, distances, out-of-order presence, every icon is a file with a viewBox and no fixed colour                                                                                                        |
 
 CI (`.github/workflows/image-viewer.yml`) runs lint (oxlint), tests and a
 build on every push that touches the viewer.

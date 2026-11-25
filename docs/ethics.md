@@ -114,6 +114,16 @@ has to settle:
 
 Some areas, especially in pathology require data to be kept for up to 30 years (the Royal College of Pathologists' [G031](https://www.rcpath.org/static/049ea966-df5c-4a9f-9353ba24a69bb808/bd7ed2ba-8e77-4a2d-8c3ae7e74f3aaaa0/g031-The-retention-and-storage-of-pathological-records-and-specimens.pdf), October 2025: 30 years for tissue blocks and lab records that are part of the patient's record, at least 8 for slides and digital images used for diagnosis). This is mostly slides and tissue samples, but data around these may also have to follow the same rules - not 100% sure
 
+## Who was in a session
+
+Joining, leaving, being removed, a role changing and links being made or stopped are in
+the history, with the name and user id of who it was and who did it. It's kept for good
+like the rest, and anyone who can read the collection can read it, guests included. So
+leaving a session doesn't take you out of its history.
+
+A link's code is never in it - that's the only secret there is - and guests joining
+isn't either, as their names aren't saved anywhere.
+
 ## Retention
 
 The log keeps user ids and names indefinitely, and so do the rows themselves. Removing
@@ -134,14 +144,16 @@ come from whoever approves it.
 
 ## Label and notes history
 
-Labels and notes are merged live with Yjs, but no earlier version is kept once the box
-closes. So someone can change what a note says and the history can't show what it said
-before, which matters if notes are part of the record.
+Labels and notes are merged live with Yjs, and everyone saves only what they typed
+themselves. So the history says who changed a note, from what to what, which matters if
+notes are part of the record. It's one entry per edit form, however many times that
+saved, and not what was typed and taken out again in between.
 
-Saving a version to the history log when the last editor closes it is the simple way,
-and enough for a history view. Keeping the Yjs updates would also work but it's more
-than a history view needs. Either way, it puts more free text in the log, so it comes
-under the same purge and retention rules.
+Who typed what is the viewer's word for it, the same as a label typed alone: the store
+knows who saved, not who was at the keyboard. Typing left by someone whose connection
+dropped is saved by whoever still has the form open, under their name.
+
+It's free text in the log, so it comes under the same purge and retention rules.
 
 ## Before any real data
 

@@ -42,7 +42,10 @@ public record RestoreResult(int Annotations, int Groups, int CellCounts, int Ima
 // can show them and tell everyone else without loading them again.
 // ChangedAnnotations were already there and went back how they were - put
 // back in the group a delete or merge took them out of. ChangedCellCounts are
-// the same for counts.
+// the same for counts, and ChangedGroups and ChangedCellCountGroups are groups
+// whose name or notes went back. TextWas is what the text it put back over
+// said, so the viewer can put it in a form that's open without taking out what
+// someone's typing there.
 public record RestoredView(
     RestoreResult Counts,
     List<Annotation> Annotations,
@@ -51,7 +54,13 @@ public record RestoredView(
     List<ImageAdjustments.ImageAdjustments> ImageAdjustments,
     List<Annotation> ChangedAnnotations,
     List<CellCountListItem> ChangedCellCounts,
-    List<CountGroupView> CellCountGroups);
+    List<CountGroupView> CellCountGroups,
+    List<GroupView> ChangedGroups,
+    List<CountGroupView> ChangedCellCountGroups,
+    List<TextWas> TextWas);
+
+// Null is a label or notes that wasn't changed.
+public record TextWas(Guid Id, string? Label, string? Notes);
 
 public static class ChangeSetEndpoints
 {
@@ -224,6 +233,9 @@ public static class ChangeSetEndpoints
                 })
                 .ToListAsync();
 
+            // Only what's called what, or who's in it. Never put back - that
+            // would be a way to let someone in again.
+            var onlySettings = entries.Count > 0 && entries.All(e => HistoryLog.IsSetting(e.Entity, e.Op));
             var restoresCollection = collection.Deleted is not null
                 && entries.Any(e => e.Entity == HistoryLog.Collection && e.Op == HistoryOp.Delete);
             if (restoresCollection)
@@ -237,8 +249,10 @@ public static class ChangeSetEndpoints
                     return Results.Conflict("You've a newer collection for this slide, so this one can't come back");
             }
             else if (await db.RequireAsync(collectionId, user, CollectionRole.Editor) is { } denied) return denied;
+            if (onlySettings) return Results.Conflict("There's nothing in this change to put back");
 
-            if ((await db.ChangeSetAsync(http, collectionId, user, "restore")).Problem is { } problem) return problem;
+            var (restore, problem) = await db.ChangeSetAsync(http, collectionId, user, "restore");
+            if (problem is not null) return problem;
             await using var transaction = await db.Database.BeginTransactionAsync();
             var history = new List<HistoryEntry>();
             if (restoresCollection)
@@ -249,6 +263,7 @@ public static class ChangeSetEndpoints
             var back = await PutBackAsync(db, id, entries, history);
             await db.SaveChangesAsync();
             await HistoryLog.WriteAsync(db, history);
+            EditConflicts.StampText(http);
             await transaction.CommitAsync();
 
             var annotations = await db.Annotations.AsNoTracking().Where(a => back.Annotations.Contains(a.Id)).ToListAsync();
@@ -264,8 +279,38 @@ public static class ChangeSetEndpoints
                 .ListItemsAsync(db);
             var countGroups = await CellCountGroupEndpoints.Views(db, collectionId, ids: back.CellCountGroups).ToListAsync();
             var counts = new RestoreResult(annotations.Count, back.Groups.Count, back.CellCounts.Count, back.ImageAdjustments.Count, restoresCollection, back.CellCountGroups.Count);
-            return Results.Ok(new RestoredView(counts, annotations, groups, cellCounts, back.ImageAdjustments, changed, changedCounts, countGroups));
+            var changedGroups = await AnnotationGroupEndpoints.GroupViews(db, collectionId, ids: back.ChangedGroups).ToListAsync();
+            var changedCountGroups = await CellCountGroupEndpoints.Views(db, collectionId, ids: back.ChangedCellCountGroups).ToListAsync();
+            return Results.Ok(new RestoredView(counts, annotations, groups, cellCounts, back.ImageAdjustments, changed, changedCounts, countGroups, changedGroups, changedCountGroups,
+                await TextWasAsync(db, restore!.Id)));
         });
+    }
+
+    public static async Task<List<TextWas>> TextWasAsync(AnnotationDbContext db, Guid changeSetId)
+    {
+        var updates = await db.HistoryEntries.AsNoTracking()
+            .Where(e => e.ChangeSetId == changeSetId && e.Op == HistoryOp.Update
+                && (e.Entity == HistoryLog.Annotation || e.Entity == HistoryLog.CellCount))
+            .OrderBy(e => e.Id)
+            .Select(e => new { e.EntityId, e.Before })
+            .ToListAsync();
+        return updates
+            .GroupBy(e => e.EntityId)
+            .Select(row => new TextWas(row.Key, Was(row.Select(e => e.Before), nameof(Annotation.Label)), Was(row.Select(e => e.Before), nameof(Annotation.Notes))))
+            .Where(row => row.Label is not null || row.Notes is not null)
+            .ToList();
+
+        // What it was before the first of them to change it.
+        static string? Was(IEnumerable<string?> befores, string column)
+        {
+            foreach (var before in befores)
+            {
+                if (before is null) continue;
+                using var columns = JsonDocument.Parse(before);
+                if (columns.RootElement.TryGetProperty(column, out var value)) return value.GetString() ?? "";
+            }
+            return null;
+        }
     }
 
     private record PutBack(
@@ -275,7 +320,9 @@ public static class ChangeSetEndpoints
         List<ImageAdjustments.ImageAdjustments> ImageAdjustments,
         List<Guid> ChangedAnnotations,
         List<Guid> ChangedCellCounts,
-        List<Guid> CellCountGroups);
+        List<Guid> CellCountGroups,
+        List<Guid> ChangedGroups,
+        List<Guid> ChangedCellCountGroups);
 
     // Newest entry first, so a row changed twice in one change goes back to
     // how it was before the first. Annotations - which can be 20,000 - go
@@ -283,7 +330,7 @@ public static class ChangeSetEndpoints
     // added to the context, and the caller's save writes its history.
     private static async Task<PutBack> PutBackAsync(AnnotationDbContext db, Guid changeSetId, List<HistoryEntry> entries, List<HistoryEntry> history)
     {
-        var back = new PutBack([], [], [], [], [], [], []);
+        var back = new PutBack([], [], [], [], [], [], [], [], []);
         // A row put back and deleted again since belongs to that later delete -
         // bringing it back here would undo it.
         var later = (await db.HistoryEntries
@@ -368,8 +415,15 @@ public static class ChangeSetEndpoints
                 groupsNow[wanted] = await CellCountGroupNowAsync(db, wanted);
             object? Adjust(string column, object? was) =>
                 column == nameof(CellCount.GroupId) && was is Guid group && groupsNow.TryGetValue(group, out var now) ? now : was;
-            if (HistoryLog.Revert(db.Entry(live), entry, Adjust) && live is CellCount && !back.CellCounts.Contains(entry.EntityId))
-                back.ChangedCellCounts.Add(entry.EntityId);
+            if (!HistoryLog.Revert(db.Entry(live), entry, Adjust)) continue;
+            var (came, went) = live switch
+            {
+                CellCount => (back.CellCounts, back.ChangedCellCounts),
+                AnnotationGroup => (back.Groups, back.ChangedGroups),
+                CellCountGroup => (back.CellCountGroups, back.ChangedCellCountGroups),
+                _ => ([], []),
+            };
+            if (!came.Contains(entry.EntityId)) went.Add(entry.EntityId);
         }
         return back;
     }

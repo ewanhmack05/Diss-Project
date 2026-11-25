@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useCellCountGroupContext } from "../../../context/CellCountGroupContext";
 import { useCollectionContext } from "../../../context/CollectionContext";
 import { useDialogContext } from "../../../context/DialogContext";
 import { useMessagingContext } from "../../../context/MessagingContext";
+import { useBox } from "../../realtime/useBox";
 import Icon from "../../../icons/Icon";
 import chevronLeftSvg from "../../../icons/chevron-left.svg?raw";
 import type { CellCountGroup } from "../../../interfaces/CellCountGroup";
@@ -62,27 +63,19 @@ function CountGroupPage({ group, onBack, onShow }: CountGroupPageProps) {
 	const [mergeInto, setMergeInto] = useState("");
 	const others = groups.filter((g) => g.id !== group.id);
 	const target = others.find((g) => g.id === mergeInto);
-	const [name, setName] = useState(group.name);
-	const [notes, setNotes] = useState(group.notes);
-	const [editing, setEditing] = useState(false);
-
 	// Someone else's change comes through, unless you're in the middle of yours.
-	useEffect(() => {
-		if (editing) return;
-		setName(group.name);
-		setNotes(group.notes);
-	}, [group.name, group.notes, editing]);
+	const { text: name, type: setName, typed: nameTyped, reset: resetName } = useBox(group.name);
+	const { text: notes, type: setNotes, typed: notesTyped, reset: resetNotes } = useBox(group.notes);
 
 	const saveName = () => {
-		setEditing(false);
 		const tidy = name.trim();
-		if (!tidy) setName(group.name);
-		else if (tidy !== group.name) updateGroup(group.id, { name: tidy }).catch(() => setName(group.name));
+		if (!nameTyped || !tidy || tidy === group.name) resetName();
+		else updateGroup(group.id, { name: tidy }).catch(() => {}).finally(resetName);
 	};
 
 	const saveNotes = () => {
-		setEditing(false);
-		if (notes !== group.notes) updateGroup(group.id, { notes }).catch(() => setNotes(group.notes));
+		if (!notesTyped || notes === group.notes) resetNotes();
+		else updateGroup(group.id, { notes }).catch(() => {}).finally(resetNotes);
 	};
 
 	const confirmMerge = () => {
@@ -117,7 +110,6 @@ function CountGroupPage({ group, onBack, onShow }: CountGroupPageProps) {
 						aria-label="Group name"
 						value={name}
 						maxLength={64}
-						onFocus={() => setEditing(true)}
 						onChange={(e) => setName(e.target.value)}
 						onBlur={saveName}
 						onKeyDown={(e) => {
@@ -143,7 +135,6 @@ function CountGroupPage({ group, onBack, onShow }: CountGroupPageProps) {
 						rows={4}
 						maxLength={10000}
 						value={notes}
-						onFocus={() => setEditing(true)}
 						onChange={(e) => setNotes(e.target.value)}
 						onBlur={saveNotes}
 					/>

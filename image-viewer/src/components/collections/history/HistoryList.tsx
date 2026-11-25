@@ -12,6 +12,7 @@ import SavedPager from "../../saved/SavedPager";
 import { SAVED_PAGE_SIZE, clampPage } from "../../saved/paging";
 import { dayHeading, formatFullDate, formatTime } from "../../saved/savedDates";
 import ChangeIcon from "./ChangeIcon";
+import type { DeletedView } from "./DeletedList";
 import HistoryDetail from "./HistoryDetail";
 import ItemHistory from "./ItemHistory";
 import type { Item } from "./itemVersions";
@@ -39,14 +40,26 @@ function HistoryList({ collection }: { collection: Collection }) {
 	const [opened, setOpened] = useState<ChangeSet | null>(null);
 	// One row the opened change deleted, on its own timeline. Back lands on the change.
 	const [openedItem, setOpenedItem] = useState<Item | null>(null);
+	// Where you are in everything the opened change deleted.
+	const [allDeleted, setAllDeleted] = useState<DeletedView | null>(null);
 	const [restoring, setRestoring] = useState(false);
 	// Whether the one opened has been put back since.
 	const [putBack, setPutBack] = useState(false);
 	// A restore is a change of its own, so the list loads again after one.
 	const [restores, setRestores] = useState(0);
-	// Both only go up, so the sum does too - any save or delete settling
+	// A new name, someone joining or a session ending is a change to list too,
+	// and neither store hears of it.
+	const settingsKey = JSON.stringify([
+		collection.collectionName,
+		collection.shared,
+		collection.ended,
+		collection.members.map((m) => [m.userId, m.role]),
+	]);
+	const [settings, setSettings] = useState({ key: settingsKey, changes: 0 });
+	if (settings.key !== settingsKey) setSettings({ key: settingsKey, changes: settings.changes + 1 });
+	// They only go up, so the sum does too - any save or delete settling
 	// means a new change to list.
-	const revision = annotationRevision + cellCountRevision + restores;
+	const revision = annotationRevision + cellCountRevision + restores + settings.changes;
 	const savedPage = useSavedPage<ChangeSet>({
 		baseUrl,
 		path: "changesets",
@@ -92,6 +105,8 @@ function HistoryList({ collection }: { collection: Collection }) {
 				onRestore={putBackOpened}
 				onBack={() => setOpened(null)}
 				onOpenItem={setOpenedItem}
+				allDeleted={allDeleted}
+				onAllDeleted={setAllDeleted}
 				onRolledBack={() => {
 					setOpened(null);
 					setPage(0);
@@ -160,6 +175,7 @@ function HistoryList({ collection }: { collection: Collection }) {
 												onClick={() => {
 													setOpened(changeSet);
 													setPutBack(false);
+													setAllDeleted(null);
 												}}
 											>
 												<ChangeIcon kind={kind} className={`history-icon${stillDeleted ? " history-icon--deleted" : ""}`} />

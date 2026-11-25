@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { useCellCountStoreContext, type CellCountEdit } from "../../../context/CellCountStoreContext";
+import { useCellCountStoreContext } from "../../../context/CellCountStoreContext";
 import type { CellCount } from "../../../interfaces/CellCount";
-import { debounce } from "../../realtime/realtime";
-import { useSharedFields } from "../../realtime/useSharedFields";
-import { LABEL_MAX, NOTES_MAX, TEXT_SAVE_MS, nextSave } from "../../realtime/autosave";
+import { useSharedText } from "../../realtime/useSharedText";
+import { LABEL_MAX, NOTES_MAX } from "../../realtime/autosave";
 import { newChangeSet } from "../../annotation/bulk";
 import EditingWith from "../../realtime/EditingWith";
 import { countSummary } from "../CellCountDots";
@@ -17,8 +16,6 @@ interface SavedCountEditProps {
 	onBack: () => void;
 }
 
-const FIELDS = ["label", "notes"] as const;
-
 // Same as SavedAnnotationEdit: label and notes are shared live, so several
 // people can type in them at once, and everything saves as it changes.
 // Only label/notes are editable - colour breakdown, withAnnotation/withRoi
@@ -26,54 +23,33 @@ const FIELDS = ["label", "notes"] as const;
 // still ride along in the PUT body unchanged (the endpoint overwrites
 // whatever it's given), just not as editable fields.
 function SavedCountEdit({ cellCount, onBack }: SavedCountEditProps) {
-	const { updateCellCount, deleteCellCount } = useCellCountStoreContext();
+	const { storedText, updateCellCount, deleteCellCount } = useCellCountStoreContext();
 
 	// Read by the save, which outlives any one render.
-	const [initial] = useState<CellCountEdit>(() => ({
-		label: cellCount.label,
-		notes: cellCount.notes ?? "",
-		withAnnotation: cellCount.withAnnotation,
-		withRoi: cellCount.withRoi,
-		count: cellCount.count,
-		dotSize: cellCount.dotSize,
-	}));
+	const { withAnnotation, withRoi, count, dotSize } = cellCount;
+	const factsRef = useRef({ withAnnotation, withRoi, count, dotSize });
 	// Every save while the form's open is one change - see SavedAnnotationEdit.
 	const [changeSet] = useState(newChangeSet);
-	const latestRef = useRef(initial);
-	const savedRef = useRef(initial);
 	const updateRef = useRef(updateCellCount);
 	useEffect(() => {
 		updateRef.current = updateCellCount;
+		factsRef.current = { withAnnotation, withRoi, count, dotSize };
 	});
 
-	const [saveText] = useState(() =>
-		debounce(() => {
-			const next = nextSave(latestRef.current, savedRef.current);
-			if (!next) return;
-			savedRef.current = next;
-			updateRef.current(cellCount.id, next, changeSet);
-		}, TEXT_SAVE_MS),
-	);
-
-	const { values, editors, fieldProps } = useSharedFields(
-		`cellCount:${cellCount.id}`,
-		FIELDS,
-		{ label: initial.label, notes: initial.notes },
-		// Remote changes save too, so the last save always has the merged text.
-		(next) => {
-			latestRef.current = { ...latestRef.current, ...next };
-			saveText();
-		},
-	);
-
-	// Closing the form, however it happens, saves whatever's still waiting.
-	useEffect(() => () => saveText.flush(), [saveText]);
+	const { values, editors, fieldProps, cancel } = useSharedText({
+		docId: `cellCount:${cellCount.id}`,
+		id: cellCount.id,
+		label: cellCount.label,
+		notes: cellCount.notes ?? "",
+		stored: storedText,
+		save: (text, options) => updateRef.current(cellCount.id, factsRef.current, text, changeSet, options),
+	});
 
 	// The summary, not the dots - editing a label doesn't need them loaded.
 	const { colours: colourBreakdown, people } = countSummary(cellCount);
 
 	const handleDelete = () => {
-		saveText.cancel();
+		cancel();
 		deleteCellCount(cellCount.id);
 		onBack();
 	};

@@ -28,14 +28,14 @@ listening, so the services run the same with or without it.
 
 Pick one or both services at the top. Refreshes every 5 seconds.
 
-| Row       | Shows                                                                                                     |
-| --------- | --------------------------------------------------------------------------------------------------------- |
-| Load      | requests / sec, requests in flight, slowest-5% time, server error %                                       |
-| Timing    | request time - median, slowest 5% (p95), slowest 1% (p99)                                                 |
-| Endpoints | table of every route - request count, rate, median and p95 time                                           |
-| Errors    | 4xx and 5xx per minute, by status code                                                                    |
-| Machine   | CPU (% of all cores), memory, thread pool threads, GC pause time                                          |
-| Edits     | saves over someone else's change per minute - refused (first change wins) or overwrote (last change wins) |
+| Row       | Shows                                                                                                                                                                                |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Load      | requests / sec, requests in flight, slowest-5% time, server error %                                                                                                                  |
+| Timing    | request time - median, slowest 5% (p95), slowest 1% (p99)                                                                                                                            |
+| Endpoints | table of every route - request count, rate, median and p95 time                                                                                                                      |
+| Errors    | 4xx and 5xx per minute, by status code                                                                                                                                               |
+| Machine   | CPU (% of all cores), memory, thread pool threads, GC pause time                                                                                                                     |
+| Edits     | saves over someone else's change per minute - refused (first change wins) or overwrote (last change wins), and labels and notes worked out again because someone else's got in first |
 
 Hover the (i) next to a panel's title for what it means.
 

@@ -172,8 +172,8 @@ Everything is per collection - reading needs you in it, writing needs
 editor or owner.
 
 Every write to annotations, groups, cell counts, image adjustments, an
-import or a collection delete goes in a **change set** - who did it, what,
-and when. Send a `Change-Set-Id` header (a GUID) to choose it, so several
+import, a collection delete or a change to its settings (name, sharing, ending,
+members and links) goes in a **change set** - who did it, what, and when. Send a `Change-Set-Id` header (a GUID) to choose it, so several
 requests count as one change - the viewer sends one id with every batch of a
 bulk change. Leave it out and the write gets a change set of its own. The
 response's `Change-Set-Id` header says which it went in. An id already used
@@ -182,8 +182,7 @@ by someone else, or in another collection, is a 400.
 **Two people changing the same thing.** A session is `lastWriteWins` or
 `firstComeWins` (`editPolicy`, picked by the host - personal collections are
 always `lastWriteWins`). It's checked per field, for an annotation's colour
-and group and a group's name and notes - labels and notes on annotations and
-cell counts are merged live, so they're never checked. A save sends the
+and group and a group's name and notes. A save sends the
 value it started from (`wasColour`, `wasName`, `wasNotes`, or `wasColours` /
 `wasGroups` by id for a bulk change). It's in the way of someone else's
 change when the stored value isn't that any more and the save would change
@@ -194,6 +193,16 @@ header. A field sent the same as its was isn't being changed, so it's left
 as it is. No was, no check. Either way it's counted on the
 `annotation_store.conflicting_saves` metric. See
 [version-control.md](../docs/breakdown/version-control.md#8-two-people-changing-the-same-thing).
+
+**Labels and notes** on annotations and cell counts are merged live in the
+viewer, and each person saves only what they typed. They're checked in every
+collection, whatever the policy: send `wasLabel` and `wasNotes`, and a save that
+would change text that's been changed since is a 409 with `text: true` and
+`current` (`{ id, label, notes }`), to work out again from what's there and send
+again. One that's the same as its was is left as it is. Every answer about a
+row's text has a `Text-At` header, when that was what's stored, in microseconds,
+taken with the row locked - so the later one's newer, whatever order they arrive
+in. Turned down ones are counted on `annotation_store.text_saves_refused`.
 
 **History is kept apart from the data.** What every change did to each row
 goes in the `history` schema (`History/`): a delete keeps the whole row, an
@@ -210,9 +219,9 @@ deleted, source }`, `source` being where it came from or null, and `deleted` bei
   included. Narrowed with the Saved lists' names (`ChangeSetFilter` in
   `History/ChangeSetFilter.cs`):
   - `createdBy` - who made it, Keycloak ids, repeat for more than one
-  - `kind` - `add`, `change`, `delete`, `merge`, `import` or `restore`,
-    repeat for more than one. Change is anything that isn't one of the
-    others. Anything else is a 400
+  - `kind` - `add`, `change`, `delete`, `merge`, `import`, `restore` or
+    `people` (sharing, ending, members and links), repeat for more than one.
+    Change is anything that isn't one of the others. Anything else is a 400
   - `from` / `to` - when, `from` included and `to` not
   - `order=oldest` turns it round
 - `GET /changesets/facets?collectionId=` - `{ authors, kinds }`: who's made
@@ -226,7 +235,12 @@ column, before, after, count, names }`, so a recolour of 48 annotations
   `deletedRows` is the same 5 as `{ entity, id, name }` so one can be opened,
   and `groups` names every group a `GroupId` in `changes` points at, gone ones
   included. Only reads the update entries and the names out of the deletes,
-  never a deleted row's whole copy. Same access as the list
+  never a deleted row's whole copy. Someone joining or leaving is their `Role`
+  from or to null, under their name. A link's code is never in it. Same access
+  as the list
+- `GET /changesets/{id}/deleted?search=&skip=&take=` - everything it deleted, in
+  order: `{ total, rows }`, each row as in `deletedRows` and `total` how many
+  match. Rows that are back are still listed. Same access
 - `GET /cellcountgroups?collectionId=` lists a collection's groups of cell counts with how many are
   in each, `POST /cellcountgroups` makes one from `{ collectionId, name, cellCountIds? }`, and `PUT`
   and `DELETE /cellcountgroups/{id}` change `{ name?, notes? }` or remove it, leaving its counts.
@@ -246,13 +260,17 @@ column, before, after, count, names }`, so a recolour of 48 annotations
   anyone's change set - except a deleted collection, which only its owner
   can bring back (and not while they've a newer personal one for that slide -
   409). Answers `{ counts, annotations, groups, cellCounts,
-imageAdjustments, changedAnnotations, changedCellCounts }`: `counts` is `{ annotations,
+imageAdjustments, changedAnnotations, changedCellCounts, changedGroups,
+changedCellCountGroups, textWas }`: `counts` is `{ annotations,
 groups, cellCounts, imageAdjustments, collection }`, how many of each came
   back, the lists are the rows that came back as the reads give them -
   groups with their member `count`, cell counts as the Saved list has them
   (no `dots`) - and `changedAnnotations` and `changedCellCounts` are ones
-  that were already there and went back how they were. Restoring again
-  answers zeros and empty lists
+  that were already there and went back how they were, and the same for the
+  groups. `textWas` is `{ id, label, notes }` for each annotation and count whose
+  text it changed, as it said before this, null for one that didn't change.
+  Restoring again answers zeros and empty lists. A change that's only settings
+  can't be put back (409)
 - `GET /annotations/{id}/history?collectionId=&skip=&take=`, and the same on
   `/cellcounts/{id}/history` - one row's timeline, newest first: `{ versions,
 total, latest, groups }`. Each version is `{ id, changeSetId, userId,
@@ -319,7 +337,7 @@ back, changed, gone }`, how many of each kind come back, go back how they
   or it's a 400. `PUT` doesn't touch them - `PUT /annotations/{id}/slices` moves them. The import
   checks each annotation the same way
 - `PUT /annotations/{id}` - update `label`/`notes`/`colour`, with
-  `wasColour` to check it (see above)
+  `wasLabel`, `wasNotes` and `wasColour` to check them (see above)
 - `PUT /annotations/{id}/slices` - move it to other slices of a volume:
   `{ sliceFrom, sliceTo, was }`, both null for every slice, `was` the range
   the change started from (`{ sliceFrom, sliceTo }`). Under first come wins
@@ -372,7 +390,7 @@ isn't one and adding the file's notes for it.
   both are assigned server-side if omitted). Takes up to 80 MiB, room for a
   million dots - everything else has Kestrel's 30 MB default
 - `PUT /cellcounts/{id}` - update `label`/`notes`/`withAnnotation`/`withRoi`/
-  `count`/`dotSize`
+  `count`/`dotSize`, with `wasLabel` and `wasNotes` to check the text
 - `DELETE /cellcounts/{id}` - delete. Its ROI box is left as it is, so it
   comes back with a restore
 
@@ -847,12 +865,12 @@ What one change did to one row, and the only place anything that was there is ke
 |---|---|---|---|---|
 | `Id` | bigint | PK | server | Identity, so it's the order they were written in. Handed out before a save commits, so a higher one can be visible before a lower one |
 | `ChangeSetId` | uuid | FK | server | The change it's part of |
-| `Entity` | text |  | server | `annotation`, `group`, `cellCount`, `regionOfInterest`, `imageAdjustment` or `collection` |
+| `Entity` | text |  | server | `annotation`, `group`, `cellCountGroup`, `cellCount`, `regionOfInterest`, `imageAdjustment`, `collection`, `member` or `invite` |
 | `Op` | text |  | server | `Create`, `Update` or `Delete` |
 | `CollectionId` | uuid |  | server | Copied from the change set, for reading one row's history. Not a foreign key of its own |
-| `EntityId` | uuid |  | server | The row it's about. Not a foreign key, since that row may be gone |
-| `After` | jsonb, null |  | server | An update: the same columns, as they became. A group's delete in a merge: `{ "MergedInto": id }` |
-| `Before` | jsonb, null |  | server | A delete: the whole row. An update: the columns it changed, as they were |
+| `EntityId` | uuid |  | server | The row it's about. Not a foreign key, since that row may be gone. A member's or link's is a hash, never a link's code |
+| `After` | jsonb, null |  | server | An update: the same columns, as they became. A group's delete in a merge: `{ "MergedInto": id }`. Someone joining or a link made: what they are |
+| `Before` | jsonb, null |  | server | A delete: the whole row, or just who it was for someone leaving. An update: the columns it changed, as they were |
 
 - Index on `ChangeSetId`
 - Index on `CollectionId, Entity, EntityId`

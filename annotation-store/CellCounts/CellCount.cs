@@ -62,6 +62,20 @@ public class CellCount
     [JsonIgnore] public string? PlacedByCountsJson { get; set; }
 }
 
+// What PUT /cellcounts/{id} takes - everything else is fixed once saved. WasLabel
+// and WasNotes are the text the save started from - see AnnotationUpdate.
+public class CellCountUpdate
+{
+    public string Label { get; set; } = "";
+    public string Notes { get; set; } = "";
+    public bool WithAnnotation { get; set; }
+    public bool WithRoi { get; set; }
+    public int Count { get; set; }
+    public int DotSize { get; set; }
+    public string? WasLabel { get; set; }
+    public string? WasNotes { get; set; }
+}
+
 public static class CellCountSlices
 {
     // Why a slice can't be saved, or null if it can. No upper bound, as for

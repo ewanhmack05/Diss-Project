@@ -355,12 +355,13 @@ public class GuestAccessTests : IClassFixture<CellCountApiFactory>
         Assert.Equal(CollectionRole.Editor, bobs.Role);
     }
 
-    private async Task SetInviteAsync(string code, Action<CollectionInvite> change)
+    // Straight to the table, as time passing isn't a change anyone made.
+    private async Task ExpireAsync(string code)
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AnnotationDbContext>();
-        change(await db.CollectionInvites.FirstAsync(i => i.Code == code));
-        await db.SaveChangesAsync();
+        var past = DateTimeOffset.UtcNow.AddMinutes(-1);
+        await db.CollectionInvites.Where(i => i.Code == code).ExecuteUpdateAsync(s => s.SetProperty(i => i.Expires, past));
     }
 
     private Task<GuestInvitePreview?> GuestPreviewAsync(string code) =>
@@ -393,7 +394,7 @@ public class GuestAccessTests : IClassFixture<CellCountApiFactory>
     public async Task GuestPreview_SaysWhenALinkHasExpired()
     {
         var seeded = await SeedAsync();
-        await SetInviteAsync(seeded.InviteCode, i => i.Expires = DateTimeOffset.UtcNow.AddMinutes(-1));
+        await ExpireAsync(seeded.InviteCode);
 
         Assert.Equal("expired", (await GuestPreviewAsync(seeded.InviteCode))!.Status);
     }

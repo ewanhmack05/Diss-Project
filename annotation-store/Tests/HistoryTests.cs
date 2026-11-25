@@ -237,6 +237,34 @@ public class HistoryTests : IClassFixture<CellCountApiFactory>
         return (row.SliceFrom, row.SliceTo);
     }
 
+    [Fact]
+    public async Task PuttingBackAnEdit_SaysWhatTheTextWas_OnlyWhereItChanged()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var labelled = await AddAnnotationAsync(alice, id, "before");
+        var noted = await AddCellCountAsync(alice, id);
+        var recoloured = await AddAnnotationAsync(alice, id, "recoloured");
+        var edit = Guid.NewGuid();
+        async Task EditAsync(string url, object body)
+        {
+            var request = InChangeSet(HttpMethod.Put, url, edit);
+            request.Content = JsonContent.Create(body, options: Json);
+            (await alice.SendAsync(request)).EnsureSuccessStatusCode();
+        }
+        await EditAsync($"/annotations/{labelled.Id}", new AnnotationUpdate { Label = "after", Notes = labelled.Notes, Colour = labelled.Colour });
+        await EditAsync($"/annotations/{recoloured.Id}", new AnnotationUpdate { Label = "recoloured", Notes = recoloured.Notes, Colour = "#00FF00" });
+        await EditAsync($"/cellcounts/{noted.Id}", new CellCountUpdate { Label = noted.Label, Notes = "after", Count = noted.Count, DotSize = noted.DotSize });
+
+        var restored = (await (await RestoreAsync(alice, edit)).Content.ReadFromJsonAsync<RestoredView>(Json))!;
+
+        Assert.Equal(
+            new[] { new TextWas(labelled.Id, "after", null), new TextWas(noted.Id, null, "after") }.OrderBy(t => t.Id),
+            restored.TextWas.OrderBy(t => t.Id));
+        // Put back again, there's nothing it changed.
+        Assert.Empty((await (await RestoreAsync(alice, edit)).Content.ReadFromJsonAsync<RestoredView>(Json))!.TextWas);
+    }
+
     // Both ends, one end, onto every slice and off it.
     [Theory]
     [InlineData(3, 8, 2, 11)]
@@ -968,6 +996,86 @@ public class HistoryTests : IClassFixture<CellCountApiFactory>
         Assert.Equal(Assert.Single(await AnnotationsAsync(alice, id)).Label, Columns(entry.After)["Label"]);
     }
 
+    // Two people with the same form open, pausing in turn. Folding alice's
+    // second save into her first would make one entry from before bob's
+    // typing to after it, and say she'd typed it.
+    [Fact]
+    public async Task NothingFoldsAcrossSomeoneElsesChange_SoEachEntryIsOnlyWhatItsPersonDid()
+    {
+        var (alice, bob) = (As("alice"), As("bob"));
+        var (id, code) = await SessionWithLinkAsync(alice);
+        (await bob.PostAsync($"/invites/{code}/accept", null)).EnsureSuccessStatusCode();
+        var annotation = await AddAnnotationAsync(alice, id, "");
+        var (hers, his) = (Guid.NewGuid(), Guid.NewGuid());
+
+        await EditAsync(alice, annotation, hers, "duct");
+        await EditAsync(alice, annotation, hers, "duct 4");
+        await EditAsync(bob, annotation, his, "duct 4, checked");
+        await EditAsync(alice, annotation, hers, "duct 4, checked twice");
+        await EditAsync(alice, annotation, hers, "duct 4, checked twice!");
+
+        async Task<List<(string, string)>> LabelsAsync(Guid change) =>
+            (await EntriesAsync(change)).OrderBy(e => e.Id).Select(e => (Columns(e.Before)["Label"], Columns(e.After)["Label"])).ToList();
+        Assert.Equal([("", "duct 4"), ("duct 4, checked", "duct 4, checked twice!")], await LabelsAsync(hers));
+        Assert.Equal([("duct 4", "duct 4, checked")], await LabelsAsync(his));
+    }
+
+    // It used to go from before bob's, so putting it back took his out too.
+    [Fact]
+    public async Task PuttingBackAnEditSomeoneElseTypedInTheMiddleOf_LeavesTheirs()
+    {
+        var (alice, bob) = (As("alice"), As("bob"));
+        var (id, code) = await SessionWithLinkAsync(alice);
+        (await bob.PostAsync($"/invites/{code}/accept", null)).EnsureSuccessStatusCode();
+        var annotation = await AddAnnotationAsync(alice, id, "start");
+        var (hers, his) = (Guid.NewGuid(), Guid.NewGuid());
+        await EditAsync(alice, annotation, hers, "start one");
+        await EditAsync(bob, annotation, his, "start one two");
+        await EditAsync(alice, annotation, hers, "start one two three");
+
+        (await RestoreAsync(alice, hers)).EnsureSuccessStatusCode();
+
+        Assert.Equal("start one two", Assert.Single(await AnnotationsAsync(alice, id)).Label);
+    }
+
+    // Someone else changing another column in between is enough - the entry's
+    // the row's, not the column's.
+    [Fact]
+    public async Task NothingFoldsAcrossSomeoneElsesChange_ToAnotherRowsColumnsToo_ButOtherRowsDontCount()
+    {
+        var (alice, bob) = (As("alice"), As("bob"));
+        var (id, code) = await SessionWithLinkAsync(alice);
+        (await bob.PostAsync($"/invites/{code}/accept", null)).EnsureSuccessStatusCode();
+        var (a, b) = (await AddAnnotationAsync(alice, id, "a"), await AddAnnotationAsync(alice, id, "b"));
+        var hers = Guid.NewGuid();
+
+        await EditAsync(alice, a, hers, "a1");
+        await EditAsync(bob, b, Guid.NewGuid(), "b1");
+        await EditAsync(alice, a, hers, "a2");
+        Assert.Single(await EntriesAsync(hers));
+
+        (await bob.PutAsJsonAsync("/annotations/bulk", new BulkUpdateRequest(id, [a.Id], Colour: "#00FF00"), Json)).EnsureSuccessStatusCode();
+        await EditAsync(alice, a, hers, "a3", colour: "#00FF00");
+        Assert.Equal(2, (await EntriesAsync(hers)).Count);
+    }
+
+    [Fact]
+    public async Task PuttingAMergeBack_SaysWhichGroupsNotesWentBack()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var from = await AddGroupAsync(alice, id, "Stroma");
+        var into = await AddGroupAsync(alice, id, "Margin");
+        (await alice.PutAsJsonAsync($"/annotationgroups/{from.Id}", new { notes = "old" }, Json)).EnsureSuccessStatusCode();
+        var merge = ChangeSetOf(await alice.PostAsJsonAsync($"/annotationgroups/{from.Id}/merge", new GroupMergeRequest(into.Id), Json));
+
+        var restored = (await (await RestoreAsync(alice, merge)).Content.ReadFromJsonAsync<RestoredView>(Json))!;
+
+        Assert.Equal([from.Id], restored.Groups.Select(g => g.Id));
+        Assert.Equal([(into.Id, "")], restored.ChangedGroups.Select(g => (g.Id, g.Notes)));
+        Assert.Empty(restored.ChangedCellCountGroups);
+    }
+
     [Fact]
     public async Task NothingFoldsAcrossADelete()
     {
@@ -1200,9 +1308,9 @@ public class HistoryTests : IClassFixture<CellCountApiFactory>
     {
         var (id, alice, _, _) = await TwoPeopleAsync();
 
-        Assert.Equal(["delete annotation", "add group", "add annotation"], await WhatsAsync(alice, $"collectionId={id}&createdBy=bob"));
-        Assert.Equal(6, (await WhatsAsync(alice, $"collectionId={id}&createdBy=alice&createdBy=bob")).Count);
-        Assert.Equal(3, await alice.GetFromJsonAsync<int>($"/changesets/total?collectionId={id}&createdBy=alice"));
+        Assert.Equal(["delete annotation", "add group", "add annotation", "join session"], await WhatsAsync(alice, $"collectionId={id}&createdBy=bob"));
+        Assert.Equal(8, (await WhatsAsync(alice, $"collectionId={id}&createdBy=alice&createdBy=bob")).Count);
+        Assert.Equal(4, await alice.GetFromJsonAsync<int>($"/changesets/total?collectionId={id}&createdBy=alice"));
     }
 
     [Fact]
@@ -1212,6 +1320,7 @@ public class HistoryTests : IClassFixture<CellCountApiFactory>
 
         Assert.Equal(["add group", "add annotation", "add annotation", "add annotation"], await WhatsAsync(alice, $"collectionId={id}&kind=add"));
         Assert.Equal(["delete annotation", "change annotations"], await WhatsAsync(alice, $"collectionId={id}&kind=delete&kind=change"));
+        Assert.Equal(["join session", "make invite link"], await WhatsAsync(alice, $"collectionId={id}&kind=people"));
         Assert.Empty(await WhatsAsync(alice, $"collectionId={id}&kind=merge"));
         Assert.Equal(1, await alice.GetFromJsonAsync<int>($"/changesets/total?collectionId={id}&kind=change"));
         Assert.Equal(HttpStatusCode.BadRequest, (await alice.GetAsync($"/changesets?collectionId={id}&kind=rename")).StatusCode);
@@ -1226,8 +1335,8 @@ public class HistoryTests : IClassFixture<CellCountApiFactory>
         var past = Uri.EscapeDataString(DateTimeOffset.UtcNow.AddDays(-1).ToString("O"));
 
         Assert.Empty(await WhatsAsync(alice, $"collectionId={id}&from={future}"));
-        Assert.Equal(6, (await WhatsAsync(alice, $"collectionId={id}&from={past}&to={future}")).Count);
-        Assert.Equal(["add annotation", "add annotation", "change annotations", "add annotation", "add group", "delete annotation"],
+        Assert.Equal(8, (await WhatsAsync(alice, $"collectionId={id}&from={past}&to={future}")).Count);
+        Assert.Equal(["make invite link", "join session", "add annotation", "add annotation", "change annotations", "add annotation", "add group", "delete annotation"],
             await WhatsAsync(alice, $"collectionId={id}&order=oldest"));
         Assert.Equal(["add annotation", "add annotation"], await WhatsAsync(alice, $"collectionId={id}&order=oldest&kind=add&createdBy=alice"));
         Assert.Equal(HttpStatusCode.BadRequest, (await alice.GetAsync($"/changesets?collectionId={id}&order=sideways")).StatusCode);
@@ -1240,8 +1349,8 @@ public class HistoryTests : IClassFixture<CellCountApiFactory>
 
         var facets = (await alice.GetFromJsonAsync<ChangeSetFacets>($"/changesets/facets?collectionId={id}", Json))!;
 
-        Assert.Equal([("alice", "User alice", 3), ("bob", "User bob", 3)], facets.Authors.Select(a => (a.Id, a.Name, a.Count)));
-        Assert.Equal([("add", 4), ("change", 1), ("delete", 1)], facets.Kinds.Select(k => (k.Kind, k.Count)));
+        Assert.Equal([("alice", "User alice", 4), ("bob", "User bob", 4)], facets.Authors.Select(a => (a.Id, a.Name, a.Count)));
+        Assert.Equal([("add", 4), ("change", 1), ("delete", 1), ("people", 2)], facets.Kinds.Select(k => (k.Kind, k.Count)));
         Assert.Equal(HttpStatusCode.NotFound, (await As("carol").GetAsync($"/changesets/facets?collectionId={id}")).StatusCode);
     }
 
@@ -1254,8 +1363,342 @@ public class HistoryTests : IClassFixture<CellCountApiFactory>
     [InlineData("import", "import")]
     [InlineData("restore", "restore")]
     [InlineData("change group", "change")]
-    [InlineData("rename session", "change")]
+    [InlineData("rename collection", "change")]
+    [InlineData("share collection", "people")]
+    [InlineData("stop sharing collection", "people")]
+    [InlineData("end session", "people")]
+    [InlineData("join session", "people")]
+    [InlineData("leave session", "people")]
+    [InlineData("change role", "people")]
+    [InlineData("remove member", "people")]
+    [InlineData("make invite link", "people")]
+    [InlineData("change invite link", "people")]
+    [InlineData("stop invite link", "people")]
     public void AChangesKind_ComesFromWhatItDid(string what, string kind) => Assert.Equal(kind, ChangeKinds.Of(what));
+
+    // A kind of its own in the list, and in none of the others.
+    [Fact]
+    public async Task EveryPeopleChange_IsOnlyInItsOwnKind()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        await WithDbAsync(async db =>
+        {
+            db.ChangeSets.AddRange(ChangeKinds.PeopleWhats.Select(what => new ChangeSet
+            {
+                Id = Guid.NewGuid(),
+                CollectionId = id,
+                UserId = "alice",
+                UserName = "User alice",
+                What = what,
+                Created = DateTimeOffset.UtcNow,
+            }));
+            return await db.SaveChangesAsync();
+        });
+
+        foreach (var kind in ChangeKinds.All)
+        {
+            var listed = await WhatsAsync(alice, $"collectionId={id}&kind={kind}");
+            Assert.Equal(kind == ChangeKinds.People ? ChangeKinds.PeopleWhats.Order() : [], listed.Order());
+        }
+        Assert.Equal([("people", ChangeKinds.PeopleWhats.Length)],
+            (await alice.GetFromJsonAsync<ChangeSetFacets>($"/changesets/facets?collectionId={id}", Json))!.Kinds.Select(k => (k.Kind, k.Count)));
+    }
+
+    // --- Names, sharing, sessions, people and links ---
+
+    private static async Task<(Guid Id, string Code)> SessionWithLinkAsync(HttpClient host, CollectionRole role = CollectionRole.Editor)
+    {
+        var start = await host.PostAsJsonAsync("/sessions", new EnsureRequest(NewSlide(), "Ki-67 review"), Json);
+        var id = (await start.Content.ReadFromJsonAsync<CollectionView>(Json))!.CollectionId;
+        return (id, await LinkAsync(host, id, role));
+    }
+
+    private static async Task<string> LinkAsync(HttpClient host, Guid id, CollectionRole role = CollectionRole.Editor)
+    {
+        var invite = await host.PostAsJsonAsync($"/collections/{id}/invites", new InviteRequest(role, 24), Json);
+        invite.EnsureSuccessStatusCode();
+        return (await invite.Content.ReadFromJsonAsync<InviteView>(Json))!.Code;
+    }
+
+    // Every change in it, oldest first, as who did what to whom: "Role Viewer
+    // to Editor on User bob". Times are only said to be there.
+    private static async Task<List<string>> StoryAsync(HttpClient client, Guid id)
+    {
+        var story = new List<string>();
+        static string Value(System.Text.Json.JsonElement value) => value.ValueKind switch
+        {
+            System.Text.Json.JsonValueKind.Null => "nothing",
+            System.Text.Json.JsonValueKind.String => DateTimeOffset.TryParse(value.GetString(), out _) ? "a time" : value.GetString()!,
+            _ => value.GetRawText().ToLowerInvariant(),
+        };
+        foreach (var change in (await client.GetFromJsonAsync<List<ChangeSetView>>($"/changesets?collectionId={id}&order=oldest", Json))!)
+        {
+            var did = (await ChangesAsync(client, change.Id)).Changes
+                .OrderBy(c => c.Entity).ThenBy(c => c.Column)
+                .Select(c => $"{c.Column} {Value(c.Before)} to {Value(c.After)}{(c.Names.FirstOrDefault() is { } name ? $" on {name}" : "")}");
+            story.Add($"{change.UserName}: {change.What} ({string.Join(", ", did)})");
+        }
+        return story;
+    }
+
+    [Fact]
+    public async Task RenamingAndSharing_AreChanges_WithWhatItWas()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+
+        (await alice.PutAsJsonAsync($"/collections/{id}", new RenameRequest("Margins"), Json)).EnsureSuccessStatusCode();
+        (await alice.PutAsJsonAsync($"/collections/{id}/sharing", new SharingRequest(true), Json)).EnsureSuccessStatusCode();
+        (await alice.PutAsJsonAsync($"/collections/{id}/sharing", new SharingRequest(false), Json)).EnsureSuccessStatusCode();
+
+        Assert.Equal(
+            [
+                "User alice: rename collection (CollectionName User alice's collection to Margins on Margins)",
+                "User alice: share collection (Shared false to true on Margins)",
+                "User alice: stop sharing collection (Shared true to false on Margins)",
+            ],
+            await StoryAsync(alice, id));
+    }
+
+    [Fact]
+    public async Task ASessionsPeopleAndLinks_AreAllChanges_ByWhoDidThem()
+    {
+        var (alice, bob, carol) = (As("alice"), As("bob"), As("carol"));
+        var (id, first) = await SessionWithLinkAsync(alice, CollectionRole.Viewer);
+        (await bob.PostAsync($"/invites/{first}/accept", null)).EnsureSuccessStatusCode();
+        (await carol.PostAsync($"/invites/{first}/accept", null)).EnsureSuccessStatusCode();
+        (await alice.PutAsJsonAsync($"/collections/{id}/members/bob", new MemberRequest("", CollectionRole.Editor), Json)).EnsureSuccessStatusCode();
+        var second = await LinkAsync(alice, id);
+        // A better link than the one they came in on.
+        (await carol.PostAsync($"/invites/{second}/accept", null)).EnsureSuccessStatusCode();
+        (await alice.PutAsJsonAsync($"/collections/{id}/invites/{second}", new InviteRequest(CollectionRole.Viewer, 24), Json)).EnsureSuccessStatusCode();
+        (await alice.DeleteAsync($"/collections/{id}/members/bob")).EnsureSuccessStatusCode();
+        (await carol.DeleteAsync($"/collections/{id}/members/carol")).EnsureSuccessStatusCode();
+        (await alice.DeleteAsync($"/collections/{id}/invites/{second}")).EnsureSuccessStatusCode();
+        await LinkAsync(alice, id);
+        (await alice.PostAsync($"/collections/{id}/end", null)).EnsureSuccessStatusCode();
+
+        Assert.Equal(
+            [
+                "User alice: make invite link (Expires nothing to a time, Role nothing to Viewer)",
+                "User bob: join session (Role nothing to Viewer on User bob)",
+                "User carol: join session (Role nothing to Viewer on User carol)",
+                "User alice: change role (Role Viewer to Editor on User bob)",
+                "User alice: make invite link (Expires nothing to a time, Role nothing to Editor, Stopped nothing to a time)",
+                "User carol: change role (Role Viewer to Editor on User carol)",
+                "User alice: change invite link (Expires a time to a time, Role Editor to Viewer)",
+                "User alice: remove member (Role Editor to nothing on User bob)",
+                "User carol: leave session (Role Editor to nothing on User carol)",
+                "User alice: stop invite link (Stopped nothing to a time)",
+                "User alice: make invite link (Expires nothing to a time, Role nothing to Editor)",
+                "User alice: end session (Ended nothing to a time on Ki-67 review, Stopped nothing to a time)",
+            ],
+            await StoryAsync(alice, id));
+    }
+
+    [Fact]
+    public async Task SavingASettingThatsAlreadyThere_IsntAChange()
+    {
+        var (alice, bob) = (As("alice"), As("bob"));
+        var own = (await OwnAsync(alice)).CollectionId;
+        (await alice.PutAsJsonAsync($"/collections/{own}", new RenameRequest(" User alice's collection "), Json)).EnsureSuccessStatusCode();
+        (await alice.PutAsJsonAsync($"/collections/{own}/sharing", new SharingRequest(false), Json)).EnsureSuccessStatusCode();
+        // Opening the slide again, as whatever you're called now.
+        await OwnAsync(TestAuthHandler.As(_factory.CreateClient(), "alice", "Alice Moore"), (await alice.GetFromJsonAsync<CollectionView>($"/collections/{own}", Json))!.SlideId);
+        Assert.Empty(await StoryAsync(alice, own));
+
+        var (id, code) = await SessionWithLinkAsync(alice);
+        (await bob.PostAsync($"/invites/{code}/accept", null)).EnsureSuccessStatusCode();
+        var before = await StoryAsync(alice, id);
+        (await bob.PostAsync($"/invites/{code}/accept", null)).EnsureSuccessStatusCode();
+        (await alice.PutAsJsonAsync($"/collections/{id}/members/bob", new MemberRequest("", CollectionRole.Editor), Json)).EnsureSuccessStatusCode();
+        (await alice.DeleteAsync($"/collections/{id}/invites/{code}")).EnsureSuccessStatusCode();
+        (await alice.DeleteAsync($"/collections/{id}/invites/{code}")).EnsureSuccessStatusCode();
+        Assert.Equal([.. before, "User alice: stop invite link (Stopped nothing to a time)"], await StoryAsync(alice, id));
+    }
+
+    // Turned down, so there's nothing to say they did.
+    [Fact]
+    public async Task ATurnedDownSetting_LeavesNoChangeSet()
+    {
+        var (alice, bob) = (As("alice"), As("bob"));
+        var (id, code) = await SessionWithLinkAsync(alice, CollectionRole.Editor);
+        (await bob.PostAsync($"/invites/{code}/accept", null)).EnsureSuccessStatusCode();
+        var before = await StoryAsync(alice, id);
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await bob.PutAsJsonAsync($"/collections/{id}", new RenameRequest("mine"), Json)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await bob.PostAsync($"/collections/{id}/end", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await bob.DeleteAsync($"/collections/{id}/members/alice")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await alice.DeleteAsync($"/collections/{id}/members/alice")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await alice.PutAsJsonAsync($"/collections/{id}/sharing", new SharingRequest(true), Json)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await alice.PostAsJsonAsync($"/collections/{id}/invites", new InviteRequest(CollectionRole.Owner, 24), Json)).StatusCode);
+
+        Assert.Equal(before, await StoryAsync(alice, id));
+    }
+
+    // A link's code is the only thing between it and the session, and anyone
+    // in the session - guests too - can read its history.
+    [Fact]
+    public async Task ALinksCode_IsNeverInTheHistory()
+    {
+        var alice = As("alice");
+        var (id, first) = await SessionWithLinkAsync(alice);
+        var second = await LinkAsync(alice, id);
+        (await As("bob").PostAsync($"/invites/{second}/accept", null)).EnsureSuccessStatusCode();
+        (await alice.PutAsJsonAsync($"/collections/{id}/invites/{second}", new InviteRequest(CollectionRole.Viewer, 1), Json)).EnsureSuccessStatusCode();
+        (await alice.DeleteAsync($"/collections/{id}/invites/{second}")).EnsureSuccessStatusCode();
+
+        var stored = await WithDbAsync(async db => (
+            Entries: System.Text.Json.JsonSerializer.Serialize(await db.HistoryEntries.Where(e => e.CollectionId == id).ToListAsync()),
+            Sets: System.Text.Json.JsonSerializer.Serialize(await db.ChangeSets.Where(c => c.CollectionId == id).ToListAsync())));
+        var served = new List<string> { await alice.GetStringAsync($"/changesets?collectionId={id}") };
+        foreach (var change in (await alice.GetFromJsonAsync<List<ChangeSetView>>($"/changesets?collectionId={id}", Json))!)
+        {
+            served.Add(await alice.GetStringAsync($"/changesets/{change.Id}/changes"));
+            served.Add(await alice.GetStringAsync($"/changesets/{change.Id}/deleted"));
+        }
+
+        Assert.All([stored.Entries, stored.Sets, .. served], text =>
+        {
+            Assert.DoesNotContain(first, text);
+            Assert.DoesNotContain(second, text);
+        });
+    }
+
+    // Putting one back would let someone in again, so it's turned down, with
+    // nothing left behind.
+    [Fact]
+    public async Task ASetting_CantBePutBack_AndNobodyComesBackWithIt()
+    {
+        var (alice, bob) = (As("alice"), As("bob"));
+        var (id, code) = await SessionWithLinkAsync(alice);
+        (await bob.PostAsync($"/invites/{code}/accept", null)).EnsureSuccessStatusCode();
+        (await alice.DeleteAsync($"/collections/{id}/members/bob")).EnsureSuccessStatusCode();
+        (await alice.PutAsJsonAsync($"/collections/{id}", new RenameRequest("Renamed"), Json)).EnsureSuccessStatusCode();
+        (await alice.DeleteAsync($"/collections/{id}/invites/{code}")).EnsureSuccessStatusCode();
+        var before = (await alice.GetFromJsonAsync<List<ChangeSetView>>($"/changesets?collectionId={id}", Json))!;
+
+        foreach (var change in before)
+        {
+            Assert.Equal(0, change.Deleted);
+            Assert.Equal(HttpStatusCode.Conflict, (await RestoreAsync(alice, change.Id)).StatusCode);
+        }
+
+        Assert.Equal(before.Count, await alice.GetFromJsonAsync<int>($"/changesets/total?collectionId={id}"));
+        Assert.Equal(HttpStatusCode.NotFound, (await bob.GetAsync($"/annotations?collectionId={id}")).StatusCode);
+        Assert.Equal("Renamed", (await alice.GetFromJsonAsync<CollectionView>($"/collections/{id}", Json))!.CollectionName);
+        Assert.Equal(HttpStatusCode.Gone, (await bob.PostAsync($"/invites/{code}/accept", null)).StatusCode);
+    }
+
+    // Its links stopping is part of deleting it, and they stay stopped.
+    [Fact]
+    public async Task DeletingASession_SaysItsLinkStopped_AndPuttingItBackLeavesItStopped()
+    {
+        var (alice, bob) = (As("alice"), As("bob"));
+        var (id, code) = await SessionWithLinkAsync(alice);
+        (await bob.PostAsync($"/invites/{code}/accept", null)).EnsureSuccessStatusCode();
+        var delete = ChangeSetOf(await alice.DeleteAsync($"/collections/{id}"));
+        Assert.Contains(await EntriesAsync(delete), e => e.Entity == HistoryLog.Invite && e.Op == HistoryOp.Update);
+
+        (await RestoreAsync(alice, delete)).EnsureSuccessStatusCode();
+
+        Assert.Equal(HttpStatusCode.OK, (await bob.GetAsync($"/annotations?collectionId={id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Gone, (await As("carol").PostAsync($"/invites/{code}/accept", null)).StatusCode);
+        Assert.Contains("User alice: delete collection (Stopped nothing to a time)", await StoryAsync(alice, id));
+    }
+
+    // --- Everything a change deleted ---
+
+    [Fact]
+    public async Task EverythingAChangeDeleted_CanBeListedAPageAtATime_InTheOrderItWent()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var ids = new List<Guid>();
+        for (var i = 0; i < 12; i++) ids.Add((await AddOnSlicesAsync(alice, id, $"Region {i}", i, i + 2)).Id);
+        var delete = ChangeSetOf(await alice.PostAsJsonAsync("/annotations/bulk-delete", new BulkDeleteRequest(id, ids), Json));
+
+        var all = (await alice.GetFromJsonAsync<DeletedPage>($"/changesets/{delete}/deleted", Json))!;
+        var pages = new List<DeletedRow>();
+        for (var skip = 0; skip < 15; skip += 5)
+        {
+            var page = (await alice.GetFromJsonAsync<DeletedPage>($"/changesets/{delete}/deleted?skip={skip}&take=5", Json))!;
+            Assert.Equal(12, page.Total);
+            pages.AddRange(page.Rows);
+        }
+
+        Assert.Equal((12, 12), (all.Total, all.Rows.Count));
+        Assert.Equal(all.Rows, pages);
+        Assert.Equal(ids.Order(), pages.Select(r => r.Id).Order());
+        Assert.All(pages, r => Assert.Equal(("annotation", $"Region {r.SliceFrom}", r.SliceFrom + 2), (r.Entity, r.Name, r.SliceTo)));
+        // The first few are the ones the change already names.
+        Assert.Equal((await ChangesAsync(alice, delete)).DeletedRows, pages.Take(ChangeSetChangesEndpoint.NamesShown));
+    }
+
+    [Theory]
+    [InlineData("region 1", 3)]
+    [InlineData("  REGION 11 ", 1)]
+    [InlineData("100%", 1)]
+    [InlineData("_", 1)]
+    [InlineData("'; --", 0)]
+    [InlineData("", 14)]
+    public async Task WhatAChangeDeleted_CanBeFoundByName(string search, int found)
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var ids = new List<Guid>();
+        foreach (var label in Enumerable.Range(0, 12).Select(i => $"Region {i}").Append("100% sure").Append("a_b"))
+            ids.Add((await AddAnnotationAsync(alice, id, label)).Id);
+        var delete = ChangeSetOf(await alice.PostAsJsonAsync("/annotations/bulk-delete", new BulkDeleteRequest(id, ids), Json));
+
+        var page = (await alice.GetFromJsonAsync<DeletedPage>($"/changesets/{delete}/deleted?search={Uri.EscapeDataString(search)}&take=2", Json))!;
+
+        Assert.Equal((found, Math.Min(found, 2)), (page.Total, page.Rows.Count));
+    }
+
+    // A count's region goes with it, so isn't one of its own.
+    [Fact]
+    public async Task WhatAChangeDeleted_IsEveryKindOfRow_AndStaysListedOnceItsBack()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var annotation = await AddAnnotationAsync(alice, id, "Duct");
+        var group = await AddGroupAsync(alice, id, "Stroma", [annotation.Id]);
+        var counted = await alice.PostAsJsonAsync("/cellcounts", new CellCount
+        {
+            CollectionId = id,
+            Label = "Mitoses",
+            Dots = "[]",
+            Slice = 4,
+            RegionOfInterest = new RegionOfInterest { GeoJson = "{}" },
+        });
+        var count = (await counted.Content.ReadFromJsonAsync<CellCount>(Json))!;
+        var change = Guid.NewGuid();
+        foreach (var url in new[] { $"/annotationgroups/{group.Id}", $"/annotations/{annotation.Id}", $"/cellcounts/{count.Id}" })
+            (await alice.SendAsync(InChangeSet(HttpMethod.Delete, url, change))).EnsureSuccessStatusCode();
+
+        async Task<List<(string, string?, int?)>> ListedAsync() =>
+            (await alice.GetFromJsonAsync<DeletedPage>($"/changesets/{change}/deleted", Json))!.Rows.Select(r => (r.Entity, r.Name, r.SliceFrom)).ToList();
+        List<(string, string?, int?)> expected = [("group", "Stroma", null), ("annotation", "Duct", null), ("cellCount", "Mitoses", 4)];
+        Assert.Equal(expected, await ListedAsync());
+
+        (await RestoreAsync(alice, change)).EnsureSuccessStatusCode();
+        Assert.Equal(expected, await ListedAsync());
+    }
+
+    [Fact]
+    public async Task WhatAChangeDeleted_IsForPeopleInTheCollection()
+    {
+        var alice = As("alice");
+        var id = (await OwnAsync(alice)).CollectionId;
+        var delete = ChangeSetOf(await alice.DeleteAsync($"/annotations/{(await AddAnnotationAsync(alice, id)).Id}"));
+
+        Assert.Equal(HttpStatusCode.NotFound, (await As("bob").GetAsync($"/changesets/{delete}/deleted")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await alice.GetAsync($"/changesets/{Guid.NewGuid()}/deleted")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await alice.GetAsync($"/changesets/{delete}/deleted?take=0")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await alice.GetAsync($"/changesets/{delete}/deleted?skip=-1")).StatusCode);
+    }
 
     [Fact]
     public async Task ChangeSets_AreListedNewestFirst_WithWhatTheyStillHaveDeleted()

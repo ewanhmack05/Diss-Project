@@ -48,6 +48,17 @@ describe("changeLabel", () => {
 			"import",
 			"delete collection",
 			"restore",
+			"rename collection",
+			"share collection",
+			"stop sharing collection",
+			"end session",
+			"join session",
+			"leave session",
+			"change role",
+			"remove member",
+			"make invite link",
+			"change invite link",
+			"stop invite link",
 		];
 		const labels = whats.map((what) => changeLabel({ what, deleted: 1 }));
 		// Every one has its own wording, not the fallback.
@@ -197,7 +208,7 @@ describe("restoreNote", () => {
 
 describe("KIND_LABELS", () => {
 	it("names every kind, in the store's order", () => {
-		expect(Object.keys(KIND_LABELS)).toEqual(["add", "change", "delete", "merge", "import", "restore"]);
+		expect(Object.keys(KIND_LABELS)).toEqual(["add", "change", "delete", "merge", "import", "restore", "people"]);
 		expect(KIND_LABELS.restore).toBe("Put back");
 	});
 });
@@ -213,6 +224,10 @@ describe("changeKind", () => {
 		expect(changeKind("restore")).toBe("restore");
 		expect(changeKind("restore annotation")).toBe("restore");
 		expect(changeKind("restore cell count")).toBe("restore");
+		expect(changeKind("join session")).toBe("people");
+		expect(changeKind("stop invite link")).toBe("people");
+		expect(changeKind("share collection")).toBe("people");
+		expect(changeKind("rename collection")).toBe("change");
 		expect(changeKind("something new")).toBe("change");
 	});
 });
@@ -273,7 +288,7 @@ describe("restoredOps", () => {
 	});
 
 	it("sends the whole of a changed annotation, so its group and colour both arrive", () => {
-		expect(restoredOps(restored)[2].data).toEqual({ id: "a2", groupId: "g1" });
+		expect(restoredOps(restored)[2].data).toEqual({ id: "a2", groupId: "g1", putBack: true });
 	});
 
 	it("leaves the store's member count off a group, like a made one", () => {
@@ -291,7 +306,29 @@ describe("restoredOps", () => {
 			changedCellCounts: [{ id: "c2", label: "back", dots: null } as Restored["cellCounts"][number]],
 		});
 
-		expect(ops).toEqual([{ kind: "update", entity: "cellCount", id: "c2", data: { id: "c2", label: "back" } }]);
+		expect(ops).toEqual([{ kind: "update", entity: "cellCount", id: "c2", data: { id: "c2", label: "back", putBack: true } }]);
+	});
+
+	it("says when the text was put back, so nobody takes it for typing", () => {
+		const [, , changed] = restoredOps(restored, 12);
+		expect(changed.data).toEqual({ id: "a2", groupId: "g1", textAt: 12, putBack: true });
+	});
+
+	it("tells everyone about groups that went back to another name", () => {
+		const ops = restoredOps({
+			counts: none,
+			annotations: [],
+			groups: [],
+			cellCounts: [],
+			imageAdjustments: [],
+			changedAnnotations: [],
+			changedGroups: [{ id: "g1", collectionId: "c", name: "was", notes: "", created: "", count: 3 }],
+			changedCellCountGroups: [{ id: "g2", collectionId: "c", name: "was too", notes: "", created: "", count: 0 }],
+		});
+		expect(ops.map((op) => [op.kind, op.entity, op.id, (op.data as { name: string }).name])).toEqual([
+			["update", "annotationGroup", "g1", "was"],
+			["update", "cellCountGroup", "g2", "was too"],
+		]);
 	});
 
 	it("sends nothing for nothing", () => {

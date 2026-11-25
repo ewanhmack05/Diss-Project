@@ -51,11 +51,15 @@ public record SliceRangeUpdate(int? SliceFrom, int? SliceTo, SliceRange? Was = n
 // What PUT /annotations/{id} takes. Label, notes and colour are all
 // replaced. WasColour is the colour the save started from, for a session
 // that turns down a save made over someone else's change - see
-// Conflicts/EditConflicts.cs. Left out, it isn't checked.
+// Conflicts/EditConflicts.cs. WasLabel and WasNotes are the same for the text,
+// checked in every session: one that's the same as its was stays as it is.
+// Left out, it isn't checked.
 public class AnnotationUpdate
 {
     public string Label { get; set; } = "";
     public string Notes { get; set; } = "";
     public string Colour { get; set; } = "";
     public string? WasColour { get; set; }
+    public string? WasLabel { get; set; }
+    public string? WasNotes { get; set; }
 }

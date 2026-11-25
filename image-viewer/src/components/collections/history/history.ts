@@ -4,6 +4,8 @@ import type { CellCount } from "../../../interfaces/CellCount";
 import type { CellCountGroup } from "../../../interfaces/CellCountGroup";
 import type { ImageAdjustmentPreset } from "../../../interfaces/ImageAdjustment";
 import type { AnnotationOp } from "../../realtime/realtime";
+import type { TextWas } from "../../realtime/putText";
+import { withWhen } from "../../realtime/storedText";
 
 // One change in a collection, as GET /changesets gives it - see
 // annotation-store's History/. deleted is how many rows it deleted that
@@ -56,6 +58,11 @@ interface Restored {
 	// The same for cell counts, without dots.
 	changedCellCounts?: CellCount[];
 	cellCountGroups?: CellCountGroup[];
+	// Groups already there whose name or notes went back.
+	changedGroups?: (AnnotationGroup & { count?: number })[];
+	changedCellCountGroups?: CellCountGroup[];
+	// What the text it put back over said.
+	textWas?: TextWas[];
 }
 
 const number = (n: number) => n.toLocaleString("en-GB");
@@ -93,7 +100,33 @@ const LABELS: Record<string, (deleted: number) => string> = {
 	"restore annotation": () => "Put an annotation back",
 	"restore cell count": () => "Put a cell count back",
 	"restore collection": () => "Put the whole collection back",
+	"rename collection": () => "Renamed the collection",
+	"share collection": () => "Shared the collection",
+	"stop sharing collection": () => "Stopped sharing the collection",
+	"end session": () => "Ended the session",
+	"join session": () => "Joined the session",
+	"leave session": () => "Left the session",
+	"change role": () => "Changed someone's access",
+	"remove member": () => "Took someone out of the session",
+	"make invite link": () => "Made an invite link",
+	"change invite link": () => "Changed the invite link",
+	"stop invite link": () => "Stopped the invite link",
 };
+
+// Who can see or change the collection, rather than what's in it - the
+// store's ChangeKinds.PeopleWhats.
+const PEOPLE = new Set([
+	"share collection",
+	"stop sharing collection",
+	"end session",
+	"join session",
+	"leave session",
+	"change role",
+	"remove member",
+	"make invite link",
+	"change invite link",
+	"stop invite link",
+]);
 
 // "12 annotations and a cell count", or what it was called if that says nothing.
 function sentList({ annotations, cellCounts, name }: ChangeSetSource): string {
@@ -175,10 +208,11 @@ function restoreNote({ what }: Pick<ChangeSet, "what">): string {
 }
 
 // Which icon a row gets.
-type ChangeKind = "add" | "change" | "delete" | "merge" | "import" | "restore";
+type ChangeKind = "add" | "change" | "delete" | "merge" | "import" | "restore" | "people";
 
 function changeKind(what: string): ChangeKind {
 	if (what === "import") return what;
+	if (PEOPLE.has(what)) return "people";
 	if (what.startsWith("restore")) return "restore";
 	if (what === "merge groups") return "merge";
 	if (what.startsWith("add")) return "add";
@@ -195,6 +229,7 @@ const KIND_LABELS: Record<ChangeKind, string> = {
 	merge: "Merged",
 	import: "Imported",
 	restore: "Put back",
+	people: "People and sharing",
 };
 
 // "AM" for Alice Moore - first and last word.
@@ -226,8 +261,9 @@ function byDay<T extends { created: string }>(items: T[], heading: (iso: string)
 
 // Everyone else is told with a create per row, the same as an import, and an
 // update for each one that was already there. Image adjustments are
-// personal, so nobody else needs them.
-function restoredOps(restored: Restored): AnnotationOp[] {
+// personal, so nobody else needs them. at is the store's stamp on the text
+// (see storedText.ts).
+function restoredOps(restored: Restored, at?: number): AnnotationOp[] {
 	// Groups first, so an annotation that's in one never arrives before it.
 	return [
 		...restored.groups.map(({ count: _count, ...group }): AnnotationOp => ({
@@ -237,12 +273,29 @@ function restoredOps(restored: Restored): AnnotationOp[] {
 			data: { ...group, notes: group.notes ?? "" },
 		})),
 		...(restored.cellCountGroups ?? []).map((group): AnnotationOp => ({ kind: "create", entity: "cellCountGroup", id: group.id, data: group })),
+		...(restored.changedGroups ?? []).map(({ id, name, notes }): AnnotationOp => ({
+			kind: "update",
+			entity: "annotationGroup",
+			id,
+			data: { name, notes: notes ?? "" },
+		})),
+		...(restored.changedCellCountGroups ?? []).map(({ id, name, notes }): AnnotationOp => ({
+			kind: "update",
+			entity: "cellCountGroup",
+			id,
+			data: { name, notes },
+		})),
 		...restored.annotations.map((a): AnnotationOp => ({ kind: "create", entity: "annotation", id: a.id, data: a })),
-		...(restored.changedAnnotations ?? []).map((a): AnnotationOp => ({ kind: "update", entity: "annotation", id: a.id, data: a })),
+		...(restored.changedAnnotations ?? []).map((a): AnnotationOp => ({ kind: "update", entity: "annotation", id: a.id, data: withWhen(a, { at, putBack: true }) })),
 		...restored.cellCounts.map((c): AnnotationOp => ({ kind: "create", entity: "cellCount", id: c.id, data: c })),
 		// Without dots, which the store left out - a null would wipe the ones
 		// they have loaded.
-		...(restored.changedCellCounts ?? []).map(({ dots: _dots, ...c }): AnnotationOp => ({ kind: "update", entity: "cellCount", id: c.id, data: c })),
+		...(restored.changedCellCounts ?? []).map(({ dots: _dots, ...c }): AnnotationOp => ({
+			kind: "update",
+			entity: "cellCount",
+			id: c.id,
+			data: withWhen(c, { at, putBack: true }),
+		})),
 	];
 }
 

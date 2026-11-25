@@ -63,7 +63,7 @@ function nothingToDo(view: Pick<RollbackView, "annotations" | "groups" | "cellCo
 
 // Said above the button, so it's clear what happens before it does.
 const ROLLBACK_NOTE =
-	"This undoes every change since this one, whoever made it, for everyone in this collection. It's a change of its own, so anything taken out can come back, and it can be gone back on too. Image adjustments stay as they are.";
+	"This undoes every change since this one, whoever made it, for everyone in this collection. It's a change of its own, so anything taken out can come back, and it can be gone back on too. Image adjustments stay as they are, and so do the name, who's in it and its links.";
 
 export { canRollBack, nothingToDo, previewPath, rollbackLines, rollbackPath, ROLLBACK_NOTE };
 export type { RollbackCounts, RollbackView };

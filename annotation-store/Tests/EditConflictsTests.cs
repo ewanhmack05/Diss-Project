@@ -1,6 +1,7 @@
 using System.Diagnostics.Metrics;
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using AnnotationStore.Annotations;
 using AnnotationStore.CellCounts;
 using AnnotationStore.Collections;
@@ -28,7 +29,8 @@ public class EditConflictsTests : IClassFixture<CellCountApiFactory>, IDisposabl
         _factory = factory;
         _listener.InstrumentPublished = (instrument, listener) =>
         {
-            if (instrument.Meter.Name == EditConflicts.MeterName) listener.EnableMeasurementEvents(instrument);
+            if (instrument.Meter.Name == EditConflicts.MeterName && instrument.Name == "annotation_store.conflicting_saves")
+                listener.EnableMeasurementEvents(instrument);
         };
         _listener.SetMeasurementEventCallback<long>((_, value, tags, _) =>
         {
@@ -88,6 +90,219 @@ public class EditConflictsTests : IClassFixture<CellCountApiFactory>, IDisposabl
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AnnotationDbContext>();
         return (await db.ChangeSets.AnyAsync(c => c.Id == changeSet), await db.HistoryEntries.CountAsync(e => e.ChangeSetId == changeSet));
+    }
+
+    // --- Labels and notes, which are merged live ---
+
+    private static Task<HttpResponseMessage> TypeAsync(
+        HttpClient client, Guid id, string label, string? wasLabel, string notes = "", string? wasNotes = null, Guid? changeSet = null)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Put, $"/annotations/{id}")
+        {
+            Content = JsonContent.Create(new AnnotationUpdate
+            {
+                Label = label,
+                WasLabel = wasLabel,
+                Notes = notes,
+                WasNotes = wasNotes,
+                Colour = "#FF0000",
+                WasColour = "#FF0000",
+            }, options: Json),
+        };
+        if (changeSet is { } inside) request.Headers.Add(ChangeSetEndpoints.Header, inside.ToString());
+        return client.SendAsync(request);
+    }
+
+    private static Task<HttpResponseMessage> TypeOnCountAsync(
+        HttpClient client, Guid id, string label, string? wasLabel, string notes = "", string? wasNotes = null) =>
+        client.PutAsJsonAsync($"/cellcounts/{id}", new CellCountUpdate { Label = label, WasLabel = wasLabel, Notes = notes, WasNotes = wasNotes, Count = 1 }, Json);
+
+    // Whatever the policy - it isn't a question of whose to keep.
+    [Theory]
+    [InlineData(EditPolicy.LastWriteWins)]
+    [InlineData(EditPolicy.FirstComeWins)]
+    public async Task TextSavedFromTextThatsChangedSince_IsTurnedDown_SayingWhatItIsNow(EditPolicy policy)
+    {
+        var session = await SessionAsync(policy);
+        var (alice, bob) = (As("alice"), As("bob"));
+        var annotation = await AddAsync(alice, session.CollectionId, "");
+        (await TypeAsync(alice, annotation.Id, "a", wasLabel: "")).EnsureSuccessStatusCode();
+        var turnedDown = Guid.NewGuid();
+
+        var stale = await TypeAsync(bob, annotation.Id, "x", wasLabel: "", changeSet: turnedDown);
+
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+        var conflict = (await stale.Content.ReadFromJsonAsync<ConflictView>(Json))!;
+        Assert.True(conflict.Text);
+        Assert.Equal((annotation.Id, "User alice"), (conflict.Id, conflict.ChangedBy));
+        Assert.Equal(["Label"], conflict.Changed);
+        var now = ((System.Text.Json.JsonElement)conflict.Current).Deserialize<TextNow>(Json)!;
+        Assert.Equal(("a", ""), (now.Label, now.Notes));
+        Assert.Equal((false, 0), await ChangeSetAsync(turnedDown));
+        Assert.Equal("a", (await GetAsync(alice, session.CollectionId, annotation.Id)).Label);
+        // Not one of the policy's conflicts, so not counted with them.
+        Assert.Equal(0, Counted(policy, HistoryLog.Annotation));
+
+        // Worked out again from there, it's through.
+        (await TypeAsync(bob, annotation.Id, "ax", wasLabel: "a", changeSet: turnedDown)).EnsureSuccessStatusCode();
+        Assert.Equal((true, 1), await ChangeSetAsync(turnedDown));
+    }
+
+    // Typing in the notes while someone else types in the label: each save
+    // only sets its own box.
+    [Fact]
+    public async Task ABoxThatIsntBeingChanged_StaysAsItIs_HoweverOldTheCopy()
+    {
+        var session = await SessionAsync(null);
+        var (alice, bob) = (As("alice"), As("bob"));
+        var annotation = await AddAsync(alice, session.CollectionId, "old");
+        (await TypeAsync(alice, annotation.Id, "new", wasLabel: "old")).EnsureSuccessStatusCode();
+
+        var notes = await TypeAsync(bob, annotation.Id, "old", wasLabel: "old", notes: "seen", wasNotes: "");
+
+        notes.EnsureSuccessStatusCode();
+        var now = await GetAsync(alice, session.CollectionId, annotation.Id);
+        Assert.Equal(("new", "seen"), (now.Label, now.Notes));
+        Assert.Equal(1, await EntriesAsync(notes));
+    }
+
+    [Fact]
+    public async Task TextWithNoWas_IsntChecked_AndOneThatsAlreadyThereIsFine()
+    {
+        var session = await SessionAsync(null);
+        var (alice, bob) = (As("alice"), As("bob"));
+        var annotation = await AddAsync(alice, session.CollectionId, "");
+        (await TypeAsync(alice, annotation.Id, "same", wasLabel: "")).EnsureSuccessStatusCode();
+
+        // A save whose answer was lost on the way, sent again.
+        (await TypeAsync(alice, annotation.Id, "same", wasLabel: "")).EnsureSuccessStatusCode();
+        // A script, or a viewer from before this.
+        (await TypeAsync(bob, annotation.Id, "written over", wasLabel: null)).EnsureSuccessStatusCode();
+
+        Assert.Equal("written over", (await GetAsync(alice, session.CollectionId, annotation.Id)).Label);
+    }
+
+    // The gap this closes: a form that was open all along saving its old text
+    // over what's just been put back.
+    [Fact]
+    public async Task AFormOpenSinceBeforeAPutBack_CantSaveItsOldTextOverIt()
+    {
+        var session = await SessionAsync(null);
+        var (alice, bob) = (As("alice"), As("bob"));
+        var annotation = await AddAsync(alice, session.CollectionId, "Duct");
+        var edit = Guid.NewGuid();
+        (await TypeAsync(alice, annotation.Id, "Not a duct", wasLabel: "Duct", changeSet: edit)).EnsureSuccessStatusCode();
+        (await alice.PostAsync($"/changesets/{edit}/restore", null)).EnsureSuccessStatusCode();
+
+        var stale = await TypeAsync(bob, annotation.Id, "Not a duct at all", wasLabel: "Not a duct");
+
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+        Assert.Equal("Duct", (await GetAsync(alice, session.CollectionId, annotation.Id)).Label);
+    }
+
+    [Fact]
+    public async Task ACountsText_IsCheckedTheSameWay_AndSaysNothingOfItsDots()
+    {
+        var session = await SessionAsync(null);
+        var (alice, bob) = (As("alice"), As("bob"));
+        var count = await AddCountAsync(alice, session.CollectionId, "c");
+        (await TypeOnCountAsync(alice, count.Id, "mitoses", wasLabel: "c")).EnsureSuccessStatusCode();
+
+        var stale = await TypeOnCountAsync(bob, count.Id, "cells", wasLabel: "c");
+
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+        var body = await stale.Content.ReadAsStringAsync();
+        Assert.Contains("\"text\":true", body);
+        Assert.DoesNotContain("dots", body);
+        (await TypeOnCountAsync(bob, count.Id, "c", wasLabel: "c", notes: "seen", wasNotes: "")).EnsureSuccessStatusCode();
+        var now = (await alice.GetFromJsonAsync<CellCount>($"/cellcounts/{count.Id}", Json))!;
+        Assert.Equal(("mitoses", "seen", 1), (now.Label, now.Notes, now.Count));
+    }
+
+    private static long TextAt(HttpResponseMessage response) => long.Parse(Assert.Single(response.Headers.GetValues(EditConflicts.TextAtHeader)));
+
+    // Answers and ops can get to a viewer in any order, so each says when.
+    [Fact]
+    public async Task EveryAnswerAboutTheText_SaysWhenThatWas()
+    {
+        var session = await SessionAsync(null);
+        var (alice, bob) = (As("alice"), As("bob"));
+        var annotation = await AddAsync(alice, session.CollectionId, "");
+        var count = await AddCountAsync(alice, session.CollectionId, "c");
+        var edit = Guid.NewGuid();
+
+        var saved = await TypeAsync(alice, annotation.Id, "a", wasLabel: "", changeSet: edit);
+        var stale = await TypeAsync(bob, annotation.Id, "x", wasLabel: "");
+        var again = await TypeAsync(bob, annotation.Id, "ax", wasLabel: "a");
+        var restored = await alice.PostAsync($"/changesets/{edit}/restore", null);
+
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+        Assert.True(TextAt(saved) < TextAt(stale) && TextAt(stale) < TextAt(again) && TextAt(again) < TextAt(restored));
+        // Fits in a number in the viewer.
+        Assert.True(TextAt(restored) < 1L << 53);
+        Assert.True(TextAt(await TypeOnCountAsync(alice, count.Id, "d", wasLabel: "c")) < TextAt(await TypeOnCountAsync(bob, count.Id, "x", wasLabel: "c")));
+    }
+
+    [Fact]
+    public async Task AViewerOnAnotherAddress_CanReadWhenThatWas()
+    {
+        var session = await SessionAsync(null);
+        var annotation = await AddAsync(As("alice"), session.CollectionId, "");
+        var request = new HttpRequestMessage(HttpMethod.Put, $"/annotations/{annotation.Id}")
+        {
+            Content = JsonContent.Create(new AnnotationUpdate { Label = "a", WasLabel = "", Colour = "#FF0000", WasColour = "#FF0000" }, options: Json),
+        };
+        request.Headers.Add("Origin", "http://localhost:5173");
+
+        var response = await As("alice").SendAsync(request);
+
+        Assert.Contains(EditConflicts.TextAtHeader, string.Join(",", response.Headers.GetValues("Access-Control-Expose-Headers")));
+    }
+
+    // Two pauses in the same instant: one gets in, and the other has to look
+    // again - never both from the same text, which would lose the first.
+    [PostgresFact]
+    public async Task SavesOfTheSameTextAtTheSameMoment_LoseNobodysTyping()
+    {
+        var session = await SessionAsync(null);
+        var (alice, bob) = (As("alice"), As("bob"));
+        var annotation = await AddAsync(alice, session.CollectionId, "");
+        var count = await AddCountAsync(alice, session.CollectionId, "");
+
+        var saved = new List<(long At, int Length)>();
+        async Task TypeUntilInAsync(HttpClient client, string mark, Func<string, string, Task<HttpResponseMessage>> save)
+        {
+            for (var (was, tries) = ("", 0); ; tries++)
+            {
+                Assert.True(tries < 50);
+                var response = await save(was + mark, was);
+                if (response.IsSuccessStatusCode)
+                {
+                    lock (saved) saved.Add((TextAt(response), was.Length + 1));
+                    return;
+                }
+                var conflict = (await response.Content.ReadFromJsonAsync<ConflictView>(Json))!;
+                was = ((System.Text.Json.JsonElement)conflict.Current).Deserialize<TextNow>(Json)!.Label;
+            }
+        }
+        await Task.WhenAll(Enumerable.Range(0, 16).Select(i => TypeUntilInAsync(i % 2 == 0 ? alice : bob, $"{(char)('a' + i)}",
+            (label, was) => TypeAsync(i % 2 == 0 ? alice : bob, annotation.Id, label, was))));
+        await Task.WhenAll(Enumerable.Range(0, 16).Select(i => TypeUntilInAsync(i % 2 == 0 ? alice : bob, $"{(char)('a' + i)}",
+            (label, was) => TypeOnCountAsync(i % 2 == 0 ? alice : bob, count.Id, label, was))));
+
+        Assert.Equal("abcdefghijklmnop", string.Concat((await GetAsync(alice, session.CollectionId, annotation.Id)).Label.Order()));
+        // The newest text is the one that says it is - each has a letter more.
+        Assert.Equal(Enumerable.Range(1, 16), saved.Take(16).OrderBy(s => s.At).Select(s => s.Length));
+        Assert.Equal(Enumerable.Range(1, 16), saved.Skip(16).OrderBy(s => s.At).Select(s => s.Length));
+        Assert.Equal("abcdefghijklmnop", string.Concat((await alice.GetFromJsonAsync<CellCount>($"/cellcounts/{count.Id}", Json))!.Label.Order()));
+    }
+
+    private static async Task<CellCount> AddCountAsync(HttpClient client, Guid collectionId, string label)
+    {
+        var response = await client.PostAsJsonAsync("/cellcounts",
+            new CellCount { CollectionId = collectionId, Label = label, Dots = "[{\"x\":1,\"y\":2}]", Count = 1 }, Json);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<CellCount>(Json))!;
     }
 
     [Fact]

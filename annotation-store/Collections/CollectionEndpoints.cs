@@ -328,23 +328,30 @@ public static class CollectionEndpoints
             return Results.Created($"/collections/{collection.CollectionId}", View(collection, user.UserId()));
         });
 
-        app.MapPut("/collections/{id:guid}", async (Guid id, RenameRequest request, ClaimsPrincipal user, AnnotationDbContext db) =>
+        app.MapPut("/collections/{id:guid}", async (Guid id, RenameRequest request, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
             if (await db.RequireAsync(id, user, CollectionRole.Owner) is { } denied) return denied;
             if (string.IsNullOrWhiteSpace(request.CollectionName)) return Results.BadRequest("A name is needed");
             var collection = await db.Collections.Include(c => c.Members).FirstAsync(c => c.CollectionId == id);
-            collection.CollectionName = request.CollectionName.Trim();
+            var name = request.CollectionName.Trim();
+            // Saving what's already there isn't a change, here or below.
+            if (name == collection.CollectionName) return Results.Ok(View(collection, user.UserId()));
+            if ((await db.ChangeSetAsync(http, id, user, "rename collection")).Problem is { } problem) return problem;
+            collection.CollectionName = name;
             await db.SaveChangesAsync();
             return Results.Ok(View(collection, user.UserId()));
         });
 
         // Owner only, personal only. Lets anyone signed in look at it,
         // read-only, or stops them. A session has invite links for that.
-        app.MapPut("/collections/{id:guid}/sharing", async (Guid id, SharingRequest request, ClaimsPrincipal user, AnnotationDbContext db) =>
+        app.MapPut("/collections/{id:guid}/sharing", async (Guid id, SharingRequest request, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
             if (await db.RequireAsync(id, user, CollectionRole.Owner) is { } denied) return denied;
             var collection = await db.Collections.Include(c => c.Members).FirstAsync(c => c.CollectionId == id);
             if (collection.Kind != CollectionKind.Personal) return Results.BadRequest("Only a personal collection can be shared this way");
+            if (collection.Shared == request.Shared) return Results.Ok(View(collection, user.UserId()));
+            var what = request.Shared ? PeopleChanges.Share : PeopleChanges.StopSharing;
+            if ((await db.ChangeSetAsync(http, id, user, what)).Problem is { } problem) return problem;
             collection.Shared = request.Shared;
             await db.SaveChangesAsync();
             return Results.Ok(View(collection, user.UserId()));
@@ -474,11 +481,13 @@ public static class CollectionEndpoints
 
         // Host only. Stops its links and makes it read-only for everyone - it
         // stays so people can look back at it.
-        app.MapPost("/collections/{id:guid}/end", async (Guid id, ClaimsPrincipal user, AnnotationDbContext db) =>
+        app.MapPost("/collections/{id:guid}/end", async (Guid id, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
             if (await db.RequireAsync(id, user, CollectionRole.Owner) is { } denied) return denied;
             var collection = await db.Collections.Include(c => c.Members).Include(c => c.Invites).FirstAsync(c => c.CollectionId == id);
             if (collection.Kind != CollectionKind.Session) return Results.BadRequest("Only a session can be ended");
+
+            if ((await db.ChangeSetAsync(http, id, user, PeopleChanges.EndSession)).Problem is { } problem) return problem;
 
             var now = DateTimeOffset.UtcNow;
             collection.Ended = now;
@@ -490,7 +499,7 @@ public static class CollectionEndpoints
         // Host only, sessions only. Changes someone's role - never to Owner,
         // and never the host's own. People are added through invite links.
         app.MapPut("/collections/{id:guid}/members/{userId}",
-            async (Guid id, string userId, MemberRequest request, ClaimsPrincipal user, AnnotationDbContext db) =>
+            async (Guid id, string userId, MemberRequest request, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
             {
                 if (await db.RequireAsync(id, user, CollectionRole.Owner) is { } denied) return denied;
                 if (request.Role == CollectionRole.Owner) return Results.BadRequest("A collection has one owner");
@@ -501,6 +510,8 @@ public static class CollectionEndpoints
                 // link lets in. The host can make anyone an editor.
                 var member = await db.CollectionMembers.FindAsync(id, userId);
                 if (member is null) return Results.NotFound();
+                if (member.Role != request.Role
+                    && (await db.ChangeSetAsync(http, id, user, PeopleChanges.ChangeRole)).Problem is { } problem) return problem;
                 member.Role = request.Role;
                 if (!string.IsNullOrWhiteSpace(request.DisplayName)) member.DisplayName = request.DisplayName;
                 await db.SaveChangesAsync();
@@ -511,7 +522,7 @@ public static class CollectionEndpoints
 
         // The host taking someone out, or someone leaving. The host can't leave.
         app.MapDelete("/collections/{id:guid}/members/{userId}",
-            async (Guid id, string userId, ClaimsPrincipal user, AnnotationDbContext db) =>
+            async (Guid id, string userId, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
             {
                 var me = user.UserId();
                 var myRole = await db.RoleAsync(id, user);
@@ -522,6 +533,8 @@ public static class CollectionEndpoints
                 if (member is null) return Results.NotFound();
                 if (member.Role == CollectionRole.Owner) return Results.BadRequest("The owner can't be taken out");
 
+                var what = userId == me ? PeopleChanges.Leave : PeopleChanges.Remove;
+                if ((await db.ChangeSetAsync(http, id, user, what)).Problem is { } problem) return problem;
                 db.CollectionMembers.Remove(member);
                 await db.SaveChangesAsync();
                 return Results.NoContent();
@@ -529,13 +542,15 @@ public static class CollectionEndpoints
 
         // Host only. Makes a new link - any earlier one stops, so there's only
         // ever one working link per session.
-        app.MapPost("/collections/{id:guid}/invites", async (Guid id, InviteRequest request, ClaimsPrincipal user, AnnotationDbContext db) =>
+        app.MapPost("/collections/{id:guid}/invites", async (Guid id, InviteRequest request, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
             if (await db.RequireAsync(id, user, CollectionRole.Owner) is { } denied) return denied;
             if (!await IsSessionAsync(db, id)) return Results.BadRequest("Only a session can be joined");
             if (request.Role == CollectionRole.Owner) return Results.BadRequest("An invite can't make someone the host");
             if (request.Hours < 1 || request.Hours > MaxInviteHours)
                 return Results.BadRequest($"Hours has to be between 1 and {MaxInviteHours}");
+
+            if ((await db.ChangeSetAsync(http, id, user, PeopleChanges.MakeInvite)).Problem is { } problem) return problem;
 
             var now = DateTimeOffset.UtcNow;
             foreach (var old in await db.CollectionInvites.Where(i => i.CollectionId == id && i.Stopped == null).ToListAsync())
@@ -566,7 +581,7 @@ public static class CollectionEndpoints
 
         // Host only. Changes a working link in place - who it lets in as, and
         // how long from now it lasts. Same code, so it can still be shared as is.
-        app.MapPut("/collections/{id:guid}/invites/{code}", async (Guid id, string code, InviteRequest request, ClaimsPrincipal user, AnnotationDbContext db) =>
+        app.MapPut("/collections/{id:guid}/invites/{code}", async (Guid id, string code, InviteRequest request, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
             if (await db.RequireAsync(id, user, CollectionRole.Owner) is { } denied) return denied;
             if (request.Role == CollectionRole.Owner) return Results.BadRequest("An invite can't make someone the host");
@@ -578,18 +593,21 @@ public static class CollectionEndpoints
             if (invite.Stopped is not null || invite.Expires <= now)
                 return Results.Problem("This link has stopped working - make a new one", statusCode: StatusCodes.Status410Gone);
 
+            if ((await db.ChangeSetAsync(http, id, user, PeopleChanges.ChangeInvite)).Problem is { } problem) return problem;
             invite.Role = request.Role;
             invite.Expires = now.AddHours(request.Hours);
             await db.SaveChangesAsync();
             return Results.Ok(InviteViewOf(invite));
         });
 
-        app.MapDelete("/collections/{id:guid}/invites/{code}", async (Guid id, string code, ClaimsPrincipal user, AnnotationDbContext db) =>
+        app.MapDelete("/collections/{id:guid}/invites/{code}", async (Guid id, string code, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
             if (await db.RequireAsync(id, user, CollectionRole.Owner) is { } denied) return denied;
             var invite = await db.CollectionInvites.FirstOrDefaultAsync(i => i.Code == code && i.CollectionId == id);
             if (invite is null) return Results.NotFound();
-            invite.Stopped ??= DateTimeOffset.UtcNow;
+            if (invite.Stopped is not null) return Results.NoContent();
+            if ((await db.ChangeSetAsync(http, id, user, PeopleChanges.StopInvite)).Problem is { } problem) return problem;
+            invite.Stopped = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync();
             return Results.NoContent();
         });
@@ -637,7 +655,7 @@ public static class CollectionEndpoints
         // Joins the session with the invite's role, or view only once its
         // editors are full (see SessionSize). Someone already in it keeps
         // whichever role is higher.
-        app.MapPost("/invites/{code}/accept", async (string code, ClaimsPrincipal user, AnnotationDbContext db) =>
+        app.MapPost("/invites/{code}/accept", async (string code, HttpContext http, ClaimsPrincipal user, AnnotationDbContext db) =>
         {
             var invite = await db.CollectionInvites.FirstOrDefaultAsync(i => i.Code == code);
             if (invite is null) return Results.NotFound();
@@ -653,6 +671,10 @@ public static class CollectionEndpoints
             var me = user.UserId();
             var member = collection.Members.FirstOrDefault(m => m.UserId == me);
             var role = SessionSize.RoleOnJoin(invite.Role, member?.Role, SessionSize.Editors(collection.Members), collection.MaxEditors);
+            // Opening a link again to what you already are isn't a change.
+            if (member?.Role == role) return Results.Ok(View(collection, me));
+            var what = member is null ? PeopleChanges.Join : PeopleChanges.ChangeRole;
+            if ((await db.ChangeSetAsync(http, collection.CollectionId, user, what)).Problem is { } problem) return problem;
             if (member is null)
             {
                 collection.Members.Add(new CollectionMember
