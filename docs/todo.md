@@ -1,8 +1,9 @@
 # Todo
 
-Grouped by area, most important first. Version control is the dissertation's
-focus, so it comes first and gets the most detail. Sizes are rough: small is
-an afternoon, medium a few days, large a week or more.
+Grouped by area, most important first, except 14 and 15, which are at the end
+so links to the others still work. Version control is the dissertation's focus,
+so it comes first and gets the most detail. Sizes are rough: small is an
+afternoon, medium a few days, large a week or more.
 
 ## Done
 
@@ -123,14 +124,40 @@ an afternoon, medium a few days, large a week or more.
   reached, thumbnails that try again before falling back, and a tiler that
   lists 200 slides in 0.06s after a restart instead of 50s. See
   [gallery.md](gallery.md#finding-a-slide)
+- **On the map tab** (phases 1 to 3 of [layers.md](layers.md#9-phases)) - the
+  Collections panel opens on where you're working and how much of it is on the
+  map, with a chip per person and per group to show or hide, and why anything's
+  hidden. A dot on the Collections button says something's off the map. The
+  Select tab is only picking now
+- **Z-stacks** - a slide can be a volume, one slice per section. volume-prep
+  converts and lines up serial sections (rigid), the tiler serves them, and the
+  Depth tab steps through them. Two sets are in: 15 sections from EPFL and 47
+  from Kartasalo, both mouse liver. See [zstack.md](zstack.md#9-phases)
+- **3D view** - the same slices as a block in three.js: cut on X, Y or a
+  diagonal, how many slices, opacity, true depth, a gap between slices. The gap
+  between liver sections 9 and 10 shows as a break. A Z cut was built and taken
+  out, as Slices drawn already did it
+- **Annotating at a depth** - a shape is on the slice it was drawn on, a range
+  or every slice, and its slices can change after saving, with conflicts checked
+  under either policy. A count stays on the slice it was counted on. All of it
+  goes through history and files, and comes back after a delete. Putting a
+  [slice move](#known-gaps-still-open) back doesn't work yet
+- **Working together in 3D** (all six phases) - the slice live, who's in 3D,
+  other people's cameras, Follow and Present in 3D, look here, and markers. A
+  marker is three clicks: a corner, the opposite corner, then how deep. See
+  [volume-live.md](volume-live.md#5-phases)
+- **Four viewers read** - Cytomine 2013, xOpat, PIMIP and CytoBrowser, in
+  [background.md](background.md#read-and-noted). What came out of them is in
+  [section 12](#12-ideas-from-the-reading)
 - **Playback videos** - `node record.js` in [playback](../playback/README.md) remakes
   them all, messaging included, and each scene checks what it shows
 
 ## 1. Version control
 
-Steps 1 to 6 are done (see Done): every write is in a change
-set that says who did what, and the history schema keeps what each change
-did to every row, before and after. How it's built, across the services, is
+All seven steps are done (see Done), the last one simulated only, and there's
+[one bug to fix](#known-gaps-still-open): every write is in a change set that
+says who did what, and the history schema keeps what each change did to every
+row, before and after. How it's built, across the services, is
 in [version-control.md](breakdown/version-control.md). The Yjs history for a
 label or notes box is dropped when the last person closes it.
 
@@ -141,7 +168,7 @@ Each one builds on the one before.
 | #   | Step                                              | What it means here                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Size   |
 | --- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | 1   | ~~Soft delete~~                                   | Done, then replaced by step 2 - deleted rows are kept in the history now, not hidden in the live tables                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | medium |
-| 2   | History log                                       | Done in the store - `history.Entries`, one row per row a change touched, under its change set. This is the "user log" too - who did what is in it, so it doesn't need a store of its own. The History tab's detail page shows each changed field from and to (label, notes, colour as swatches, groups by name, "10 annotations" for a bulk recolour). One edit is one History row too - an open edit form sends one `Change-Set-Id` with every autosave, and the store folds repeat updates to a row in one change set into one entry, from how it was when the form opened to how it was when it closed | large  |
+| 2   | ~~History log~~                                   | Done in the store - `history.Entries`, one row per row a change touched, under its change set. This is the "user log" too - who did what is in it, so it doesn't need a store of its own. The History tab's detail page shows each changed field from and to (label, notes, colour as swatches, groups by name, "10 annotations" for a bulk recolour). One edit is one History row too - an open edit form sends one `Change-Set-Id` with every autosave, and the store folds repeat updates to a row in one change set into one entry, from how it was when the form opened to how it was when it closed | large  |
 | 3   | ~~Periodic snapshots~~                            | Done - a snapshot of what can change, every 5,000 entries, so a whole collection can go back to any change. See [version-control.md](breakdown/version-control.md#putting-a-whole-collection-back)                                                                                                                                                                                                                                                                                                                                                                                                        | medium |
 | 4   | ~~Viewing history~~                               | Done - the collection's timeline is the History tab, with put back, and each change shows what it changed, from and to. Every annotation and count has a timeline of its own, from History on its Saved row                                                                                                                                                                                                                                                                                                                                                                                               | medium |
 | 5   | ~~Rollback~~                                      | Done at all three sizes - a change set (unless someone's changed it since), one row to any point on its timeline, and a whole collection to any change                                                                                                                                                                                                                                                                                                                                                                                                                                                    | medium |
@@ -150,13 +177,12 @@ Each one builds on the one before.
 
 ### Things to decide before building
 
-- **Where the order comes from.** The hub's `seq` resets when a room empties
-  and isn't saved anywhere (see
-  [realtime-hub known gaps](breakdown/realtime-hub.md#12-known-gaps)), so it
-  can't be the version number. Use a version that annotation-store owns - a
-  per-item version number, plus a per-collection counter for ordering across
-  items. Keep the hub's `seq` in the log as well, for working out live
-  latency.
+- **Where the order comes from.** Decided: annotation-store's own.
+  `history.Entries` has a counting `Id`, and timelines, restores, rollback and
+  snapshots (`UpToEntry`) all go by it. There's no version number per item -
+  conflicts are checked per field, from the value a save started from. The hub's
+  `seq` resets when a room empties and isn't in the log (see
+  [realtime-hub known gaps](breakdown/realtime-hub.md#12-known-gaps)).
 - **Change sets, not just rows.** Done - every write is in one, and batches
   share one through the `Change-Set-Id` header. A Select tab recolour, a
   group merge and an import are each one change set, with an entry per row
@@ -209,6 +235,34 @@ Each one builds on the one before.
 Comparing at least two of these on the same field, with numbers, is the
 strongest thing the evaluation can show.
 
+### Known gaps still open
+
+The full list is in
+[version-control.md](breakdown/version-control.md#12-known-gaps). The ones that
+matter most, with one that isn't in there yet:
+
+- **Moving an annotation between slices can't be put back** - a bug. The move is
+  logged, but nothing undoes it. Putting the change back throws, and going back
+  on the annotation's timeline or putting the whole collection back says it
+  worked and leaves the new slices. Tried with tests on a copy of the store.
+  The columns that can go back are listed by hand, and `SliceFrom` and `SliceTo`
+  aren't in any of the lists: `Changeable` in
+  [ItemHistory.cs](../annotation-store/History/ItemHistory.cs),
+  `RevertAnnotationsAsync` in
+  [ChangeSets.cs](../annotation-store/History/ChangeSets.cs),
+  `ChangeAnnotationsAsync` in
+  [CollectionRollback.cs](../annotation-store/History/CollectionRollback.cs) and
+  the snapshots in [Snapshots.cs](../annotation-store/History/Snapshots.cs).
+  Small to medium - snapshots taken before the fix won't have the slices
+- **Not logged:** renaming a collection, sharing, ending a session, members and
+  invite links
+- **Someone else's typing saves under your edit**, in a session with the same
+  box open
+- **A form left open** puts its old text back on its next pause, after a put
+  back, a timeline step or a whole collection rollback
+- **Only the first 5 deleted rows** of a change can be opened
+- **The hub trusts the viewer** to have saved before it tells everyone
+
 ### Games parallels to write up
 
 - Authoritative server: annotation-store has the final say, the hub relays
@@ -220,7 +274,7 @@ strongest thing the evaluation can show.
 
 ### Reading to add to [background.md](background.md)
 
-Worth finding and adding with links:
+Worth finding and adding with links. None of these are in there yet:
 
 - Shapiro et al., _Conflict-free Replicated Data Types_ (2011) - the theory
   behind Yjs
@@ -287,8 +341,8 @@ The per-person on/off is done (see Done). Still open:
 
 ## 6. Still unfinished from before
 
-- **Rotation and image adjustments** are only shared in Present, not live
-  otherwise
+- **Image adjustments** are only shared in Present. Rotation goes with the
+  host's view, so Follow and Present both share it. Neither is shared otherwise
 - **Sessions are one slide each** - the Gallery moves between slides, but a
   session stays on one. Next is a session that moves with its people, the
   others asked whether to follow - a `CollectionSlides` join table, reads by
@@ -297,7 +351,8 @@ The per-person on/off is done (see Done). Still open:
 - **Azure** - two options costed in [azure.md](azure.md), nothing deployed
   yet. Tiler runs on linux now, so it isn't blocked. The deploy workflow has
   messaging in it, but has never run, and separate apps need the viewer's service
-  addresses made configurable first
+  addresses made configurable first. Only slide 003 is in the tiler image, so
+  where the volumes are hosted isn't decided
 
 ## 7. Messaging - what's left
 
@@ -318,11 +373,14 @@ it close to the merge in
 
 - Dark and light mode, following the system setting. The CSS already uses
   variables, so it's mostly a second set of values
-- Top and bottom dock layout
+- Top and bottom dock layout - docking there works, and most panels lay
+  themselves out for it. Collections, Collaboration and Messages have no styles
+  for it
 - Overhaul designs generally
-- **On the map tab** - a first tab in the Collections panel for where you're
-  working and what's on the map, as compact chips, replacing five controls in
-  three panels. See [layers.md](layers.md)
+- **On the map, phases 4 and 5** - other people's collections over yours, read
+  only, then copying from one into yours. Phases 1 to 3 are done (see Done).
+  Phase 5 is the one that touches annotation-store. See
+  [layers.md](layers.md#9-phases)
 
 ## 9. Maybe - probably cut
 
@@ -454,7 +512,61 @@ one tree do everything.
 sends a field, and the viewer gets new sections and a Group by. Groups people
 make, with history: large.
 
+## 14. Z-stacks and 3D - what's left
+
+Built (see Done). Still open, with the rest in
+[zstack.md](zstack.md#10-open-questions) and
+[volume-live.md](volume-live.md#7-open-questions):
+
+- **Live things that don't know the slice** - shared and comparison counts, and
+  2D shapes part way through being drawn, carry no slice. So dots placed from
+  different slices land in one count, saved on one slice, and someone's
+  half-drawn shape shows on your slice too. Read from the code (`SharedDot` and
+  `ComparisonDot` in the hub's
+  [Messages.cs](../realtime-hub/Slides/Messages.cs), sketches in
+  [sketch.ts](../image-viewer/src/components/realtime/sketch.ts)), not tried.
+  Medium - the counts need a hub contract change
+- **A shape's outline can't change after saving**, only its slices, and a
+  count's slice can't change at all
+- **Non-rigid registration** - rigid stops at a 43 um median on Kartasalo's
+  liver and can't fix torn sections. Large
+- **Follow in 2D while the host's in 3D** - the follower stays on the host's
+  slice. Should their map go to where the host's camera is pointing too?
+- **The cut under Follow** - following takes the host's cut, so you can't keep
+  your own. Is that right?
+- **How many cameras before it's noise** - past 6, only the host's and recent
+  movers show. A guess, and it wants real people
+- **Guests' cameras** go to everyone in the session. Not in
+  [ethics.md](ethics.md) yet
+- **Live 3D isn't in a playback video** - the depth scene is one person
+- **Frame rates on integrated graphics** - [zstack.md](zstack.md#9-phases)'s are
+  from a desktop graphics card
+- **Bigger data** - a true 3D set (PCa_Bx_3Dpathology) and mixed stains (HyReCo),
+  phase 8 in [zstack.md](zstack.md#9-phases). Probably future work
+
+## 15. Known bugs and gaps elsewhere
+
+Each service's doc has its own list. These are the ones worth fixing or saying in
+the write up, from the [viewer](breakdown/image-viewer.md#16-known-gaps),
+[tiler](breakdown/tiler.md#9-known-gaps),
+[annotation-store](breakdown/annotation-store.md#15-known-gaps) and
+[hub](breakdown/realtime-hub.md#12-known-gaps):
+
+- **Reopening a session doesn't reload it** - a bug. Changes made while you were
+  looking at it read only don't show until a reload
+- **Saves aren't rolled back if they fail** - there's a toast, but it stays on
+  screen, and on everyone else's
+- **Viewing a big count freezes the page** while its dots are read
+- **The map loads every annotation** in a collection, not just what's in view
+- **Transparent corners are black on tiles**
+- **The tiler has no sign in** - fine for public slides only
+- **No component tests** in the viewer
+- **Before anything's deployed** - any origin is allowed, and the guest signing
+  key is a dev one. See [azure.md](azure.md#before-anything-is-public)
+
 ## Suggested order
 
-1. **Reading list** for [background.md](background.md), alongside the others
-2. **Writing it up** - version control is finished and measured
+1. **The slice move bug** in [section 1](#known-gaps-still-open) - an edit that's
+   in the history and can't be put back
+2. **Reading list** for [background.md](background.md), alongside the others
+3. **Writing it up** - version control is finished and measured, apart from that
